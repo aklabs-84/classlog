@@ -255,6 +255,51 @@ const StatCard = ({ label, value, icon: Icon, color }: {
   </div>
 );
 
+const PAGE_SIZE = 10;
+
+const getPagerRange = (page: number, totalPages: number): (number | '...')[] => {
+  const delta = 1;
+  const range: (number | '...')[] = [];
+  const start = Math.max(2, page - delta);
+  const end = Math.min(totalPages - 1, page + delta);
+
+  range.push(1);
+  if (start > 2) range.push('...');
+  for (let p = start; p <= end; p++) range.push(p);
+  if (end < totalPages - 1) range.push('...');
+  if (totalPages > 1) range.push(totalPages);
+
+  return range;
+};
+
+const Pager = ({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center flex-wrap gap-2 pt-4">
+      <button onClick={() => onChange(Math.max(1, page - 1))} disabled={page === 1}
+        className="px-4 py-2 text-sm font-bold text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+        이전
+      </button>
+      {getPagerRange(page, totalPages).map((p, i) =>
+        p === '...' ? (
+          <span key={`ellipsis-${i}`} className="w-9 h-9 flex items-center justify-center text-sm font-bold text-amber-400">
+            ...
+          </span>
+        ) : (
+          <button key={p} onClick={() => onChange(p)}
+            className={`w-9 h-9 text-sm font-bold rounded-xl transition-colors ${page === p ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700 border border-amber-200 hover:bg-amber-50'}`}>
+            {p}
+          </button>
+        )
+      )}
+      <button onClick={() => onChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+        className="px-4 py-2 text-sm font-bold text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+        다음
+      </button>
+    </div>
+  );
+};
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 const Admin = () => {
@@ -263,6 +308,7 @@ const Admin = () => {
 
   // ── 탭 ─────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [page, setPage] = useState(1);
 
   // ── 대시보드 ───────────────────────────────────────────────────────────────
   const [dashStats, setDashStats]     = useState<DashboardStats | null>(null);
@@ -316,6 +362,8 @@ const Admin = () => {
   const [suggestions, setSuggestions]   = useState<SuggestionRow[]>([]);
   const [sugLoading, setSugLoading]     = useState(false);
   const [sugFilter, setSugFilter]       = useState<'all' | 'pending' | 'replied'>('all');
+
+  useEffect(() => { setPage(1); }, [activeTab, classFilterId, obsFilter, resStatusFilter, sugFilter]);
 
   // ── 공지사항 ────────────────────────────────────────────────────────────────
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
@@ -1520,7 +1568,7 @@ const Admin = () => {
         {activeTab === 'users' && (
           usersLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
           : <div className="space-y-3">
-            {users.map(u => {
+            {users.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(u => {
               const thisMonth = new Date().toISOString().slice(0, 7);
               const aiToday = u.ai_monthly_reset === thisMonth ? (u.ai_monthly_count ?? 0) : 0;
               const planInfo = PLAN_OPTIONS_ALL.find(p => p.value === u.plan) ?? PLAN_OPTIONS_ALL[0];
@@ -1747,6 +1795,9 @@ const Admin = () => {
             })}
           </div>
         )}
+        {activeTab === 'users' && !usersLoading && (
+          <Pager page={page} totalPages={Math.ceil(users.length / PAGE_SIZE)} onChange={setPage} />
+        )}
 
         {/* ── 활동 현황 ── */}
         {activeTab === 'activity' && (() => {
@@ -1841,7 +1892,7 @@ const Admin = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-amber-50">
-                          {sorted.map((t, i) => {
+                          {sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((t, i) => {
                             const isActive = t.last_active_at && Date.now() - new Date(t.last_active_at).getTime() < 7 * 86400000;
                             return (
                               <motion.tr key={t.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
@@ -1876,6 +1927,9 @@ const Admin = () => {
                     </div>
                   )
               }
+              {!activityLoading && teacherActivity.length > 0 && (
+                <Pager page={page} totalPages={Math.ceil(teacherActivity.length / PAGE_SIZE)} onChange={setPage} />
+              )}
             </>
           );
         })()}
@@ -1887,7 +1941,7 @@ const Admin = () => {
             {classesLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
             : classes.length === 0 ? <div className="text-center py-20 text-amber-400"><BookOpen size={40} className="mx-auto mb-3 opacity-40" /><p>생성된 학급이 없습니다</p></div>
             : <div className="space-y-3">
-              {classes.map((cls, i) => (
+              {classes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((cls, i) => (
                 <motion.div key={cls.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                   className="bg-white rounded-2xl border border-amber-100 p-5 flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
@@ -1911,6 +1965,9 @@ const Admin = () => {
                 </motion.div>
               ))}
             </div>}
+            {!classesLoading && classes.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(classes.length / PAGE_SIZE)} onChange={setPage} />
+            )}
           </>
         )}
 
@@ -1935,7 +1992,7 @@ const Admin = () => {
                   <th className="px-5 py-3" />
                 </tr></thead>
                 <tbody>
-                  {filteredStudents.map((stu, i) => (
+                  {filteredStudents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((stu, i) => (
                     <motion.tr key={stu.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
                       className="border-b border-amber-50 last:border-0 hover:bg-amber-50/40 transition-colors">
                       <td className="px-5 py-3 text-amber-500 font-mono text-xs">{stu.student_number ?? '—'}</td>
@@ -1950,6 +2007,9 @@ const Admin = () => {
                 </tbody>
               </table>
             </div>}
+            {!studentsLoading && filteredStudents.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(filteredStudents.length / PAGE_SIZE)} onChange={setPage} />
+            )}
           </>
         )}
 
@@ -1973,7 +2033,7 @@ const Admin = () => {
             {obsLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
             : filteredObs.length === 0 ? <div className="text-center py-20 text-amber-400"><ClipboardList size={40} className="mx-auto mb-3 opacity-40" /><p>활동 기록이 없습니다</p></div>
             : <div className="space-y-3">
-              {filteredObs.map((obs, i) => (
+              {filteredObs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((obs, i) => (
                 <motion.div key={obs.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                   className="bg-white rounded-2xl border border-amber-100 p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -1992,6 +2052,9 @@ const Admin = () => {
                 </motion.div>
               ))}
             </div>}
+            {!obsLoading && filteredObs.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(filteredObs.length / PAGE_SIZE)} onChange={setPage} />
+            )}
           </>
         )}
 
@@ -2023,7 +2086,7 @@ const Admin = () => {
                   <th className="px-5 py-3" />
                 </tr></thead>
                 <tbody>
-                  {filteredResults.map((r, i) => (
+                  {filteredResults.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r, i) => (
                     <motion.tr key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
                       className="border-b border-amber-50 last:border-0 hover:bg-amber-50/40 transition-colors">
                       <td className="px-5 py-3 font-bold text-amber-900">{r.students?.full_name ?? '미확인'}</td>
@@ -2041,6 +2104,9 @@ const Admin = () => {
                 </tbody>
               </table>
             </div>}
+            {!resultsLoading && filteredResults.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(filteredResults.length / PAGE_SIZE)} onChange={setPage} />
+            )}
           </>
         )}
 
@@ -2064,7 +2130,7 @@ const Admin = () => {
             {sugLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
             : filteredSuggestions.length === 0 ? <div className="text-center py-20 text-amber-400"><Megaphone size={40} className="mx-auto mb-3 opacity-40" /><p>등록된 질문·건의함 내용이 없습니다</p></div>
             : <div className="space-y-3">
-              {filteredSuggestions.map((s, i) => (
+              {filteredSuggestions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((s, i) => (
                 <motion.div key={s.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                   className="bg-white rounded-2xl border border-amber-100 p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -2090,6 +2156,9 @@ const Admin = () => {
                 </motion.div>
               ))}
             </div>}
+            {!sugLoading && filteredSuggestions.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(filteredSuggestions.length / PAGE_SIZE)} onChange={setPage} />
+            )}
           </>
         )}
 
@@ -2121,7 +2190,7 @@ const Admin = () => {
             {annLoading ? <div className="flex justify-center py-10"><Loader2 className="animate-spin text-amber-400" size={28} /></div>
             : announcements.length === 0 ? <div className="text-center py-16 text-amber-400"><Bell size={40} className="mx-auto mb-3 opacity-40" /><p>등록된 공지사항이 없습니다</p></div>
             : <div className="space-y-3">
-              {announcements.map((ann, i) => (
+              {announcements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((ann, i) => (
                 <motion.div key={ann.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                   className="bg-white rounded-2xl border border-amber-100 p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -2136,6 +2205,9 @@ const Admin = () => {
                 </motion.div>
               ))}
             </div>}
+            {!annLoading && announcements.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(announcements.length / PAGE_SIZE)} onChange={setPage} />
+            )}
           </>
         )}
 
@@ -2157,7 +2229,7 @@ const Admin = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {bugs.map((bug, i) => (
+                {bugs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((bug, i) => (
                   <motion.div key={bug.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                     className="bg-white rounded-2xl border border-amber-100 p-5 space-y-3"
                   >
@@ -2204,6 +2276,9 @@ const Admin = () => {
                   </motion.div>
                 ))}
               </div>
+            )}
+            {!bugsLoading && bugs.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(bugs.length / PAGE_SIZE)} onChange={setPage} />
             )}
           </>
         )}
@@ -2309,7 +2384,7 @@ const Admin = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {coupons.map(c => {
+                  {coupons.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(c => {
                     const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
                     const isFull = c.max_uses > 0 && c.used_count >= c.max_uses;
                     return (
@@ -2352,6 +2427,9 @@ const Admin = () => {
                     );
                   })}
                 </div>
+              )}
+              {!couponsLoading && coupons.length > 0 && (
+                <Pager page={page} totalPages={Math.ceil(coupons.length / PAGE_SIZE)} onChange={setPage} />
               )}
             </div>
           </div>
