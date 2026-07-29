@@ -8,8 +8,9 @@ import {
   Download, Sparkles, GripVertical, RotateCcw, Link2, CopyPlus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { surveyAnalysisAI } from '../../lib/gemini';
+import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
@@ -592,9 +593,12 @@ function QuestionEditor({ initial, onSave, onClose }: QuestionEditorProps) {
   );
 }
 
+const FREE_SURVEY_LIMIT = 1;
+
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export default function SurveyTool() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { limitToastMessage, showLimitToast } = useLimitToast();
 
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState<any | null>(null);
@@ -675,6 +679,16 @@ export default function SurveyTool() {
   // ── 새 설문 생성 ───────────────────────────────────────────────────────────
   const handleCreateForm = async () => {
     if (!selectedClass || !user) return;
+    if (!checkIsBasicOrAbove(profile)) {
+      const { count } = await supabase
+        .from('survey_forms')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', user.id);
+      if ((count ?? 0) >= FREE_SURVEY_LIMIT) {
+        showLimitToast(`무료 플랜은 설문을 최대 ${FREE_SURVEY_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        return;
+      }
+    }
     const pin = generatePin();
     const { data, error } = await supabase.from('survey_forms').insert({
       teacher_id: user.id, class_id: selectedClass.id,
@@ -854,6 +868,16 @@ export default function SurveyTool() {
   // ── 설문 복사 ─────────────────────────────────────────────────────────────
   const handleConfirmCopy = async () => {
     if (!copyingForm || !copyTargetClassId || !user) return;
+    if (!checkIsBasicOrAbove(profile)) {
+      const { count } = await supabase
+        .from('survey_forms')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', user.id);
+      if ((count ?? 0) >= FREE_SURVEY_LIMIT) {
+        showLimitToast(`무료 플랜은 설문을 최대 ${FREE_SURVEY_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        return;
+      }
+    }
     setIsCopying(true);
     const pin = generatePin();
     const { data: newForm, error } = await supabase.from('survey_forms').insert({
@@ -917,6 +941,7 @@ export default function SurveyTool() {
   // ── 설문 목록 ──────────────────────────────────────────────────────────────
   if (view === 'list') return (
     <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
+      <LimitToast message={limitToastMessage} />
       {/* 클래스 선택 */}
       <div style={{ marginBottom: 20, position: 'relative', display: 'inline-block' }}>
         <button

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiMonthlyLimit, checkCanUseAi } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
@@ -36,6 +36,7 @@ import {
 const Settings = () => {
   const { user, profile: authProfile, loading: authLoading, refreshProfile, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState<any>(null);
@@ -98,9 +99,17 @@ const Settings = () => {
       .then(({ count }) => setReferralCount(count ?? 0));
   }, [user, authProfile]);
 
+  // 사이드바/배너에서 #referral 해시로 들어온 경우 해당 섹션으로 스크롤
+  useEffect(() => {
+    if (location.hash !== '#referral') return;
+    const el = document.getElementById('referral-section');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash]);
+
   const copyReferralCode = () => {
     if (!myReferralCode) return;
-    navigator.clipboard.writeText(myReferralCode);
+    const shareUrl = `${window.location.origin}/login?ref=${myReferralCode}`;
+    navigator.clipboard.writeText(shareUrl);
     setReferralCopied(true);
     setTimeout(() => setReferralCopied(false), 2000);
   };
@@ -561,7 +570,7 @@ const Settings = () => {
       </div>
 
       {/* 추천인 코드 */}
-      <div className="layered-card rounded-3xl p-6 border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50">
+      <div id="referral-section" className="layered-card rounded-3xl p-6 border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50 scroll-mt-24">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
             <Sparkles size={18} className="text-white" />
@@ -585,7 +594,7 @@ const Settings = () => {
                 className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl transition-colors flex items-center gap-2 font-black text-sm whitespace-nowrap"
               >
                 {referralCopied ? <Check size={14} /> : <Copy size={14} />}
-                {referralCopied ? '복사됨' : '복사'}
+                {referralCopied ? '링크 복사됨' : '초대 링크 복사'}
               </button>
             </div>
             {referralCount > 0 && (

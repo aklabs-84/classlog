@@ -1,5 +1,5 @@
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  PieChart, Pie, Cell, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { Star } from 'lucide-react';
 import type { SurveyQuestion, SurveyAnswer } from '../../pages/tools/SurveyTool';
@@ -212,6 +212,41 @@ export function RankingBarChart({ question, answers }: { question: SurveyQuestio
         </BarChart>
       </ResponsiveContainer>
       <p className="text-xs text-gray-400 font-semibold mt-1">순위 선택 시 순서에 따라 가중치를 부여한 점수</p>
+    </div>
+  );
+}
+
+export interface WeeklyTrendPoint {
+  week: number;
+  engagement: number;
+  avgScore: number | null;
+}
+
+export function WeeklyTrendChart({ data, height = 220 }: { data: WeeklyTrendPoint[]; height?: number }) {
+  const hasScore = data.some((d) => d.avgScore !== null);
+  const chartData = data.map((d) => ({ ...d, name: `${d.week}주차` }));
+
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: hasScore ? 8 : 24, left: 0, bottom: 4 }}>
+          <CartesianGrid vertical={false} stroke="#f3f4f6" />
+          <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: '#374151' }} axisLine={false} tickLine={false} />
+          <YAxis yAxisId="engagement" allowDecimals={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={28} />
+          {hasScore && (
+            <YAxis yAxisId="score" orientation="right" domain={[0, 5]} tick={{ fontSize: 11, fontWeight: 700, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={28} />
+          )}
+          <Tooltip
+            {...tooltipStyle}
+            formatter={(value: number, key: string) => (key === 'avgScore' ? [`${value.toFixed(1)}점`, '평가점수 평균'] : [`${value}건`, '참여도'])}
+          />
+          <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} formatter={(key) => (key === 'avgScore' ? '평가점수 평균' : '참여도(관찰+결과 건수)')} />
+          <Bar yAxisId="engagement" dataKey="engagement" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={20} />
+          {hasScore && (
+            <Line yAxisId="score" type="monotone" dataKey="avgScore" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }

@@ -138,9 +138,9 @@ const tools: Tool[] = [
     description: '마크다운으로 수업 자료를 작성하고 클래스 주차별로 학생에게 공개합니다',
     newSince: '2026-05-28',
     available: true,
-    planRequired: 'basic',
+    planRequired: 'limited',
     byokEligible: true,
-    limits: { basicDesc: '자료 수 무제한', proDesc: '자료 수 무제한' },
+    limits: { freeDesc: '자료 2개까지', basicDesc: '자료 수 무제한', proDesc: '자료 수 무제한' },
     component: <MaterialEditor />,
     quickGuide: {
       steps: [
@@ -149,7 +149,7 @@ const tools: Tool[] = [
         { title: '슬라이드 구분', desc: '본문에 --- 를 입력하면 슬라이드가 구분됩니다. 슬라이드 모드로 전체화면 발표를 할 수 있습니다.' },
         { title: '저장 후 공개', desc: '저장 후 🔒 비공개 토글을 켜면 학생이 학생 페이지에서 자료를 확인할 수 있습니다.' },
       ],
-      tip: '# 제목 / **굵게** / - 목록 / `코드` 등 마크다운 기초 문법으로 빠르게 작성하세요.',
+      tip: '무료 플랜은 자료 2개까지만 만들 수 있습니다. # 제목 / **굵게** / - 목록 / `코드` 등 마크다운 기초 문법으로 빠르게 작성하세요.',
     },
   },
   {
@@ -159,9 +159,9 @@ const tools: Tool[] = [
     description: 'PPT처럼 텍스트·이미지를 원하는 위치에 자유롭게 배치해 발표 자료를 만듭니다',
     newSince: '2026-07-04',
     available: true,
-    planRequired: 'basic',
+    planRequired: 'limited',
     byokEligible: true,
-    limits: { basicDesc: '슬라이드 수 무제한', proDesc: '슬라이드 수 무제한' },
+    limits: { freeDesc: '슬라이드덱 1개까지', basicDesc: '슬라이드 수 무제한', proDesc: '슬라이드 수 무제한' },
     component: <SlideDeckEditor />,
     quickGuide: {
       steps: [
@@ -170,7 +170,7 @@ const tools: Tool[] = [
         { title: '슬라이드 관리', desc: '왼쪽 목록에서 슬라이드를 추가·복제·삭제하고 클릭해 전환합니다.' },
         { title: '자동 저장', desc: '편집 내용은 잠시 후 자동으로 저장됩니다.' },
       ],
-      tip: '텍스트 블록을 더블클릭하면 바로 내용을 수정할 수 있습니다.',
+      tip: '무료 플랜은 슬라이드덱 1개까지만 만들 수 있습니다. 텍스트 블록을 더블클릭하면 바로 내용을 수정할 수 있습니다.',
     },
   },
   {
@@ -180,9 +180,10 @@ const tools: Tool[] = [
     description: '수업을 실시간 전사하고 AI가 학생별 관찰 기록과 수업 품질을 자동 분석합니다',
     newSince: '2026-06-04',
     available: true,
-    planRequired: 'basic',
+    planRequired: 'limited',
     byokEligible: true,
     limits: {
+      freeDesc: '월 20회 AI 분석',
       basicDesc: 'AI 분석 가능',
       proDesc: 'AI 분석 가능',
       usesAi: true,
@@ -205,8 +206,8 @@ const tools: Tool[] = [
     description: '조별 협업 보드를 만들고 포스트잇, 도형, 이미지로 수업 활동을 진행합니다',
     newSince: '2026-06-08',
     available: true,
-    planRequired: 'basic',
-    limits: { basicDesc: '클래스당 보드 3개', proDesc: '보드 수 무제한' },
+    planRequired: 'limited',
+    limits: { freeDesc: '보드 1개까지', basicDesc: '클래스당 보드 3개', proDesc: '보드 수 무제한' },
     component: <WhiteboardList />,
     quickGuide: {
       steps: [
@@ -215,7 +216,7 @@ const tools: Tool[] = [
         { title: '오브젝트 추가', desc: '툴바에서 포스트잇·도형·이미지·섹션을 추가하고 드래그해 배치합니다.' },
         { title: '단축키 활용', desc: 'Ctrl+C/V 복사·붙여넣기, Ctrl+Z 되돌리기, Delete 삭제. 섹션 색상은 우클릭 메뉴로 변경합니다.' },
       ],
-      tip: '수업 종료 후 공유 중지 버튼을 눌러 학생 접근을 차단하세요.',
+      tip: '무료 플랜은 보드 1개까지만 만들 수 있습니다. 수업 종료 후 공유 중지 버튼을 눌러 학생 접근을 차단하세요.',
     },
   },
   {
@@ -225,9 +226,10 @@ const tools: Tool[] = [
     description: '객관식, 예/아니오, 별점, 순위 매기기, AI 분석까지 다양한 실시간 설문을 진행합니다',
     newSince: '2026-06-09',
     available: true,
-    planRequired: 'basic',
+    planRequired: 'limited',
     byokEligible: true,
     limits: {
+      freeDesc: '설문 1개까지',
       basicDesc: '설문 수 무제한',
       proDesc: '무제한 + AI 결과 분석',
       usesAi: true,
@@ -240,7 +242,7 @@ const tools: Tool[] = [
         { title: '실시간 결과 확인', desc: '응답이 들어오는 대로 결과 차트가 실시간으로 업데이트됩니다.' },
         { title: 'AI 분석 · CSV 내보내기', desc: '설문 종료 후 ✨ AI 분석으로 응답을 요약하거나 CSV로 저장합니다.' },
       ],
-      tip: '문항 타입: 객관식 · 예/아니오 · 별점 · 단답형 · 의견 척도(슬라이더) · 순위 매기기 6가지를 조합할 수 있습니다.',
+      tip: '무료 플랜은 설문 1개까지만 만들 수 있습니다. 문항 타입: 객관식 · 예/아니오 · 별점 · 단답형 · 의견 척도(슬라이더) · 순위 매기기 6가지를 조합할 수 있습니다.',
     },
   },
   {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Bell, Settings, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  ActivitySquare, Bug, Images, Download, Share, MoreVertical,
+  ActivitySquare, Bug, Images, Download, Share, MoreVertical, Gift,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -252,6 +252,13 @@ const Navbar = () => {
           <Bug size={16} />
         </button>
 
+        {/* 친구 초대 — PC만 */}
+        <NavLink to="/settings#referral" title="친구 초대"
+          className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-emerald-50 hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-emerald-500 items-center justify-center"
+        >
+          <Gift size={18} />
+        </NavLink>
+
         {/* 설정 아이콘 — PC만 */}
         <NavLink to="/settings"
           className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary items-center justify-center"
@@ -357,6 +364,13 @@ const Navbar = () => {
                   className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm flex-1 justify-center"
                 >
                   <ActivitySquare size={16} /> 교사 메모 작성
+                </NavLink>
+                <NavLink
+                  to="/settings#referral"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl font-black text-sm bg-emerald-50 hover:bg-emerald-100 transition-all text-emerald-600"
+                >
+                  <Gift size={16} /> 초대
                 </NavLink>
                 <NavLink
                   to="/settings"

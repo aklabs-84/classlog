@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2, KeyRound } from 'lucide-react';
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2, KeyRound, Gift } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -14,6 +14,17 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showReferralInput, setShowReferralInput] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+
+  // ?ref= 파라미터로 들어온 경우 입력창에 자동으로 채워주고 펼쳐서 보여줌
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref.toUpperCase());
+      setShowReferralInput(true);
+    }
+  }, [searchParams]);
 
   // 비밀번호 재설정
   const [showForgot, setShowForgot]     = useState(false);
@@ -46,6 +57,10 @@ const Login = () => {
   const handleGoogleAuth = async () => {
     setError(null);
     setGoogleLoading(true);
+    // 리다이렉트 후에는 URL의 ?ref= 값이 사라지므로, 로그인 완료 후 자동 적용될 수 있도록 미리 저장
+    // (입력창에 직접 넣은 코드를 우선하고, 없으면 URL 파라미터를 그대로 사용)
+    const refCode = referralCode.trim() || searchParams.get('ref');
+    if (refCode) localStorage.setItem('pending_referral_code', refCode.toUpperCase());
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
@@ -155,6 +170,44 @@ const Login = () => {
             </>
           )}
         </button>
+
+        <div className="text-center -mt-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setShowReferralInput(v => !v)}
+            className="text-[11px] font-bold text-on-surface-variant/40 hover:text-primary transition-colors"
+          >
+            추천인 코드가 있으신가요?
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showReferralInput && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden mb-6"
+            >
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-on-surface-variant/20 group-focus-within:text-primary transition-colors">
+                  <Gift size={18} strokeWidth={2.5} />
+                </div>
+                <input
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  placeholder="SANGXXXXXX"
+                  className="w-full pl-14 pr-6 py-4 bg-surface-container/50 rounded-2xl text-sm font-bold font-mono uppercase focus:outline-none focus:ring-8 focus:ring-primary/5 focus:bg-white focus:border-primary/20 border-2 border-transparent transition-all shadow-inner"
+                />
+              </div>
+              <p className="text-[11px] text-on-surface-variant/40 ml-2 mt-2">
+                추천인과 본인 모두 7일 체험이 추가로 지급돼요 (구글 가입 시 적용)
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 h-px bg-on-surface/10" />
@@ -323,6 +376,7 @@ const Login = () => {
           <span>System v2.5V</span>
         </div>
       </div>
+
     </div>
   );
 };

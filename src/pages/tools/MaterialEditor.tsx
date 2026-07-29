@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
@@ -41,6 +41,7 @@ import RichEditor from '../../components/RichEditor';
 import PresentationModal, { renderCallout } from '../../components/PresentationModal';
 import MaterialCoverPage from '../../components/MaterialCoverPage';
 import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
+import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 
 // PDF 목차 페이지용 — 본문 마크다운 소제목(#~###)을 순서대로 추출
 const extractHeadingsForToc = (content: string): TocSection[] => {
@@ -248,6 +249,7 @@ const LinkToClassModal = ({
   classes,
   userId,
   publishOnLink = false,
+  isBasicOrAbove,
   onClose,
   onLinked,
 }: {
@@ -255,6 +257,7 @@ const LinkToClassModal = ({
   classes: any[];
   userId: string;
   publishOnLink?: boolean;
+  isBasicOrAbove: boolean;
   onClose: () => void;
   onLinked: () => void;
 }) => {
@@ -262,6 +265,7 @@ const LinkToClassModal = ({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { limitToastMessage, showLimitToast } = useLimitToast();
 
   useEffect(() => {
     supabase
@@ -284,6 +288,16 @@ const LinkToClassModal = ({
 
   const handleLink = async () => {
     if (selected.size === 0) return;
+    if (!isBasicOrAbove) {
+      const { count } = await supabase
+        .from('class_materials')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', userId);
+      if ((count ?? 0) + selected.size > FREE_MATERIAL_LIMIT) {
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const rows = Array.from(selected).map(classId => ({
@@ -395,6 +409,7 @@ const LinkToClassModal = ({
           </button>
         </div>
       </div>
+      <LimitToast message={limitToastMessage} />
     </div>,
     document.body
   );
@@ -923,8 +938,11 @@ const CoverPickerModal = ({
   );
 };
 
+const FREE_MATERIAL_LIMIT = 2;
+
 const MaterialEditor = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { limitToastMessage, showLimitToast } = useLimitToast();
 
   // 클래스
   const [classes, setClasses] = useState<any[]>([]);
@@ -1047,7 +1065,17 @@ const MaterialEditor = () => {
     setCoverImageUrl(null); setCoverSource('template');
   };
 
-  const handleNew = () => {
+  const handleNew = async () => {
+    if (!checkIsBasicOrAbove(profile)) {
+      const { count } = await supabase
+        .from('class_materials')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', user!.id);
+      if ((count ?? 0) >= FREE_MATERIAL_LIMIT) {
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        return;
+      }
+    }
     resetForm();
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
@@ -1235,6 +1263,16 @@ const MaterialEditor = () => {
   // ── 복사 ──────────────────────────────────────────────────────────────────
   const handleCopy = async (material: Material) => {
     if (!confirm(`"${material.title}"을(를) 복사하시겠습니까?`)) return;
+    if (!checkIsBasicOrAbove(profile)) {
+      const { count } = await supabase
+        .from('class_materials')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', user!.id);
+      if ((count ?? 0) >= FREE_MATERIAL_LIMIT) {
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        return;
+      }
+    }
     const { error } = await supabase.from('class_materials').insert({
       class_id: selectedClass.id,
       week_number: material.week_number,
@@ -1305,6 +1343,7 @@ const MaterialEditor = () => {
 
   return (
     <>
+    <LimitToast message={limitToastMessage} />
     {/* PDF 다운로드용 인쇄 전용 영역 — 화면엔 보이지 않고 인쇄(PDF 저장) 시에만 노출됨 */}
     {isEditorOpen && createPortal(
       <div className="print-only">
@@ -1413,6 +1452,7 @@ const MaterialEditor = () => {
         classes={classes}
         userId={user.id}
         publishOnLink={linkAsPublish}
+        isBasicOrAbove={checkIsBasicOrAbove(profile)}
         onLinked={() => fetchLibraryMaterials()}
         onClose={() => setLinkingMaterial(null)}
       />

@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase';
 import { TimerProvider } from './lib/timerContext';
 import { ClassAlarmProvider } from './lib/classAlarmContext';
 import FloatingClassAlarm from './components/FloatingClassAlarm';
+import ReferralNotice from './components/ui/ReferralNotice';
 
 // Supabase가 redirect_to 미허용 시 루트(/)로 fallback하는 경우 대응
 // 초대·복구 링크만 /set-password로 즉시 리다이렉트 (구글 OAuth 로그인도 해시에
@@ -206,6 +207,7 @@ function App() {
       <TimerProvider>
       <ClassAlarmProvider>
       <IdleWarningModal />
+      <ReferralNotice />
       <InstallPromptBanner />
       <div className="relative min-h-screen bg-surface overflow-hidden">
         <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />

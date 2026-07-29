@@ -6,6 +6,11 @@ import { useIdleTimeout } from '../hooks/useIdleTimeout';
 const IDLE_MS = 29 * 60 * 1000;   // 29분 무활동 → 경고
 const WARNING_MS = 60 * 1000;      // 1분 카운트다운 → 자동 로그아웃
 
+interface ReferralNotice {
+  type: 'success' | 'error';
+  text: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -17,6 +22,8 @@ interface AuthContextType {
   showIdleWarning: boolean;
   idleSecondsLeft: number;
   dismissIdleWarning: () => void;
+  referralNotice: ReferralNotice | null;
+  dismissReferralNotice: () => void;
 }
 
 // 익명 유저 판별 — is_anonymous(최신 SDK) + app_metadata.provider(구버전) 이중 확인
@@ -26,17 +33,20 @@ export function isAnonymousUser(user: User | null): boolean {
     user.app_metadata?.provider === 'anonymous';
 }
 
-// 신규 구글 가입 감지 시 Slack 알림 (최초 로그인 = created_at과 last_sign_in_at이 거의 동시)
+// 최초 로그인 여부 판별 = created_at과 last_sign_in_at이 거의 동시(가입 즉시 로그인되므로)
+function isFirstSignIn(user: User): boolean {
+  const createdAt = new Date(user.created_at).getTime();
+  const lastSignInAt = user.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : 0;
+  return Math.abs(lastSignInAt - createdAt) < 5000;
+}
+
+// 신규 구글 가입 감지 시 Slack 알림
 function notifyGoogleSignupIfNew(user: User) {
   if (user.app_metadata?.provider !== 'google') return;
 
   const dedupeKey = `google-signup-notified:${user.id}`;
   if (sessionStorage.getItem(dedupeKey)) return;
-
-  const createdAt = new Date(user.created_at).getTime();
-  const lastSignInAt = user.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : 0;
-  const isFirstSignIn = Math.abs(lastSignInAt - createdAt) < 5000;
-  if (!isFirstSignIn) return;
+  if (!isFirstSignIn(user)) return;
 
   sessionStorage.setItem(dedupeKey, '1');
 
@@ -50,6 +60,35 @@ function notifyGoogleSignupIfNew(user: User) {
   }).catch((error) => console.error('Google signup Slack notify failed:', error));
 }
 
+function referralErrorMessage(code?: string): string {
+  switch (code) {
+    case 'ALREADY_USED': return '이미 추천 코드를 사용하셨어요.';
+    case 'INVALID_CODE': return '유효하지 않은 추천 코드예요.';
+    case 'SELF_REFERRAL': return '본인의 추천 코드는 사용할 수 없어요.';
+    default: return '추천 코드 적용에 실패했어요.';
+  }
+}
+
+// 구글 로그인은 리다이렉트를 거치며 URL의 ?ref= 값이 유실되므로, 버튼 클릭 시점에
+// localStorage로 코드를 넘겨받아 로그인 완료 후 여기서 1회 적용하고 즉시 제거한다.
+async function applyPendingReferralCode(onResult: (notice: ReferralNotice) => void) {
+  const code = localStorage.getItem('pending_referral_code');
+  if (!code) return;
+  localStorage.removeItem('pending_referral_code');
+  try {
+    const { data, error } = await supabase.rpc('apply_referral_code', { p_code: code });
+    if (error) throw error;
+    if (data?.success) {
+      onResult({ type: 'success', text: `추천 코드가 적용되어 ${data.bonus_days ?? 7}일 체험이 추가됐어요!` });
+    } else {
+      onResult({ type: 'error', text: referralErrorMessage(data?.error) });
+    }
+  } catch (error) {
+    console.error('Pending referral code apply failed:', error);
+    onResult({ type: 'error', text: '추천 코드 적용 중 오류가 발생했어요.' });
+  }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,6 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const profileChannelRef = useRef<RealtimeChannel | null>(null);
   // 이전 인증 사용자 ID 추적 — 동일 사용자의 토큰 갱신 시 loading 전환을 막기 위해 사용
   const prevUserIdRef = useRef<string | null>(null);
+  const [referralNotice, setReferralNotice] = useState<ReferralNotice | null>(null);
+  const referralNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // 1. 초기 세션 체크 (10초 타임아웃 적용)
@@ -96,6 +137,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isNewUserSession) {
           setLoading(true);
           notifyGoogleSignupIfNew(session.user);
+
+          // 구글 최초 가입 완료 후에만 체험 시작 안내 — 추천 코드 적용 시에는
+          // applyPendingReferralCode의 보너스 안내가 대신 뜨므로 중복 노출하지 않음
+          if (
+            session.user.app_metadata?.provider === 'google' &&
+            isFirstSignIn(session.user) &&
+            !localStorage.getItem('pending_referral_code')
+          ) {
+            if (referralNoticeTimerRef.current) clearTimeout(referralNoticeTimerRef.current);
+            setReferralNotice({ type: 'success', text: '가입을 환영해요! 14일 Pro 무료체험이 시작됐어요.' });
+            referralNoticeTimerRef.current = setTimeout(() => setReferralNotice(null), 4500);
+          }
         }
         prevUserIdRef.current = newUserId;
         fetchProfile(session.user.id);
@@ -137,6 +190,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setProfile(data);
+      void applyPendingReferralCode((notice) => {
+        if (referralNoticeTimerRef.current) clearTimeout(referralNoticeTimerRef.current);
+        setReferralNotice(notice);
+        referralNoticeTimerRef.current = setTimeout(() => setReferralNotice(null), 4500);
+      });
 
       // Realtime 구독: UPDATE(플랜 변경 등) + DELETE(계정 삭제) 감지
       cleanupProfileChannel();
@@ -163,6 +221,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     if (user) await fetchProfile(user.id);
+  };
+
+  const dismissReferralNotice = () => {
+    if (referralNoticeTimerRef.current) clearTimeout(referralNoticeTimerRef.current);
+    setReferralNotice(null);
   };
 
   const signOut = async () => {
@@ -222,7 +285,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     enabled: isTeacher && !hasActiveClassToday,
   });
 
-  const value = { user, session, profile, loading, isTeacher, signOut, refreshProfile, showIdleWarning, idleSecondsLeft, dismissIdleWarning };
+  const value = { user, session, profile, loading, isTeacher, signOut, refreshProfile, showIdleWarning, idleSecondsLeft, dismissIdleWarning, referralNotice, dismissReferralNotice };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

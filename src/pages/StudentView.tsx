@@ -18,6 +18,7 @@ import { downloadFile, openFile } from '../lib/fileUtils';
 import Pagination from '../components/Pagination';
 import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
+import { WeeklyTrendChart, type WeeklyTrendPoint } from '../components/share/ShareCharts';
 
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const NOTE_MD_COMPONENTS: any = {
@@ -196,6 +197,38 @@ const StudentView = () => {
     o.is_student_record
   ), [observations, timelineTab]);
   const timelineTotalPages = Math.max(1, Math.ceil(timelineFiltered.length / TIMELINE_PAGE_SIZE));
+
+  // 주차별 성장 추이 — 관찰기록은 weekly_plan의 활동명 매칭으로, 결과제출은 week_number 컬럼으로 주차를 판별
+  const weeklyTrendData = useMemo((): WeeklyTrendPoint[] => {
+    const weeklyPlan: { week: number; topic: string }[] = student?.classes?.weekly_plan || [];
+    const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+    const topicWeekMap: Record<string, number> = {};
+    weeklyPlan.forEach(p => { topicWeekMap[norm(p.topic)] = p.week; });
+
+    const weekMap: Record<number, { engagement: number; scoreSum: number; scoreCount: number }> = {};
+    const ensure = (w: number) => {
+      if (!weekMap[w]) weekMap[w] = { engagement: 0, scoreSum: 0, scoreCount: 0 };
+      return weekMap[w];
+    };
+
+    observations.forEach(o => {
+      const w = topicWeekMap[norm(o.activity_name || '')];
+      if (w) ensure(w).engagement += 1;
+    });
+    results.forEach(r => {
+      if (!r.week_number) return;
+      const wk = ensure(r.week_number);
+      wk.engagement += 1;
+      if (typeof r.teacher_eval_score === 'number' && r.teacher_eval_score > 0) {
+        wk.scoreSum += r.teacher_eval_score;
+        wk.scoreCount += 1;
+      }
+    });
+
+    return Object.entries(weekMap)
+      .map(([week, v]) => ({ week: Number(week), engagement: v.engagement, avgScore: v.scoreCount > 0 ? v.scoreSum / v.scoreCount : null }))
+      .sort((a, b) => a.week - b.week);
+  }, [student, observations, results]);
 
   // 타임라인 좌우 방향키 이동 (입력 중이거나 수정 폼이 열려있을 땐 비활성화)
   useEffect(() => {
@@ -898,6 +931,14 @@ const StudentView = () => {
               총 {observations.length}건
             </div>
           </div>
+
+          {/* 주차별 성장 추이 */}
+          {weeklyTrendData.some(p => p.engagement > 0) && (
+            <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm p-5 mb-8">
+              <p className="text-xs font-black text-on-surface-variant/60 mb-2">주차별 성장 추이</p>
+              <WeeklyTrendChart data={weeklyTrendData} height={200} />
+            </div>
+          )}
 
           {/* 탭 */}
           <div className="flex gap-1.5 mb-8 p-1 bg-surface-container rounded-xl w-fit">

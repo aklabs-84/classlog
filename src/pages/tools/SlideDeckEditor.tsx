@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
 import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, getLayoutSlotSpec, buildDraftDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
 import TemplateGallery from '../../components/slidedeck/TemplateGallery';
@@ -15,6 +15,7 @@ import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
 import { parsePptxFile } from '../../components/slidedeck/utils/importPptx';
+import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 
 type View = 'list' | 'template' | 'editor';
 
@@ -37,8 +38,11 @@ interface DeckListRow {
   updated_at: string;
 }
 
+const FREE_SLIDE_DECK_LIMIT = 1;
+
 export default function SlideDeckEditor() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { limitToastMessage, showLimitToast } = useLimitToast();
   const [view, setView] = useState<View>('list');
   const [decks, setDecks] = useState<DeckListRow[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -91,8 +95,18 @@ export default function SlideDeckEditor() {
   }, [activeDeck?.title, activeDeck?.slides]);
 
   // ── 덱 생성 ────────────────────────────────────────────────────────────
+  const canCreateDeck = () => {
+    if (checkIsBasicOrAbove(profile)) return true;
+    if (decks.length >= FREE_SLIDE_DECK_LIMIT) {
+      showLimitToast(`무료 플랜은 슬라이드덱을 최대 ${FREE_SLIDE_DECK_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+      return false;
+    }
+    return true;
+  };
+
   const handleCreateFromTemplate = async (templateId: string) => {
     if (!user) return;
+    if (!canCreateDeck()) return;
     const template = getTemplate(templateId);
     const firstSlide = instantiateSlide(template, 'title');
     const { data, error } = await supabase
@@ -112,6 +126,7 @@ export default function SlideDeckEditor() {
   // ── AI 초안 생성 (자료 에디터에서 가져오기) ────────────────────────────────
   const handleCreateDraftFromMaterial = async (templateId: string) => {
     if (!user || !importedMaterial) return;
+    if (!canCreateDeck()) return;
     setAiGenerating(true);
     try {
       const template = getTemplate(templateId);
@@ -146,6 +161,7 @@ export default function SlideDeckEditor() {
   // ── 파워포인트(.pptx) 파일 불러오기 ────────────────────────────────────────
   const handleImportPptxFile = async (file: File) => {
     if (!user) return;
+    if (!canCreateDeck()) return;
     const proceed = confirm(
       '파워포인트 파일을 불러오면 텍스트와 이미지 위주로 우리 도구 형식으로 변환됩니다.\n' +
       '텍스트/이미지에 걸린 하이퍼링크와 웹 동영상(유튜브 등) 링크는 가능한 가져오지만, 표·차트·스마트아트·애니메이션·' +
@@ -344,6 +360,7 @@ export default function SlideDeckEditor() {
   if (view === 'list') {
     return (
       <div style={{ padding: '4px 2px' }}>
+        <LimitToast message={limitToastMessage} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>슬라이드 만들기</h2>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -424,6 +441,7 @@ export default function SlideDeckEditor() {
   if (view === 'template') {
     return (
       <div style={{ padding: '4px 2px', position: 'relative' }}>
+        <LimitToast message={limitToastMessage} />
         <button
           onClick={() => { setView('list'); setImportedMaterial(null); }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, marginBottom: 16 }}

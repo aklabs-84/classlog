@@ -6,6 +6,7 @@ import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl } from '../lib/gallery';
 import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
+import { WeeklyTrendChart, type WeeklyTrendPoint } from '../components/share/ShareCharts';
 import {
   RefreshCw,
   Users,
@@ -72,6 +73,7 @@ interface ResultRow {
   file_url?: string | null;
   image_url?: string | null;
   image_urls?: string[];
+  teacher_eval_score?: number | null;
 }
 
 interface StudentData {
@@ -107,6 +109,25 @@ interface ClassData {
   galleryItems: GalleryItem[];
   evalMap: Record<string, EvalRow>;
   loaded: boolean;
+}
+
+// 학생 개인 스코프로 주차별 참여도(관찰+결과 건수)/평가점수 평균 집계
+function buildStudentWeeklyTrend(obs: ObsRow[], results: ResultRow[]): WeeklyTrendPoint[] {
+  const weekMap: Record<number, { engagement: number; scoreSum: number; scoreCount: number }> = {};
+  const ensure = (w: number) => {
+    if (!weekMap[w]) weekMap[w] = { engagement: 0, scoreSum: 0, scoreCount: 0 };
+    return weekMap[w];
+  };
+  obs.forEach(o => { if (o.week_number) ensure(o.week_number).engagement += 1; });
+  results.forEach(r => {
+    if (!r.week_number) return;
+    const wk = ensure(r.week_number);
+    wk.engagement += 1;
+    if (typeof r.teacher_eval_score === 'number') { wk.scoreSum += r.teacher_eval_score; wk.scoreCount += 1; }
+  });
+  return Object.entries(weekMap)
+    .map(([week, v]) => ({ week: Number(week), engagement: v.engagement, avgScore: v.scoreCount > 0 ? v.scoreSum / v.scoreCount : null }))
+    .sort((a, b) => a.week - b.week);
 }
 
 const SchoolShareView = () => {
@@ -209,7 +230,7 @@ const SchoolShareView = () => {
             .order('created_at', { ascending: false }),
           supabase
             .from('student_results')
-            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths')
+            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths, teacher_eval_score')
             .in('student_id', studentIds)
             .order('created_at', { ascending: false }),
         ]);
@@ -340,13 +361,15 @@ const SchoolShareView = () => {
       participants: Set<string>;
       obsCount: number;
       resultCount: number;
+      evalScoreSum: number;
+      evalScoreCount: number;
       images: string[];
       sampleText: string | null;
     };
     const weekMap: Record<number, WeekEntry> = {};
     const ensure = (w: number) => {
       if (!weekMap[w]) {
-        weekMap[w] = { week: w, topic: null, participants: new Set(), obsCount: 0, resultCount: 0, images: [], sampleText: null };
+        weekMap[w] = { week: w, topic: null, participants: new Set(), obsCount: 0, resultCount: 0, evalScoreSum: 0, evalScoreCount: 0, images: [], sampleText: null };
       }
       return weekMap[w];
     };
@@ -370,6 +393,7 @@ const SchoolShareView = () => {
         const wk = ensure(r.week_number);
         wk.participants.add(student.id);
         wk.resultCount += 1;
+        if (typeof r.teacher_eval_score === 'number') { wk.evalScoreSum += r.teacher_eval_score; wk.evalScoreCount += 1; }
         (r.image_urls || []).forEach(u => { if (wk.images.length < 8 && !wk.images.includes(u)) wk.images.push(u); });
         if (!wk.sampleText && r.text_content) wk.sampleText = r.text_content.length > 120 ? `${r.text_content.slice(0, 120)}…` : r.text_content;
       });
@@ -384,6 +408,21 @@ const SchoolShareView = () => {
     return Object.values(weekMap)
       .map(wk => ({ ...wk, participantCount: wk.participants.size }))
       .sort((a, b) => a.week - b.week);
+  }, [currentData]);
+
+  const weeklyTrendData = useMemo((): WeeklyTrendPoint[] => weeklyJourney.map(wk => ({
+    week: wk.week,
+    engagement: wk.obsCount + wk.resultCount,
+    avgScore: wk.evalScoreCount > 0 ? wk.evalScoreSum / wk.evalScoreCount : null,
+  })), [weeklyJourney]);
+
+  const studentTrendMap = useMemo(() => {
+    const map: Record<string, WeeklyTrendPoint[]> = {};
+    if (!currentData) return map;
+    currentData.studentData.forEach(({ student, obs, results }) => {
+      map[student.id] = buildStudentWeeklyTrend(obs, results);
+    });
+    return map;
   }, [currentData]);
 
   const filteredData = useMemo(() => {
@@ -809,7 +848,12 @@ const SchoolShareView = () => {
                 <p className="font-black text-gray-400 text-sm">아직 등록된 주차별 활동이 없습니다</p>
               </div>
             ) : (
-              <div className="relative">
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <h3 className="text-sm font-black text-gray-900 mb-3">주차별 성장 추이</h3>
+                  <WeeklyTrendChart data={weeklyTrendData} />
+                </div>
+                <div className="relative">
                 <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-indigo-200 via-indigo-100 to-transparent" />
                 <div className="space-y-6">
                   {weeklyJourney.map(wk => (
@@ -861,6 +905,7 @@ const SchoolShareView = () => {
                       </div>
                     </div>
                   ))}
+                </div>
                 </div>
               </div>
             )
@@ -961,6 +1006,12 @@ const SchoolShareView = () => {
 
                       {isExpanded && (
                         <div className="border-t border-gray-100 px-5 py-4 space-y-3 bg-gray-50/50">
+                          {(studentTrendMap[student.id]?.some(p => p.engagement > 0)) && (
+                            <div className="bg-white rounded-xl border border-gray-100 p-4">
+                              <p className="text-xs font-black text-gray-500 mb-2">주차별 성장 추이</p>
+                              <WeeklyTrendChart data={studentTrendMap[student.id]} height={160} />
+                            </div>
+                          )}
                           {obs.map(o => (
                             <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
                               <div className="flex items-center gap-2 mb-2 flex-wrap">

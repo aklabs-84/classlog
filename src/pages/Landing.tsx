@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   GraduationCap,
   BookOpen,
@@ -82,6 +82,7 @@ const steps = [
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // 공개 통계
   const [pubStats, setPubStats] = useState({ total_observations: 0, total_classes: 0, total_students: 0 });
@@ -109,6 +110,9 @@ const Landing = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const handleGoogleSignup = async () => {
     setGoogleLoading(true);
+    // 리다이렉트 후에는 URL의 ?ref= 값이 사라지므로, 로그인 완료 후 자동 적용될 수 있도록 미리 저장
+    const refCode = searchParams.get('ref');
+    if (refCode) localStorage.setItem('pending_referral_code', refCode.toUpperCase());
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
