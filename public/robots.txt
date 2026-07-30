@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://sangilog.vercel.app/sitemap.xml
+Sitemap: https://classlog-ai.vercel.app/sitemap.xml
