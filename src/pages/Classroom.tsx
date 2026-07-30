@@ -49,6 +49,9 @@ import {
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
+import { isDemoTeacher } from '../lib/demo';
+import { setDemoTourState } from '../components/DemoTourOverlay';
+import DemoModeBanner from '../components/DemoModeBanner';
 
 import PresentationModal from '../components/PresentationModal';
 
@@ -617,7 +620,11 @@ const Classroom = () => {
         return true;
       });
 
-      const classData = combined;
+      // 데모 교사 계정은 여러 방문자가 동시에 공유하므로, 현재 방문자가 방금 발급받은
+      // 학급(URL의 ?id=)만 보이도록 좁힌다. 그렇지 않으면 다른 방문자의 체험 학급까지 노출된다.
+      const classData = isDemoTeacher(user)
+        ? combined.filter(c => c.id === activeClassId)
+        : combined;
       setClasses(classData);
       
       if (classData.length > 0) {
@@ -1939,6 +1946,23 @@ const Classroom = () => {
             : undefined
         }
         resources={presentationResources}
+      />
+    )}
+    {isDemoTeacher(user) && activeClassId && (
+      <DemoModeBanner
+        classId={activeClassId}
+        extraAction={classInfo?.entry_code ? {
+          label: '학생 화면 체험하기',
+          onClick: () => {
+            setDemoTourState({
+              roleLabel: '🧑‍🎓 학생 시점',
+              stageTitle: '학생 입장 → 활동기록 제출 → 퀴즈 참여',
+              classId: activeClassId,
+              entryCode: classInfo.entry_code,
+            });
+            navigate(`/classroom-entry?code=${classInfo.entry_code}`);
+          },
+        } : undefined}
       />
     )}
     <div className="flex flex-col relative bg-surface-container-low/20 rounded-[2rem] border border-white/40 shadow-2xl">

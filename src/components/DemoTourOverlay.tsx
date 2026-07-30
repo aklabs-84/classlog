@@ -50,7 +50,11 @@ const DemoTourOverlay = () => {
 
   const handleContinue = () => {
     hideDemoTourBanner();
-    navigate('/demo');
+    if (tour.classId) {
+      navigate(`/classroom?id=${tour.classId}`);
+    } else {
+      navigate('/demo');
+    }
   };
 
   const handleExit = () => {

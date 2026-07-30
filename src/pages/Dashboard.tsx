@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate, NavLink } from 'react-router-dom';
+import { isDemoTeacher, getDemoClassId } from '../lib/demo';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import QuickReviewPanel from '../components/classroom/QuickReviewPanel';
 import WelcomeGuideModal, { type WelcomeGuideVideo } from '../components/WelcomeGuideModal';
@@ -134,7 +135,12 @@ const Dashboard = () => {
         .eq('teacher_id', user.id)
         .eq('is_archived', false);
 
-      const studentIds: string[] = (classesData || []).flatMap(
+      // 데모 교사 계정은 여러 방문자가 공유하므로 본인이 발급받은 학급만 집계 대상으로 남긴다
+      const scopedClasses = isDemoTeacher(user)
+        ? (classesData || []).filter((c: any) => c.id === getDemoClassId())
+        : classesData;
+
+      const studentIds: string[] = (scopedClasses || []).flatMap(
         (c: any) => (c.students || []).map((s: any) => s.id)
       );
       if (studentIds.length === 0) return;
@@ -337,12 +343,19 @@ const Dashboard = () => {
     setLoading(true);
     try {
       // 1. Fetch Classes
-      const { data: rawClassesData } = await supabase
+      const { data: allClassesData } = await supabase
         .from('classes')
         .select('*')
         .eq('teacher_id', user?.id)
         .eq('is_archived', false);
-      
+
+      // 데모 교사 계정은 여러 방문자가 공유하므로 본인이 발급받은 학급만 화면에 남긴다
+      const rawClassesData = isDemoTeacher(user)
+        ? (allClassesData || []).filter(c => c.id === getDemoClassId())
+        : allClassesData;
+
+      let scopedStudentIds: string[] = [];
+
       if (rawClassesData) {
         // 모든 실제 데이터 타겟 ID 수집 (본인 ID 또는 연동 ID)
         const targetIds = rawClassesData.map(c => c.linked_class_id || c.id);
@@ -362,14 +375,14 @@ const Dashboard = () => {
         }, {});
 
         // 학생별 관찰 기록을 조회하여 고유 작성비율(Progress) 파악
-        const studentIds = studentData ? studentData.map(s => s.id) : [];
+        scopedStudentIds = studentData ? studentData.map(s => s.id) : [];
         let classProgressMap: Record<string, number> = {};
-        
-        if (studentIds.length > 0) {
+
+        if (scopedStudentIds.length > 0) {
           const { data: allObsData, count } = await supabase
             .from('observations')
             .select('student_id, students(class_id)', { count: 'exact' })
-            .in('student_id', studentIds)
+            .in('student_id', scopedStudentIds)
             .eq('is_student_record', true);
 
           setTotalActivitiesCount(count || 0);
@@ -413,29 +426,40 @@ const Dashboard = () => {
 
         // 3. Fetch Stats — AI 초안 생성 완료 학생 수 기준
         const totalStudents = studentData?.length || 0;
-        const { count: completedCount } = await supabase
-          .from('student_evaluations')
-          .select('*', { count: 'exact', head: true })
-          .eq('teacher_id', user?.id)
-          .eq('academic_year', new Date().getFullYear())
-          .neq('setech_content', '')
-          .neq('status', 'empty');
+        let completedCount = 0;
+        if (!isDemoTeacher(user) || scopedStudentIds.length > 0) {
+          let evalQuery = supabase
+            .from('student_evaluations')
+            .select('*', { count: 'exact', head: true })
+            .eq('teacher_id', user?.id)
+            .eq('academic_year', new Date().getFullYear())
+            .neq('setech_content', '')
+            .neq('status', 'empty');
+          if (isDemoTeacher(user)) evalQuery = evalQuery.in('student_id', scopedStudentIds);
+          const { count } = await evalQuery;
+          completedCount = count || 0;
+        }
 
         setStats({
           total: totalStudents,
-          inProgress: totalStudents - (completedCount || 0),
-          completed: completedCount || 0
+          inProgress: totalStudents - completedCount,
+          completed: completedCount
         });
       }
 
       // 2. Fetch Recent Activities — 학생 제출 기록만 표시
-      const { data: obsData } = await supabase
-        .from('observations')
-        .select('*, students!inner(full_name, class_id(name))')
-        .eq('teacher_id', user?.id)
-        .eq('is_student_record', true)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      let obsData: any[] | null = null;
+      if (!isDemoTeacher(user) || scopedStudentIds.length > 0) {
+        let obsQuery = supabase
+          .from('observations')
+          .select('*, students!inner(full_name, class_id(name))')
+          .eq('teacher_id', user?.id)
+          .eq('is_student_record', true)
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (isDemoTeacher(user)) obsQuery = obsQuery.in('student_id', scopedStudentIds);
+        ({ data: obsData } = await obsQuery);
+      }
 
       if (obsData) {
         setActivities(obsData.map(o => ({
@@ -458,16 +482,30 @@ const Dashboard = () => {
 
   const fetchActivityChartData = async () => {
     if (!user) return;
+
+    // 데모 교사 계정은 여러 방문자가 공유하므로 본인이 발급받은 학급 학생의 기록만 집계한다
+    let demoStudentIds: string[] | null = null;
+    if (isDemoTeacher(user)) {
+      const demoClassId = getDemoClassId();
+      if (!demoClassId) return;
+      const { data: demoStudents } = await supabase.from('students').select('id').eq('class_id', demoClassId);
+      demoStudentIds = (demoStudents || []).map(s => s.id);
+      if (demoStudentIds.length === 0) return;
+    }
+
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const { data } = await supabase
+    let query = supabase
       .from('observations')
       .select('created_at, student_id, students!inner(class_id(name))')
       .eq('teacher_id', user.id)
       .gte('created_at', sevenDaysAgo.toISOString())
       .order('created_at', { ascending: true });
+    if (demoStudentIds) query = query.in('student_id', demoStudentIds);
+
+    const { data } = await query;
 
     if (!data) return;
 

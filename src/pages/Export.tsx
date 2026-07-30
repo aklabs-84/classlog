@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -16,6 +17,8 @@ import {
   Check,
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
+import { isDemoTeacher, getDemoClassId } from '../lib/demo';
+import DemoModeBanner from '../components/DemoModeBanner';
 import NaissWorkstation from '../components/export/NaissWorkstation';
 
 type Scope = 'all' | 'specific';
@@ -33,6 +36,8 @@ const EXPORT_COLUMNS = [
 
 const Export = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -78,10 +83,16 @@ const Export = () => {
     try {
       const { data } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
       if (data) {
-        setClasses(data);
-        if (data.length > 0) {
-          setSelectedClassId(data[0].id);
-          fetchPreviewDataForClass(data[0].id, data[0]);
+        // 데모 교사 계정은 여러 방문자가 공유하므로, URL의 ?id= 또는(상단 내비게이션처럼
+        // id가 없는 링크로 진입한 경우) 방문자가 마지막으로 보던 학급만 노출한다.
+        const urlClassId = searchParams.get('id') || getDemoClassId();
+        const filtered = isDemoTeacher(user) && urlClassId
+          ? data.filter(c => c.id === urlClassId)
+          : data;
+        setClasses(filtered);
+        if (filtered.length > 0) {
+          setSelectedClassId(filtered[0].id);
+          fetchPreviewDataForClass(filtered[0].id, filtered[0]);
         }
       }
     } catch (error) {
@@ -376,6 +387,15 @@ const Export = () => {
       animate={{ opacity: 1, scale: 1 }}
       className="space-y-10"
     >
+      {isDemoTeacher(user) && selectedClassId && (
+        <DemoModeBanner
+          classId={selectedClassId}
+          extraAction={{
+            label: '학급 화면으로 돌아가기',
+            onClick: () => navigate(`/classroom?id=${selectedClassId}`),
+          }}
+        />
+      )}
       <div className="px-2">
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Workspace Utility</p>
         <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">데이터 내보내기 센터</h1>

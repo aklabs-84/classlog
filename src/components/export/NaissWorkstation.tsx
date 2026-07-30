@@ -348,7 +348,7 @@ const NaissWorkstation = ({ classes }: Props) => {
         : '';
       const obsText = (studentObsText || '제출된 학생 기록 없음') + teacherObsText + resultEvalText + unitSubText;
       const prompt = `${SYSTEM_INSTRUCTIONS.BASE}\n${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}\n아래는 학생의 관찰 기록과 단원 마무리 서식입니다.\n이를 바탕으로 ${docType} 초안을 500자 이내로 작성하세요.\n특히 학생이 직접 작성한 단원 마무리 서식의 내용을 적극 반영하세요.\n문구만 출력하세요.\n\n${obsText}`;
-      const result = await seatukDraftAI.generateContent(prompt);
+      const result = await seatukDraftAI.generateContent(prompt, { class_id: selectedClassId });
       const content = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: content, status: 'draft' });
     } catch (err: any) { alert(err?.message || 'AI 생성 중 오류가 발생했습니다.'); }
@@ -375,7 +375,7 @@ const NaissWorkstation = ({ classes }: Props) => {
 
 관찰 기록:
 ${obsText}`;
-      const result = await achievementSuggestAI.generateContent(prompt);
+      const result = await achievementSuggestAI.generateContent(prompt, { class_id: selectedClassId });
       const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
       const json = JSON.parse(raw);
       setAchievementSuggestions(prev => ({
@@ -399,7 +399,7 @@ ${obsText}`;
 
 원본:
 ${row.setech_content}`;
-      const result = await seatukCompressAI.generateContent(prompt);
+      const result = await seatukCompressAI.generateContent(prompt, { class_id: selectedClassId });
       const compressed = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: compressed, isDirty: true });
     } catch (err: any) { alert(err?.message || 'AI 압축 중 오류가 발생했습니다.'); }
@@ -448,7 +448,7 @@ ${row.setech_content}`;
       setCompressingId(targets[i].id);
       try {
         const prompt = `다음 세특 문구를 500자 이내로 자연스럽게 압축해주세요.\n핵심 내용과 학생의 역량이 잘 드러나도록 유지하면서, 문장이 자연스럽게 마무리되게 해주세요.\n문구만 출력하고 설명은 쓰지 마세요.\n\n원본:\n${targets[i].setech_content}`;
-        const result = await seatukCompressAI.generateContent(prompt);
+        const result = await seatukCompressAI.generateContent(prompt, { class_id: selectedClassId });
         const compressed = smartTrim(result.response.text().trim());
         updateRow(targets[i].id, { setech_content: compressed, isDirty: true });
       } catch { /* 개별 실패 스킵 */ }
