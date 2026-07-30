@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import JSZip from 'jszip';
@@ -76,7 +76,7 @@ const RingStat = ({ percent, size = 48, stroke = 5, color = '#7c3aed' }: { perce
   );
 };
 
-const RESULT_TYPE_BADGE: Record<string, { icon: JSX.Element; color: string; label: string }> = {
+const RESULT_TYPE_BADGE: Record<string, { icon: ReactNode; color: string; label: string }> = {
   text:  { icon: <AlignLeft size={11} />, color: 'text-primary bg-primary/10',     label: '텍스트' },
   link:  { icon: <Link2 size={11} />,     color: 'text-blue-500 bg-blue-50',       label: '링크' },
   image: { icon: <ImageIcon size={11} />, color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
@@ -172,7 +172,7 @@ const ShareClassView = () => {
   const [verified, setVerified] = useState(() => sessionStorage.getItem(`share_verified_${classId}`) === 'true');
   const [codeInput, setCodeInput] = useState('');
   // 새로고침 후에도 인증된 세션이면 업로드 검증에 쓸 입장 코드를 유지해야 함
-  const [verifiedCode, setVerifiedCode] = useState(() => sessionStorage.getItem(`share_code_${classId}`) || '');
+  const [, setVerifiedCode] = useState(() => sessionStorage.getItem(`share_code_${classId}`) || '');
   const [codeError, setCodeError] = useState('');
   const [verifying, setVerifying] = useState(false);
 
@@ -184,7 +184,7 @@ const ShareClassView = () => {
   // ── 데이터 ─────────────────────────────────────────────────────────────────
   const [studentData, setStudentData] = useState<StudentData[]>([]);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
-  const [driveFolders, setDriveFolders] = useState<{ folder_id: string; week_number: number | null }[]>([]);
+  const [, setDriveFolders] = useState<{ folder_id: string; week_number: number | null }[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 

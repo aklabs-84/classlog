@@ -171,7 +171,7 @@ const deleteNodeAt = (editor: NodeViewProps['editor'], getPos: NodeViewProps['ge
 };
 
 // ── 리사이즈 가능한 이미지 NodeView ──────────────────────────────────────────
-const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
+const ResizableImageView = ({ node, selected, editor, getPos }: NodeViewProps) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const isResizing = useRef(false);
   const startX = useRef(0);
@@ -1502,7 +1502,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   useEffect(() => {
     if (!tablePickerOpen) return;
     const handler = (e: MouseEvent) => {
-      if (tablePickerRef.current && !tablePickerRef.current.contains(e.target as Node)) {
+      if (tablePickerRef.current && !tablePickerRef.current.contains(e.target as HTMLElement)) {
         setTablePickerOpen(false);
       }
     };

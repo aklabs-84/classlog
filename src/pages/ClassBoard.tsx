@@ -15,7 +15,6 @@ import {
   File,
   X,
   Download,
-  Link2,
 } from 'lucide-react';
 
 const ClassBoard = () => {

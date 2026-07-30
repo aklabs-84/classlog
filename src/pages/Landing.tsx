@@ -26,7 +26,6 @@ import {
   LayoutPanelTop,
   BarChart2,
   LayoutGrid,
-  Archive,
   Images,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';

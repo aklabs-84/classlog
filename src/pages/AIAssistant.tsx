@@ -450,7 +450,7 @@ ${obsText}
           refine_history: newHistory,
           updated_at: new Date().toISOString(),
         }).eq('student_id', draft.studentId).eq('class_id', selectedClassId).eq('academic_year', new Date().getFullYear())
-          .then(() => {}).catch(console.error);
+          .then(() => {}, console.error);
       }
       aiGenStore.endRefine(false);
     } catch (err: any) {
@@ -565,7 +565,7 @@ ${obsText}
         setech_content: newContent,
         updated_at: new Date().toISOString(),
       }).eq('student_id', draft.studentId).eq('class_id', selectedClassId).eq('academic_year', new Date().getFullYear())
-        .then(() => {}).catch(console.error);
+        .then(() => {}, console.error);
     }
   };
 

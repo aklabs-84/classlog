@@ -3951,9 +3951,6 @@ ${guidePrompt}
                               <div className="space-y-2 pl-1">
                                 {weekItems.map(r => {
                                   const cfg = typeConfig[r.result_type] || typeConfig.file;
-                                  const publicUrl = r.storage_path
-                                    ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
-                                    : null;
                                   const imageUrls = r.result_type === 'image' ? getResultImagePublicUrls(supabase.storage, r) : [];
                                   const isEditing = editingResult?.id === r.id;
                                   return (

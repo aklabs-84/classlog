@@ -1451,7 +1451,7 @@ const StudentView = () => {
                       )}
                       {(() => {
                         const cardEv = subGroups.map((s: any) => evalForms[s.groupId]).find((e: any) => (e?.score ?? 0) > 0);
-                        return (cardEv?.score ?? 0) > 0 && (
+                        return cardEv && cardEv.score > 0 && (
                           <span className="text-xs font-black text-amber-500 flex items-center gap-0.5">
                             {'★'.repeat(cardEv.score)}<span className="text-[10px] text-amber-400/60 ml-0.5">평가됨</span>
                           </span>

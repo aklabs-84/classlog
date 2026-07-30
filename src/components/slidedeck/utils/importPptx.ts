@@ -202,7 +202,7 @@ export async function parsePptxFile(file: File): Promise<PptxImportResult> {
 
   for (const slidePath of slidePaths) {
     const slideXml = await zip.file(slidePath)?.async('text');
-    if (!slideXml) { skippedCount++; continue; }
+    if (!slideXml) { skippedOther++; continue; }
     const slideDoc = parseXml(slideXml);
 
     const slideDir = slidePath.slice(0, slidePath.lastIndexOf('/'));

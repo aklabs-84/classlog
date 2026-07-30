@@ -88,7 +88,8 @@ export const aiGenStore = {
 export function useAiGenStore(): AiGenState {
   const [, rerender] = useState(0);
   useEffect(() => {
-    return aiGenStore.subscribe(() => rerender(n => n + 1));
+    const unsubscribe = aiGenStore.subscribe(() => rerender(n => n + 1));
+    return () => { unsubscribe(); };
   }, []);
   return aiGenStore.getState();
 }

@@ -71,7 +71,7 @@ export function MultipleChoiceBarChart({ question, answers }: { question: Survey
           <CartesianGrid horizontal={false} stroke="#f3f4f6" />
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12, fontWeight: 700, fill: '#374151' }} axisLine={false} tickLine={false} />
-          <Tooltip {...tooltipStyle} formatter={(value: number) => [`${value}명`, '응답']} />
+          <Tooltip {...tooltipStyle} formatter={(value: any) => [`${value}명`, '응답']} />
           <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={22}>
             {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
           </Bar>
@@ -99,7 +99,7 @@ export function YesNoPieChart({ answers }: { answers: SurveyAnswer[] }) {
             <Pie data={data} dataKey="value" nameKey="name" innerRadius="55%" outerRadius="100%" stroke="none">
               {data.map((d) => <Cell key={d.name} fill={d.color} />)}
             </Pie>
-            <Tooltip {...tooltipStyle} formatter={(value: number, name: string) => [`${value}명`, name]} />
+            <Tooltip {...tooltipStyle} formatter={(value: any, name: any) => [`${value}명`, name]} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -138,7 +138,7 @@ export function StarRatingBarChart({ answers }: { answers: SurveyAnswer[] }) {
         <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
           <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#374151' }} axisLine={false} tickLine={false} />
           <YAxis hide />
-          <Tooltip {...tooltipStyle} formatter={(value: number) => [`${value}명`, '응답']} />
+          <Tooltip {...tooltipStyle} formatter={(value: any) => [`${value}명`, '응답']} />
           <Bar dataKey="count" radius={[6, 6, 0, 0]} fill="#F59E0B" />
         </BarChart>
       </ResponsiveContainer>
@@ -166,7 +166,7 @@ export function OpinionScaleBarChart({ question, answers }: { question: SurveyQu
         <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
           <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#374151' }} axisLine={false} tickLine={false} />
           <YAxis hide />
-          <Tooltip {...tooltipStyle} formatter={(value: number) => [`${value}명`, '응답']} />
+          <Tooltip {...tooltipStyle} formatter={(value: any) => [`${value}명`, '응답']} />
           <Bar dataKey="count" radius={[6, 6, 0, 0]} fill="#EC4899" />
         </BarChart>
       </ResponsiveContainer>
@@ -205,7 +205,7 @@ export function RankingBarChart({ question, answers }: { question: SurveyQuestio
           <CartesianGrid horizontal={false} stroke="#f3f4f6" />
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12, fontWeight: 700, fill: '#374151' }} axisLine={false} tickLine={false} />
-          <Tooltip {...tooltipStyle} formatter={(value: number) => [`${value}점`, '가중 점수']} />
+          <Tooltip {...tooltipStyle} formatter={(value: any) => [`${value}점`, '가중 점수']} />
           <Bar dataKey="score" radius={[0, 6, 6, 0]} barSize={22}>
             {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
           </Bar>
@@ -238,7 +238,7 @@ export function WeeklyTrendChart({ data, height = 220 }: { data: WeeklyTrendPoin
           )}
           <Tooltip
             {...tooltipStyle}
-            formatter={(value: number, key: string) => (key === 'avgScore' ? [`${value.toFixed(1)}점`, '평가점수 평균'] : [`${value}건`, '참여도'])}
+            formatter={(value: any, key: any) => (key === 'avgScore' ? [`${Number(value).toFixed(1)}점`, '평가점수 평균'] : [`${value}건`, '참여도'])}
           />
           <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} formatter={(key) => (key === 'avgScore' ? '평가점수 평균' : '참여도(관찰+결과 건수)')} />
           <Bar yAxisId="engagement" dataKey="engagement" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={20} />
