@@ -33,6 +33,9 @@ import { parseVideoUrl } from '../lib/gallery';
 
 const ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
+// 체험하기(/demo) 버튼 임시 비활성화 — 다시 노출하려면 true로 변경
+const SHOW_DEMO_CTA = false;
+
 const features = [
   {
     icon: BookOpen,
@@ -274,13 +277,15 @@ const Landing = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={() => navigate('/demo')}
-                className="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl text-base transition-all shadow-lg hover:shadow-amber-200 hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <Play size={18} strokeWidth={3} />
-                지금 바로 체험하기
-              </button>
+              {SHOW_DEMO_CTA && (
+                <button
+                  onClick={() => navigate('/demo')}
+                  className="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl text-base transition-all shadow-lg hover:shadow-amber-200 hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Play size={18} strokeWidth={3} />
+                  지금 바로 체험하기
+                </button>
+              )}
               <button
                 onClick={handleGoogleSignup}
                 disabled={googleLoading}
@@ -438,16 +443,18 @@ const Landing = () => {
           <p className="text-center text-[11px] text-amber-700/50 mb-6">
             ＊ 본인 Gemini API 키(Google AI Studio에서 무료 발급) 등록 시 Free 플랜에서도 이용 가능
           </p>
-          <div className="text-center">
-            <button
-              onClick={() => navigate('/demo')}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black rounded-2xl text-sm transition-all"
-            >
-              <Play size={14} strokeWidth={3} />
-              수업 도구 직접 체험하기
-              <ChevronRight size={16} strokeWidth={2.5} />
-            </button>
-          </div>
+          {SHOW_DEMO_CTA && (
+            <div className="text-center">
+              <button
+                onClick={() => navigate('/demo')}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black rounded-2xl text-sm transition-all"
+              >
+                <Play size={14} strokeWidth={3} />
+                수업 도구 직접 체험하기
+                <ChevronRight size={16} strokeWidth={2.5} />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
