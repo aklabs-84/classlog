@@ -654,6 +654,13 @@ const Classroom = () => {
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
+    // 데모 체험 계정은 방문자마다 공유되므로, 새로 만든 학급은 자동 삭제 대상에 포함되지 않아
+    // 계정에 영구적으로 쌓이게 된다. 새 학급 생성 자체를 막고 가입을 안내한다.
+    if (isDemoTeacher(user)) {
+      setIsCreateModalOpen(false);
+      showToast('체험 계정에서는 새 학급을 만들 수 없어요. 무료로 가입하면 나만의 학급을 만들 수 있어요!');
+      return;
+    }
     const isSubjectRequired = newClassData.class_type === 'subject';
     if (!newClassData.name || (isSubjectRequired && !newClassData.subject) || !user) return;
     if (!newClassData.start_date || !newClassData.end_date) return;
@@ -1971,7 +1978,14 @@ const Classroom = () => {
         classes={classes}
         activeClassId={activeClassId}
         onSelectClass={setActiveClassId}
-        onCreateClass={() => { setBreakGenNew(DEFAULT_BREAK_GEN); setIsCreateModalOpen(true); }}
+        onCreateClass={() => {
+          if (isDemoTeacher(user)) {
+            showToast('체험 계정에서는 새 학급을 만들 수 없어요. 무료로 가입하면 나만의 학급을 만들 수 있어요!');
+            return;
+          }
+          setBreakGenNew(DEFAULT_BREAK_GEN);
+          setIsCreateModalOpen(true);
+        }}
         schoolName={profile?.school_name || ''}
         onSchoolSettings={() => navigate('/settings')}
         onEditClass={handleOpenEditClass}
@@ -2095,6 +2109,7 @@ const Classroom = () => {
                 return (
                   <button
                     key={tab.id}
+                    data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : undefined}
                     onClick={() => {
                       setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading');
                       if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);

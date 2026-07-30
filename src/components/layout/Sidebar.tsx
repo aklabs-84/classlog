@@ -83,6 +83,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
           <NavLink
             key={item.path}
             to={item.path}
+            data-tour={item.path === '/ai-assistant' ? 'ai-tab' : undefined}
             title={isCollapsed ? item.label : ''}
             className={({ isActive }) => `
               flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 relative group

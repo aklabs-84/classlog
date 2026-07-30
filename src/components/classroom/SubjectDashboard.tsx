@@ -510,6 +510,7 @@ const SubjectDashboard = ({
           <div className="flex items-center gap-2 flex-wrap">
             {pendingCount > 0 && (
               <button
+                data-tour="approve-btn"
                 onClick={onBulkApprove}
                 className="flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm shadow-soft bg-amber-500 hover:bg-amber-600 text-white transition-all active:scale-95 whitespace-nowrap"
               >
