@@ -929,7 +929,7 @@ const HomeroomDashboard = ({
 
             {/* 안내 */}
             <p className="text-white/40 font-bold text-sm text-center leading-relaxed">
-              학생들이 <span className="text-yellow-300 font-black">생기로그 → 수업 입장하기</span>에서<br />
+              학생들이 <span className="text-yellow-300 font-black">클래스로그 → 수업 입장하기</span>에서<br />
               위 코드를 입력하면 바로 참여할 수 있습니다.
             </p>
 

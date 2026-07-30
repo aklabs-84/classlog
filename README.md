@@ -1,10 +1,10 @@
-# 📝 생기로그 (SaengiLog) 
+# 📝 클래스로그 (ClassLog) 
 
 > **선생님을 위한 지능형 에디토리얼 수업 관리 & 생활기록부 워크스페이스**
 
-![생기로그 메인 이미지](https://raw.githubusercontent.com/aklabs-84/sangilog/main/public/og-image.png)
+![클래스로그 메인 이미지](https://raw.githubusercontent.com/aklabs-84/classlog/main/public/og-image.png)
 
-생기로그(SaengiLog)는 2026년 최신 웹 트렌드와 AI 기술을 결합하여, 교사의 학급 관리 부담을 획기적으로 줄여주는 스마트 교육 솔루션입니다. 고품질의 벤토 그리드(Bento Grid) 레이아웃과 구글 Gemini AI를 통해 학생들의 성장을 보다 정교하게 기록하고 분석할 수 있습니다.
+클래스로그(ClassLog)는 2026년 최신 웹 트렌드와 AI 기술을 결합하여, 교사의 학급 관리 부담을 획기적으로 줄여주는 스마트 교육 솔루션입니다. 고품질의 벤토 그리드(Bento Grid) 레이아웃과 구글 Gemini AI를 통해 학생들의 성장을 보다 정교하게 기록하고 분석할 수 있습니다.
 
 ---
 
@@ -43,8 +43,8 @@
 
 ### 로컬 개발 환경 실행
 ```bash
-git clone https://github.com/aklabs-84/sangilog.git
-cd sangilog/scholar_metric_app
+git clone https://github.com/aklabs-84/classlog.git
+cd classlog/scholar_metric_app
 npm install
 npm run dev
 ```
@@ -65,4 +65,4 @@ VITE_GEMINI_API_KEY=여기에_구글_제미나이_키_입력
 [![아크랩스](https://img.shields.io/badge/Partnership-AK_Labs-white?style=for-the-badge&logoColor=black)](https://litt.ly/aklabs)
 
 ---
-© 2026 생기로그(SaengiLog). Built with passion for better education.
+© 2026 클래스로그(ClassLog). Built with passion for better education.

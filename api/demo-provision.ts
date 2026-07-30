@@ -72,7 +72,7 @@ export default async function handler(req: any, res: any) {
       email: DEMO_TEACHER_EMAIL,
       password: randomUUID(),
       email_confirm: true,
-      user_metadata: { full_name: '생기로그 데모 교사' },
+      user_metadata: { full_name: '클래스로그 데모 교사' },
     });
 
     if (createError || !created?.user) {
@@ -85,7 +85,7 @@ export default async function handler(req: any, res: any) {
     await supabaseAdmin
       .from('profiles')
       .update({
-        full_name: '생기로그 데모 교사',
+        full_name: '클래스로그 데모 교사',
         role: 'teacher',
         email: DEMO_TEACHER_EMAIL,
         is_approved: true,

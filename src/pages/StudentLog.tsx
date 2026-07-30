@@ -68,7 +68,7 @@ import RichEditor from '../components/RichEditor';
 const TOUR_STEPS: TourStep[] = [
   {
     emoji: '👋',
-    title: '생기로그 사용 방법 안내',
+    title: '클래스로그 사용 방법 안내',
     description: '수업 활동을 기록하고 선생님과 소통하는 앱이에요. 주요 메뉴를 하나씩 살펴볼게요!',
   },
   {
@@ -2353,7 +2353,7 @@ ${guidePrompt}
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white rotate-3 shadow-lg shadow-primary/20">
             <GraduationCap size={24} />
           </div>
-          <h1 className="text-xl font-black font-manrope tracking-tighter">생기로그</h1>
+          <h1 className="text-xl font-black font-manrope tracking-tighter">클래스로그</h1>
         </div>
         
         <div className="flex items-center gap-6">
@@ -5373,7 +5373,7 @@ ${guidePrompt}
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white shrink-0">
                 <GraduationCap size={18} />
               </div>
-              <span className="font-black text-sm text-white truncate">생기로그</span>
+              <span className="font-black text-sm text-white truncate">클래스로그</span>
             </div>
           )}
           <button

@@ -326,6 +326,20 @@ export function getAiDailyLimit(profile: any): number {
   return getAiMonthlyLimit(profile);
 }
 
+// 이번 달 남은 AI 호출 가능 횟수를 서버(profiles)에서 직접 조회. Infinity면 무제한(admin).
+// 자동 채점처럼 실행 전 한도를 미리 확인해야 하는 화면(Classroom 일괄 채점, StudentView 개별 채점)에서 공용으로 사용.
+export async function fetchRemainingAiQuota(teacherId: string): Promise<number> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('plan, ai_monthly_reset, ai_monthly_count, beta_expires_at')
+    .eq('id', teacherId)
+    .single();
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const used = profile?.ai_monthly_reset === thisMonth ? (profile?.ai_monthly_count ?? 0) : 0;
+  const limit = getAiMonthlyLimit(profile);
+  return limit === Infinity ? Infinity : Math.max(0, limit - used);
+}
+
 export function checkCanUseAi(profile: any): boolean {
   return getAiMonthlyLimit(profile) > 0;
 }

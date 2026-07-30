@@ -64,7 +64,7 @@ export default function VideoGuide() {
             <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-sm">
               <GraduationCap size={18} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-base font-black tracking-tight text-amber-800">생기로그 AI</span>
+            <span className="text-base font-black tracking-tight text-amber-800">클래스로그 AI</span>
           </button>
 
           {isLoggedIn ? (
@@ -96,7 +96,7 @@ export default function VideoGuide() {
           </div>
           <h1 className="text-2xl font-black text-amber-900 tracking-tight">영상 가이드</h1>
           <p className="text-sm text-amber-700/70 mt-1.5">
-            생기로그 AI 사용 방법을 영상으로 확인하세요
+            클래스로그 AI 사용 방법을 영상으로 확인하세요
           </p>
         </div>
 

@@ -21,7 +21,7 @@ const Privacy = () => {
 
           <section>
             <h2 className="text-lg font-black text-gray-900 mb-3">1. 수집하는 개인정보 항목</h2>
-            <p>생기로그(SaengiLog)는 서비스 제공을 위해 다음 정보를 수집합니다.</p>
+            <p>클래스로그(ClassLog)는 서비스 제공을 위해 다음 정보를 수집합니다.</p>
             <ul className="mt-2 space-y-1 list-disc pl-5">
               <li>교사 회원: 이메일 주소, 이름, 소속 학교명</li>
               <li>학생 정보: 이름, 학번(선생님이 직접 입력·관리)</li>
@@ -43,7 +43,7 @@ const Privacy = () => {
           <section>
             <h2 className="text-lg font-black text-gray-900 mb-3">3. AI 기능과 데이터 처리</h2>
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
-              <p className="font-bold text-blue-800">생기로그의 AI 기능은 다음 원칙에 따라 운영됩니다.</p>
+              <p className="font-bold text-blue-800">클래스로그의 AI 기능은 다음 원칙에 따라 운영됩니다.</p>
               <ul className="space-y-2 list-disc pl-5 text-blue-700">
                 <li>
                   <strong>학생 실명 미전송:</strong> 세특/생기부 초안 생성 시 학생의 실명은 AI 모델에 전달되지 않습니다.
@@ -75,7 +75,7 @@ const Privacy = () => {
           <section>
             <h2 className="text-lg font-black text-gray-900 mb-3">5. 개인정보 제3자 제공</h2>
             <p>
-              생기로그는 원칙적으로 수집한 개인정보를 제3자에게 제공하지 않습니다.
+              클래스로그는 원칙적으로 수집한 개인정보를 제3자에게 제공하지 않습니다.
               단, 아래의 경우는 예외입니다.
             </p>
             <ul className="mt-2 space-y-1 list-disc pl-5">

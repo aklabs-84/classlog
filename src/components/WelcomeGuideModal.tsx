@@ -48,7 +48,7 @@ export default function WelcomeGuideModal({ isOpen, videos, onClose }: Props) {
               <div className="flex items-center gap-2">
                 <Sparkles size={20} />
                 <div>
-                  <p className="font-black text-base leading-tight">생기로그 AI 시작 가이드</p>
+                  <p className="font-black text-base leading-tight">클래스로그 AI 시작 가이드</p>
                   <p className="text-xs text-white/80 mt-0.5">{idx + 1} / {videos.length}</p>
                 </div>
               </div>

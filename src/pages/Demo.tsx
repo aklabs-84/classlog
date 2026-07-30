@@ -47,7 +47,7 @@ const INIT_STUDENTS: Student[] = [
 // ─── STAGE METADATA ───────────────────────────────────────────────────────────
 
 const STAGES = [
-  { role: null,      label: null,             title: '생기로그 AI 체험하기',               desc: '선생님과 학생의 전체 흐름을 직접 체험해보세요' },
+  { role: null,      label: null,             title: '클래스로그 AI 체험하기',               desc: '선생님과 학생의 전체 흐름을 직접 체험해보세요' },
   { role: 'teacher', label: '👩‍🏫 선생님 시점', title: '1단계 · 학급 생성 완료',             desc: '선생님이 학급을 만들고 학생에게 입장코드를 공유합니다' },
   { role: 'student', label: '🧑‍🎓 학생 시점',   title: '2단계 · 학생 입장',                 desc: '학생이 입장코드와 이름, PIN으로 수업에 참여합니다' },
   { role: 'student', label: '🧑‍🎓 학생 시점',   title: '3단계 · 수업 자료 확인 & 활동기록 제출', desc: '학생이 수업 자료를 보고 활동기록을 작성해 제출합니다' },
@@ -220,7 +220,7 @@ const Stage0 = ({
         <GraduationCap size={40} className="text-white" />
       </div>
       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 text-xs font-black rounded-full mb-5">
-        <Heart size={11} fill="currentColor" /> 생기로그 AI 인터랙티브 데모
+        <Heart size={11} fill="currentColor" /> 클래스로그 AI 인터랙티브 데모
       </span>
       <h1 className="text-3xl md:text-4xl font-black text-on-surface mb-4 tracking-tight leading-tight">
         클릭 한 번으로<br />

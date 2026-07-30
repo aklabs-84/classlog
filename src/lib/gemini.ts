@@ -3,6 +3,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from './supabase';
+import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
 
 export const SYSTEM_INSTRUCTIONS = {
   BASE: `
@@ -177,6 +178,7 @@ export const quizGeneratorAI      = makeModelWrapper('flash', 'quiz_generator', 
 export const surveyAnalysisAI     = makeModelWrapper('flash', 'survey_analysis');
 export const observationReviewAI  = makeModelWrapper('flash', 'observation_review', true);
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
+export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade', true);
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
 export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
 export const coverPromptAI         = makeModelWrapper('flash', 'cover_prompt_suggest', true);
@@ -194,6 +196,151 @@ export async function fileToGenerativePart(file: File): Promise<{ inlineData: { 
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+// Storage 공개 URL을 fileToGenerativePart와 동일한 inlineData 형태로 변환 (fetch로 받은 File이 아닌 원격 파일용)
+export async function urlToGenerativePart(url: string, mimeType: string): Promise<{ inlineData: { data: string; mimeType: string } }> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Data = (reader.result as string).split(',')[1];
+      resolve({ inlineData: { data: base64Data, mimeType } });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+const RESULT_EVAL_TAGS = ['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'];
+
+// Gemini가 내용을 직접 읽을 수 있는 file_type만 자동 채점 대상. 그 외(zip, docx 등)는 직접 확인 필요.
+export const GRADABLE_FILE_TYPES = ['application/pdf', 'text/html', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+
+interface GradableResultItem {
+  result_type: string;
+  text_content?: string | null;
+  storage_path?: string | null;
+  storage_paths?: string[] | null;
+  file_type?: string | null;
+}
+
+export function isResultGroupGradable(items: GradableResultItem[]): boolean {
+  return items.some(r => r.result_type === 'text' && !!r.text_content?.trim())
+    || items.some(r => r.result_type === 'image')
+    || items.some(r => r.result_type === 'file' && !!r.file_type && GRADABLE_FILE_TYPES.includes(r.file_type));
+}
+
+// student_results 그룹(텍스트/이미지/파일)을 autoGradeResult에 넘길 수 있는 형태로 변환.
+// AutoGradingPanel(클래스 전체)과 StudentView(학생 개별) 양쪽에서 공유하는 로직.
+export async function buildGradingContent(items: GradableResultItem[]): Promise<{ text?: string; files?: { inlineData: { data: string; mimeType: string } }[] }> {
+  const textItem = items.find(r => r.result_type === 'text');
+  const imageItem = items.find(r => r.result_type === 'image');
+  const fileItem = items.find(r => r.result_type === 'file' && r.file_type && GRADABLE_FILE_TYPES.includes(r.file_type));
+
+  let text = textItem?.text_content?.trim() || '';
+  const files: { inlineData: { data: string; mimeType: string } }[] = [];
+
+  if (imageItem) {
+    const urls = getResultImagePublicUrls(supabase.storage, imageItem).slice(0, 4);
+    for (const url of urls) {
+      try {
+        files.push(await urlToGenerativePart(url, imageItem.file_type || 'image/png'));
+      } catch (err) {
+        console.warn('이미지 첨부 실패:', err);
+      }
+    }
+  }
+
+  if (fileItem?.storage_path) {
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(fileItem.storage_path);
+    if (fileItem.file_type === 'text/html') {
+      try {
+        const res = await fetch(data.publicUrl);
+        const html = await res.text();
+        text = text ? `${text}\n\n${html}` : html;
+      } catch (err) {
+        console.warn('HTML 파일 읽기 실패:', err);
+      }
+    } else {
+      try {
+        files.push(await urlToGenerativePart(data.publicUrl, fileItem.file_type || 'application/pdf'));
+      } catch (err) {
+        console.warn('파일 첨부 실패:', err);
+      }
+    }
+  }
+
+  return { text: text || undefined, files: files.length > 0 ? files : undefined };
+}
+
+const LAST_RUBRIC_KEY_PREFIX = 'saengilog_last_rubric_';
+
+// 클래스별 "마지막으로 사용한 채점 기준"을 로컬에 저장 — Classroom의 일괄 채점 탭과
+// StudentView의 개별 AI 채점 제안 버튼이 같은 기준을 재사용할 수 있도록 공유.
+export function getLastRubric(classId: string): string {
+  try {
+    return localStorage.getItem(LAST_RUBRIC_KEY_PREFIX + classId) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setLastRubric(classId: string, rubric: string): void {
+  try {
+    localStorage.setItem(LAST_RUBRIC_KEY_PREFIX + classId, rubric);
+  } catch {
+    // 프라이빗 모드 등 localStorage 사용 불가 환경은 조용히 무시
+  }
+}
+
+// 교사가 입력한 채점 기준 + 학생 제출 내용(텍스트/이미지·PDF 첨부)을 바탕으로
+// 역량 태그·별점·코멘트를 AI가 제안. 실패 시 null 반환 — 호출 측에서 "직접 입력"으로 안내.
+export async function autoGradeResult(
+  rubric: string,
+  content: { text?: string; files?: { inlineData: { data: string; mimeType: string } }[] },
+  classId?: string
+): Promise<{ tags: string[]; score: number; comment: string } | null> {
+  const prompt = `당신은 학생이 제출한 결과물을 교사가 입력한 채점 기준에 따라 평가하는 AI입니다.
+
+[교사의 채점 기준]
+${rubric}
+
+[역량 태그] (아래 목록 중에서만 선택, 근거가 있는 태그만 1개 이상 선택)
+${RESULT_EVAL_TAGS.join(', ')}
+
+[학생 제출 내용]
+${content.text || '(아래 첨부된 이미지/파일을 직접 확인하고 평가하세요)'}
+
+[코드/HTML 제출물 평가 시 주의사항]
+제출 내용이 HTML/CSS/JS 등 코드인 경우, 당신은 이 코드를 브라우저에서 실행하거나 버튼을 직접 클릭해본 것이 아니라 소스 코드 텍스트만 읽고 있습니다. 버튼 클릭, 화면 전환, 알림 동작 등 실제로 실행해봐야만 확인할 수 있는 동작에 대해서는 "정상적으로 작동한다"처럼 단정하지 마세요. 코드에 관련 요소(이벤트 핸들러, 함수 등)가 존재한다는 사실과 실제로 그것이 오류 없이 동작한다는 것은 다릅니다. 이런 부분은 "코드 상으로는 ~하게 구현되어 있으나 실제 동작 여부는 직접 확인이 필요합니다"처럼 신중하게 표현하고, score와 comment도 확인되지 않은 실행 결과를 근거로 후하게 주지 마세요.
+
+위 기준에 따라 평가하여 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
+{"tags":["역량태그1","역량태그2"],"score":3,"comment":"학생에게 보여줄 한두 문장 코멘트"}
+- score는 1~5 사이 정수 (기준을 잘 충족할수록 높은 점수)
+- comment는 구체적이고 격려하는 톤으로 작성하되, 확인되지 않은 실행 결과를 단정하지 말 것`;
+
+  const parts: any[] = [{ text: prompt }];
+  if (content.files?.length) parts.push(...content.files);
+
+  try {
+    const result = await resultAutoGradeAI.generateContent(parts, { class_id: classId });
+    const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    const tags = Array.isArray(parsed.tags) ? parsed.tags.filter((t: any) => RESULT_EVAL_TAGS.includes(t)) : [];
+    const scoreNum = Number(parsed.score);
+    return {
+      tags,
+      score: Number.isFinite(scoreNum) ? Math.min(5, Math.max(1, Math.round(scoreNum))) : 0,
+      comment: String(parsed.comment || '').trim(),
+    };
+  } catch (error) {
+    console.error('autoGradeResult error:', error);
+    return null;
+  }
 }
 
 export async function validateStudentGuidePrompt(

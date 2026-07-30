@@ -28,7 +28,7 @@ export default function InstallPromptBanner() {
                 <Download size={18} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-on-surface leading-tight">생기로그 앱 설치</p>
+                <p className="text-sm font-black text-on-surface leading-tight">클래스로그 앱 설치</p>
                 <p className="text-[11px] text-on-surface-variant/60 font-medium mt-0.5">홈 화면에 추가하면 더 빠르게 열려요</p>
               </div>
               <button
@@ -63,7 +63,7 @@ export default function InstallPromptBanner() {
                 <Download size={18} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-on-surface leading-tight">생기로그 앱 설치</p>
+                <p className="text-sm font-black text-on-surface leading-tight">클래스로그 앱 설치</p>
                 <p className="text-[11px] text-on-surface-variant/60 font-medium mt-0.5">홈 화면에 추가해 앱처럼 사용해 보세요</p>
               </div>
               <button
@@ -101,7 +101,7 @@ export default function InstallPromptBanner() {
             >
               <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-base font-black text-on-surface">생기로그 앱 설치 방법</h3>
+                <h3 className="text-base font-black text-on-surface">클래스로그 앱 설치 방법</h3>
                 <button
                   onClick={() => { setShowIOSGuide(false); dismiss(false); }}
                   className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400"
@@ -146,7 +146,7 @@ export default function InstallPromptBanner() {
                     <p className="text-sm text-on-surface-variant/70 mt-0.5 leading-relaxed">
                       오른쪽 위 <span className="font-black text-green-600">"추가"</span>를 탭하면 완료!
                       <br />
-                      <span className="text-[11px] text-on-surface-variant/50">홈 화면에 생기로그 아이콘이 생깁니다</span>
+                      <span className="text-[11px] text-on-surface-variant/50">홈 화면에 클래스로그 아이콘이 생깁니다</span>
                     </p>
                   </div>
                 </div>

@@ -117,7 +117,7 @@ const SetPassword = () => {
           <GraduationCap size={36} strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl md:text-4xl font-black tracking-tightest leading-none gradient-text">생기로그 AI</h1>
+          <h1 className="text-2xl md:text-4xl font-black tracking-tightest leading-none gradient-text">클래스로그 AI</h1>
           <p className="text-[10px] text-primary/40 font-black tracking-[0.15em] mt-1 ml-1">수업 기록부터 세특까지</p>
         </div>
       </motion.div>
@@ -133,7 +133,7 @@ const SetPassword = () => {
           </div>
           <h2 className="text-3xl font-black mb-3 tracking-tightest">비밀번호 설정</h2>
           <p className="text-sm text-on-surface-variant/60 font-medium">
-            생기로그 AI에서 사용하실 비밀번호를 설정해주세요
+            클래스로그 AI에서 사용하실 비밀번호를 설정해주세요
           </p>
         </div>
 

@@ -451,7 +451,7 @@ const ClassBoard = () => {
       {/* ── 하단 상태 바 ── */}
       <footer className="px-8 py-3 bg-surface-container-lowest border-t border-surface-container-high flex items-center justify-between">
         <span className="text-[10px] text-on-surface-variant font-black uppercase tracking-widest">
-          생기로그 · 우리반 보드
+          클래스로그 · 우리반 보드
         </span>
         <span className="text-[10px] text-on-surface-variant/50 font-bold">
           30초마다 자동 새로고침

@@ -230,7 +230,7 @@ export default function StudentJoin() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
             <GraduationCap size={28} color="#3B82F6" />
-            <span style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>생기로그</span>
+            <span style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>클래스로그</span>
           </div>
           <p style={{ color: '#6B7280', fontSize: 13 }}>수업 보드 참여</p>
         </div>

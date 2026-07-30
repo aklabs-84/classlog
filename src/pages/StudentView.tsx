@@ -13,7 +13,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import { useAuth } from '../lib/auth';
+import { useAuth, fetchRemainingAiQuota } from '../lib/auth';
+import { autoGradeResult, buildGradingContent, isResultGroupGradable, getLastRubric, setLastRubric } from '../lib/gemini';
 import { downloadFile, openFile } from '../lib/fileUtils';
 import Pagination from '../components/Pagination';
 import CodeBlock from '../components/CodeBlock';
@@ -176,6 +177,8 @@ const StudentView = () => {
   // Result Evaluation States
   const [evalForms, setEvalForms] = useState<Record<string, { score: number; tags: string[]; note: string }>>({});
   const [savingEvalId, setSavingEvalId] = useState<string | null>(null);
+  const [aiGradingKey, setAiGradingKey] = useState<string | null>(null);
+  const [modalRubric, setModalRubric] = useState('');
 
   // Pagination States
   const TIMELINE_PAGE_SIZE = 1;
@@ -230,6 +233,25 @@ const StudentView = () => {
       .sort((a, b) => a.week - b.week);
   }, [student, observations, results]);
 
+  // 학습 상태 요약 — 최근 활동일은 커리큘럼 주차(weekly_plan)가 아닌 실제 기록 날짜 기준으로 계산
+  // (weekly_plan 주차는 교사가 진도를 앞당기거나 늦추면 달력 날짜와 어긋날 수 있어 "이번 주" 판정에는 부적합)
+  const summaryStats = useMemo(() => {
+    const timestamps = [...observations, ...results]
+      .map(r => r.created_at ? new Date(r.created_at).getTime() : NaN)
+      .filter(t => !isNaN(t));
+    const lastActivityTs = timestamps.length > 0 ? Math.max(...timestamps) : null;
+    const daysSince = lastActivityTs !== null ? Math.floor((Date.now() - lastActivityTs) / (1000 * 60 * 60 * 24)) : null;
+
+    const scored = results.filter(r => typeof r.teacher_eval_score === 'number' && r.teacher_eval_score > 0);
+    const avgScore = scored.length > 0 ? scored.reduce((sum, r) => sum + r.teacher_eval_score, 0) / scored.length : null;
+
+    // Classroom.tsx의 isClassClosed와 동일한 판정(is_closed 플래그 또는 end_date 경과) — 종료된 클래스는 활동이 없는 게 정상이라 활발/보통/저조 배지 대상에서 제외
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const classEnded = !!student?.classes?.is_closed || (!!student?.classes?.end_date && student.classes.end_date < todayStr);
+
+    return { daysSince, avgScore, classEnded };
+  }, [observations, results, student]);
+
   // 타임라인 좌우 방향키 이동 (입력 중이거나 수정 폼이 열려있을 땐 비활성화)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -282,7 +304,7 @@ const StudentView = () => {
     try {
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select(`*, classes(name, subject, teacher_id, weekly_plan, class_type)`)
+        .select(`*, classes(name, subject, teacher_id, weekly_plan, class_type, end_date, is_closed)`)
         .eq('id', id)
         .single();
       if (studentError) throw studentError;
@@ -734,7 +756,47 @@ const StudentView = () => {
     }
   };
 
+  // 모달을 새로 열 때마다 이 클래스에서 마지막으로 사용한 채점 기준으로 입력창을 채워둔다.
+  useEffect(() => {
+    if (!selectedResult) return;
+    const classId = student?.class_id;
+    if (!classId) return;
+    setModalRubric(getLastRubric(classId));
+  }, [selectedResult?.groupId, student?.class_id]);
 
+  // 모달에서 직접 입력/수정한 채점 기준으로 이 학생 1건만 채점하고, 다음에도 재사용되도록 저장한다.
+  const handleAiSuggest = async (groupId: string, groupItems: any[]) => {
+    const classId = student?.class_id;
+    if (!classId) return;
+    if (!isResultGroupGradable(groupItems)) {
+      showToast('링크·압축파일 등은 AI 자동 채점을 지원하지 않아요. 직접 입력해주세요.', 'error');
+      return;
+    }
+    const rubric = modalRubric;
+    if (!rubric.trim()) {
+      showToast('채점 기준을 먼저 입력해주세요.', 'error');
+      return;
+    }
+    setAiGradingKey(groupId);
+    try {
+      const remaining = await fetchRemainingAiQuota(user?.id || '');
+      if (remaining <= 0) {
+        showToast('이번 달 AI 사용 한도에 도달했습니다.', 'error');
+        return;
+      }
+      const content = await buildGradingContent(groupItems);
+      const suggestion = await autoGradeResult(rubric, content, classId);
+      if (suggestion) {
+        setEvalForms(prev => ({ ...prev, [groupId]: { score: suggestion.score, tags: suggestion.tags, note: suggestion.comment } }));
+        setLastRubric(classId, rubric);
+        showToast('AI 채점 제안을 반영했습니다. 확인 후 저장해주세요. ✅');
+      } else {
+        showToast('AI 채점에 실패했습니다. 직접 입력해주세요.', 'error');
+      }
+    } finally {
+      setAiGradingKey(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -847,6 +909,48 @@ const StudentView = () => {
                 <p className="text-2xl font-black text-on-surface">
                   {new Set(observations.map(o => o.category || '기본')).size}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 학습 상태 요약 */}
+          <div className="surface-card p-6 shadow-ambient border border-white/60">
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-4">학습 상태 요약</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-on-surface-variant">최근 활동</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-on-surface">
+                    {summaryStats.daysSince === null ? '기록 없음'
+                      : summaryStats.daysSince === 0 ? '오늘'
+                      : summaryStats.daysSince === 1 ? '어제'
+                      : `${summaryStats.daysSince}일 전`}
+                  </span>
+                  {summaryStats.classEnded ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-neutral-100 text-neutral-400">
+                      종료된 클래스
+                    </span>
+                  ) : summaryStats.daysSince !== null && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                      summaryStats.daysSince <= 7 ? 'bg-secondary/10 text-secondary'
+                      : summaryStats.daysSince <= 14 ? 'bg-neutral-100 text-neutral-500'
+                      : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {summaryStats.daysSince <= 7 ? '활발' : summaryStats.daysSince <= 14 ? '보통' : '저조'}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-on-surface-variant">평균 평가점수</span>
+                {summaryStats.avgScore !== null ? (
+                  <span className="text-xs font-black text-amber-500 flex items-center gap-1">
+                    {'★'.repeat(Math.round(summaryStats.avgScore))}{'☆'.repeat(5 - Math.round(summaryStats.avgScore))}
+                    <span className="text-on-surface-variant/50 ml-1">{summaryStats.avgScore.toFixed(1)}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold text-on-surface-variant/40">평가 기록 없음</span>
+                )}
               </div>
             </div>
           </div>
@@ -1871,14 +1975,13 @@ const StudentView = () => {
       {/* ─── 결과 상세 모달 ─── */}
       <AnimatePresence>
         {selectedResult && (
-          <div className="fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden" onClick={() => setSelectedResult(null)}>
-          <div className="min-h-full flex items-start justify-center p-6 py-10">
+          <div className="fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6" onClick={() => setSelectedResult(null)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-2xl max-h-[90vh] bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col"
+              className="w-full max-w-2xl max-h-[85vh] bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col"
             >
               {/* 모달 헤더 */}
               <div className="flex items-start justify-between p-8 pb-4 shrink-0">
@@ -1950,9 +2053,36 @@ const StudentView = () => {
                     .map((gid: string) => evalForms[gid])
                     .find((e: any) => e && (e.score || e.tags?.length || e.note))
                     || getEval(weekGroupId);
+                  const weekGroupItems = results.filter((r: any) => weekGroupIds.includes(r.submission_group || r.id));
+                  const weekGradable = isResultGroupGradable(weekGroupItems);
                   return (
                     <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
-                      <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용 (이번 제출 전체 기준 1회)</p>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용 (이번 제출 전체 기준 1회)</p>
+                      </div>
+                      {weekGradable && (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant/70">AI 채점 기준 (수정 가능 · 클래스별로 마지막 사용 기준이 자동으로 채워집니다)</label>
+                          <div className="flex items-start gap-2">
+                            <textarea
+                              value={modalRubric}
+                              onChange={e => setModalRubric(e.target.value)}
+                              placeholder="예: 자료 조사의 깊이와 자기 생각의 논리성을 중점적으로 평가해주세요."
+                              rows={2}
+                              className="flex-1 px-3 py-2 rounded-xl border border-violet-200 bg-white text-xs text-on-surface resize-none focus:outline-none focus:ring-2 focus:ring-violet-300"
+                            />
+                            <button
+                              onClick={() => handleAiSuggest(weekGroupId, weekGroupItems)}
+                              disabled={!modalRubric.trim() || aiGradingKey === weekGroupId}
+                              title={!modalRubric.trim() ? '채점 기준을 먼저 입력해주세요.' : undefined}
+                              className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-[10px] font-black text-violet-500 bg-white border border-violet-200 hover:bg-violet-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                            >
+                              {aiGradingKey === weekGroupId ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                              AI 채점 제안
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant/70">성취 수준</label>
                         <div className="flex items-center gap-1">
@@ -2217,7 +2347,6 @@ const StudentView = () => {
                 })}
               </div>
             </motion.div>
-          </div>
           </div>
         )}
       </AnimatePresence>

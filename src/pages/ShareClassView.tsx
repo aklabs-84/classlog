@@ -752,7 +752,7 @@ const ShareClassView = () => {
           </div>
 
           <p className="text-center text-[11px] text-gray-400 font-semibold">
-            생기로그 AI — 수업 기록부터 세특까지
+            클래스로그 AI — 수업 기록부터 세특까지
           </p>
         </div>
       </div>
@@ -804,7 +804,7 @@ const ShareClassView = () => {
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 transition-all border border-gray-200 hover:border-violet-200 hover:bg-violet-50"
               >
                 <Sparkles size={12} className="text-violet-600" />
-                <span className="text-[11px] font-black text-gray-600">Powered by 생기로그 AI</span>
+                <span className="text-[11px] font-black text-gray-600">Powered by 클래스로그 AI</span>
               </a>
             </div>
 
@@ -1393,13 +1393,13 @@ const ShareClassView = () => {
             <div className="relative">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[11px] font-black text-violet-300 mb-4">
                 <Sparkles size={12} />
-                생기로그 AI
+                클래스로그 AI
               </span>
               <h3 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-2 tracking-tight">
                 이런 학급 공유 페이지, 우리 학교도<br className="hidden sm:block" /> 만들어볼까요?
               </h3>
               <p className="text-sm text-gray-400 font-semibold mb-5">
-                학급 활동 기록부터 세특 작성까지, 생기로그 AI가 도와드립니다
+                학급 활동 기록부터 세특 작성까지, 클래스로그 AI가 도와드립니다
               </p>
               <div className="flex flex-wrap gap-3 mb-6">
                 {['학교 그룹 관리', '교사 계정 연동', '학급 공유 URL 발급'].map((item) => (
@@ -1422,7 +1422,7 @@ const ShareClassView = () => {
           {/* 푸터 */}
           <div className="text-center pt-4 pb-8 print:pt-8">
             <p className="text-[10px] text-gray-300 font-semibold">
-              생기로그 AI — 선생님 공유 보기 · {new Date().getFullYear()}
+              클래스로그 AI — 선생님 공유 보기 · {new Date().getFullYear()}
             </p>
           </div>
         </main>
@@ -1623,7 +1623,7 @@ const ShareClassView = () => {
       {/* 보고서 헤더 */}
       <div className="flex items-start justify-between pb-4 mb-5 border-b-2 border-gray-300">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">생기로그 AI · 수업 결과 보고서</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">클래스로그 AI · 수업 결과 보고서</p>
           <h1 className="text-xl font-black text-gray-900">
             {classInfo?.name}{classInfo?.subject ? ` · ${classInfo.subject}` : ''}
           </h1>
@@ -1784,7 +1784,7 @@ const ShareClassView = () => {
 
       {/* 보고서 푸터 */}
       <div className="flex items-center justify-between mt-8 pt-3 border-t border-gray-200 text-[9px] text-gray-400">
-        <span>생기로그 AI — 수업 기록부터 세특까지</span>
+        <span>클래스로그 AI — 수업 기록부터 세특까지</span>
         <span>{new Date().toLocaleString('ko-KR')}</span>
       </div>
 

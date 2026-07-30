@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'favicon-32.png', 'favicon-192.png', 'favicon-512.png'],
       manifest: {
-        name: '생기로그 AI',
-        short_name: '생기로그',
+        name: '클래스로그 AI',
+        short_name: '클래스로그',
         description: '교사를 위한 AI 수업 기록 및 세특 초안 생성 서비스',
         theme_color: '#6366f1',
         background_color: '#ffffff',

@@ -207,7 +207,7 @@ const Landing = () => {
             <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-sm">
               <GraduationCap size={20} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-lg font-black tracking-tight text-amber-800">생기로그 AI</span>
+            <span className="text-lg font-black tracking-tight text-amber-800">클래스로그 AI</span>
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -271,7 +271,7 @@ const Landing = () => {
             </h1>
             <p className="text-lg text-amber-800/70 max-w-xl mx-auto mb-10 leading-relaxed">
               활동 기록 수집부터 AI 세특 초안 생성, 나이스 제출까지.<br />
-              생기로그 AI가 반복 업무를 대신합니다.
+              클래스로그 AI가 반복 업무를 대신합니다.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -366,7 +366,7 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
             <span className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full mb-4">
-              ✨ 생기로그 AI가 하는 일
+              ✨ 클래스로그 AI가 하는 일
             </span>
             <h2 className="text-3xl font-black text-amber-900 mb-3">기록하면, AI가 세특을 씁니다</h2>
             <p className="text-amber-700/60 text-base">활동 기록부터 나이스 제출까지 — 선생님의 모든 반복 업무를 대신합니다</p>
@@ -400,7 +400,7 @@ const Landing = () => {
               🛠 수업 도구
             </span>
             <h2 className="text-3xl font-black text-amber-900 mb-3">수업에 필요한 모든 도구, 하나로</h2>
-            <p className="text-amber-700/60 text-base">별도 앱 없이 생기로그 AI 하나로 수업 전반을 운영할 수 있습니다</p>
+            <p className="text-amber-700/60 text-base">별도 앱 없이 클래스로그 AI 하나로 수업 전반을 운영할 수 있습니다</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[
@@ -462,7 +462,7 @@ const Landing = () => {
             <h2 className="text-3xl font-black text-amber-900 mb-3">생기부가 없어도 됩니다</h2>
             <p className="text-amber-700/60 text-base">
               학생을 가르치고, 기록하고, 성장을 나눠야 하는 곳이라면<br className="hidden sm:block" />
-              어디서든 생기로그 AI가 함께합니다
+              어디서든 클래스로그 AI가 함께합니다
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-5 mb-10">
@@ -494,7 +494,7 @@ const Landing = () => {
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-2xl px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <p className="font-black text-amber-900 text-base mb-1">지금 어떤 수업을 가르치고 계신가요?</p>
-              <p className="text-sm text-amber-700/70">어떤 과목·기관이든 생기로그 AI는 선생님 편입니다. 무료로 먼저 체험해 보세요.</p>
+              <p className="text-sm text-amber-700/70">어떤 과목·기관이든 클래스로그 AI는 선생님 편입니다. 무료로 먼저 체험해 보세요.</p>
             </div>
             <button
               onClick={handleGoogleSignup}
@@ -547,7 +547,7 @@ const Landing = () => {
             {/* Live badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-black text-emerald-700">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              지금 이 순간에도 선생님들이 생기로그를 사용하고 있습니다
+              지금 이 순간에도 선생님들이 클래스로그를 사용하고 있습니다
             </div>
 
             <h2 className="text-3xl md:text-4xl font-extrabold text-amber-900 font-manrope leading-snug">
@@ -581,7 +581,7 @@ const Landing = () => {
                   value: pubStats.total_students,
                   label: '참여 중인 학생',
                   unit: '명',
-                  desc: '생기로그로 수업에 참여하는 학생',
+                  desc: '클래스로그로 수업에 참여하는 학생',
                   color: 'from-emerald-50 to-teal-50 border-emerald-200',
                   iconColor: 'text-emerald-500',
                 },
@@ -822,7 +822,7 @@ const Landing = () => {
                   ))}
                   {(plan as any).schoolBadge && (
                     <a
-                      href="mailto:aklabs84@naver.com?subject=생기로그 School 플랜 도입 문의"
+                      href="mailto:aklabs84@naver.com?subject=클래스로그 School 플랜 도입 문의"
                       className="mt-3 block w-full py-2 bg-violet-500 hover:bg-violet-600 text-white text-xs font-black rounded-xl text-center transition-colors"
                     >
                       도입 문의하기
@@ -861,7 +861,7 @@ const Landing = () => {
               <PlayCircle size={12} /> 영상 가이드
             </span>
             <h2 className="text-3xl font-black text-amber-900 mb-3">눈으로 먼저 확인하세요</h2>
-            <p className="text-amber-700/70 text-sm">기능별 짧은 영상으로 생기로그 AI를 미리 경험해보세요</p>
+            <p className="text-amber-700/70 text-sm">기능별 짧은 영상으로 클래스로그 AI를 미리 경험해보세요</p>
           </motion.div>
 
           {videoGuides.length > 0 ? (
@@ -1005,7 +1005,7 @@ const Landing = () => {
                   <CheckCircle2 size={36} className="text-white" />
                 </div>
                 <h3 className="text-2xl font-black text-white mb-1">문의가 접수되었습니다!</h3>
-                <p className="text-emerald-100 text-sm font-medium">생기로그 AI에 관심 가져주셔서 감사합니다</p>
+                <p className="text-emerald-100 text-sm font-medium">클래스로그 AI에 관심 가져주셔서 감사합니다</p>
               </div>
 
               {/* 안내 내용 */}
@@ -1040,7 +1040,7 @@ const Landing = () => {
                       오래 기다리셨다면 아래 이메일로 문의해 주세요.
                     </p>
                     <a
-                      href="mailto:aklabs84@naver.com?subject=생기로그 AI 도입 문의"
+                      href="mailto:aklabs84@naver.com?subject=클래스로그 AI 도입 문의"
                       className="inline-block mt-2 text-xs font-black text-emerald-600 hover:text-emerald-800 underline underline-offset-2 transition-colors"
                     >
                       aklabs84@naver.com →
@@ -1158,7 +1158,7 @@ const Landing = () => {
             <div className="w-8 h-8 bg-amber-500 rounded-xl flex items-center justify-center">
               <GraduationCap size={16} className="text-white" />
             </div>
-            <span className="font-black text-amber-100">생기로그 AI</span>
+            <span className="font-black text-amber-100">클래스로그 AI</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-amber-400">
             <a

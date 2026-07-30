@@ -744,7 +744,7 @@ const SchoolProjectShareView = () => {
                 </div>
                 <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 transition-all border border-gray-200 hover:bg-gray-50">
                   <Sparkles size={12} style={{ color: theme.from }} />
-                  <span className="text-[11px] font-black text-gray-600">Powered by 생기로그 AI</span>
+                  <span className="text-[11px] font-black text-gray-600">Powered by 클래스로그 AI</span>
                 </a>
               </div>
 
@@ -1655,7 +1655,7 @@ const SchoolProjectShareView = () => {
         })}
       </div>
 
-      {/* 생기로그 홍보 CTA */}
+      {/* 클래스로그 홍보 CTA */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-10 print:hidden">
         <motion.div
           initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
@@ -1666,13 +1666,13 @@ const SchoolProjectShareView = () => {
           <div className="relative">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-4 bg-white/10">
               <Sparkles size={12} style={{ color: theme.from }} />
-              <span className="text-[11px] font-black" style={{ color: theme.from }}>생기로그 AI</span>
+              <span className="text-[11px] font-black" style={{ color: theme.from }}>클래스로그 AI</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight text-white">
               이런 학급 공유 페이지, 우리 학교도 만들어볼까요?
             </h2>
             <p className="text-sm mb-6 text-gray-400">
-              학급 관리부터 학생 결과 공유, AI 세특 작성까지 — 생기로그 AI 하나로 끝냅니다
+              학급 관리부터 학생 결과 공유, AI 세특 작성까지 — 클래스로그 AI 하나로 끝냅니다
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-7">
               {['학교·학급 그룹 관리', '학생 활동 기록 자동 정리', 'AI 세특 초안 생성'].map(item => (
@@ -1693,7 +1693,7 @@ const SchoolProjectShareView = () => {
       </div>
 
       <footer className="text-center py-4 text-xs text-gray-300">
-        생기로그 · 학교 프로젝트 공유 페이지
+        클래스로그 · 학교 프로젝트 공유 페이지
       </footer>
     </div>
   );

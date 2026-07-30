@@ -140,7 +140,7 @@ const UpgradeModal = ({ isOpen, onClose, reason, currentPlan: _currentPlan }: Up
             {/* CTA */}
             <div className="px-6 pb-6 space-y-2">
               <a
-                href="mailto:aklabs84@naver.com?subject=생기로그 AI Pro 업그레이드 문의"
+                href="mailto:aklabs84@naver.com?subject=클래스로그 AI Pro 업그레이드 문의"
                 className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-200 transition-all hover:scale-[1.02] active:scale-95"
               >
                 <Zap size={16} />

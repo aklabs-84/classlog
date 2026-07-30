@@ -44,6 +44,7 @@ import {
   Library,
   Settings2,
   Pencil,
+  Wand2,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
@@ -64,6 +65,7 @@ import StudentDetailDrawer from '../components/classroom/StudentDetailDrawer';
 import UnitManager from '../components/classroom/UnitManager';
 import AttendanceTab from '../components/classroom/AttendanceTab';
 import GroupTab from '../components/classroom/GroupTab';
+import AutoGradingPanel from '../components/classroom/AutoGradingPanel';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
@@ -159,8 +161,8 @@ const Classroom = () => {
   const [breakGenNew, setBreakGenNew] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [breakGenEdit, setBreakGenEdit] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials'>(
-    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials') || 'list'
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading'>(
+    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading') || 'list'
   );
   // 보드 탭 state
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
@@ -2059,6 +2061,7 @@ const Classroom = () => {
                 { id: 'units', label: '단원 관리', icon: BookOpen },
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
                 { id: 'groups', label: '조 편성', icon: Layers },
+                { id: 'grading', label: '결과 일괄 채점', icon: Wand2 },
                 { id: 'board', label: '우리반 보드', icon: Users2 },
                 { id: 'notice', label: '공지사항', icon: Megaphone },
                 { id: 'teacher_materials', label: '선생님 자료', icon: Lock },
@@ -2069,7 +2072,7 @@ const Classroom = () => {
                   <button
                     key={tab.id}
                     onClick={() => {
-                      setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials');
+                      setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading');
                       if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
                       if (tab.id === 'notice' && activeClassId) fetchAnnouncements(activeClassId);
                       if (tab.id === 'teacher_materials' && activeClassId) fetchPrivateMaterials(activeClassId);
@@ -2121,6 +2124,15 @@ const Classroom = () => {
                     onGroupsChanged={() => loadGroupMap(activeClassId!)}
                   />
                 </div>
+              )}
+
+              {activeTab === 'grading' && classInfo && (
+                <AutoGradingPanel
+                  classId={activeClassId!}
+                  teacherId={user?.id || ''}
+                  weeklyPlan={classInfo.weekly_plan || []}
+                  students={sortedStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
+                />
               )}
 
               {activeTab === 'ai' && classInfo && (
@@ -4019,7 +4031,7 @@ const Classroom = () => {
                         <div className="flex items-center justify-between px-1 py-1">
                           <div>
                             <p className="text-xs font-black text-primary uppercase tracking-widest">학교 공유페이지 - 학습 여정 탭 표시</p>
-                            <p className="text-xs font-bold text-neutral-400 mt-0.5">생기로그 도입 전 수업 등 여정 표시가 애매하면 꺼두세요</p>
+                            <p className="text-xs font-bold text-neutral-400 mt-0.5">클래스로그 도입 전 수업 등 여정 표시가 애매하면 꺼두세요</p>
                           </div>
                           <button
                             type="button"
@@ -4127,7 +4139,7 @@ const Classroom = () => {
                 <p className="text-on-surface-variant font-bold">학생 입장용 QR 코드</p>
               </div>
               <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://sangilog.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://classlog-ai.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
               <div className="bg-primary/5 p-6 rounded-2xl space-y-2">
                 <p className="text-xs font-black text-primary uppercase tracking-widest">입장 코드</p>
@@ -4146,7 +4158,7 @@ const Classroom = () => {
                 <p className="text-on-surface-variant font-bold">학교 선생님 공유용 QR 코드</p>
               </div>
               <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://sangilog.vercel.app/share/${classInfo.id}`)}`} alt="QR Code" className="w-full h-full object-contain" />
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://classlog-ai.vercel.app/share/${classInfo.id}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
               <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed">
                 이 QR을 스캔하면 로그인 없이<br />학급 공유 페이지로 바로 이동합니다.

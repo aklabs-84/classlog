@@ -328,7 +328,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
       doc += `\n${'─'.repeat(46)}\n\n`;
     });
 
-    doc += `[생기로그(SaengiLog) 학급 관찰 기록 · 총 ${byStudent.length}명]\n`;
+    doc += `[클래스로그(ClassLog) 학급 관찰 기록 · 총 ${byStudent.length}명]\n`;
 
     const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
     const url  = URL.createObjectURL(blob);

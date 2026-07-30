@@ -22,7 +22,7 @@ const Terms = () => {
           <section>
             <h2 className="text-lg font-black text-gray-900 mb-3">제1조 (목적)</h2>
             <p>
-              이 약관은 아크랩스(AKLABS, 이하 "회사")가 제공하는 생기로그(SaengiLog, 이하 "서비스")의 이용과 관련하여
+              이 약관은 아크랩스(AKLABS, 이하 "회사")가 제공하는 클래스로그(ClassLog, 이하 "서비스")의 이용과 관련하여
               회사와 이용자의 권리·의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.
             </p>
           </section>
@@ -30,7 +30,7 @@ const Terms = () => {
           <section>
             <h2 className="text-lg font-black text-gray-900 mb-3">제2조 (용어의 정의)</h2>
             <ul className="mt-2 space-y-1 list-disc pl-5">
-              <li><strong>서비스:</strong> 회사가 제공하는 생기로그 웹 애플리케이션 및 이에 부수하는 모든 기능</li>
+              <li><strong>서비스:</strong> 회사가 제공하는 클래스로그 웹 애플리케이션 및 이에 부수하는 모든 기능</li>
               <li><strong>이용자:</strong> 이 약관에 따라 회사와 이용계약을 체결하고 서비스를 이용하는 교사·학원 강사 등 회원</li>
               <li><strong>플랜:</strong> 무료(Free)·Basic·Pro·School 등 서비스 이용 범위에 따라 구분된 요금제</li>
               <li><strong>학생:</strong> 이용자가 서비스 내에서 관리하는 학급의 구성원으로, 별도 회원가입 없이 이용자가 발급한 코드로 접속하는 자</li>

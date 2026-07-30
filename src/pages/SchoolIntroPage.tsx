@@ -378,7 +378,7 @@ export default function SchoolIntroPage() {
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
             <span className="text-xl">📚</span>
-            <span className="font-black text-indigo-900 text-sm">생기로그 AI</span>
+            <span className="font-black text-indigo-900 text-sm">클래스로그 AI</span>
           </a>
           <button
             onClick={() => setModalOpen(true)}
@@ -396,7 +396,7 @@ export default function SchoolIntroPage() {
           <Sparkles size={12} /> School 플랜 · 학교 &amp; 학원
         </span>
         <h1 className="text-3xl sm:text-4xl font-black text-gray-900 leading-tight mb-4">
-          우리 학교·학원에<br className="hidden sm:block" /> 생기로그 AI를 도입해보세요
+          우리 학교·학원에<br className="hidden sm:block" /> 클래스로그 AI를 도입해보세요
         </h1>
         <p className="text-base text-gray-500 leading-relaxed max-w-xl mx-auto mb-8">
           수업 기록·AI 리포트·학부모 공유까지,<br />
@@ -568,7 +568,7 @@ export default function SchoolIntroPage() {
 
       {/* 푸터 */}
       <footer className="border-t border-gray-100 py-8 text-center">
-        <p className="text-xs text-gray-400">생기로그 AI — 아크 AI 랩스 · aklabs84@naver.com</p>
+        <p className="text-xs text-gray-400">클래스로그 AI — 아크 AI 랩스 · aklabs84@naver.com</p>
         <div className="flex justify-center gap-4 mt-3">
           <a href="/" className="text-xs text-gray-400 hover:text-gray-600">홈으로</a>
           <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600">개인정보처리방침</a>

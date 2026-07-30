@@ -1051,7 +1051,7 @@ const Settings = () => {
                 <div className="space-y-2">
                   <h3 className="text-2xl font-black text-on-surface">언어 설정</h3>
                   <p className="text-on-surface-variant leading-relaxed">
-                    현재 <strong className="text-on-surface">생기로그(SaenggiLog)</strong>는 한국어(KO) 서비스를 기본으로 제공하고 있습니다.
+                    현재 <strong className="text-on-surface">클래스로그(SaenggiLog)</strong>는 한국어(KO) 서비스를 기본으로 제공하고 있습니다.
                     추후 글로벌 서비스 확장을 통해 더 많은 언어를 지원할 예정입니다.
                   </p>
                 </div>
@@ -1087,7 +1087,7 @@ const Settings = () => {
                     <Check size={40} strokeWidth={4} />
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-3xl font-black text-on-surface">생기로그 SaenggiLog</h2>
+                    <h2 className="text-3xl font-black text-on-surface">클래스로그 SaenggiLog</h2>
                     <p className="text-on-surface-variant font-bold">Version 1.0.0 (Production Build)</p>
                   </div>
                 </div>
@@ -1099,7 +1099,7 @@ const Settings = () => {
 
                 <div className="space-y-4">
                   <p className="text-sm text-on-surface-variant leading-relaxed">
-                    생기로그는 AI 기술을 활용하여 교사의 업무 부담을 줄이고 학생들의 성장을 더 깊이 있게 관찰할 수 있도록 돕는 스마트 교육 솔루션입니다.
+                    클래스로그는 AI 기술을 활용하여 교사의 업무 부담을 줄이고 학생들의 성장을 더 깊이 있게 관찰할 수 있도록 돕는 스마트 교육 솔루션입니다.
                   </p>
                   <a
                     href="https://litt.ly/aklabs"

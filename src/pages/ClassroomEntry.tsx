@@ -248,7 +248,7 @@ const ClassroomEntry = () => {
         <div className="w-14 h-14 bg-primary rounded-[1.25rem] flex items-center justify-center text-white shadow-xl shadow-primary/20 rotate-3">
           <GraduationCap size={32} />
         </div>
-        <h1 className="text-4xl font-black font-manrope tracking-tighter">생기로그</h1>
+        <h1 className="text-4xl font-black font-manrope tracking-tighter">클래스로그</h1>
       </div>
 
       <AnimatePresence mode="wait">

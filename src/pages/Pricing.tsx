@@ -154,11 +154,11 @@ export default function Pricing() {
     if (planKey === 'basic') {
       if (isBasic) return { label: '현재 이용 중', disabled: true, href: null };
       if (isPro) return { label: '다운그레이드', disabled: true, href: null };
-      return { label: 'Basic 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=생기로그 Basic 플랜 업그레이드 문의' };
+      return { label: 'Basic 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=클래스로그 Basic 플랜 업그레이드 문의' };
     }
     if (planKey === 'pro') {
       if (isPro && currentPlan !== 'school') return { label: '현재 이용 중', disabled: true, href: null };
-      return { label: 'Pro 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의' };
+      return { label: 'Pro 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=클래스로그 Pro 플랜 업그레이드 문의' };
     }
     return { label: '문의하기', disabled: false, href: 'mailto:aklabs84@naver.com' };
   }
@@ -362,7 +362,7 @@ export default function Pricing() {
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <a
-            href="mailto:aklabs84@naver.com?subject=생기로그 School 플랜 도입 문의"
+            href="mailto:aklabs84@naver.com?subject=클래스로그 School 플랜 도입 문의"
             className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-black rounded-2xl transition-all active:scale-95 shadow-lg shadow-violet-200"
           >
             <Mail size={16} />

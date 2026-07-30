@@ -107,7 +107,7 @@ const Login = () => {
           <GraduationCap size={36} strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl md:text-4xl font-black tracking-tightest leading-none gradient-text">생기로그 AI</h1>
+          <h1 className="text-2xl md:text-4xl font-black tracking-tightest leading-none gradient-text">클래스로그 AI</h1>
           <p className="text-[10px] text-primary/40 font-black tracking-[0.15em] mt-1 ml-1">수업 기록부터 세특까지</p>
         </div>
       </motion.div>

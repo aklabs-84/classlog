@@ -20,7 +20,7 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
+  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'classlog-ai.vercel.app';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const siteUrl  = `${protocol}://${host}`;
 
@@ -69,7 +69,7 @@ export default async function handler(req: any, res: any) {
       await transporter.sendMail({
         from: `AKLABS <${gmailUser}>`,
         to: email,
-        subject: '생기로그 AI 비밀번호 재설정 안내',
+        subject: '클래스로그 AI 비밀번호 재설정 안내',
         html: resetEmailHtml(resetUrl),
       });
     } catch (err: any) {
@@ -89,7 +89,7 @@ function resetEmailHtml(resetUrl: string): string {
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
     <div style="background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);padding:36px 32px;text-align:center;">
       <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:14px;padding:10px 18px;margin-bottom:12px;">
-        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">생기로그 AI</span>
+        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">클래스로그 AI</span>
       </div>
       <h1 style="margin:0;color:#fff;font-size:26px;font-weight:900;letter-spacing:-0.5px;">비밀번호 재설정 안내</h1>
       <p style="margin:8px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">수업 기록부터 세특까지</p>

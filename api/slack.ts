@@ -33,7 +33,7 @@ async function handleAnnouncement(req: any, res: any) {
     blocks: [
       {
         type: 'header',
-        text: { type: 'plain_text', text: '📢 생기로그 — 공지사항', emoji: true },
+        text: { type: 'plain_text', text: '📢 클래스로그 — 공지사항', emoji: true },
       },
       {
         type: 'section',
@@ -82,7 +82,7 @@ async function handleNotify(req: any, res: any) {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: '🔔 생기로그 AI — 새 사용 신청',
+          text: '🔔 클래스로그 AI — 새 사용 신청',
           emoji: true,
         },
       },
@@ -153,7 +153,7 @@ async function handleSchoolInquiry(req: any, res: any) {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: `🏫 생기로그 AI — ${org_type} 도입 문의`,
+          text: `🏫 클래스로그 AI — ${org_type} 도입 문의`,
           emoji: true,
         },
       },
@@ -251,7 +251,7 @@ async function handleBugReport(req: any, res: any) {
           blocks: [
             {
               type: 'header',
-              text: { type: 'plain_text', text: '🐛 생기로그 — 새 버그 리포트', emoji: true },
+              text: { type: 'plain_text', text: '🐛 클래스로그 — 새 버그 리포트', emoji: true },
             },
             {
               type: 'section',
@@ -298,7 +298,7 @@ async function handleGoogleSignup(req: any, res: any) {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: '🎉 생기로그 AI — 신규 구글 가입',
+          text: '🎉 클래스로그 AI — 신규 구글 가입',
           emoji: true,
         },
       },

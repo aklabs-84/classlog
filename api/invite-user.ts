@@ -34,7 +34,7 @@ export default async function handler(req: any, res: any) {
   }
   const assignedPlan = ['free', 'basic', 'pro', 'school', 'admin'].includes(plan) ? plan : 'free';
 
-  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
+  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'classlog-ai.vercel.app';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const siteUrl  = `${protocol}://${host}`;
 
@@ -121,7 +121,7 @@ export default async function handler(req: any, res: any) {
   // ── Step 5: 승인 이메일 발송 ─────────────────────────────────────────────
   const emailSent = await sendCustomEmail(
     email,
-    '생기로그 AI 사용 승인 안내',
+    '클래스로그 AI 사용 승인 안내',
     inviteEmailHtml(name, actionUrl),
   );
 
@@ -144,7 +144,7 @@ function inviteEmailHtml(name: string, siteUrl: string): string {
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
     <div style="background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);padding:36px 32px;text-align:center;position:relative;">
       <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:14px;padding:10px 18px;margin-bottom:12px;">
-        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">생기로그 AI</span>
+        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">클래스로그 AI</span>
       </div>
       <h1 style="margin:0;color:#fff;font-size:26px;font-weight:900;letter-spacing:-0.5px;">사용 신청이 승인되었습니다 🎉</h1>
       <p style="margin:8px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">수업 기록부터 세특까지</p>
@@ -152,7 +152,7 @@ function inviteEmailHtml(name: string, siteUrl: string): string {
     <div style="padding:40px 36px;">
       <p style="margin:0 0 28px;color:#44403C;font-size:15px;line-height:1.8;">
         안녕하세요${name ? `, <strong style="color:#92400E;">${name}</strong> 선생님` : ''}!<br>
-        생기로그 AI 사용 신청이 승인되었습니다.<br>
+        클래스로그 AI 사용 신청이 승인되었습니다.<br>
         아래 버튼을 클릭해 비밀번호를 설정하고 바로 시작해보세요.
       </p>
       <div style="text-align:center;margin:32px 0;">
@@ -185,7 +185,7 @@ function resetEmailHtml(name: string, resetUrl: string): string {
   <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
     <div style="background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);padding:36px 32px;text-align:center;position:relative;">
       <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:14px;padding:10px 18px;margin-bottom:12px;">
-        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">생기로그 AI</span>
+        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">클래스로그 AI</span>
       </div>
       <h1 style="margin:0;color:#fff;font-size:26px;font-weight:900;letter-spacing:-0.5px;">비밀번호 재설정 안내</h1>
       <p style="margin:8px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">수업 기록부터 세특까지</p>
