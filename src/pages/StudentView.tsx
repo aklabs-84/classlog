@@ -2060,7 +2060,7 @@ const StudentView = () => {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용 (이번 제출 전체 기준 1회)</p>
                       </div>
-                      {weekGradable && (
+                      {weekGradable ? (
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-on-surface-variant/70">AI 채점 기준 (수정 가능 · 클래스별로 마지막 사용 기준이 자동으로 채워집니다)</label>
                           <div className="flex items-start gap-2">
@@ -2081,6 +2081,11 @@ const StudentView = () => {
                               AI 채점 제안
                             </button>
                           </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-700">
+                          <AlertTriangle size={12} className="shrink-0" />
+                          이 제출물은 AI 채점 대상이 아니에요 (텍스트·이미지·PDF·HTML 형식만 지원). 직접 확인 후 평가해주세요.
                         </div>
                       )}
                       <div className="space-y-1.5">
