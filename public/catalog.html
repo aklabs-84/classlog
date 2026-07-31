@@ -5,36 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>클래스로그 AI — 제품 카탈로그</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --amber:        #f59e0b;
-      --amber-dark:   #d97706;
-      --amber-deep:   #92400e;
-      --amber-light:  #fef3c7;
-      --amber-bg:     #fffbf5;
+      /* WRITER 팔레트 (랜딩과 공통) */
+      --amber:        #5551ff;  /* writer-iris */
+      --amber-dark:   #423ed6;  /* writer-iris-dim */
+      --amber-deep:   #27272b;  /* writer-obsidian */
+      --amber-light:  #e4e9ff;  /* writer-lavender */
+      --amber-bg:     #f8f8fb;
       --emerald:      #10b981;
       --emerald-light:#d1fae5;
-      --violet:       #8b5cf6;
-      --violet-light: #ede9fe;
+      --violet:       #a95ef8;  /* writer-orchid */
+      --violet-light: #f4ecfe;
       --rose:         #f43f5e;
       --rose-light:   #ffe4e6;
-      --blue:         #3b82f6;
-      --blue-light:   #dbeafe;
-      --gray-50:      #f9fafb;
-      --gray-100:     #f3f4f6;
-      --gray-200:     #e5e7eb;
-      --gray-500:     #6b7280;
-      --gray-700:     #374151;
-      --gray-900:     #111827;
+      --blue:         #5551ff;  /* writer-iris */
+      --blue-light:   #e4e9ff;
+      --gray-50:      #fafafa;
+      --gray-100:     #f1f2f4;
+      --gray-200:     #e4e7ed;  /* writer-mist */
+      --gray-500:     #666666;  /* writer-slate */
+      --gray-700:     #27272b;  /* writer-obsidian */
+      --gray-900:     #27272b;  /* writer-obsidian */
     }
     body {
-      font-family: 'Noto Sans KR', -apple-system, sans-serif;
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
       background: #fff; color: var(--gray-900);
       line-height: 1.6;
+      word-break: keep-all;
     }
-
     /* ── Print Nav ── */
     .print-bar {
       position: fixed; top: 0; right: 0; left: 0; z-index: 100;
@@ -43,12 +44,13 @@
       padding: 10px 24px; display: flex; align-items: center; justify-content: space-between;
     }
     .print-bar .logo { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 15px; color: var(--amber-deep); text-decoration: none; }
-    .print-bar .logo-icon { width: 30px; height: 30px; background: linear-gradient(135deg, var(--amber), #ef4444); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .print-bar .logo-icon { width: 30px; height: 30px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon svg, .hero-logo-icon svg { width: 60%; height: 60%; color: #fff; }
     .print-bar .actions { display: flex; gap: 8px; }
-    .btn-print { padding: 7px 16px; background: var(--amber); color: #fff; font-weight: 700; font-size: 13px; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap-6px; gap: 6px; transition: background .15s; }
-    .btn-print:hover { background: var(--amber-dark); }
-    .btn-back { padding: 7px 16px; background: var(--gray-100); color: var(--gray-700); font-weight: 700; font-size: 13px; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; display: flex; align-items: center; }
-    .btn-back:hover { background: var(--gray-200); }
+    .btn-print { padding: 7px 16px; background: var(--amber-deep); color: #fff; font-weight: 700; font-size: 13px; border: none; border-radius: 100px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background .15s; }
+    .btn-print:hover { background: #000; }
+    .btn-back { padding: 7px 16px; background: #fff; color: var(--gray-700); font-weight: 700; font-size: 13px; border: 1px solid var(--gray-200); border-radius: 100px; cursor: pointer; text-decoration: none; display: flex; align-items: center; }
+    .btn-back:hover { background: var(--gray-100); }
 
     /* ── Layout ── */
     .catalog { padding-top: 56px; }
@@ -56,63 +58,66 @@
     /* ── Section Base ── */
     section { padding: 72px 0; }
     .container { max-width: 960px; margin: 0 auto; padding: 0 32px; }
-    .section-tag { display: inline-block; padding: 4px 14px; border-radius: 100px; font-size: 11px; font-weight: 700; letter-spacing: .08em; margin-bottom: 16px; }
+    .section-tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 100px; font-size: 11px; font-weight: 600; letter-spacing: .1em; margin-bottom: 16px; background: #fff !important; color: var(--gray-900) !important; border: 1px solid var(--gray-200); }
     .section-title { font-size: 32px; font-weight: 900; line-height: 1.25; margin-bottom: 12px; }
     .section-sub { font-size: 16px; color: var(--gray-500); margin-bottom: 40px; }
+    .slide-num { font-size: 12px; font-weight: 700; color: var(--gray-500); letter-spacing: .2em; margin-bottom: 12px; }
 
     /* ══ 1. HERO ══ */
     .hero {
-      background: linear-gradient(160deg, #fffbeb 0%, #fff7ed 50%, #fffbf5 100%);
+      background: linear-gradient(160deg, #f7f8fc 0%, #eef0fb 50%, #ffffff 100%);
       padding: 80px 0 64px; text-align: center; position: relative; overflow: hidden;
     }
     .hero::before {
       content: ''; position: absolute; top: -100px; right: -100px;
-      width: 500px; height: 500px; background: radial-gradient(circle, rgba(245,158,11,.12) 0%, transparent 70%);
+      width: 500px; height: 500px; background: radial-gradient(circle, rgba(85,81,255,.10) 0%, transparent 70%);
       border-radius: 50%;
     }
+    .hero-inner { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: center; text-align: left; }
+    .hero-content { text-align: left; }
     .hero-logo { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 28px; }
-    .hero-logo-icon { width: 56px; height: 56px; background: linear-gradient(135deg, var(--amber), #ef4444); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 8px 24px rgba(245,158,11,.3); }
+    .hero-logo-icon { width: 56px; height: 56px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border-radius: 16px; display: flex; align-items: center; justify-content: center; }
     .hero-logo-text { text-align: left; }
     .hero-logo-text .name { font-size: 22px; font-weight: 900; color: var(--amber-deep); }
-    .hero-logo-text .sub { font-size: 11px; color: #b45309; font-weight: 600; letter-spacing: .05em; }
-    .hero h1 { font-size: 44px; font-weight: 900; line-height: 1.2; color: var(--amber-deep); margin-bottom: 16px; }
-    .hero h1 em { color: var(--amber); font-style: normal; }
-    .hero p { font-size: 17px; color: #a16207; max-width: 560px; margin: 0 auto 40px; }
-    .hero-stats { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; }
-    .hero-stat { text-align: center; }
-    .hero-stat .num { font-size: 36px; font-weight: 900; color: var(--amber-dark); line-height: 1; }
-    .hero-stat .label { font-size: 12px; color: #b45309; font-weight: 600; margin-top: 4px; }
-    .hero-divider { width: 1px; height: 48px; background: #fcd34d; align-self: center; }
+    .hero-logo-text .sub { font-size: 11px; color: var(--gray-500); font-weight: 600; letter-spacing: .05em; }
+    .hero h1 { font-size: 42px; font-weight: 900; line-height: 1.2; color: var(--amber-deep); margin-bottom: 16px; }
+    .hero h1 em { color: var(--violet); font-style: normal; }
+    .hero-content p { font-size: 17px; color: var(--gray-500); max-width: 480px; margin: 0 0 40px; }
+    .hero-highlights { display: flex; flex-direction: column; gap: 10px; }
+    .hero-highlight { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; color: var(--gray-500); }
+    .hero-highlight .hh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+    .hero-visual { display: flex; justify-content: center; }
+    .hero-visual img { width: 100%; max-width: 360px; }
 
     /* ══ 2. 선생님 공감 ══ */
     .pain-teacher { background: #fff; }
-    .pain-tag-teacher { background: var(--blue-light); color: #1d4ed8; }
     .pain-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
-    .pain-card { border: 1.5px solid var(--gray-200); border-radius: 16px; padding: 20px; background: var(--gray-50); position: relative; overflow: hidden; transition: all .2s; }
-    .pain-card:hover { border-color: var(--blue); box-shadow: 0 4px 16px rgba(59,130,246,.1); transform: translateY(-2px); }
+    .pain-card { border: 1.5px solid var(--gray-200); border-radius: 16px; padding: 20px; background: #fff; position: relative; overflow: hidden; transition: all .2s; }
+    .pain-card:hover { border-color: var(--amber); transform: translateY(-2px); }
     .pain-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-    .pain-card.blue::before { background: var(--blue); }
+    .pain-card.blue::before { background: var(--amber); }
     .pain-card.rose::before { background: var(--rose); }
     .pain-card.violet::before { background: var(--violet); }
-    .pain-card.amber::before { background: var(--amber); }
+    .pain-card.amber::before { background: var(--amber-deep); }
     .pain-emoji { font-size: 28px; margin-bottom: 10px; display: block; }
     .pain-card h3 { font-size: 14px; font-weight: 800; color: var(--gray-900); margin-bottom: 6px; }
     .pain-card p { font-size: 12.5px; color: var(--gray-500); line-height: 1.6; }
-    .pain-quote { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 4px solid var(--blue); border-radius: 0 12px 12px 0; padding: 16px 20px; }
-    .pain-quote p { font-size: 14px; color: #1e40af; font-weight: 600; line-height: 1.7; font-style: italic; margin: 0; }
+    .pain-quote { background: var(--amber-light); border-left: 4px solid var(--amber); border-radius: 0 12px 12px 0; padding: 16px 20px; }
+    .pain-quote p { font-size: 14px; color: var(--amber-deep); font-weight: 600; line-height: 1.7; font-style: italic; margin: 0; }
 
     /* ══ 3. 강사 공감 ══ */
     .pain-instructor { background: var(--gray-50); }
-    .pain-tag-instructor { background: var(--violet-light); color: #5b21b6; }
+    .pain-instructor-inner { display: grid; grid-template-columns: 1fr 260px; gap: 40px; align-items: center; }
+    .pain-instructor-visual { display: flex; justify-content: center; }
+    .pain-instructor-visual img { width: 100%; max-width: 220px; }
     .pain-card.purple::before { background: var(--violet); }
-    .pain-quote-violet { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-left: 4px solid var(--violet); border-radius: 0 12px 12px 0; padding: 16px 20px; }
-    .pain-quote-violet p { font-size: 14px; color: #5b21b6; font-weight: 600; line-height: 1.7; font-style: italic; margin: 0; }
+    .pain-quote-violet { background: var(--violet-light); border-left: 4px solid var(--violet); border-radius: 0 12px 12px 0; padding: 16px 20px; }
+    .pain-quote-violet p { font-size: 14px; color: var(--amber-deep); font-weight: 600; line-height: 1.7; font-style: italic; margin: 0; }
 
     /* ══ 4. 솔루션 ══ */
-    .solution { background: linear-gradient(160deg, #fffbeb, #fff7ed); }
-    .solution-tag { background: var(--amber-light); color: var(--amber-deep); }
+    .solution { background: var(--amber-bg); }
     .solution-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .solution-item { display: flex; gap: 14px; align-items: flex-start; padding: 20px; background: #fff; border-radius: 16px; border: 1px solid #fde68a; }
+    .solution-item { display: flex; gap: 14px; align-items: flex-start; padding: 20px; background: #fff; border-radius: 16px; border: 1px solid var(--gray-200); }
     .sol-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
     .sol-icon.amber { background: var(--amber-light); }
     .sol-icon.emerald { background: var(--emerald-light); }
@@ -121,27 +126,33 @@
     .sol-content h3 { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
     .sol-content p { font-size: 13px; color: var(--gray-500); line-height: 1.6; }
 
+    /* ══ 4.5 수업이 있는 모든 곳에서 ══ */
+    .everywhere { background: #fff; }
+    .everywhere-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    .everywhere-card { border-radius: 16px; padding: 24px; background: #fff; border: 1px solid var(--gray-200); }
+    .everywhere-card .ec-emoji { font-size: 28px; margin-bottom: 10px; }
+    .everywhere-card .ec-title { font-size: 13px; font-weight: 800; color: var(--amber-deep); margin-bottom: 4px; }
+    .everywhere-card .ec-sub { font-size: 11px; margin-bottom: 8px; }
+    .everywhere-card p { font-size: 12.5px; color: #6b7280; line-height: 1.65; }
+
     /* ══ 5. 핵심 기능 ══ */
     .features { background: #fff; }
-    .features-tag { background: var(--emerald-light); color: #065f46; }
     .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .feature-card { border-radius: 20px; padding: 28px 24px; position: relative; overflow: hidden; }
-    .feature-card.f1 { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; }
-    .feature-card.f2 { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 1px solid #ddd6fe; }
-    .feature-card.f3 { background: linear-gradient(135deg, #ecfdf5, #d1fae5); border: 1px solid #a7f3d0; }
-    .feature-card.f4 { background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1px solid #bfdbfe; }
-    .feature-card.f5 { background: linear-gradient(135deg, #fff1f2, #ffe4e6); border: 1px solid #fecdd3; }
-    .feature-card.f6 { background: linear-gradient(135deg, #fafaf9, #f5f5f4); border: 1px solid #e7e5e4; }
-    .feature-card.f7 { background: linear-gradient(135deg, #fdf4ff, #fae8ff); border: 1px solid #f0abfc; }
-    .feature-card .fc-emoji { font-size: 32px; margin-bottom: 12px; display: block; }
+    .feature-card { border-radius: 20px; padding: 28px 26px; position: relative; overflow: hidden; background: #fff; border: 1px solid var(--gray-200); transition: border-color .2s, box-shadow .2s, transform .2s; }
+    .feature-card:hover { border-color: var(--amber); box-shadow: 0 10px 28px rgba(85,81,255,.10); transform: translateY(-2px); }
+    .fc-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--amber-light); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+    .feature-card .fc-emoji { font-size: 20px; display: block; }
+    .feature-card .fc-icon-img { width: 24px; height: 24px; display: block; }
     .feature-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
     .feature-card p { font-size: 12.5px; color: var(--gray-500); line-height: 1.65; }
-    .feature-card .fc-tag { display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 100px; font-size: 10px; font-weight: 700; background: rgba(0,0,0,.07); }
+    .feature-card .fc-tag { display: inline-flex; align-items: center; gap: 5px; margin-top: 14px; font-size: 11px; font-weight: 600; color: var(--gray-500); }
+    .feature-card .fc-tag::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+    .feature-card.f3 .fc-tag::before { background: var(--rose); }
+    .feature-card.f7 .fc-tag::before { background: var(--violet); }
 
     /* ══ 6. 도입 효과 ══ */
     .effect { background: var(--gray-50); }
-    .effect-tag { background: var(--rose-light); color: #be123c; }
-    .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+    .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; border-radius: 16px; overflow: hidden; border: 1px solid var(--gray-200); }
     .compare-table th { padding: 16px 20px; font-size: 14px; font-weight: 800; }
     .compare-table th:first-child { background: var(--gray-200); color: var(--gray-700); width: 36%; }
     .compare-table th.before { background: #fee2e2; color: #991b1b; width: 32%; }
@@ -152,49 +163,54 @@
     .compare-table td.after { background: #f0fdf9; color: #065f46; font-weight: 700; }
 
     /* ══ 7. 사용 흐름 ══ */
-    .flow { background: linear-gradient(160deg, #fffbeb, #fffbf5); }
-    .flow-tag { background: var(--amber-light); color: var(--amber-deep); }
+    .flow { background: var(--amber-bg); }
     .flow-steps { display: flex; align-items: flex-start; gap: 0; position: relative; }
-    .flow-steps::before { content: ''; position: absolute; top: 28px; left: calc(28px + 16px); right: calc(28px + 16px); height: 2px; background: repeating-linear-gradient(90deg, var(--amber) 0, var(--amber) 8px, transparent 8px, transparent 16px); z-index: 0; }
+    .flow-steps::before { content: ''; position: absolute; top: 28px; left: calc(28px + 16px); right: calc(28px + 16px); height: 2px; background: repeating-linear-gradient(90deg, var(--amber) 0, var(--amber) 8px, transparent 8px, transparent 16px); z-index: 0; opacity: .5; }
     .flow-step { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 12px; position: relative; z-index: 1; }
-    .flow-num { width: 56px; height: 56px; border-radius: 50%; background: var(--amber); color: #fff; font-size: 20px; font-weight: 900; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(245,158,11,.4); }
+    .flow-num { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--amber-deep); background: #fff; color: var(--amber-deep); font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
     .flow-step h3 { font-size: 14px; font-weight: 800; margin-bottom: 6px; }
     .flow-step p { font-size: 12px; color: var(--gray-500); line-height: 1.6; }
 
     /* ══ 8. 요금 ══ */
     .pricing { background: #fff; }
-    .pricing-tag { background: var(--amber-light); color: var(--amber-deep); }
-    .pricing-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .pricing-tabs { display: inline-flex; gap: 4px; background: var(--gray-100); padding: 4px; border-radius: 100px; margin-bottom: 32px; }
+    .pricing-tab-btn { padding: 9px 20px; border: none; background: transparent; border-radius: 100px; font-size: 13px; font-weight: 700; color: var(--gray-500); cursor: pointer; transition: all .15s; }
+    .pricing-tab-btn.active { background: #fff; color: var(--gray-900); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .pricing-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .pricing-cards[data-tab="group"] { grid-template-columns: minmax(280px, 380px); justify-content: center; }
+    .pricing-card[data-category="group"] { display: none; }
+    .pricing-cards[data-tab="group"] .pricing-card[data-category="individual"] { display: none; }
+    .pricing-cards[data-tab="group"] .pricing-card[data-category="group"] { display: block; }
     .pricing-card .price-won { font-size: 30px; }
     .pricing-note { margin-top: 20px; font-size: 12px; color: var(--gray-500); text-align: center; }
-    .pricing-card { border: 2px solid var(--gray-200); border-radius: 20px; padding: 32px 24px; text-align: center; position: relative; transition: all .2s; }
-    .pricing-card:hover { border-color: var(--amber); box-shadow: 0 8px 32px rgba(245,158,11,.12); transform: translateY(-3px); }
-    .pricing-card.highlight { border-color: var(--amber); background: linear-gradient(160deg, #fffbeb, #fff7ed); }
+    .pricing-card { border: 1.5px solid var(--gray-200); border-radius: 16px; padding: 32px 24px; text-align: center; position: relative; transition: all .2s; background: #fff; }
+    .pricing-card:hover { border-color: var(--amber); transform: translateY(-3px); }
+    .pricing-card.highlight { border-color: var(--amber); background: var(--amber-light); }
     .pricing-card .badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--amber); color: #fff; padding: 4px 14px; border-radius: 100px; font-size: 11px; font-weight: 700; white-space: nowrap; }
     .pricing-card .tier { font-size: 12px; font-weight: 700; color: var(--gray-500); margin-bottom: 8px; letter-spacing: .06em; text-transform: uppercase; }
-    .pricing-card .price { font-size: 36px; font-weight: 900; color: var(--amber-deep); margin-bottom: 4px; }
+    .pricing-card .price { font-size: 34px; font-weight: 800; color: var(--amber-deep); margin-bottom: 4px; }
     .pricing-card .price-sub { font-size: 12px; color: var(--gray-500); margin-bottom: 20px; }
     .pricing-card ul { list-style: none; text-align: left; margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
     .pricing-card li { font-size: 13px; color: var(--gray-700); display: flex; gap: 8px; align-items: flex-start; }
     .pricing-card li::before { content: '✓'; color: var(--emerald); font-weight: 800; flex-shrink: 0; }
-    .pricing-card .cta { display: block; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 14px; text-decoration: none; transition: all .15s; }
-    .pricing-card .cta.main { background: var(--amber); color: #fff; }
-    .pricing-card .cta.main:hover { background: var(--amber-dark); }
-    .pricing-card .cta.outline { border: 2px solid var(--gray-200); color: var(--gray-700); }
-    .pricing-card .cta.outline:hover { border-color: var(--amber); color: var(--amber-deep); }
+    .pricing-card .cta { display: block; padding: 12px; border-radius: 100px; font-weight: 700; font-size: 14px; text-decoration: none; transition: all .15s; }
+    .pricing-card .cta.main { background: var(--amber-deep); color: #fff; }
+    .pricing-card .cta.main:hover { background: #000; }
+    .pricing-card .cta.outline { border: 1.5px solid var(--gray-200); color: var(--gray-700); }
+    .pricing-card .cta.outline:hover { border-color: var(--amber-deep); background: var(--gray-100); }
 
     /* ══ 9. 도입 CTA ══ */
-    .cta-section { background: linear-gradient(135deg, var(--amber-deep), #b45309); padding: 80px 0; text-align: center; }
+    .cta-section { background: var(--amber-deep); padding: 80px 0; text-align: center; }
     .cta-section h2 { font-size: 32px; font-weight: 900; color: #fff; margin-bottom: 12px; }
-    .cta-section p { font-size: 16px; color: #fcd34d; margin-bottom: 40px; }
+    .cta-section p { font-size: 16px; color: var(--gray-200); margin-bottom: 40px; }
     .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-    .cta-btn-main { padding: 16px 36px; background: #fff; color: var(--amber-deep); font-weight: 900; font-size: 15px; border-radius: 14px; text-decoration: none; transition: all .15s; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
-    .cta-btn-main:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,.25); }
-    .cta-btn-sub { padding: 16px 36px; background: rgba(255,255,255,.15); color: #fff; font-weight: 700; font-size: 15px; border-radius: 14px; text-decoration: none; border: 2px solid rgba(255,255,255,.4); transition: all .15s; }
-    .cta-btn-sub:hover { background: rgba(255,255,255,.25); }
+    .cta-btn-main { padding: 16px 36px; background: #fff; color: var(--amber-deep); font-weight: 900; font-size: 15px; border-radius: 100px; text-decoration: none; transition: all .15s; }
+    .cta-btn-main:hover { transform: translateY(-2px); }
+    .cta-btn-sub { padding: 16px 36px; background: rgba(255,255,255,.1); color: #fff; font-weight: 700; font-size: 15px; border-radius: 100px; text-decoration: none; border: 1px solid rgba(255,255,255,.3); transition: all .15s; }
+    .cta-btn-sub:hover { background: rgba(255,255,255,.2); }
 
     /* ══ 10. 연락처 ══ */
-    .contact { background: var(--gray-900); padding: 56px 0; }
+    .contact { background: var(--amber-deep); padding: 56px 0; }
     .contact-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
     .contact h2 { font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 8px; }
     .contact p { font-size: 14px; color: #9ca3af; }
@@ -206,41 +222,157 @@
     .qr-placeholder { width: 140px; height: 140px; background: #fff; border-radius: 12px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .qr-placeholder img { width: 100%; height: 100%; object-fit: contain; }
     .qr-box p { font-size: 12px; color: #9ca3af; }
-    .qr-box .url { font-size: 13px; color: #fcd34d; font-weight: 600; margin-top: 6px; word-break: break-all; }
+    .qr-box .url { font-size: 13px; color: #c9c6ff; font-weight: 600; margin-top: 6px; word-break: break-all; }
 
     /* Footer */
     .catalog-footer { background: #000; padding: 20px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
     .catalog-footer span { font-size: 12px; color: #6b7280; }
 
+    /* ══ 슬라이드 프레임 (A4 가로 297:210 비율) ══
+       데스크톱 화면(1200px~)과 인쇄 시 동일한 박스 크기를 써서
+       "화면에 보이는 대로" 인쇄되도록 만든다. */
+    @media print, (min-width: 1200px) {
+      body { background: #e9eaef; }
+      .catalog { padding-top: 88px; padding-bottom: 40px; }
+      section.slide {
+        width: 100%; max-width: 1120px; aspect-ratio: 297 / 210;
+        margin: 0 auto 28px; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: #fff; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 10px 36px rgba(0,0,0,.12);
+      }
+      section.slide.hero,
+      section.slide.pricing,
+      section.slide.cta-section,
+      section.slide.contact { padding: 0; }
+      section.slide.cta-section,
+      section.slide.contact { background: var(--amber-deep); }
+      section.slide .container { width: 100%; padding: 40px 48px; }
+      .hero::before { width: 320px; height: 320px; top: -60px; right: -60px; }
+
+      /* 축소 타이포 (슬라이드 박스 안에 맞춤) */
+      .slide .slide-num { font-size: 14.5px; margin-bottom: 8.5px; }
+      .slide .section-tag { font-size: 14.5px; padding: 6px 17.5px; margin-bottom: 11.5px; }
+      .slide .section-title { font-size: 33px; margin-bottom: 8.5px; }
+      .slide .section-sub { font-size: 17.5px; margin-bottom: 23px; }
+
+      .slide .hero-logo { margin-bottom: 20px; }
+      .slide .hero-logo-icon { width: 58px; height: 58px; border-radius: 17.5px; }
+      .slide .hero-logo-text .name { font-size: 25px; }
+      .slide .hero-logo-text .sub { font-size: 14px; }
+      .slide .hero h1 { font-size: 44px; margin-bottom: 14.5px; }
+      .slide .hero-content p { font-size: 19px; margin-bottom: 32px; }
+      .slide .hero-highlights { gap: 14px; }
+      .slide .hero-highlight { font-size: 19px; gap: 12px; }
+      .slide .hero-highlight .hh-dot { width: 8px; height: 8px; }
+      .slide .hero-visual img { max-width: 377px; }
+
+      .slide .pain-cards { gap: 14.5px; margin-bottom: 20px; }
+      .slide .pain-card { padding: 17.5px; border-radius: 14.5px; }
+      .slide .pain-emoji { font-size: 25px; margin-bottom: 6px; }
+      .slide .pain-card h3 { font-size: 16px; margin-bottom: 4.5px; }
+      .slide .pain-card p { font-size: 14.5px; line-height: 1.4; }
+      .slide .pain-quote, .slide .pain-quote-violet { padding: 13px 20px; }
+      .slide .pain-quote p, .slide .pain-quote-violet p { font-size: 15px; line-height: 1.45; }
+      .slide .pain-instructor-inner { gap: 35px; }
+      .slide .pain-instructor-visual img { max-width: 218px; }
+
+      .slide .solution-grid { gap: 17.5px; }
+      .slide .solution-item { padding: 21px; gap: 15.5px; border-radius: 17.5px; }
+      .slide .sol-icon { width: 55px; height: 55px; font-size: 24px; border-radius: 15.5px; }
+      .slide .sol-content h3 { font-size: 20px; margin-bottom: 3.5px; }
+      .slide .sol-content p { font-size: 17.5px; line-height: 1.4; }
+
+      .slide .everywhere-grid { gap: 17.5px; margin-bottom: 0; }
+      .slide .everywhere-card { padding: 21px; border-radius: 17.5px; }
+      .slide .everywhere-card .ec-emoji { font-size: 31px; margin-bottom: 7px; }
+      .slide .everywhere-card .ec-title { font-size: 19px; }
+      .slide .everywhere-card .ec-sub { font-size: 15.5px; margin-bottom: 5.5px; }
+      .slide .everywhere-card p { font-size: 17.5px; line-height: 1.35; }
+
+      .slide .feature-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 14.5px; }
+      .slide .feature-card { padding: 17.5px 16px; border-radius: 14.5px; }
+      .slide .fc-icon { width: 38px; height: 38px; border-radius: 11.5px; margin-bottom: 7px; }
+      .slide .feature-card .fc-emoji { font-size: 19px; }
+      .slide .feature-card .fc-icon-img { width: 22px; height: 22px; }
+      .slide .feature-card h3 { font-size: 16px; margin-bottom: 4.5px; }
+      .slide .feature-card p { font-size: 13px; line-height: 1.4; }
+      .slide .feature-card .fc-tag { font-size: 11px; margin-top: 6px; }
+      .slide .feature-card .fc-tag::before { width: 6px; height: 6px; }
+
+      .slide .compare-table th { padding: 14px 24px; font-size: 19px; }
+      .slide .compare-table td { padding: 12px 24px; font-size: 17.5px; }
+
+      .slide .flow-num { width: 66px; height: 66px; font-size: 24px; margin-bottom: 14px; }
+      .slide .flow-step h3 { font-size: 20px; margin-bottom: 5.5px; }
+      .slide .flow-step p { font-size: 17px; line-height: 1.4; }
+      .slide .flow-steps::before { top: 34px; }
+
+      .slide .pricing-tabs { margin-bottom: 23px; }
+      .slide .pricing-card { padding: 20px 17.5px; border-radius: 14.5px; }
+      .slide .pricing-card .badge { font-size: 12.5px; padding: 4.5px 14.5px; top: -13px; }
+      .slide .pricing-card .tier { font-size: 13px; margin-bottom: 6px; }
+      .slide .pricing-card .price { font-size: 28px; margin-bottom: 3px; }
+      .slide .pricing-card .price-won { font-size: 25px; }
+      .slide .pricing-card .price-sub { font-size: 12.5px; margin-bottom: 11.5px; }
+      .slide .pricing-card ul { gap: 6px; margin-bottom: 11.5px; }
+      .slide .pricing-card li { font-size: 13px; gap: 7px; line-height: 1.3; }
+      .slide .pricing-card .cta { padding: 10px; font-size: 14.5px; }
+      .slide .pricing-note { font-size: 12.5px; margin-top: 11.5px; }
+
+      .slide .cta-section h2 { font-size: 42px; margin-bottom: 14px; }
+      .slide .cta-section p { font-size: 21px; margin-bottom: 42px; }
+      .slide .cta-btn-main, .slide .cta-btn-sub { padding: 19px 46px; font-size: 21px; }
+
+      .slide .contact h2 { font-size: 31px; }
+      .slide .contact p { font-size: 19px; }
+      .slide .contact-info { gap: 14px; margin-top: 21px; }
+      .slide .contact-icon { width: 49px; height: 49px; font-size: 21px; }
+      .slide .contact-row span { font-size: 19px; }
+      .slide .qr-box { padding: 24px; }
+      .slide .qr-placeholder { width: 156px; height: 156px; }
+    }
+
     /* ── Print ── */
     @media print {
-      .print-bar { display: none; }
-      .catalog { padding-top: 0; }
-      section { page-break-inside: avoid; }
-      .hero { page-break-after: avoid; }
-      .pain-teacher, .pain-instructor { page-break-before: auto; }
-      .contact { page-break-before: always; }
-      .cta-section { page-break-before: always; }
-      .btn-print, .btn-back { display: none; }
+      .print-bar, .catalog-footer { display: none; }
+      body { background: #fff; }
+      .catalog { padding-top: 0; padding-bottom: 0; }
+      section.slide {
+        width: 297mm; height: 210mm; max-width: none; aspect-ratio: unset;
+        margin: 0; border-radius: 0; box-shadow: none;
+        page-break-after: always; break-after: page;
+      }
+      section.slide:last-of-type { page-break-after: auto; break-after: auto; }
+      .pricing-tabs { display: none; }
+      .pricing-cards { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; }
+      .pricing-card { display: block !important; }
+      @page { size: A4 landscape; margin: 0; }
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
 
     /* ── Responsive ── */
-    @media (max-width: 768px) {
+    @media screen and (max-width: 768px) {
+      .hero-inner { grid-template-columns: 1fr; text-align: center; }
+      .hero-content { text-align: center; }
+      .hero-content p { margin: 0 auto 40px; }
+      .hero-highlights { align-items: center; }
+      .hero-visual { order: -1; }
+      .hero-visual img { max-width: 220px; }
       .hero h1 { font-size: 28px; }
-      .hero-stats { gap: 24px; }
-      .hero-divider { display: none; }
       .section-title { font-size: 24px; }
+      .pain-instructor-inner { grid-template-columns: 1fr; }
+      .pain-instructor-visual { display: none; }
       .solution-grid { grid-template-columns: 1fr; }
       .feature-grid { grid-template-columns: 1fr 1fr; }
-      .pricing-cards { grid-template-columns: 1fr; }
+      .pricing-cards { grid-template-columns: 1fr !important; }
       .flow-steps { flex-direction: column; gap: 20px; }
       .flow-steps::before { display: none; }
       .contact-inner { grid-template-columns: 1fr; }
       .compare-table { font-size: 12px; }
       .compare-table th, .compare-table td { padding: 10px 12px; }
     }
-    @media (max-width: 480px) {
+    @media screen and (max-width: 480px) {
       .container { padding: 0 16px; }
       .hero { padding: 60px 0 48px; }
       .feature-grid { grid-template-columns: 1fr; }
@@ -253,7 +385,7 @@
 <!-- Print Bar -->
 <div class="print-bar">
   <a class="logo" href="/">
-    <div class="logo-icon">🎓</div>
+    <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.762L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.16a1 1 0 0 0 0 1.822l8.57 3.98a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></div>
     클래스로그 AI
   </a>
   <div class="actions">
@@ -265,39 +397,34 @@
 <div class="catalog">
 
   <!-- ══ 1. HERO ══ -->
-  <section class="hero">
-    <div class="container">
-      <div class="hero-logo">
-        <div class="hero-logo-icon">🎓</div>
-        <div class="hero-logo-text">
-          <div class="name">클래스로그 AI</div>
-          <div class="sub">SAENGGI LOG AI · 교육 기록 자동화 플랫폼</div>
+  <section class="hero slide">
+    <div class="container hero-inner">
+      <div class="hero-content">
+        <div class="hero-logo">
+          <div class="hero-logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.762L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.16a1 1 0 0 0 0 1.822l8.57 3.98a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></div>
+          <div class="hero-logo-text">
+            <div class="name">클래스로그 AI</div>
+            <div class="sub">교육 기록 자동화 플랫폼</div>
+          </div>
+        </div>
+        <h1>선생님의 소중한 시간을<br><em>돌려드립니다</em></h1>
+        <p>활동 기록 수집부터 AI 세특 초안 생성, 나이스 제출까지<br>클래스로그 AI가 반복 업무를 대신합니다</p>
+        <div class="hero-highlights">
+          <div class="hero-highlight"><span class="hh-dot"></span>학교 선생님 · 학원 강사 모두를 위한 올인원 자동화</div>
+          <div class="hero-highlight"><span class="hh-dot"></span>세특 작성에 드는 시간을 획기적으로 단축</div>
+          <div class="hero-highlight"><span class="hh-dot"></span>나이스 제출 형식 완벽 호환</div>
         </div>
       </div>
-      <h1>세특 작성에 쓰던 시간,<br><em>이제 학생에게 쓰세요</em></h1>
-      <p>활동 기록 수집부터 AI 세특·학부모 보고서 초안 생성, 나이스 제출까지<br>학교 선생님과 학원 강사 모두의 반복 업무를 자동화합니다</p>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <div class="num">300<span style="font-size:22px">+</span></div>
-          <div class="label">도입 선생님 · 강사</div>
-        </div>
-        <div class="hero-divider"></div>
-        <div class="hero-stat">
-          <div class="num">3<span style="font-size:22px">시간</span></div>
-          <div class="label">1인당 세특 작성 시간 절감</div>
-        </div>
-        <div class="hero-divider"></div>
-        <div class="hero-stat">
-          <div class="num">98<span style="font-size:22px">%</span></div>
-          <div class="label">나이스 제출 호환성</div>
-        </div>
+      <div class="hero-visual">
+        <img src="/illustrations/teacher-hero.webp" alt="" />
       </div>
     </div>
   </section>
 
   <!-- ══ 2. 선생님 공감 ══ -->
-  <section class="pain-teacher">
+  <section class="pain-teacher slide">
     <div class="container">
+      <div class="slide-num">01 — 문제 정의 · 학교</div>
       <span class="section-tag pain-tag-teacher">👩‍🏫 학교 선생님께</span>
       <h2 class="section-title">이런 상황, 익숙하지 않으신가요?</h2>
       <p class="section-sub">매 학기 반복되는 고충, 혼자 감당하셨던 그 시간들을 알고 있습니다</p>
@@ -333,45 +460,52 @@
   </section>
 
   <!-- ══ 3. 강사 공감 ══ -->
-  <section class="pain-instructor">
-    <div class="container">
-      <span class="section-tag pain-tag-instructor">👨‍🏫 학원 · 개인 강사님께</span>
-      <h2 class="section-title">이런 고민, 하고 계시지 않나요?</h2>
-      <p class="section-sub">수강생의 성장을 기록하고 싶지만 현실적으로 어렵다는 걸 압니다</p>
+  <section class="pain-instructor slide">
+    <div class="container pain-instructor-inner">
+      <div>
+        <div class="slide-num">02 — 문제 정의 · 학원</div>
+        <span class="section-tag pain-tag-instructor">👨‍🏫 학원 · 개인 강사님께</span>
+        <h2 class="section-title">이런 고민, 하고 계시지 않나요?</h2>
+        <p class="section-sub">수강생의 성장을 기록하고 싶지만 현실적으로 어렵다는 걸 압니다</p>
 
-      <div class="pain-cards">
-        <div class="pain-card purple">
-          <span class="pain-emoji">📋</span>
-          <h3>수업 기록 관리의 어려움</h3>
-          <p>수강생별 수업 내용, 진도, 특이사항을 어디에 어떻게 관리해야 할지 체계가 없습니다.</p>
+        <div class="pain-cards">
+          <div class="pain-card purple">
+            <span class="pain-emoji">📋</span>
+            <h3>수업 기록 관리의 어려움</h3>
+            <p>수강생별 수업 내용, 진도, 특이사항을 어디에 어떻게 관리해야 할지 체계가 없습니다.</p>
+          </div>
+          <div class="pain-card rose">
+            <span class="pain-emoji">👪</span>
+            <h3>학부모 상담 시 근거 자료 부족</h3>
+            <p>"우리 아이가 어떤 걸 배웠나요?" — 즉각적인 답변과 구체적인 근거 자료를 제시하기 어렵습니다.</p>
+          </div>
+          <div class="pain-card blue">
+            <span class="pain-emoji">📊</span>
+            <h3>학생 성장 포트폴리오 부재</h3>
+            <p>수업은 열심히 하지만 학생이 어떻게 성장했는지 눈에 보이는 기록이 없어 아쉽습니다.</p>
+          </div>
+          <div class="pain-card amber">
+            <span class="pain-emoji">🏆</span>
+            <h3>수업 가치 증명의 어려움</h3>
+            <p>다른 강사 · 학원과 차별화하고 싶지만, 수업의 질을 객관적으로 보여줄 방법이 없습니다.</p>
+          </div>
         </div>
-        <div class="pain-card rose">
-          <span class="pain-emoji">👪</span>
-          <h3>학부모 상담 시 근거 자료 부족</h3>
-          <p>"우리 아이가 어떤 걸 배웠나요?" — 즉각적인 답변과 구체적인 근거 자료를 제시하기 어렵습니다.</p>
-        </div>
-        <div class="pain-card blue">
-          <span class="pain-emoji">📊</span>
-          <h3>학생 성장 포트폴리오 부재</h3>
-          <p>수업은 열심히 하지만 학생이 어떻게 성장했는지 눈에 보이는 기록이 없어 아쉽습니다.</p>
-        </div>
-        <div class="pain-card amber">
-          <span class="pain-emoji">🏆</span>
-          <h3>수업 가치 증명의 어려움</h3>
-          <p>다른 강사 · 학원과 차별화하고 싶지만, 수업의 질을 객관적으로 보여줄 방법이 없습니다.</p>
+
+        <div class="pain-quote-violet">
+          <p>"학원 운영 5년째인데, 수강생 관리는 아직도 엑셀과 카카오톡입니다.<br>
+          학부모님이 물어보실 때마다 기억을 더듬어야 해서 자신감이 떨어져요." — 수학학원 원장 강사</p>
         </div>
       </div>
-
-      <div class="pain-quote-violet">
-        <p>"학원 운영 5년째인데, 수강생 관리는 아직도 엑셀과 카카오톡입니다.<br>
-        학부모님이 물어보실 때마다 기억을 더듬어야 해서 자신감이 떨어져요." — 수학학원 원장 강사</p>
+      <div class="pain-instructor-visual">
+        <img src="/illustrations/academy-report-doodle.webp" alt="" />
       </div>
     </div>
   </section>
 
   <!-- ══ 4. 솔루션 ══ -->
-  <section class="solution">
+  <section class="solution slide">
     <div class="container">
+      <div class="slide-num">03 — 해결 방안</div>
       <span class="section-tag solution-tag">💡 클래스로그 AI가 해결합니다</span>
       <h2 class="section-title">문제를 정확히 알고, 정확하게 해결합니다</h2>
       <p class="section-sub">선생님과 강사가 겪는 4가지 핵심 문제를 직접 해소합니다</p>
@@ -410,99 +544,101 @@
   </section>
 
   <!-- ══ 4.5 수업이 있는 모든 곳에서 ══ -->
-  <section style="background:#fff;padding:72px 0;">
+  <section class="everywhere slide">
     <div class="container">
-      <span class="section-tag" style="background:#d1fae5;color:#065f46;">🌏 어디서나</span>
-      <h2 class="section-title">생기부가 없어도 됩니다</h2>
-      <p class="section-sub">학생을 가르치고, 기록하고, 성장을 나눠야 하는 곳이라면 어디서든 클래스로그 AI가 함께합니다</p>
+      <div class="slide-num">04 — 활용 범위</div>
+      <span class="section-tag">🌏 어디서나</span>
+      <h2 class="section-title">어디서 가르치든, 클래스로그가 함께합니다</h2>
+      <p class="section-sub">학생을 가르치고, 기록하고, 성장을 나눠야 하는 곳이라면 학교든, 학원이든, 레슨이든 형태는 중요하지 않습니다</p>
 
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;">
-        <div style="border-radius:16px;padding:24px;background:#fffbeb;border:1px solid #fde68a;">
-          <div style="font-size:28px;margin-bottom:10px;">🏫</div>
-          <div style="font-size:13px;font-weight:800;color:#92400e;margin-bottom:4px;">고등학교</div>
-          <div style="font-size:11px;color:#a16207;margin-bottom:8px;">세특 자동화</div>
-          <p style="font-size:12.5px;color:#6b7280;line-height:1.65;">세특·행동특성·종합의견 AI 초안 생성, 나이스 엑셀 일괄 제출</p>
+      <div class="everywhere-grid">
+        <div class="everywhere-card">
+          <div class="ec-emoji">🏫</div>
+          <div class="ec-title">고등학교</div>
+          <div class="ec-sub" style="color:var(--amber);">세특 자동화</div>
+          <p>세특·행동특성·종합의견 AI 초안 생성, 나이스 엑셀 일괄 제출</p>
         </div>
-        <div style="border-radius:16px;padding:24px;background:#eff6ff;border:1px solid #bfdbfe;">
-          <div style="font-size:28px;margin-bottom:10px;">🏫</div>
-          <div style="font-size:13px;font-weight:800;color:#1e40af;margin-bottom:4px;">중학교</div>
-          <div style="font-size:11px;color:#3b82f6;margin-bottom:8px;">생기부 기록</div>
-          <p style="font-size:12.5px;color:#6b7280;line-height:1.65;">학교생활기록부 기재용 활동 기록 수집 및 관리</p>
+        <div class="everywhere-card">
+          <div class="ec-emoji">🏫</div>
+          <div class="ec-title">중학교</div>
+          <div class="ec-sub" style="color:var(--amber);">생기부 기록</div>
+          <p>학교생활기록부 기재용 활동 기록 수집 및 관리</p>
         </div>
-        <div style="border-radius:16px;padding:24px;background:#f5f3ff;border:1px solid #ddd6fe;">
-          <div style="font-size:28px;margin-bottom:10px;">🏢</div>
-          <div style="font-size:13px;font-weight:800;color:#5b21b6;margin-bottom:4px;">학원·교습소</div>
-          <div style="font-size:11px;color:#7c3aed;margin-bottom:8px;">학부모 보고서</div>
-          <p style="font-size:12.5px;color:#6b7280;line-height:1.65;">수강생 관찰 기록 → AI 학부모 성장 보고서 자동 생성</p>
+        <div class="everywhere-card">
+          <div class="ec-emoji">🏢</div>
+          <div class="ec-title">학원·교습소</div>
+          <div class="ec-sub" style="color:var(--violet);">학부모 보고서</div>
+          <p>수강생 관찰 기록 → AI 학부모 성장 보고서 자동 생성</p>
         </div>
-        <div style="border-radius:16px;padding:24px;background:#fff1f2;border:1px solid #fecdd3;">
-          <div style="font-size:28px;margin-bottom:10px;">🎸</div>
-          <div style="font-size:13px;font-weight:800;color:#9f1239;margin-bottom:4px;">음악·예체능 레슨</div>
-          <div style="font-size:11px;color:#f43f5e;margin-bottom:8px;">레슨 기록</div>
-          <p style="font-size:12.5px;color:#6b7280;line-height:1.65;">레슨별 성취도·관찰 기록, 수강생 포트폴리오 구축</p>
+        <div class="everywhere-card">
+          <div class="ec-emoji">🎸</div>
+          <div class="ec-title">음악·예체능 레슨</div>
+          <div class="ec-sub" style="color:var(--rose);">레슨 기록</div>
+          <p>레슨별 성취도·관찰 기록, 수강생 포트폴리오 구축</p>
         </div>
-        <div style="border-radius:16px;padding:24px;background:#f0fdfa;border:1px solid #99f6e4;">
-          <div style="font-size:28px;margin-bottom:10px;">💻</div>
-          <div style="font-size:13px;font-weight:800;color:#115e59;margin-bottom:4px;">코딩·방과후 교실</div>
-          <div style="font-size:11px;color:#0d9488;margin-bottom:8px;">프로젝트 관리</div>
-          <p style="font-size:12.5px;color:#6b7280;line-height:1.65;">프로젝트별 활동 기록, 결과물 제출, AI 성취 분석</p>
+        <div class="everywhere-card">
+          <div class="ec-emoji">💻</div>
+          <div class="ec-title">코딩·방과후 교실</div>
+          <div class="ec-sub" style="color:var(--amber);">프로젝트 관리</div>
+          <p>프로젝트별 활동 기록, 결과물 제출, AI 성취 분석</p>
         </div>
-        <div style="border-radius:16px;padding:24px;background:#f0fdf4;border:1px solid #bbf7d0;">
-          <div style="font-size:28px;margin-bottom:10px;">🌱</div>
-          <div style="font-size:13px;font-weight:800;color:#14532d;margin-bottom:4px;">대안학교·홈스쿨</div>
-          <div style="font-size:11px;color:#16a34a;margin-bottom:8px;">자유로운 기록</div>
-          <p style="font-size:12.5px;color:#6b7280;line-height:1.65;">정형화되지 않은 수업도 체계적으로 기록하고 관리</p>
+        <div class="everywhere-card">
+          <div class="ec-emoji">🌱</div>
+          <div class="ec-title">대안학교·홈스쿨</div>
+          <div class="ec-sub" style="color:var(--violet);">자유로운 기록</div>
+          <p>정형화되지 않은 수업도 체계적으로 기록하고 관리</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ══ 5. 핵심 기능 ══ -->
-  <section class="features">
+  <section class="features slide">
     <div class="container">
+      <div class="slide-num">05 — 핵심 기능</div>
       <span class="section-tag features-tag">⚙️ 핵심 기능</span>
       <h2 class="section-title">한 플랫폼에서 모든 것을</h2>
       <p class="section-sub">교육 기록 관리에 필요한 모든 기능이 하나의 앱에 담겨 있습니다</p>
 
       <div class="feature-grid" style="grid-template-columns:repeat(3,1fr);">
         <div class="feature-card f1">
-          <span class="fc-emoji">🏫</span>
+          <span class="fc-icon"><span class="fc-emoji">🏫</span></span>
           <h3>학급·학생 통합 관리</h3>
           <p>교과반·담임반 구분, 단원 관리, 출석, 조 관리, 폴더 분류, 학교 프로젝트 연동, 교과 선생님 초대까지</p>
           <span class="fc-tag">선생님 · 강사</span>
         </div>
         <div class="feature-card f2">
-          <span class="fc-emoji">✨</span>
+          <span class="fc-icon"><img class="fc-icon-img" src="/illustrations/icon-ai-draft.webp" alt="" /></span>
           <h3>AI 세특 · 보고서 초안</h3>
           <p>Gemini AI가 활동 기록을 분석해 세특(학교) 또는 학부모 성장 보고서(학원) 초안을 학생별로 자동 생성. 주차별 필터, 생성 중단 기능 지원</p>
           <span class="fc-tag">선생님 · 강사</span>
         </div>
         <div class="feature-card f3">
-          <span class="fc-emoji">📊</span>
+          <span class="fc-icon"><img class="fc-icon-img" src="/illustrations/icon-nice-submit.webp" alt="" /></span>
           <h3>나이스 워크스테이션</h3>
           <p>500자 편집 + AI 압축, 행동특성·종합의견 초안 생성, 학급 전체 세특을 나이스 엑셀로 일괄 다운로드</p>
           <span class="fc-tag">학교 선생님 전용</span>
         </div>
         <div class="feature-card f4">
-          <span class="fc-emoji">📝</span>
+          <span class="fc-icon"><img class="fc-icon-img" src="/illustrations/icon-notebook.webp" alt="" /></span>
           <h3>활동 기록 수집 · 교사 메모</h3>
           <p>학생이 스마트폰으로 직접 제출하거나 선생님이 직접 작성. AI 품질 검토, 최소 글자수 제한, 파일 첨부, 타임라인 조회</p>
           <span class="fc-tag">선생님 · 강사</span>
         </div>
         <div class="feature-card f5">
-          <span class="fc-emoji">🖼️</span>
+          <span class="fc-icon"><span class="fc-emoji">🖼️</span></span>
           <h3>수업 갤러리 · 상영회 모드</h3>
           <p>수업 사진·영상을 학급별·주차별로 보관. WebP 자동 압축, YouTube 등 외부 영상 링크 저장, 라이트박스 뷰어와 전체화면 슬라이드쇼 "상영회 모드"</p>
           <span class="fc-tag">선생님 · 강사</span>
         </div>
         <div class="feature-card f6">
-          <span class="fc-emoji">🛠️</span>
+          <span class="fc-icon"><span class="fc-emoji">🛠️</span></span>
           <h3>10가지 수업 도구</h3>
           <p>타이머·조 뽑기·온라인 수업(무료) + 실시간 퀴즈(AI 문항 생성)·설문(6종 유형)·화이트보드(실시간 협업)·수업 전사·자료 에디터·슬라이드 만들기</p>
           <span class="fc-tag">선생님 · 강사</span>
         </div>
         <div class="feature-card f7">
-          <span class="fc-emoji">🧑‍🎨</span>
+          <span class="fc-icon"><span class="fc-emoji">🧑‍🎨</span></span>
           <h3>학생 아바타 커스터마이징</h3>
           <p>학생이 직접 얼굴형·헤어·표정 등 파츠를 조합해 나만의 아바타를 완성. 부위별 확대 미리보기 제공</p>
           <span class="fc-tag">학생</span>
@@ -512,8 +648,9 @@
   </section>
 
   <!-- ══ 6. 도입 효과 ══ -->
-  <section class="effect">
+  <section class="effect slide">
     <div class="container">
+      <div class="slide-num">06 — 도입 효과</div>
       <span class="section-tag effect-tag">📈 도입 전 vs 후</span>
       <h2 class="section-title">도입하면 이렇게 달라집니다</h2>
       <p class="section-sub">수치로 확인하는 실질적 변화</p>
@@ -568,8 +705,9 @@
   </section>
 
   <!-- ══ 7. 사용 흐름 ══ -->
-  <section class="flow">
+  <section class="flow slide">
     <div class="container">
+      <div class="slide-num">07 — 시작 방법</div>
       <span class="section-tag flow-tag">🚀 시작하는 방법</span>
       <h2 class="section-title">기록하면, AI가 씁니다</h2>
       <p class="section-sub">복잡한 설정 없이, 오늘부터 사용 가능합니다</p>
@@ -605,14 +743,20 @@
   </section>
 
   <!-- ══ 8. 요금 ══ -->
-  <section class="pricing">
+  <section class="pricing slide">
     <div class="container">
-      <span class="section-tag" style="background:var(--amber-light);color:var(--amber-deep)">💳 도입 안내</span>
+      <div class="slide-num">08 — 요금제</div>
+      <span class="section-tag">💳 도입 안내</span>
       <h2 class="section-title">학교 · 학원 규모에 맞게 도입하세요</h2>
       <p class="section-sub">개인 선생님부터 학교 전체 도입까지, 유연하게 운영합니다</p>
 
-      <div class="pricing-cards">
-        <div class="pricing-card">
+      <div class="pricing-tabs">
+        <button class="pricing-tab-btn active" onclick="switchPricingTab(this,'individual')">👤 개인 (무료 · Basic · Pro)</button>
+        <button class="pricing-tab-btn" onclick="switchPricingTab(this,'group')">🏫 단체 (School)</button>
+      </div>
+
+      <div class="pricing-cards" data-tab="individual">
+        <div class="pricing-card" data-category="individual">
           <div class="tier">Free</div>
           <div class="price">무료</div>
           <div class="price-sub">Google 계정으로 즉시 시작</div>
@@ -625,10 +769,10 @@
           </ul>
           <a href="/" class="cta outline">Google로 무료 시작하기</a>
         </div>
-        <div class="pricing-card" style="border-color:#3b82f6;background:linear-gradient(160deg,#eff6ff,#dbeafe);">
-          <div class="badge" style="background:#3b82f6;">Basic</div>
-          <div class="tier" style="color:#1d4ed8;">Basic</div>
-          <div class="price price-won" style="color:#1e40af;">9,900원<span style="font-size:13px;font-weight:600;">/월</span></div>
+        <div class="pricing-card" data-category="individual" style="border-color:var(--amber);background:var(--amber-light);">
+          <div class="badge" style="background:var(--amber);">Basic</div>
+          <div class="tier" style="color:var(--amber-dark);">Basic</div>
+          <div class="price price-won" style="color:var(--amber-deep);">9,900원<span style="font-size:13px;font-weight:600;">/월</span></div>
           <div style="font-size:10px;font-weight:700;color:#9ca3af;margin-top:2px;">3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료</div>
           <div class="price-sub">본격적으로 활용하는 선생님</div>
           <ul>
@@ -639,9 +783,9 @@
             <li>수업 전사 (본인 Groq API 키 등록)</li>
             <li>학교 프로젝트 참여</li>
           </ul>
-          <a href="mailto:aklabs84@naver.com?subject=클래스로그 Basic 플랜 문의" class="cta main" style="background:#3b82f6;">Basic 플랜 문의하기</a>
+          <a href="mailto:aklabs84@naver.com?subject=클래스로그 Basic 플랜 문의" class="cta main" style="background:var(--amber);">Basic 플랜 문의하기</a>
         </div>
-        <div class="pricing-card highlight">
+        <div class="pricing-card highlight" data-category="individual">
           <div class="badge">⚡ Pro</div>
           <div class="tier">Pro</div>
           <div class="price price-won">19,900원<span style="font-size:13px;font-weight:600;">/월</span></div>
@@ -657,10 +801,10 @@
           </ul>
           <a href="mailto:aklabs84@naver.com?subject=클래스로그 Pro 플랜 문의" class="cta main">Pro 플랜 문의하기</a>
         </div>
-        <div class="pricing-card" style="border-color:#7c3aed;background:linear-gradient(160deg,#f5f3ff,#ede9fe);">
-          <div class="badge" style="background:#7c3aed;">🏫 School</div>
-          <div class="tier" style="color:#6d28d9;">School</div>
-          <div class="price" style="color:#5b21b6;">문의</div>
+        <div class="pricing-card" data-category="group" style="border-color:var(--violet);background:var(--violet-light);">
+          <div class="badge" style="background:var(--violet);">🏫 School</div>
+          <div class="tier" style="color:var(--violet);">School</div>
+          <div class="price" style="color:var(--amber-deep);">문의</div>
           <div class="price-sub">학교·학원 전체 도입</div>
           <ul>
             <li>Pro 기능 전체 포함</li>
@@ -668,7 +812,7 @@
             <li>S(5명)·M(15명)·L(35명) 교사 수 티어</li>
             <li>단일 청구서 발행</li>
           </ul>
-          <a href="mailto:aklabs84@naver.com?subject=클래스로그 School 플랜 도입 문의" class="cta main" style="background:#7c3aed;">School 도입 문의하기</a>
+          <a href="mailto:aklabs84@naver.com?subject=클래스로그 School 플랜 도입 문의" class="cta main" style="background:var(--violet);">School 도입 문의하기</a>
         </div>
       </div>
       <p class="pricing-note">* 현재 유료 플랜 업그레이드는 이메일 문의 후 관리자가 직접 처리합니다. 온라인 결제 기능은 준비 중입니다.<br>플랜 변경 및 문의: aklabs84@naver.com · 3/6/12개월 선결제 시 할인, 결제 후 7일 이내 전액 환불 (이후 잔여 기간 일할 계산 환불) · <a href="/terms" style="color:inherit;text-decoration:underline;">이용약관 보기</a></p>
@@ -676,7 +820,7 @@
   </section>
 
   <!-- ══ 9. CTA ══ -->
-  <section class="cta-section">
+  <section class="cta-section slide">
     <div class="container">
       <h2>지금 바로 시작해 보세요</h2>
       <p>세특 마감에 쫓기는 마지막 학기를 만들어 드리겠습니다</p>
@@ -688,7 +832,7 @@
   </section>
 
   <!-- ══ 10. 연락처 ══ -->
-  <section class="contact">
+  <section class="contact slide">
     <div class="container">
       <div class="contact-inner">
         <div>
@@ -731,6 +875,14 @@
   </div>
 
 </div><!-- .catalog -->
+
+<script>
+  function switchPricingTab(btn, tab) {
+    document.querySelectorAll('.pricing-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelector('.pricing-cards').setAttribute('data-tab', tab);
+  }
+</script>
 
 </body>
 </html>

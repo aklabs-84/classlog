@@ -1,11 +1,25 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-manrope: "Manrope", sans-serif;
   --font-public-sans: "Public Sans", sans-serif;
   --font-pretendard: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --font-poppins: "Poppins", "Pretendard Variable", Pretendard, ui-sans-serif, sans-serif;
+
+  /* WRITER 에디토리얼 팔레트 — 랜딩/카탈로그/가이드 전용, 기존 앱 팔레트와 분리 */
+  --color-writer-ink: #000000;
+  --color-writer-obsidian: #27272b;
+  --color-writer-orchid: #a95ef8;
+  --color-writer-iris: #5551ff;
+  --color-writer-iris-dim: #423ed6;
+  --color-writer-lavender: #e4e9ff;
+  --color-writer-mist: #e4e7ed;
+  --color-writer-fog: #d2d4d7;
+  --color-writer-ash: #bdbdbd;
+  --color-writer-slate: #666666;
 
   /* Vibrant & Creative Palette */
   --color-surface: #f8fafc;
@@ -79,6 +93,7 @@
     margin: 0;
     min-height: 100vh;
     overflow-x: hidden;
+    word-break: keep-all;
   }
 
   h1, h2, h3, h4, h5, h6 {
