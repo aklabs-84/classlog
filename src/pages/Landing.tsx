@@ -581,21 +581,27 @@ const Landing = () => {
             </div>
 
             {/* 선택된 도구의 실제 화면 미리보기 */}
-            <div className="rounded-[16px] border border-writer-mist bg-white overflow-hidden shadow-sm">
-              <div className="flex items-center gap-1.5 px-4 py-3 border-b border-writer-mist bg-writer-lavender/20">
-                <span className="w-2.5 h-2.5 rounded-full bg-writer-mist" />
-                <span className="w-2.5 h-2.5 rounded-full bg-writer-mist" />
-                <span className="w-2.5 h-2.5 rounded-full bg-writer-mist" />
-              </div>
-              <motion.img
-                key={teachingTools[activeTool].image}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.25 }}
-                src={teachingTools[activeTool].image}
-                alt={teachingTools[activeTool].title}
-                className="w-full h-auto block"
+            <div className="relative">
+              <div
+                aria-hidden="true"
+                className="absolute -inset-5 -z-10 rounded-[28px] bg-gradient-to-br from-writer-iris/25 via-writer-orchid/20 to-transparent blur-2xl"
               />
+              <div className="rounded-[16px] border border-writer-mist bg-white overflow-hidden shadow-xl shadow-writer-iris/15 ring-1 ring-black/5">
+                <div className="flex items-center gap-1.5 px-4 py-3 border-b border-writer-mist bg-writer-lavender/20">
+                  <span className="w-2.5 h-2.5 rounded-full bg-writer-mist" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-writer-mist" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-writer-mist" />
+                </div>
+                <motion.img
+                  key={teachingTools[activeTool].image}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  src={teachingTools[activeTool].image}
+                  alt={teachingTools[activeTool].title}
+                  className="w-full h-auto block"
+                />
+              </div>
             </div>
           </div>
           <p className="text-center text-[11px] text-writer-slate/70 mb-6">
