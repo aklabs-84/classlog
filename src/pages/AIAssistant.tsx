@@ -21,6 +21,7 @@ import {
   Square,
   Send,
   X,
+  Link2,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
@@ -42,6 +43,8 @@ interface StudentDraft {
   applyDone?: boolean;
   history: HistoryEntry[];
   showHistory?: boolean;
+  isSharing?: boolean;
+  shareCopied?: boolean;
 }
 
 const AIAssistant = () => {
@@ -472,6 +475,93 @@ ${obsText}
       reset[index] = { ...reset[index], isCopied: false };
       setDraftResults(reset);
     }, 1500);
+  };
+
+  const shareStudentReport = async (index: number) => {
+    const draft = draftResults[index];
+    if (!draft?.studentId || !user?.id) return;
+    const updated = [...draftResults];
+    updated[index] = { ...draft, isSharing: true };
+    setDraftResults(updated);
+    try {
+      const orgName = classes.find(c => c.id === selectedClassId)?.name || null;
+      const weekFilter = weekFilterMode === 'select' && selectedWeeks.length > 0 ? selectedWeeks : null;
+
+      const [{ data: attendanceRows }, { data: resultRows }, { data: obsRows }, { data: evalRow }] = await Promise.all([
+        supabase.from('attendance').select('status').eq('class_id', selectedClassId).eq('student_id', draft.studentId),
+        supabase.from('student_results').select('week_number, teacher_eval_score').eq('student_id', draft.studentId),
+        supabase.from('observations').select('week_number').eq('student_id', draft.studentId),
+        supabase.from('student_evaluations').select('achievement_level').eq('student_id', draft.studentId).eq('class_id', selectedClassId).eq('academic_year', new Date().getFullYear()).maybeSingle(),
+      ]);
+
+      const byStatus: Record<string, number> = {};
+      (attendanceRows || []).forEach((r: any) => { byStatus[r.status] = (byStatus[r.status] || 0) + 1; });
+
+      const inWeekFilter = (w: number | null) => !weekFilter || w == null || weekFilter.includes(w);
+      const filteredObs = (obsRows || []).filter((o: any) => inWeekFilter(o.week_number));
+      const filteredResults = (resultRows || []).filter((r: any) => inWeekFilter(r.week_number));
+
+      const weekMap: Record<number, { engagement: number; scoreSum: number; scoreCount: number }> = {};
+      const ensureWeek = (w: number) => {
+        if (!weekMap[w]) weekMap[w] = { engagement: 0, scoreSum: 0, scoreCount: 0 };
+        return weekMap[w];
+      };
+      filteredObs.forEach((o: any) => { if (o.week_number != null) ensureWeek(o.week_number).engagement += 1; });
+      filteredResults.forEach((r: any) => {
+        if (r.week_number == null) return;
+        const wk = ensureWeek(r.week_number);
+        wk.engagement += 1;
+        if (typeof r.teacher_eval_score === 'number' && r.teacher_eval_score > 0) {
+          wk.scoreSum += r.teacher_eval_score;
+          wk.scoreCount += 1;
+        }
+      });
+      const weeklyTrend = Object.entries(weekMap)
+        .map(([week, v]) => ({ week: Number(week), engagement: v.engagement, avgScore: v.scoreCount > 0 ? v.scoreSum / v.scoreCount : null }))
+        .sort((a, b) => a.week - b.week);
+
+      const scoredResults = filteredResults.filter((r: any) => typeof r.teacher_eval_score === 'number' && r.teacher_eval_score > 0);
+      const avgScore = scoredResults.length > 0
+        ? scoredResults.reduce((s: number, r: any) => s + r.teacher_eval_score, 0) / scoredResults.length
+        : null;
+
+      const stats = {
+        attendance: { total: (attendanceRows || []).length, byStatus },
+        weeklyTrend,
+        avgScore,
+        participationCount: filteredObs.length,
+        achievementLevel: (evalRow as any)?.achievement_level || null,
+      };
+
+      const { data, error } = await supabase
+        .from('parent_report_shares')
+        .insert({
+          teacher_id: user.id,
+          student_id: draft.studentId,
+          student_name: draft.name,
+          org_name: orgName,
+          period_label: `${new Date().getFullYear()}년`,
+          content: draft.content,
+          stats,
+        })
+        .select('share_token')
+        .single();
+      if (error || !data) throw error;
+      const url = `${window.location.origin}/report/${data.share_token}`;
+      await navigator.clipboard.writeText(url);
+      const done = [...draftResults];
+      done[index] = { ...draft, isSharing: false, shareCopied: true };
+      setDraftResults(done);
+      setTimeout(() => {
+        setDraftResults(prev => prev.map((d, i) => i === index ? { ...d, shareCopied: false } : d));
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      const reset = [...draftResults];
+      reset[index] = { ...draft, isSharing: false };
+      setDraftResults(reset);
+      alert('공유 링크 생성 중 오류가 발생했습니다.');
+    }
   };
 
   const handleApplyToNaiss = async (index: number) => {
@@ -1046,6 +1136,15 @@ ${obsText}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
+                        {reportMode === 'academy' && (
+                          <button onClick={() => shareStudentReport(originalIndex)} disabled={draft.isSharing}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all disabled:opacity-50 ${draft.shareCopied ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container text-on-surface-variant'}`}>
+                            {draft.isSharing
+                              ? <RotateCw size={13} className="animate-spin" />
+                              : draft.shareCopied ? <Check size={13} /> : <Link2 size={13} />}
+                            {draft.isSharing ? '생성 중' : draft.shareCopied ? '링크 복사됨' : '공유 링크'}
+                          </button>
+                        )}
                         <button onClick={() => copyStudent(originalIndex)}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all ${draft.isCopied ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container text-on-surface-variant'}`}>
                           {draft.isCopied ? <Check size={13} /> : <Copy size={13} />}

@@ -386,13 +386,29 @@ const Landing = () => {
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="md:order-first"
+            className="md:order-first relative w-full max-w-md mx-auto md:mx-0"
           >
-            <img
+            <motion.img
               src="/illustrations/teacher-hero.webp"
               alt="교실에서 학생을 지도하는 선생님"
-              className="w-full max-w-md mx-auto md:mx-0"
+              className="w-full"
+              animate={{ y: [0, -10, 0], rotate: [0, 1.2, 0, -1.2, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
             />
+            <motion.div
+              className="absolute top-4 right-2 md:right-4 flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full shadow-lg border border-writer-mist text-xs font-bold text-writer-iris"
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+            >
+              <CheckCircle2 size={14} /> 자동 기록 완료
+            </motion.div>
+            <motion.div
+              className="absolute bottom-8 -left-2 md:-left-6 flex items-center gap-1.5 px-3 py-1.5 bg-writer-iris rounded-full shadow-lg text-xs font-bold text-white"
+              animate={{ y: [0, 8, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+            >
+              <Timer size={14} /> 시간 절약 중
+            </motion.div>
           </motion.div>
 
           <div className="text-center md:text-left">

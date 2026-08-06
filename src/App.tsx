@@ -42,6 +42,7 @@ import ClassBoard from './pages/ClassBoard';
 import ShareClassView from './pages/ShareClassView';
 import SchoolShareView from './pages/SchoolShareView';
 import SchoolProjectShareView from './pages/SchoolProjectShareView';
+import ParentReportShareView from './pages/ParentReportShareView';
 import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
@@ -239,6 +240,7 @@ function App() {
               <Route path="/share/:classId" element={<ShareClassView />} />
               <Route path="/school-share/:schoolId" element={<SchoolShareView />} />
               <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
+              <Route path="/report/:shareToken" element={<ParentReportShareView />} />
               <Route path="/school-intro" element={<SchoolIntroPage />} />
               <Route path="/demo" element={<Demo />} />
 
