@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BellRing, BellOff, Bell } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNotificationPermission } from '../hooks/useNotificationPermission';
+import { useAuth } from '../lib/auth';
+import { subscribeToPush } from '../lib/pushSubscription';
 
 interface Props {
   variant: 'desktop' | 'mobile';
@@ -10,13 +12,24 @@ interface Props {
 
 export default function NotificationPermissionButton({ variant, onNavigate }: Props) {
   const { permission, request } = useNotificationPermission();
+  const { user } = useAuth();
   const [showDeniedTip, setShowDeniedTip] = useState(false);
+
+  // 이미 권한이 granted 상태(예: 예전에 허용한 브라우저)라면 push 구독이 없을 수 있으니 보정
+  useEffect(() => {
+    if (permission === 'granted' && user?.id) {
+      subscribeToPush(user.id);
+    }
+  }, [permission, user?.id]);
 
   if (permission === 'unsupported') return null;
 
   const handleClick = async () => {
     if (permission === 'default') {
-      await request();
+      const result = await request();
+      if (result === 'granted' && user?.id) {
+        await subscribeToPush(user.id);
+      }
     } else if (permission === 'denied') {
       setShowDeniedTip((v) => !v);
     }
