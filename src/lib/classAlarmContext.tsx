@@ -31,6 +31,17 @@ export interface ClassAlarmAlert {
 
 const BREAK_ALARM_MINUTES = 5;
 
+// 스마트폰/태블릿/노트북 어디서든(인앱 배너 · OS 알림) 동일한 문구가 보이도록 메시지를 한 곳에서 관리
+export const getAlarmMessage = (alert: ClassAlarmAlert): { title: string; body: string } => ({
+  title: alert.className,
+  body:
+    alert.type === 'break'
+      ? `쉬는시간 ${alert.minutesLeft}분 전이에요! 잠시 정리할 시간입니다.`
+      : alert.type === 'attendance'
+        ? '수업 시작 시간이에요! 출석체크를 진행해주세요.'
+        : `수업 종료 ${alert.minutesLeft}분 전! 활동 기록을 작성해주세요.`,
+});
+
 interface ClassAlarmContextValue {
   activeAlerts: ClassAlarmAlert[];
   dismissAlert: (key: string) => void;
@@ -110,6 +121,16 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
     const refreshInterval = setInterval(fetchClasses, 5 * 60 * 1000);
     return () => clearInterval(refreshInterval);
   }, [fetchClasses]);
+
+  // 알람이 걸린 클래스가 있으면, 스마트폰/태블릿/노트북 등 기기 종류와 무관하게
+  // 브라우저 표준 Notification API로 동일한 알림을 받을 수 있도록 권한을 미리 요청
+  useEffect(() => {
+    if (classes.length === 0) return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [classes.length]);
 
   // 학기 종료(is_closed)·출석 세션 종료(today_ended_at) 자동 처리 — 동일 클래스에 대해
   // 다음 5분 주기 재조회 전까지 중복 write가 발생하지 않도록 처리 중 여부를 추적
@@ -196,6 +217,25 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
           playAlarm(getAudioCtx());
         } catch {
           // AudioContext가 사용자 상호작용 전이라 재생이 막힐 수 있음 — 무시
+        }
+        // 앱이 백그라운드/다른 탭에 있어도(스마트폰·태블릿·노트북 공통) 동일한 문구로
+        // OS 알림이 뜨도록 처리 — 인앱 배너와 같은 getAlarmMessage()를 사용해 문구를 통일
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            const { title, body } = getAlarmMessage(alert);
+            const notif = new Notification(title, {
+              body,
+              icon: '/favicon-192.png',
+              badge: '/favicon-192.png',
+              tag: triggerKey,
+            });
+            notif.onclick = () => {
+              window.focus();
+              notif.close();
+            };
+          } catch {
+            // 알림 생성 실패(권한 변경 등)는 무시 — 인앱 배너로도 동일 문구가 표시됨
+          }
         }
         const intervalId = window.setInterval(() => {
           try {

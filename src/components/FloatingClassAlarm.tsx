@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { BellRing, X, ArrowRight } from 'lucide-react';
-import { useClassAlarm } from '../lib/classAlarmContext';
+import { useClassAlarm, getAlarmMessage } from '../lib/classAlarmContext';
 
 const FloatingClassAlarm = () => {
   const { activeAlerts, dismissAlert } = useClassAlarm();
@@ -11,7 +11,9 @@ const FloatingClassAlarm = () => {
   const widget = (
     <div className="fixed top-20 right-4 z-[9999] flex flex-col gap-3 pointer-events-none" style={{ maxWidth: 340 }}>
       <AnimatePresence>
-        {activeAlerts.map((alert) => (
+        {activeAlerts.map((alert) => {
+          const { body: alertBody } = getAlarmMessage(alert);
+          return (
           <motion.div
             key={alert.key}
             initial={{ opacity: 0, x: 40, scale: 0.95 }}
@@ -39,13 +41,7 @@ const FloatingClassAlarm = () => {
                 </motion.div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-black text-sm leading-tight">{alert.className}</p>
-                  <p className="text-white/90 text-xs font-bold mt-0.5">
-                    {alert.type === 'break'
-                      ? `쉬는시간 ${alert.minutesLeft}분 전이에요! 잠시 정리할 시간입니다.`
-                      : alert.type === 'attendance'
-                        ? '수업 시작 시간이에요! 출석체크를 진행해주세요.'
-                        : `수업 종료 ${alert.minutesLeft}분 전! 활동 기록을 작성해주세요.`}
-                  </p>
+                  <p className="text-white/90 text-xs font-bold mt-0.5">{alertBody}</p>
                 </div>
                 <button
                   onClick={() => dismissAlert(alert.key)}
@@ -70,7 +66,8 @@ const FloatingClassAlarm = () => {
               </button>
             </div>
           </motion.div>
-        ))}
+          );
+        })}
       </AnimatePresence>
     </div>
   );

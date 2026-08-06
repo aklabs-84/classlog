@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import NotificationPermissionButton from '../NotificationPermissionButton';
 
 const Navbar = () => {
   const { user, profile } = useAuth();
@@ -164,6 +165,9 @@ const Navbar = () => {
             <Download size={13} strokeWidth={2.5} /> 앱 설치
           </button>
         )}
+
+        {/* 클래스 알람 OS 알림 권한 — PC만 */}
+        <NotificationPermissionButton variant="desktop" />
 
         {/* 관찰 기록 — PC만 */}
         <NavLink to="/activity-log"
@@ -388,6 +392,7 @@ const Navbar = () => {
                   <Download size={16} /> 앱 설치하기
                 </button>
               )}
+              <NotificationPermissionButton variant="mobile" onNavigate={() => setMobileMenuOpen(false)} />
             </div>
           </motion.div>
         </>
