@@ -1455,6 +1455,12 @@ const SchoolProjectShareView = () => {
                                   </button>
                                 )}
                               </div>
+                              {filteredGallery.some((g) => g.file_type === 'video') && (
+                                <p className="flex items-center gap-1 text-[11px] text-gray-400 mt-2">
+                                  <AlertCircle size={11} className="shrink-0" />
+                                  영상은 이 버튼으로 받아지지 않습니다. 영상을 눌러 재생 화면에서 개별적으로 다운로드해 주세요.
+                                </p>
+                              )}
 
                               {filteredGallery.length === 0 ? (
                                 <div className="flex flex-col items-center py-16 space-y-2">

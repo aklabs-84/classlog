@@ -136,6 +136,15 @@ interface ResultRow {
   file_url?: string | null;
   image_url?: string | null;
   image_urls?: string[];
+  group_id?: string | null;
+  is_group_submission?: boolean;
+}
+
+interface GroupRow {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
 }
 
 interface StudentData {
@@ -183,6 +192,8 @@ const ShareClassView = () => {
 
   // ── 데이터 ─────────────────────────────────────────────────────────────────
   const [studentData, setStudentData] = useState<StudentData[]>([]);
+  const [groups, setGroups] = useState<GroupRow[]>([]);
+  const [groupMembersMap, setGroupMembersMap] = useState<Record<string, string[]>>({});
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [, setDriveFolders] = useState<{ folder_id: string; week_number: number | null }[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
@@ -202,6 +213,8 @@ const ShareClassView = () => {
   const OBS_PAGE_SIZE = 1;
   const RESULTS_PAGE_SIZE = 1;
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
+  const [resultsViewMode, setResultsViewMode] = useState<'student' | 'group'>('student');
+  const [modalGroupId, setModalGroupId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -261,7 +274,7 @@ const ShareClassView = () => {
             .order('created_at', { ascending: false }),
           supabase
             .from('student_results')
-            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths')
+            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths, group_id, is_group_submission')
             .in('student_id', studentIds)
             .order('created_at', { ascending: false }),
         ]);
@@ -305,6 +318,28 @@ const ShareClassView = () => {
         setStudentData([]);
         setEvalMap({});
       }
+
+      // 조(그룹) 목록 + 조원 매핑
+      const { data: grps } = await supabase
+        .from('class_groups')
+        .select('id, name, color, sort_order')
+        .eq('class_id', classId)
+        .order('sort_order', { ascending: true });
+      const groupList: GroupRow[] = grps || [];
+      setGroups(groupList);
+
+      const newGroupMembersMap: Record<string, string[]> = {};
+      if (groupList.length > 0) {
+        const { data: groupMembers } = await supabase
+          .from('class_group_members')
+          .select('group_id, student_id')
+          .in('group_id', groupList.map((g) => g.id));
+        (groupMembers || []).forEach((m: any) => {
+          if (!newGroupMembersMap[m.group_id]) newGroupMembersMap[m.group_id] = [];
+          newGroupMembersMap[m.group_id].push(m.student_id);
+        });
+      }
+      setGroupMembersMap(newGroupMembersMap);
 
       // 갤러리 (업로드된 사진 + 구글 드라이브 연동 폴더)
       const [{ data: gallery }, driveResult] = await Promise.all([
@@ -410,6 +445,41 @@ const ShareClassView = () => {
     weekFilter === 'all' ? galleryItems : galleryItems.filter((g) => g.week_number === weekFilter),
     [galleryItems, weekFilter]
   );
+
+  const studentById = useMemo(() => {
+    const map: Record<string, StudentRow> = {};
+    studentData.forEach((sd) => { map[sd.student.id] = sd.student; });
+    return map;
+  }, [studentData]);
+
+  const groupsWithMembers = useMemo(() =>
+    groups.map((g) => ({
+      group: g,
+      students: (groupMembersMap[g.id] || [])
+        .map((sid) => studentById[sid])
+        .filter(Boolean)
+        .sort((a, b) => (a.student_number ?? 0) - (b.student_number ?? 0)),
+    })),
+    [groups, groupMembersMap, studentById]
+  );
+
+  // 조별 제출은 조원 수만큼 행이 복제되므로 group_id+created_at+result_type 기준으로 중복 제거
+  const groupResultsMap = useMemo(() => {
+    const map: Record<string, ResultRow[]> = {};
+    const seen = new Set<string>();
+    for (const sd of filteredData) {
+      for (const r of sd.results) {
+        if (!r.is_group_submission || !r.group_id) continue;
+        const dedupeKey = `${r.group_id}_${r.created_at}_${r.result_type}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        if (!map[r.group_id]) map[r.group_id] = [];
+        map[r.group_id].push(r);
+      }
+    }
+    Object.values(map).forEach((arr) => arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    return map;
+  }, [filteredData]);
 
   const totalObs = filteredData.reduce((a, sd) => a + sd.obs.length, 0);
   const totalResults = filteredData.reduce((a, sd) => a + sd.results.length, 0);
@@ -1116,45 +1186,114 @@ const ShareClassView = () => {
                 </div>
               )}
 
-              {/* 학생 목록 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filteredData.map(({ student, obs, results }, i) => {
-                  const hasActivity = obs.length > 0 || results.length > 0;
-                  return (
-                    <motion.button
-                      key={student.id}
-                      onClick={() => hasActivity && setModalStudentId(student.id)}
-                      disabled={!hasActivity}
-                      initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-                      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-40px' }}
-                      transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
-                      whileHover={hasActivity && !reduceMotion ? { y: -4 } : undefined}
-                      className={`text-left bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
+              {/* 학생별 / 조별 보기 전환 */}
+              {groupsWithMembers.length > 0 && (
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit print:hidden">
+                  {[
+                    { key: 'student' as const, label: '학생별' },
+                    { key: 'group' as const, label: `조별 (${groupsWithMembers.length})` },
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setResultsViewMode(key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                        resultsViewMode === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                      }`}
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
-                          <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
-                        </div>
-                        {hasActivity && <ChevronRight size={15} className="text-gray-300" />}
-                      </div>
-                      <p className="font-black text-gray-900 text-sm truncate mb-1.5">{student.full_name}</p>
-                      <div className="flex flex-col gap-1">
-                        {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
-                        {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
-                        {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-              {filteredData.length === 0 && (
+              {/* 학생 목록 */}
+              {resultsViewMode === 'student' && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filteredData.map(({ student, obs, results }, i) => {
+                    const hasActivity = obs.length > 0 || results.length > 0;
+                    return (
+                      <motion.button
+                        key={student.id}
+                        onClick={() => hasActivity && setModalStudentId(student.id)}
+                        disabled={!hasActivity}
+                        initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+                        whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: '-40px' }}
+                        transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
+                        whileHover={hasActivity && !reduceMotion ? { y: -4 } : undefined}
+                        className={`text-left bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                            <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
+                          </div>
+                          {hasActivity && <ChevronRight size={15} className="text-gray-300" />}
+                        </div>
+                        <p className="font-black text-gray-900 text-sm truncate mb-1.5">{student.full_name}</p>
+                        <div className="flex flex-col gap-1">
+                          {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
+                          {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
+                          {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {resultsViewMode === 'student' && filteredData.length === 0 && (
                 <div className="flex flex-col items-center py-20 space-y-3">
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <StickyNote size={32} className="text-gray-300" />
                   </div>
                   <p className="font-black text-gray-400 text-sm">등록된 학생이 없습니다</p>
+                </div>
+              )}
+
+              {/* 조 목록 */}
+              {resultsViewMode === 'group' && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {groupsWithMembers.map(({ group, students }, i) => {
+                    const resultCount = (groupResultsMap[group.id] || []).length;
+                    return (
+                      <motion.button
+                        key={group.id}
+                        onClick={() => setModalGroupId(group.id)}
+                        initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+                        whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: '-40px' }}
+                        transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
+                        whileHover={!reduceMotion ? { y: -4 } : undefined}
+                        className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: group.color + '18' }}>
+                            <Users size={16} style={{ color: group.color }} />
+                          </div>
+                          <ChevronRight size={15} className="text-gray-300" />
+                        </div>
+                        <p className="font-black text-gray-900 text-sm truncate mb-1.5">{group.name}</p>
+                        <p className="text-[10px] font-bold text-gray-400 truncate mb-1.5">
+                          {students.length > 0 ? students.map((s) => s.full_name).join(' · ') : '조원 없음'}
+                        </p>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-gray-400">👥 조원 {students.length}명</span>
+                          {resultCount > 0
+                            ? <span className="text-[10px] font-bold text-emerald-600">📁 조별 결과물 {resultCount}건</span>
+                            : <span className="text-[10px] font-bold text-gray-400">조별 제출 없음</span>}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {resultsViewMode === 'group' && groupsWithMembers.length === 0 && (
+                <div className="flex flex-col items-center py-20 space-y-3">
+                  <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
+                    <Users size={32} className="text-gray-300" />
+                  </div>
+                  <p className="font-black text-gray-400 text-sm">등록된 조가 없습니다</p>
                 </div>
               )}
             </>
@@ -1566,6 +1705,115 @@ const ShareClassView = () => {
                       onChange={(p) => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
                     />
                   )}
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* 조 상세 모달 */}
+      <AnimatePresence>
+        {modalGroupId && (() => {
+          const entry = groupsWithMembers.find((g) => g.group.id === modalGroupId);
+          if (!entry) return null;
+          const { group, students } = entry;
+          const results = groupResultsMap[group.id] || [];
+
+          return (
+            <motion.div
+              key="group-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[250] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+              onClick={() => setModalGroupId(null)}
+            >
+              <motion.div
+                initial={reduceMotion ? undefined : { y: 24, opacity: 0 }}
+                animate={reduceMotion ? undefined : { y: 0, opacity: 1 }}
+                exit={reduceMotion ? undefined : { y: 24, opacity: 0 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+              >
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: group.color + '18' }}>
+                    <Users size={16} style={{ color: group.color }} />
+                  </div>
+                  <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{group.name}</p>
+                  <button onClick={() => setModalGroupId(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-4 overflow-y-auto">
+                  {/* 조원 명단 */}
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">👥 조원 {students.length}명</p>
+                    <div className="flex flex-wrap gap-2">
+                      {students.length === 0 && <span className="text-xs font-semibold text-gray-400">등록된 조원이 없습니다</span>}
+                      {students.map((s) => (
+                        <div key={s.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-full pl-1 pr-3 py-1">
+                          <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                            <img src={getAvatarUrl(s)} alt={s.full_name} className="w-full h-full object-cover" />
+                          </div>
+                          <span className="text-xs font-bold text-gray-700">{s.full_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 조별 결과물 */}
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">📁 조별 결과물 {results.length}건</p>
+                    {results.length === 0 && <p className="text-xs font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
+                    <div className="space-y-3">
+                      {results.map((r) => {
+                        const typeBadge = RESULT_TYPE_BADGE[r.result_type];
+                        return (
+                          <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              {typeBadge && (
+                                <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
+                                  {typeBadge.icon} {typeBadge.label}
+                                </span>
+                              )}
+                              {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
+                              <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                            </div>
+                            {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
+                            {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
+                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
+                            )}
+                            {r.image_urls && r.image_urls.length > 0 && (
+                              <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: r.image_urls!, names: r.image_urls!.map((_, idx) => `${r.title || '결과물'}-${idx + 1}.webp`), index: 0 })}>
+                                <img src={r.image_urls[0]} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
+                                {r.image_urls.length > 1 && (
+                                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                    1/{r.image_urls.length}
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
+                                </div>
+                              </div>
+                            )}
+                            {r.link_url && (
+                              <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                <ExternalLink size={14} /> 링크 열기
+                              </a>
+                            )}
+                            {r.file_url && (
+                              <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                <Download size={14} /> 파일 다운로드
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>
