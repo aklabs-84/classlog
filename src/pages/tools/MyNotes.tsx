@@ -7,6 +7,7 @@ import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock } from 'lucide-
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import RichEditor from '../../components/RichEditor';
+import CodeBlock from '../../components/CodeBlock';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -44,10 +45,21 @@ const noteMdComponents: any = {
       {children}
     </blockquote>
   ),
-  code: ({ children, className }: any) => (
-    <code className={className ? className : 'bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary'}>{children}</code>
-  ),
-  pre: ({ children }: any) => <pre className="bg-[#1e293b] text-[#e2e8f0] rounded-xl px-4 py-3 overflow-x-auto text-xs my-2">{children}</pre>,
+  // 인라인 코드 (className 없는 경우). 블록 코드는 pre에서 처리하므로 그대로 전달
+  code: ({ children, className }: any) => {
+    if (!className) {
+      return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
+    }
+    return <code className={className}>{children}</code>;
+  },
+  // 블록 코드 — CodeBlock 컴포넌트 사용 (다크 배경 + 밝은 텍스트, 복사 버튼)
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const className = child?.props?.className || '';
+    const lang = className.replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
   a: ({ href, children }: any) => (
     <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-70">{children}</a>
   ),
