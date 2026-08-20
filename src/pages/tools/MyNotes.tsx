@@ -244,7 +244,7 @@ export default function MyNotes() {
             onUploadImage={handleUploadImage}
             onUploadingChange={setUploading}
             uploading={uploading}
-            minHeight="180px"
+            minHeight="320px"
           />
         </div>
         <button
@@ -312,7 +312,7 @@ export default function MyNotes() {
                           onUploadImage={handleUploadImage}
                           onUploadingChange={setEditUploading}
                           uploading={editUploading}
-                          minHeight="140px"
+                          minHeight="240px"
                         />
                       </div>
                       <div className="flex gap-2 justify-end">
