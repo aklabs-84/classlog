@@ -1,8 +1,63 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import RichEditor from '../../components/RichEditor';
+
+// ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
+const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
+  new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        resolve(blob
+          ? new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' })
+          : file);
+      }, 'image/webp', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+
+// ── 노트 내용 마크다운 렌더러 (카드 안에서 컴팩트하게 표시) ─────────────────────
+const noteMdComponents: any = {
+  p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed text-xs font-medium text-on-surface/70">{children}</p>,
+  h1: ({ children }: any) => <h1 className="text-sm font-black mb-1.5 mt-2 text-on-surface">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-sm font-black mb-1.5 mt-2 text-on-surface">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-xs font-black mb-1 mt-2 text-on-surface">{children}</h3>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2 space-y-0.5 text-xs">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2 space-y-0.5 text-xs">{children}</ol>,
+  li: ({ children }: any) => <li className="text-xs text-on-surface/70">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-primary pl-3 italic text-on-surface-variant my-2 bg-surface-container-low py-1.5 rounded-r-lg text-xs">
+      {children}
+    </blockquote>
+  ),
+  code: ({ children, className }: any) => (
+    <code className={className ? className : 'bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary'}>{children}</code>
+  ),
+  pre: ({ children }: any) => <pre className="bg-[#1e293b] text-[#e2e8f0] rounded-xl px-4 py-3 overflow-x-auto text-xs my-2">{children}</pre>,
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-70">{children}</a>
+  ),
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow" />,
+  hr: () => <hr className="border-surface-container my-3" />,
+  strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+  table: ({ children }: any) => <div className="overflow-auto mb-2"><table className="w-full border-collapse text-xs">{children}</table></div>,
+  th: ({ children }: any) => <th className="border border-surface-container px-2 py-1.5 bg-surface-container font-black text-left">{children}</th>,
+  td: ({ children }: any) => <td className="border border-surface-container px-2 py-1.5">{children}</td>,
+};
 
 interface TeacherNote {
   id: string;
@@ -25,6 +80,7 @@ export default function MyNotes() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [filterClassId, setFilterClassId] = useState<string>('all');
 
@@ -32,6 +88,26 @@ export default function MyNotes() {
   const [editForm, setEditForm] = useState({ title: '', content: '' });
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
+
+  // ── 노트 본문 내 이미지 업로드 — WebP 변환 후 Supabase 저장 ─────────────────
+  const handleUploadImage = async (file: File): Promise<string> => {
+    if (!user) throw new Error('로그인 필요');
+    if (file.size > 50 * 1024 * 1024) {
+      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      throw new Error('파일 크기 초과');
+    }
+    const compressed = await compressToWebP(file);
+    if (compressed.size > 20 * 1024 * 1024) {
+      alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
+      throw new Error('파일 크기 초과');
+    }
+    const path = `notes/${user.id}/${Date.now()}.webp`;
+    const { error } = await supabase.storage.from('student-attachments').upload(path, compressed);
+    if (error) throw error;
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(path);
+    return data.publicUrl;
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -161,19 +237,22 @@ export default function MyNotes() {
             className="flex-1 px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <textarea
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder="수업 준비, 아이디어, 간단한 생각을 자유롭게 남겨보세요..."
-          rows={5}
-          className="w-full px-5 py-4 bg-surface-container-low rounded-2xl text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-primary/10"
-        />
+        <div className="rounded-2xl overflow-hidden border border-surface-container">
+          <RichEditor
+            value={content}
+            onChange={setContent}
+            onUploadImage={handleUploadImage}
+            onUploadingChange={setUploading}
+            uploading={uploading}
+            minHeight="180px"
+          />
+        </div>
         <button
           onClick={handleSave}
-          disabled={!content.trim() || saving}
+          disabled={!content.trim() || saving || uploading}
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 btn-gradient rounded-xl font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
         >
-          <Save size={16} /> {saving ? '저장 중...' : '노트 저장'}
+          <Save size={16} /> {saving ? '저장 중...' : uploading ? '이미지 업로드 중...' : '노트 저장'}
         </button>
       </div>
 
@@ -226,12 +305,16 @@ export default function MyNotes() {
                         placeholder="제목 (선택)"
                         className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
-                      <textarea
-                        value={editForm.content}
-                        onChange={e => setEditForm(p => ({ ...p, content: e.target.value }))}
-                        rows={4}
-                        className="w-full px-4 py-3 bg-surface-container rounded-xl text-sm font-medium resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      />
+                      <div className="rounded-xl overflow-hidden border border-surface-container">
+                        <RichEditor
+                          value={editForm.content}
+                          onChange={v => setEditForm(p => ({ ...p, content: v }))}
+                          onUploadImage={handleUploadImage}
+                          onUploadingChange={setEditUploading}
+                          uploading={editUploading}
+                          minHeight="140px"
+                        />
+                      </div>
                       <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => setEditingId(null)}
@@ -241,7 +324,7 @@ export default function MyNotes() {
                         </button>
                         <button
                           onClick={() => handleSaveEdit(note.id)}
-                          disabled={savingEditId === note.id}
+                          disabled={savingEditId === note.id || editUploading}
                           className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-xs font-black disabled:opacity-50 hover:bg-primary/80 transition-all"
                         >
                           {savingEditId === note.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} 저장
@@ -260,7 +343,11 @@ export default function MyNotes() {
                           </span>
                         </div>
                         {note.title && <p className="text-sm font-black text-on-surface mb-1">{note.title}</p>}
-                        <p className="text-xs font-medium text-on-surface/70 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                        <div className="[&>*:last-child]:mb-0">
+                          <ReactMarkdown components={noteMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                            {note.content}
+                          </ReactMarkdown>
+                        </div>
                         <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-on-surface-variant/40">
                           <Clock size={10} />
                           {new Date(note.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
