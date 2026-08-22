@@ -695,11 +695,11 @@ const Dashboard = () => {
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-amber-900">
               {profile?.plan === 'free'
-                ? 'Basic으로 업그레이드하면 클래스 5개 · AI 세특 월 100회를 사용할 수 있어요'
-                : 'Pro로 업그레이드하면 AI 세특 월 500회 · 학급 전체 일괄 생성이 가능해요'}
+                ? 'Basic으로 업그레이드하면 클래스 5개 · AI를 넉넉하게 사용할 수 있어요'
+                : 'Pro로 업그레이드하면 AI를 더 넉넉하게 · 학급 전체 일괄 생성이 가능해요'}
             </p>
             <p className="text-xs text-amber-600 mt-0.5">
-              현재: {profile?.plan === 'free' ? '무료 플랜 (AI 월 20회)' : 'Basic 플랜 (AI 월 100회)'}
+              현재: {profile?.plan === 'free' ? '무료 플랜 (AI 월 20회)' : 'Basic 플랜 (AI 넉넉하게)'}
             </p>
           </div>
           <NavLink

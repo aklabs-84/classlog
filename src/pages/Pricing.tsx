@@ -68,7 +68,7 @@ const PLANS: Plan[] = [
     features: {
       classes: '클래스 5개',
       students: '학생 35명/반',
-      ai: '월 100회',
+      ai: '넉넉하게',
       editor: true,
       quiz: '무제한',
       survey: '무제한',
@@ -98,7 +98,7 @@ const PLANS: Plan[] = [
     features: {
       classes: '클래스 10개',
       students: '학생 35명/반',
-      ai: '월 500회',
+      ai: '가장 넉넉하게',
       editor: true,
       quiz: '무제한',
       survey: '무제한',
@@ -115,7 +115,7 @@ const PLANS: Plan[] = [
 const FEATURE_ROWS: { label: string; key: string }[] = [
   { label: '클래스 생성', key: 'classes' },
   { label: '반당 학생 수', key: 'students' },
-  { label: 'AI 세특 생성 (월)', key: 'ai' },
+  { label: 'AI 사용량 (월)', key: 'ai' },
   { label: '수업 자료 에디터', key: 'editor' },
   { label: '퀴즈', key: 'quiz' },
   { label: '설문', key: 'survey' },

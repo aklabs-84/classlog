@@ -27,16 +27,16 @@ const REASON_CONFIG: Record<Reason, {
   ai_limit: {
     emoji: '✨',
     title: 'AI 사용 한도 초과',
-    desc: '이번 달 AI 세특 생성 한도에 도달했습니다.\n무료: 월 20회 · Basic: 월 100회 · Pro: 월 500회\n다음 달 1일에 자동으로 초기화됩니다.',
-    freeLimit: '무료 20회 / Basic 100회',
-    proGain: 'AI 세특 월 500회',
+    desc: '이번 달 무료 체험 한도에 도달했습니다.\nBasic·Pro는 넉넉한 사용량으로 계속 이용할 수 있어요.\n다음 달 1일에 자동으로 초기화됩니다.',
+    freeLimit: '무료 월 20회',
+    proGain: 'AI 넉넉하게 사용',
   },
   ai_free_block: {
     emoji: '✨',
     title: 'AI 사용 한도 초과',
-    desc: '이번 달 AI 세특 생성 한도에 도달했습니다.\n무료: 월 20회 · Basic: 월 100회 · Pro: 월 500회\n다음 달 1일에 자동으로 초기화됩니다.',
-    freeLimit: '무료 20회 / Basic 100회',
-    proGain: 'AI 세특 월 500회',
+    desc: '이번 달 무료 체험 한도에 도달했습니다.\nBasic·Pro는 넉넉한 사용량으로 계속 이용할 수 있어요.\n다음 달 1일에 자동으로 초기화됩니다.',
+    freeLimit: '무료 월 20회',
+    proGain: 'AI 넉넉하게 사용',
   },
   ai_bulk: {
     emoji: '⚡',
@@ -123,7 +123,7 @@ const UpgradeModal = ({ isOpen, onClose, reason, currentPlan: _currentPlan }: Up
               <div className="space-y-2">
                 {[
                   '클래스 무제한 생성',
-                  'AI 세특 월 500회',
+                  'AI 넉넉하게 사용',
                   '학급 전체 일괄 AI 생성',
                   '교과 교사 연동 초대',
                   'NAISS 포맷 내보내기',

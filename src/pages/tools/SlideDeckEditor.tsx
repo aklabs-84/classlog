@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
@@ -43,6 +44,10 @@ const FREE_SLIDE_DECK_LIMIT = 1;
 export default function SlideDeckEditor() {
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
+  const location = useLocation();
+  // 아이디어 기록(나의 노트)에서 "슬라이드로 만들기"로 넘어온 초안 — 덱 생성 완료 시 원본 노트에 연결 기록
+  const pendingDraftNoteIdRef = useRef<string | null>(null);
+  const draftHandledRef = useRef(false);
   const [view, setView] = useState<View>('list');
   const [decks, setDecks] = useState<DeckListRow[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -77,6 +82,18 @@ export default function SlideDeckEditor() {
   }, [user]);
 
   useEffect(() => { loadDecks(); }, [loadDecks]);
+
+  // 아이디어 기록에서 "슬라이드로 만들기"로 넘어온 경우 — 기존 "자료 가져와서 AI 초안 생성" 흐름을 그대로 태워 템플릿 선택 화면으로 바로 진입
+  useEffect(() => {
+    if (draftHandledRef.current) return;
+    const draft = (location.state as { draftSlide?: { noteId: string; title: string; content: string; classId?: string | null } } | null)?.draftSlide;
+    if (!draft) return;
+    draftHandledRef.current = true;
+    pendingDraftNoteIdRef.current = draft.noteId;
+    setImportedMaterial({ id: 'idea-draft', class_id: draft.classId ?? null, title: draft.title, content: draft.content, ai_versions: [] });
+    setView('template');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── 자동 저장 ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -150,6 +167,12 @@ export default function SlideDeckEditor() {
       setSelectedObjectId(null);
       setView('editor');
       loadDecks();
+      if (pendingDraftNoteIdRef.current) {
+        const noteId = pendingDraftNoteIdRef.current;
+        pendingDraftNoteIdRef.current = null;
+        supabase.from('teacher_notes').update({ linked_slide_id: (data as SlideDeck).id }).eq('id', noteId)
+          .then(({ error: linkError }) => { if (linkError) console.error('[SlideDeckEditor] linked_slide_id 기록 오류:', linkError); });
+      }
     } catch (err: any) {
       alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
     } finally {

@@ -154,7 +154,7 @@ const pricingPlans = [
       { text: '클래스 최대 5개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
-      { text: 'AI 세특 월 100회', ok: true },
+      { text: 'AI 사용 넉넉하게', ok: true },
       { text: '수업 자료 에디터', ok: true },
       { text: '퀴즈 · 설문 무제한', ok: true },
       { text: '화이트보드 (3개)', ok: true },
@@ -176,7 +176,7 @@ const pricingPlans = [
       { text: '클래스 최대 10개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
-      { text: 'AI 세특 월 500회', ok: true },
+      { text: 'AI 사용 가장 넉넉하게', ok: true },
       { text: '수업 자료 에디터', ok: true },
       { text: '퀴즈 · 설문 · 화이트보드 무제한', ok: true },
       { text: '수업 전사 & AI 분석', ok: true },
@@ -421,12 +421,12 @@ const Landing = () => {
                 <Heart size={12} fill="currentColor" /> 선생님 · 학원 강사를 위한 AI 도구
               </Eyebrow>
               <h1 className="whitespace-nowrap text-[clamp(1.5rem,7vw,3rem)] md:text-[clamp(1.75rem,4.5vw,3.75rem)] font-black leading-[1.05] tracking-tight mb-6">
-                선생님의 소중한 시간을<br />
-                <span className="text-writer-orchid">돌려드립니다</span>
+                기록하고, 만들고,<br />
+                <span className="text-writer-orchid">관리합니다</span>
               </h1>
               <p className="text-lg text-writer-slate max-w-xl mx-auto md:mx-0 mb-10 leading-relaxed">
-                활동 기록 수집부터 AI 세특 초안 생성, 나이스 제출까지.<br />
-                클래스로그 AI가 반복 업무를 대신합니다.
+                수업 중 남긴 기록을 AI가 수업 자료와 세특 초안으로 만들어 드립니다.<br />
+                클래스로그 AI와 함께, 반복 업무는 줄고 수업에 쓸 시간은 늘어납니다.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -523,8 +523,8 @@ const Landing = () => {
       <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <Eyebrow>✨ 클래스로그 AI가 하는 일</Eyebrow>
-            <h2 className="text-3xl font-black mb-3">기록하면, AI가 <span className="text-writer-orchid">문서</span>를 씁니다</h2>
+            <Eyebrow>✨ 기록하고, 만들고, 관리하고</Eyebrow>
+            <h2 className="text-3xl font-black mb-3">기록하면, AI가 <span className="text-writer-orchid">만들고 관리</span>합니다</h2>
             <p className="text-writer-slate text-base">활동 기록부터 나이스 제출까지 — 선생님의 모든 반복 업무를 대신합니다</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">

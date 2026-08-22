@@ -182,6 +182,8 @@ export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
 export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
 export const coverPromptAI         = makeModelWrapper('flash', 'cover_prompt_suggest', true);
+export const ideaAnalysisAI        = makeModelWrapper('flash', 'idea_analysis', true);
+export const lessonPlanDraftAI     = makeModelWrapper('flash', 'lesson_plan_draft');
 
 /**
  * 파일을 Gemini API 파트로 변환 (Base64) - 브라우저에서 실행, 결과를 서버로 전달
@@ -803,6 +805,110 @@ ${subtitle ? `[클래스/부제]\n${subtitle}\n` : ''}
   const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions.map((s: any) => String(s)) : [];
   if (suggestions.length === 0) throw new Error('AI가 제안을 생성하지 못했습니다.');
   return suggestions;
+}
+
+// ── 아이디어 기록 → AI 분석 (수업 가이드 초안 + 관련 태그) ──────────────────────
+
+export interface RelatedMaterialRef {
+  title: string;
+  snippet: string;
+}
+
+export interface IdeaAnalysisResult {
+  summary: string;
+  suggestedFormat: 'guide' | 'material' | 'slide';
+  guideOutline: string[];
+  relatedTags: string[];
+  relatedMaterialsNote: string;
+}
+
+function buildRelatedMaterialsBlock(relatedMaterials: RelatedMaterialRef[]): string {
+  if (relatedMaterials.length === 0) return '\n\n[참고할 기존 수업 자료 없음]';
+  return `\n\n[선생님이 이미 만들어둔 관련 수업 자료 (참고용, 최근 순)]\n${relatedMaterials
+    .map((m, i) => `${i + 1}. ${m.title}\n${m.snippet}`)
+    .join('\n\n')}`;
+}
+
+export async function analyzeIdea(
+  content: string,
+  classId?: string,
+  relatedMaterials: RelatedMaterialRef[] = []
+): Promise<IdeaAnalysisResult> {
+  const relatedBlock = buildRelatedMaterialsBlock(relatedMaterials);
+
+  const prompt = `당신은 선생님이 짧게 적어둔 수업 아이디어 메모를 실제 수업으로 발전시킬 수 있도록 돕는 AI입니다.
+
+[선생님이 기록한 아이디어]
+${content}
+${relatedBlock}
+
+[할 일]
+1. 아이디어의 핵심을 1~2문장으로 요약하세요 (summary).
+2. 이 아이디어를 발전시키기에 가장 적합한 형태를 판단하세요 (suggestedFormat): 순서가 있는 절차/활동 설명이면 "guide", 학생에게 나눠줄 읽기 자료·설명 위주 콘텐츠면 "material", 발표·요약 전달이 목적이면 "slide" 중 하나만 선택.
+3. 이 아이디어를 실제 수업에서 진행할 수 있는 수업 가이드 초안을 단계별 항목 3~6개로 작성하세요 (guideOutline). 각 항목은 교사가 바로 참고할 수 있도록 구체적인 행동 지침으로 작성하고, 원문에 없는 사실을 지어내지 마세요.
+4. 이 아이디어와 관련된 핵심 키워드를 2~5개 뽑으세요 (relatedTags). 향후 비슷한 아이디어나 자료를 찾을 때 쓰일 태그이므로, 과목/주제/활동유형 등 짧은 명사 위주로 작성하세요.
+5. 위에 제시된 기존 수업 자료를 참고해, 이 아이디어를 어떻게 기획하면 좋을지 2~4문장으로 제안하세요 (relatedMaterialsNote). 기존 자료와 겹치지 않게 차별화할 부분, 또는 기존 자료를 이어서 발전시킬 방법을 구체적으로 언급하세요. 참고할 기존 자료가 없다면 "참고할 기존 자료가 없어 새로 기획하면 됩니다." 정도로 짧게 답하세요.
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{"summary":"...","suggestedFormat":"guide","guideOutline":["...","..."],"relatedTags":["...","..."],"relatedMaterialsNote":"..."}`;
+
+  const result = await ideaAnalysisAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+
+  const suggestedFormat: IdeaAnalysisResult['suggestedFormat'] =
+    ['guide', 'material', 'slide'].includes(parsed.suggestedFormat) ? parsed.suggestedFormat : 'guide';
+
+  return {
+    summary: String(parsed.summary || '').trim(),
+    suggestedFormat,
+    guideOutline: Array.isArray(parsed.guideOutline) ? parsed.guideOutline.map((s: any) => String(s)) : [],
+    relatedTags: Array.isArray(parsed.relatedTags) ? parsed.relatedTags.map((s: any) => String(s)) : [],
+    relatedMaterialsNote: String(parsed.relatedMaterialsNote || '').trim(),
+  };
+}
+
+// 아이디어 + 수업 가이드 초안 + 관련 기존 자료를 바탕으로, 수업 자료 에디터에 바로 넣을 수 있는
+// 실제 수업 계획안 마크다운 문서를 생성 (JSON이 아닌 순수 마크다운 본문을 반환)
+export async function generateLessonPlanDraft(
+  ideaContent: string,
+  guideOutline: string[],
+  relatedMaterials: RelatedMaterialRef[],
+  length: 'simple' | 'detailed',
+  classId?: string
+): Promise<string> {
+  const relatedBlock = relatedMaterials.length > 0
+    ? `\n\n[선생님이 이미 만들어둔 관련 수업 자료 — 내용이 겹치지 않도록 참고만 하고, 그대로 베끼지 마세요]\n${relatedMaterials
+        .map((m, i) => `${i + 1}. ${m.title}\n${m.snippet}`)
+        .join('\n\n')}`
+    : '';
+  const outlineBlock = guideOutline.length > 0
+    ? `\n\n[참고용 수업 진행 순서 초안]\n${guideOutline.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
+    : '';
+  const lengthInstruction = length === 'simple'
+    ? '분량은 핵심만 담아 간결하게(전체 500~800자 내외) 작성하세요. 각 섹션은 불릿 위주로 짧게 씁니다.'
+    : '분량은 실제 수업에 바로 쓸 수 있을 만큼 충분히 구체적으로(전체 1500자 이상) 작성하세요. 활동마다 소요 시간, 교사 발문 예시, 준비물 등을 함께 제시하세요.';
+
+  const prompt = `당신은 선생님의 수업 아이디어를 실제 사용 가능한 수업 계획안 문서로 작성해주는 AI입니다.
+
+[선생님이 기록한 아이디어]
+${ideaContent}
+${outlineBlock}${relatedBlock}
+
+[작성 규칙]
+- 마크다운 문서로 작성하세요. "## 수업 목표", "## 도입", "## 전개", "## 정리", "## 준비물 및 유의사항" 순서의 소제목 구조를 기본으로 사용하세요 (내용에 맞지 않는 섹션은 생략 가능).
+- ${lengthInstruction}
+- 원문 아이디어에 없는 사실 정보를 임의로 지어내지 말고, 교육적으로 자연스럽게 살을 붙이는 수준으로 작성하세요.
+- 결과에는 수업 계획안 본문만 작성하고, 다른 설명이나 인사말은 넣지 마세요.`;
+
+  const result = await lessonPlanDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  return result.response.text().trim().replace(/^```(markdown)?\n?/, '').replace(/```$/, '').trim();
 }
 
 // ── 슬라이드 만들기 도구: 자료 → AI 초안 생성 ────────────────────────────────

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import {
   Bell, Settings, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  ActivitySquare, Bug, Images, Download, Share, MoreVertical, Gift,
+  Bug, Images, Download, Share, MoreVertical, Gift, Lightbulb,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -12,7 +13,12 @@ import { useAuth } from '../../lib/auth';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import NotificationPermissionButton from '../NotificationPermissionButton';
 
-const Navbar = () => {
+interface NavbarProps {
+  isCollapsed: boolean;
+  toggleSidebar: () => void;
+}
+
+const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { installState, triggerInstall } = usePWAInstall();
@@ -110,7 +116,8 @@ const Navbar = () => {
   };
 
   const navItems = [
-    { label: '대시보드', path: '/dashboard', icon: LayoutDashboard },
+    { label: '아이디어 기록', path: '/dashboard', icon: Lightbulb },
+    { label: '학급 관리', path: '/classes', icon: LayoutDashboard },
     { label: '클래스룸', path: '/classroom', icon: School },
     { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
     { label: '갤러리', path: '/gallery', icon: Images },
@@ -119,65 +126,226 @@ const Navbar = () => {
     { label: '아카이브', path: '/archive', icon: Archive },
   ];
 
+  const renderNotificationsList = () => (
+    <>
+      <div className="flex items-center justify-between mb-4 px-1">
+        <h3 className="font-black text-sm tracking-tightest">최근 시스템 알림</h3>
+        {notifications.length > 0 && (
+          <button onClick={clearAll} className="text-[10px] text-primary hover:text-secondary flex items-center gap-1.5 font-black uppercase tracking-widest transition-colors">
+            <Trash2 size={12} /> Clear All
+          </button>
+        )}
+      </div>
+      <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+        {notifications.length > 0 ? notifications.map((n) => {
+          const dest: string | null = n.link ||
+            ((n.type === 'student_submission' || n.type === 'result_submission') ? '/classroom' : null);
+          const isAiReview = n.type === 'ai_review_needed';
+          const baseClass = `p-4 rounded-xl transition-all border block ${
+            n.is_read
+              ? 'bg-surface-container/30 border-transparent opacity-60'
+              : isAiReview
+                ? `bg-amber-50 border-amber-200 shadow-soft hover:border-amber-300 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
+                : `bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
+          }`;
+          return (
+            <button key={n.id} className={`w-full text-left ${baseClass}`}
+              onClick={(e) => dest ? handleNotificationNavigate(n, e, dest) : handleNotificationClick(n)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className={`text-sm tracking-tight leading-snug ${n.is_read ? 'font-medium' : 'font-black text-on-surface'}`}>{n.title}</p>
+                {!n.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)]" />}
+              </div>
+              {n.content && <p className="text-[11px] font-medium text-on-surface-variant/60 mt-1 leading-snug line-clamp-1">{n.content}</p>}
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-[9px] font-black text-primary/40 uppercase tracking-[0.2em]">{formatTime(n.created_at)}</p>
+                {dest && !n.is_read && <span className="text-[9px] font-black text-primary/50 uppercase tracking-widest">바로가기 →</span>}
+              </div>
+            </button>
+          );
+        }) : (
+          <div className="py-10 text-center space-y-3">
+            <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center mx-auto opacity-40">
+              <Bell size={28} className="text-primary" />
+            </div>
+            <p className="text-xs font-black text-on-surface-variant/40 uppercase tracking-widest">알림 없음</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <>
-    <header className="h-16 glass fixed top-0 left-0 right-0 z-50 px-4 md:px-6 flex items-center justify-between border-b border-white/40 shadow-soft">
-
-      {/* 왼쪽: 로고 + PC 네비 */}
-      <div className="flex items-center gap-4 md:gap-8">
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center text-white shadow-md shadow-primary/20">
-            <GraduationCap size={18} strokeWidth={2.5} />
-          </div>
-          <h2 className="text-base font-black tracking-tightest leading-none gradient-text">클래스로그</h2>
+    {/* ───────────────── 데스크톱: 왼쪽 세로 사이드바 ───────────────── */}
+    <motion.aside
+      initial={false}
+      animate={{ width: isCollapsed ? 80 : 260 }}
+      className="hidden lg:flex h-[calc(100vh-32px)] m-4 glass flex-col p-4 fixed left-0 top-0 z-[60] shadow-soft rounded-3xl border border-white/40"
+    >
+      {/* 로고 */}
+      <div className={`flex items-center gap-3 mb-6 px-1 shrink-0 ${isCollapsed ? 'justify-center' : ''}`}>
+        <div className="w-9 h-9 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center text-white shrink-0 shadow-md shadow-primary/20">
+          <GraduationCap size={20} strokeWidth={2.5} />
         </div>
-        <nav className="hidden lg:flex items-center gap-1">
-          {navItems.map((tab) => (
-            <NavLink key={tab.path} to={tab.path} end={tab.path === '/'}
-              className={({ isActive }) => `
-                px-3 xl:px-4 py-2 rounded-xl text-[12px] xl:text-[13px] font-black transition-all relative
-                ${isActive ? 'text-primary bg-primary/5' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
-              `}
-            >
-              {({ isActive }) => (
-                <>
-                  {tab.label}
-                  {isActive && (
-                    <motion.div layoutId="activeTabGlow"
-                      className="absolute bottom-1 left-3 right-3 xl:left-4 xl:right-4 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
-                    />
-                  )}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
+        {!isCollapsed && (
+          <motion.h1 initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+            className="text-base font-black leading-tight tracking-tightest gradient-text"
+          >
+            클래스로그
+          </motion.h1>
+        )}
       </div>
 
-      {/* 오른쪽: 액션 버튼 */}
-      <div className="flex items-center gap-1.5 md:gap-2">
-        {/* 앱 설치 — PC만, 설치 가능할 때만 */}
-        {showInstallBtn && (
-          <button
-            onClick={handleNavInstall}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-primary/70 hover:text-primary hover:bg-primary/8 border border-primary/20 hover:border-primary/40 transition-all shrink-0"
+      {/* 주 액션 */}
+      <NavLink
+        to="/activity-log"
+        title={isCollapsed ? '교사 메모' : ''}
+        className={({ isActive }) => `
+          flex items-center justify-center gap-2 btn-gradient rounded-xl mb-6 shadow-md shadow-primary/20 active:scale-95 transition-all py-3 shrink-0
+          ${isCollapsed ? 'px-0' : 'px-4'}
+          ${isActive ? 'ring-2 ring-primary/20' : ''}
+        `}
+      >
+        <Plus size={18} strokeWidth={3} />
+        {!isCollapsed && <span className="font-black text-xs tracking-tight">교사 메모</span>}
+      </NavLink>
+
+      {/* 메뉴 */}
+      <nav className="flex-1 flex flex-col gap-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
+        {navItems.map((tab) => (
+          <NavLink key={tab.path} to={tab.path} end={tab.path === '/'}
+            title={isCollapsed ? tab.label : ''}
+            className={({ isActive }) => `
+              flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-black transition-all relative group shrink-0
+              ${isActive ? 'text-primary bg-primary/5' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
+              ${isCollapsed ? 'justify-center' : ''}
+            `}
           >
-            <Download size={13} strokeWidth={2.5} /> 앱 설치
+            {({ isActive }) => (
+              <>
+                <tab.icon size={18} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+                {!isCollapsed && tab.label}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* 알림 켜기 (클래스 알림) */}
+      <div className={`shrink-0 pt-3 mt-1 border-t border-on-surface/5 ${isCollapsed ? 'hidden' : ''}`}>
+        <NotificationPermissionButton variant="desktop" />
+      </div>
+
+      {/* 아이콘 액션 묶음 */}
+      <div className={`shrink-0 flex items-center gap-1 flex-wrap ${isCollapsed ? 'flex-col pt-3 mt-1 border-t border-on-surface/5' : 'justify-center pt-2'}`}>
+        {showInstallBtn && (
+          <button onClick={handleNavInstall} title="앱 설치"
+            className="w-9 h-9 rounded-xl hover:bg-primary/8 transition-all text-primary/60 hover:text-primary flex items-center justify-center"
+          >
+            <Download size={16} strokeWidth={2.5} />
           </button>
         )}
 
-        {/* 클래스 알람 OS 알림 권한 — PC만 */}
-        <NotificationPermissionButton variant="desktop" />
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            title="알림"
+            className={`w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all relative flex items-center justify-center ${showNotifications ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40'}`}
+          >
+            <Bell size={17} className={showNotifications ? 'animate-bounce' : ''} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full border-2 border-white shadow-sm animate-pulse" />
+            )}
+          </button>
+          <AnimatePresence>
+            {showNotifications && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute left-full bottom-0 ml-3 w-[min(320px,calc(100vw-2rem))] glass rounded-2xl shadow-elevated p-5 z-50 overflow-hidden border border-white/60"
+              >
+                {renderNotificationsList()}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-        {/* 관찰 기록 — PC만 */}
-        <NavLink to="/activity-log"
-          className="hidden lg:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
+        <button onClick={() => setBugReportOpen(true)} title="버그 신고"
+          className="w-9 h-9 rounded-xl hover:bg-red-50 hover:shadow-soft transition-all text-on-surface-variant/30 hover:text-red-400 flex items-center justify-center"
         >
-          <Plus size={15} strokeWidth={3} /> 교사 메모
+          <Bug size={16} />
+        </button>
+
+        <NavLink to="/settings#referral" title="친구 초대"
+          className="w-9 h-9 rounded-xl hover:bg-emerald-50 hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-emerald-500 flex items-center justify-center"
+        >
+          <Gift size={17} />
         </NavLink>
 
-        <div className="hidden lg:block w-px h-6 bg-on-surface/5" />
+        <NavLink to="/settings" title="설정"
+          className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary flex items-center justify-center"
+        >
+          <Settings size={17} />
+        </NavLink>
+      </div>
 
+      {/* 아바타 */}
+      <NavLink to="/settings"
+        className="shrink-0 flex items-center gap-2 pt-3 mt-2 border-t border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-2 rounded-xl group active:scale-95"
+      >
+        <div className="w-8 h-8 rounded-xl overflow-hidden cursor-pointer group-hover:ring-2 group-hover:ring-primary/10 transition-all border border-white shadow-soft shrink-0">
+          {profile?.avatar_url && !avatarError ? (
+            <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+              <span className="text-white text-xs font-black">{(profile?.full_name || '?').charAt(0).toUpperCase()}</span>
+            </div>
+          )}
+        </div>
+        {!isCollapsed && (
+          <div className="min-w-0">
+            <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] group-hover:text-secondary transition-colors leading-none mb-0.5">
+              {profile?.role || 'Teacher'}
+            </p>
+            <p className="text-[12px] font-black group-hover:text-primary transition-colors tracking-tightest truncate">
+              {profile?.full_name || '사용자'}
+            </p>
+          </div>
+        )}
+      </NavLink>
+
+      {/* 접기/펼치기 */}
+      <button
+        onClick={toggleSidebar}
+        className={`shrink-0 w-full flex items-center gap-3 px-3 py-3 mt-2 rounded-xl transition-all group shadow-sm border ${
+          isCollapsed
+            ? 'bg-primary/10 text-primary border-primary/20 justify-center'
+            : 'bg-surface-container-low/50 text-on-surface-variant hover:text-primary border-transparent'
+        }`}
+      >
+        {isCollapsed ? (
+          <ChevronRight size={20} strokeWidth={3} className="text-primary" />
+        ) : (
+          <>
+            <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+            <span className="text-[10px] font-black uppercase tracking-widest">접기</span>
+          </>
+        )}
+      </button>
+    </motion.aside>
+
+    {/* ───────────────── 모바일/태블릿: 상단 바 ───────────────── */}
+    <header className="lg:hidden h-16 glass fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between border-b border-white/40 shadow-soft">
+      <div className="flex items-center gap-2.5 shrink-0">
+        <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center text-white shadow-md shadow-primary/20">
+          <GraduationCap size={18} strokeWidth={2.5} />
+        </div>
+        <h2 className="text-base font-black tracking-tightest leading-none gradient-text">클래스로그</h2>
+      </div>
+
+      <div className="flex items-center gap-1.5">
         {/* 알림 */}
         <div className="relative">
           <button
@@ -198,91 +366,17 @@ const Navbar = () => {
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 className="absolute right-0 mt-4 w-[min(320px,calc(100vw-2rem))] glass rounded-2xl shadow-elevated p-5 z-50 overflow-hidden border border-white/60"
               >
-                <div className="flex items-center justify-between mb-4 px-1">
-                  <h3 className="font-black text-sm tracking-tightest">최근 시스템 알림</h3>
-                  {notifications.length > 0 && (
-                    <button onClick={clearAll} className="text-[10px] text-primary hover:text-secondary flex items-center gap-1.5 font-black uppercase tracking-widest transition-colors">
-                      <Trash2 size={12} /> Clear All
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
-                  {notifications.length > 0 ? notifications.map((n) => {
-                    const dest: string | null = n.link ||
-                      ((n.type === 'student_submission' || n.type === 'result_submission') ? '/classroom' : null);
-                    const isAiReview = n.type === 'ai_review_needed';
-                    const baseClass = `p-4 rounded-xl transition-all border block ${
-                      n.is_read
-                        ? 'bg-surface-container/30 border-transparent opacity-60'
-                        : isAiReview
-                          ? `bg-amber-50 border-amber-200 shadow-soft hover:border-amber-300 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
-                          : `bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
-                    }`;
-                    return (
-                      <button key={n.id} className={`w-full text-left ${baseClass}`}
-                        onClick={(e) => dest ? handleNotificationNavigate(n, e, dest) : handleNotificationClick(n)}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <p className={`text-sm tracking-tight leading-snug ${n.is_read ? 'font-medium' : 'font-black text-on-surface'}`}>{n.title}</p>
-                          {!n.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)]" />}
-                        </div>
-                        {n.content && <p className="text-[11px] font-medium text-on-surface-variant/60 mt-1 leading-snug line-clamp-1">{n.content}</p>}
-                        <div className="flex items-center justify-between mt-2">
-                          <p className="text-[9px] font-black text-primary/40 uppercase tracking-[0.2em]">{formatTime(n.created_at)}</p>
-                          {dest && !n.is_read && <span className="text-[9px] font-black text-primary/50 uppercase tracking-widest">바로가기 →</span>}
-                        </div>
-                      </button>
-                    );
-                  }) : (
-                    <div className="py-10 text-center space-y-3">
-                      <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center mx-auto opacity-40">
-                        <Bell size={28} className="text-primary" />
-                      </div>
-                      <p className="text-xs font-black text-on-surface-variant/40 uppercase tracking-widest">알림 없음</p>
-                    </div>
-                  )}
-                </div>
+                {renderNotificationsList()}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* 버그 신고 — PC만 */}
-        <button
-          onClick={() => setBugReportOpen(true)}
-          title="버그 신고"
-          className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-red-50 hover:shadow-soft transition-all text-on-surface-variant/30 hover:text-red-400 items-center justify-center"
-        >
-          <Bug size={16} />
-        </button>
-
-        {/* 친구 초대 — PC만 */}
-        <NavLink to="/settings#referral" title="친구 초대"
-          className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-emerald-50 hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-emerald-500 items-center justify-center"
-        >
-          <Gift size={18} />
-        </NavLink>
-
-        {/* 설정 아이콘 — PC만 */}
-        <NavLink to="/settings"
-          className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary items-center justify-center"
-        >
-          <Settings size={18} />
-        </NavLink>
-
         {/* 아바타 */}
         <NavLink to="/settings"
-          className="flex items-center gap-2 pl-1.5 lg:pl-3 lg:border-l border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-1.5 rounded-xl group active:scale-95"
+          className="flex items-center gap-2 pl-1.5 hover:bg-white hover:shadow-soft transition-all p-1.5 rounded-xl group active:scale-95"
         >
-          <div className="text-right hidden lg:block">
-            <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] group-hover:text-secondary transition-colors leading-none mb-0.5">
-              {profile?.role || 'Teacher'}
-            </p>
-            <p className="text-[12px] font-black group-hover:text-primary transition-colors tracking-tightest">
-              {profile?.full_name || '사용자'}
-            </p>
-          </div>
-          <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl overflow-hidden cursor-pointer group-hover:ring-2 group-hover:ring-primary/10 transition-all border border-white shadow-soft shrink-0">
+          <div className="w-8 h-8 rounded-xl overflow-hidden cursor-pointer group-hover:ring-2 group-hover:ring-primary/10 transition-all border border-white shadow-soft shrink-0">
             {profile?.avatar_url && !avatarError ? (
               <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
             ) : (
@@ -293,10 +387,10 @@ const Navbar = () => {
           </div>
         </NavLink>
 
-        {/* 햄버거 버튼 — 모바일 + 태블릿 */}
+        {/* 햄버거 버튼 */}
         <button
           onClick={() => { setMobileMenuOpen(prev => !prev); setShowNotifications(false); }}
-          className="lg:hidden relative w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant/60"
+          className="relative w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant/60"
         >
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -367,7 +461,7 @@ const Navbar = () => {
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm flex-1 justify-center"
                 >
-                  <ActivitySquare size={16} /> 교사 메모 작성
+                  <Plus size={16} /> 교사 메모 작성
                 </NavLink>
                 <NavLink
                   to="/settings#referral"

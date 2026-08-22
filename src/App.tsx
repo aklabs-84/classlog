@@ -20,6 +20,7 @@ if (
 }
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
+import IdeaRecord from './pages/IdeaRecord';
 import Login from './pages/Login';
 import Landing from './pages/Landing';
 import Admin from './pages/Admin';
@@ -262,7 +263,7 @@ function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<Dashboard />} />
+                <Route index element={<IdeaRecord />} />
               </Route>
 
               <Route
@@ -272,6 +273,7 @@ function App() {
                   </ProtectedRoute>
                 }
               >
+                <Route path="classes" element={<Dashboard />} />
                 <Route path="classroom" element={<Classroom />} />
                 <Route path="student-view/:id" element={<StudentView />} />
                 <Route path="ai-assistant" element={<AIAssistant />} />

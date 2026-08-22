@@ -213,6 +213,9 @@
   </a>
 
   <div class="nav-section">선생님 기능</div>
+  <a class="nav-item" data-section="idea-record" onclick="showSection('idea-record')">
+    <span class="icon">💡</span> 아이디어 기록
+  </a>
   <a class="nav-item" data-section="classroom" onclick="showSection('classroom')">
     <span class="icon">🏫</span> 학급 만들기
   </a>
@@ -266,7 +269,7 @@
       <div class="hero-icon">🎓</div>
       <div class="hero-text">
         <h1>클래스로그 AI 사용 가이드</h1>
-        <p>활동 기록 수집부터 AI 세특 초안 생성, 나이스 제출까지 — 한 곳에서 해결하세요.</p>
+        <p>기록하고, 만들고, 관리한다 — 수업 준비의 처음부터 끝까지 한 곳에서 해결하세요.</p>
         <div class="hero-badges">
           <span class="badge badge-amber">선생님 · 강사</span>
           <span class="badge badge-emerald">AI 세특 · 보고서 자동화</span>
@@ -287,6 +290,11 @@
 
     <h2>기능 한눈에 보기</h2>
     <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon">💡</div>
+        <div class="feature-card-title">아이디어 기록</div>
+        <div class="feature-card-desc">로그인 후 첫 화면. 수업 아이디어를 가볍게 남기면 AI가 분석해 수업 자료·슬라이드·수업 가이드로 발전시켜 줍니다.</div>
+      </div>
       <div class="feature-card">
         <div class="feature-card-icon">📝</div>
         <div class="feature-card-title">활동 기록 수집</div>
@@ -372,6 +380,7 @@
     <h2>빠른 이동</h2>
     <div class="toc-grid">
       <div class="toc-card" onclick="showSection('start')"><div class="toc-icon">🚀</div><div class="toc-label">처음 시작하기</div></div>
+      <div class="toc-card" onclick="showSection('idea-record')"><div class="toc-icon">💡</div><div class="toc-label">아이디어 기록</div></div>
       <div class="toc-card" onclick="showSection('classroom')"><div class="toc-icon">🏫</div><div class="toc-label">학급 만들기</div></div>
       <div class="toc-card" onclick="showSection('observation')"><div class="toc-icon">📝</div><div class="toc-label">활동 기록</div></div>
       <div class="toc-card" onclick="showSection('ai-setech')"><div class="toc-icon">✨</div><div class="toc-label">AI 세특 초안</div></div>
@@ -438,10 +447,76 @@
     </div>
 
     <h2>로그인 후 첫 화면</h2>
-    <p>가입에 성공하면 <strong>대시보드</strong>로 이동합니다. 대시보드에는 내 학급 목록, 최근 활동 기록, 알림이 표시됩니다.</p>
+    <p>가입에 성공하면 <strong>아이디어 기록</strong> 화면으로 이동합니다. 오늘 떠오른 수업 아이디어나 메모를 가볍게 남기면, AI가 이를 분석해 수업 자료·슬라이드·수업 가이드로 발전시켜 줍니다. 내 학급 목록과 통계는 상단 메뉴의 <strong>학급 관리</strong>에서 확인할 수 있습니다.</p>
     <div class="callout green">
       <span class="callout-icon">✅</span>
-      <span class="callout-text">처음 로그인했다면 <strong>학급 만들기</strong>부터 시작하세요. 학급 없이는 다른 기능을 사용할 수 없습니다.</span>
+      <span class="callout-text">처음 로그인했다면 상단 메뉴의 <strong>학급 관리</strong>에서 <strong>학급 만들기</strong>부터 시작하세요. 학급 없이는 학생 관련 기능을 사용할 수 없습니다.</span>
+    </div>
+  </div>
+
+  <!-- ── 아이디어 기록 ── -->
+  <div class="section" id="sec-idea-record">
+    <div class="page-title">💡 아이디어 기록</div>
+    <div class="page-subtitle">로그인 후 첫 화면 — 떠오른 수업 아이디어를 AI가 수업으로 발전시켜 드립니다</div>
+
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text">"기록하고, 만들고, 관리한다" — 클래스로그 AI의 핵심 흐름이 시작되는 화면입니다. 학급을 아직 만들지 않았어도 바로 기록을 남길 수 있습니다.</span>
+    </div>
+
+    <h2>아이디어 남기기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">떠오르는 대로 기록</div>
+          <div class="step-desc">화면 상단 입력창에 오늘 떠오른 수업 아이디어, 메모, 진행하고 싶은 활동을 자유롭게 적습니다. 특정 학급과 연결하고 싶다면 학급을 선택할 수 있지만, 선택하지 않아도 저장됩니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">카드로 쌓이는 기록</div>
+          <div class="step-desc">저장한 아이디어는 화면 아래 카드 목록에 쌓입니다. 같은 학급이나 비슷한 주제의 기존 수업 자료가 있으면 카드에 <strong>🔗 비슷한 자료 있음</strong> 뱃지가 표시됩니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>AI로 발전시키기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">AI 분석 요청</div>
+          <div class="step-desc">아이디어 카드의 <code>AI로 발전시키기</code> 버튼을 클릭합니다. AI가 기록 내용을 분석해 요약, 추천 형태(수업 가이드 · 수업 자료 · 슬라이드), 진행 순서 초안, 관련 태그를 정리해 보여줍니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">관련 자료 반영 제안</div>
+          <div class="step-desc">같은 학급에 이미 만들어둔 수업 자료가 있으면, AI가 이를 참고해 어떻게 기획하면 좋을지 함께 제안합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">수업 자료 · 슬라이드로 만들기</div>
+          <div class="step-desc">모달에서 <code>수업 자료로 만들기</code> 또는 <code>슬라이드로 만들기</code>를 클릭하고 분량(간단히 · 자세히)을 선택하면, AI가 원문을 그대로 옮기는 게 아니라 실제 수업 계획안(목표·도입·전개·정리·준비물)을 새로 작성해 해당 에디터로 바로 이동합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">저장</div>
+          <div class="step-desc">모달에서 <code>저장</code>을 누르면 분석 결과와 태그가 기록에 남아, 다음에 같은 카드를 열었을 때 재생성 없이 바로 확인할 수 있습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout green">
+      <span class="callout-icon">✅</span>
+      <span class="callout-text">기존 <strong>수업 도구 &gt; 나의 노트</strong>와 동일한 기록을 공유합니다. 어느 화면에서 작성하든 서로 반영됩니다.</span>
     </div>
   </div>
 
@@ -1503,7 +1578,7 @@
     <div class="accordion">
       <div class="accordion-item">
         <button class="accordion-btn" onclick="toggleAccordion(this)">학원 강사도 무료로 사용할 수 있나요? <span class="accordion-icon">▼</span></button>
-        <div class="accordion-body">네. 학교 선생님과 동일하게 무료(Free) 플랜으로 시작할 수 있습니다. AI 보고서 월 20회까지 무료로 체험하실 수 있습니다. 더 많이 사용하려면 Basic(월 100회) 또는 Pro(월 500회) 플랜으로 업그레이드하세요.</div>
+        <div class="accordion-body">네. 학교 선생님과 동일하게 무료(Free) 플랜으로 시작할 수 있습니다. AI 보고서 월 20회까지 무료로 체험하실 수 있습니다. 더 많이 사용하려면 Basic 또는 Pro 플랜으로 업그레이드하세요. AI를 훨씬 넉넉하게 사용할 수 있습니다.</div>
       </div>
       <div class="accordion-item">
         <button class="accordion-btn" onclick="toggleAccordion(this)">나이스 내보내기는 학원에서 사용할 수 없나요? <span class="accordion-icon">▼</span></button>
@@ -1554,8 +1629,8 @@
               <tr style="border-bottom:1px solid var(--gray-100);">
                 <td style="padding:11px 16px;font-weight:700;color:var(--gray-800);">AI 세특 초안</td>
                 <td style="padding:11px 16px;text-align:center;color:var(--gray-600);">월 20회 체험</td>
-                <td style="padding:11px 16px;text-align:center;color:var(--amber);font-weight:800;">월 100회</td>
-                <td style="padding:11px 16px;text-align:center;color:var(--amber-dark);font-weight:800;">월 500회</td>
+                <td style="padding:11px 16px;text-align:center;color:var(--amber);font-weight:800;">넉넉하게</td>
+                <td style="padding:11px 16px;text-align:center;color:var(--amber-dark);font-weight:800;">가장 넉넉하게</td>
               </tr>
               <tr style="border-bottom:1px solid var(--gray-100);background:var(--gray-50);">
                 <td style="padding:11px 16px;font-weight:700;color:var(--gray-800);">학생 관찰 기록 · 교사 메모</td>
@@ -1638,7 +1713,7 @@
               </tr>
               <tr style="border-bottom:1px solid var(--gray-100);background:var(--gray-50);">
                 <td style="padding:11px 16px;font-weight:700;color:var(--gray-800);">AI 세특 초안 · 수업 도구 전체</td>
-                <td style="padding:11px 16px;text-align:center;color:var(--amber-dark);font-weight:800;">월 500회 · 무제한</td>
+                <td style="padding:11px 16px;text-align:center;color:var(--amber-dark);font-weight:800;">가장 넉넉하게 · 무제한</td>
                 <td style="padding:11px 16px;text-align:center;color:var(--violet);font-weight:800;">Pro와 동일</td>
               </tr>
               <tr style="border-bottom:1px solid var(--gray-100);">

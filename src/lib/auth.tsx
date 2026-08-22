@@ -316,8 +316,10 @@ export function checkIsBasicOrAbove(profile: any): boolean {
 export function getAiMonthlyLimit(profile: any): number {
   if (!profile) return 0;
   if (profile.plan === 'admin') return Infinity;
-  if (checkIsPro(profile)) return 500;  // pro, school, beta 모두 500회
-  if (checkIsBasicOrAbove(profile)) return 100;
+  if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return Infinity; // 서버도 베타는 한도체크 자체를 생략
+  if (profile.plan === 'school') return 500; // school만 기존 횟수제 유지
+  if (profile.plan === 'pro' || profile.plan === 'basic') return Infinity; // 크레딧(금액) 방식 — 소진 판단은 서버(소프트다운그레이드+하드블록)가 담당
+  if (profile.project_pro_until && new Date(profile.project_pro_until) > new Date()) return Infinity;
   return 20; // Free: 월 20회 체험
 }
 

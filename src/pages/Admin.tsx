@@ -63,6 +63,15 @@ interface AiUserRow {
   cost_usd: number;
   call_count: number;
 }
+interface AiCreditRow {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  plan: 'basic' | 'pro';
+  cost_usd: number;
+  budget_usd: number;
+  pct: number;
+}
 interface AiDetailLog {
   created_at: string;
   model_name: string | null;
@@ -410,6 +419,8 @@ const Admin = () => {
   const [aiFeatureRows, setAiFeatureRows]   = useState<AiFeatureRow[]>([]);
   const [aiModelRows, setAiModelRows]       = useState<AiModelRow[]>([]);
   const [aiUserRows, setAiUserRows]         = useState<AiUserRow[]>([]);
+  const [aiCreditRows, setAiCreditRows]     = useState<AiCreditRow[]>([]);
+  const [aiCreditLoading, setAiCreditLoading] = useState(false);
   const [aiCostLoading, setAiCostLoading]   = useState(false);
   const [aiTotalUsd, setAiTotalUsd]         = useState(0);
   const [aiDetailModal, setAiDetailModal]   = useState<AiDetailModal | null>(null);
@@ -438,7 +449,7 @@ const Admin = () => {
     if (activeTab === 'announcements') fetchAnnouncements();
     if (activeTab === 'bugs')          fetchBugs();
     if (activeTab === 'coupons')       fetchCoupons();
-    if (activeTab === 'ai_cost')       fetchAiCost('daily');
+    if (activeTab === 'ai_cost')       { fetchAiCost('daily'); fetchAiCreditUsage(); }
   }, [activeTab, authLoading, profile]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -1054,6 +1065,41 @@ const Admin = () => {
     }
   };
 
+  // basic/pro 유저의 이번 달 실시간 크레딧 소진율 (api/gemini.ts의 PLAN_MONTHLY_BUDGET_USD와 동일한 기준)
+  const AI_CREDIT_BUDGET_USD: Record<'basic' | 'pro', number> = { basic: 2, pro: 6 };
+
+  const fetchAiCreditUsage = async () => {
+    setAiCreditLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, plan, ai_monthly_cost_usd')
+        .in('plan', ['basic', 'pro'])
+        .gt('ai_monthly_cost_usd', 0);
+
+      if (error) { console.error('[Admin] ai credit usage fetch error:', error); return; }
+
+      const rows: AiCreditRow[] = (data ?? []).map(p => {
+        const plan = p.plan as 'basic' | 'pro';
+        const budget_usd = AI_CREDIT_BUDGET_USD[plan];
+        const cost_usd = p.ai_monthly_cost_usd ?? 0;
+        return {
+          user_id: p.id,
+          full_name: p.full_name,
+          email: p.email,
+          plan,
+          cost_usd,
+          budget_usd,
+          pct: (cost_usd / budget_usd) * 100,
+        };
+      }).sort((a, b) => b.pct - a.pct);
+
+      setAiCreditRows(rows);
+    } finally {
+      setAiCreditLoading(false);
+    }
+  };
+
   const openAiDetail = async (modal: AiDetailModal) => {
     setAiDetailModal(modal);
     setAiDetailLoading(true);
@@ -1514,8 +1560,8 @@ const Admin = () => {
                               className="w-full px-3 py-2 text-xs border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 bg-amber-50 font-bold text-amber-800 cursor-pointer"
                             >
                               <option value="free">Free — AI 월 20회</option>
-                              <option value="basic">Basic — AI 월 100회</option>
-                              <option value="pro">Pro — AI 월 500회</option>
+                              <option value="basic">Basic — AI $2 크레딧/월</option>
+                              <option value="pro">Pro — AI $6 크레딧/월</option>
                               <option value="school">School — 열람 전용</option>
                             </select>
                             <div className="flex gap-2">
@@ -2622,6 +2668,72 @@ const Admin = () => {
                           );
                         });
                       })()}
+                    </div>
+                  )}
+                </div>
+
+                {/* 요금제 크레딧 소진 현황 */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h3 className="text-sm font-black text-gray-700 flex items-center gap-2 mb-1">
+                    <AlertTriangle size={16} className="text-orange-500" />
+                    요금제 크레딧 소진 현황 (이번 달)
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    basic $2 / pro $6 예산 대비 실시간 소진율 · 100% 이상은 flash로 자동 전환, 300% 이상은 하드블록
+                  </p>
+                  {aiCreditLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="animate-spin text-orange-400" size={24} />
+                    </div>
+                  ) : aiCreditRows.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">이번 달 크레딧을 사용한 basic/pro 유저가 없습니다.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500">이름</th>
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500">이메일</th>
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500">플랜</th>
+                            <th className="text-right py-2 pr-4 font-bold text-gray-500">사용액 / 예산</th>
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500 w-32">소진율</th>
+                            <th className="text-left py-2 font-bold text-gray-500">상태</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {aiCreditRows.map(r => {
+                            const barPct = Math.min(r.pct, 100);
+                            const status = r.pct >= 300
+                              ? { label: '하드블록', color: 'text-red-700 bg-red-50', bar: 'bg-red-500', icon: <XCircle size={12} /> }
+                              : r.pct >= 100
+                              ? { label: 'flash 전환됨', color: 'text-amber-700 bg-amber-50', bar: 'bg-amber-500', icon: <Zap size={12} /> }
+                              : { label: '정상', color: 'text-emerald-700 bg-emerald-50', bar: 'bg-emerald-500', icon: <CheckCircle2 size={12} /> };
+                            return (
+                              <tr key={r.user_id} className="border-b border-gray-50">
+                                <td className="py-2.5 pr-4 font-bold text-gray-800">{r.full_name || '이름 없음'}</td>
+                                <td className="py-2.5 pr-4 font-mono text-gray-500 text-[10px]">{r.email || r.user_id.slice(0, 8) + '…'}</td>
+                                <td className="py-2.5 pr-4 text-gray-600">{r.plan === 'pro' ? 'Pro' : 'Basic'}</td>
+                                <td className="py-2.5 pr-4 text-right font-black text-gray-700">
+                                  ${r.cost_usd.toFixed(3)} / ${r.budget_usd}
+                                </td>
+                                <td className="py-2.5 pr-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full ${status.bar}`} style={{ width: `${barPct}%` }} />
+                                    </div>
+                                    <span className="font-black text-gray-600">{r.pct.toFixed(0)}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold ${status.color}`}>
+                                    {status.icon}{status.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

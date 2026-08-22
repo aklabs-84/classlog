@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions } from '../../lib/gemini';
@@ -943,6 +944,10 @@ const FREE_MATERIAL_LIMIT = 2;
 const MaterialEditor = () => {
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
+  const location = useLocation();
+  // 아이디어 기록(나의 노트)에서 "수업 자료로 만들기"로 넘어온 초안 — 첫 자동저장 완료 시 원본 노트에 연결 기록
+  const pendingDraftNoteIdRef = useRef<string | null>(null);
+  const draftHandledRef = useRef(false);
 
   // 클래스
   const [classes, setClasses] = useState<any[]>([]);
@@ -1064,6 +1069,24 @@ const MaterialEditor = () => {
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template');
   };
+
+  // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
+  useEffect(() => {
+    if (draftHandledRef.current) return;
+    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null } } | null)?.draftMaterial;
+    if (!draft) return;
+    draftHandledRef.current = true;
+    resetForm();
+    setTitle(draft.title);
+    setContent(draft.content);
+    setLibraryMode(true);
+    setSelectedClass(null);
+    pendingDraftNoteIdRef.current = draft.noteId;
+    autosaveSkipRef.current = true;
+    setAutoSaveStatus('idle');
+    setIsEditorOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleNew = async () => {
     if (!checkIsBasicOrAbove(profile)) {
@@ -1222,7 +1245,15 @@ const MaterialEditor = () => {
         // 아직 한 번도 저장된 적 없는 새 자료 — 첫 자동저장 시 생성하고, 이후엔 위 update 경로를 탄다
         const { data, error } = await supabase.from('class_materials').insert(payload).select().single();
         if (error) throw error;
-        if (data) setEditingMaterial(data as Material);
+        if (data) {
+          setEditingMaterial(data as Material);
+          if (pendingDraftNoteIdRef.current) {
+            const noteId = pendingDraftNoteIdRef.current;
+            pendingDraftNoteIdRef.current = null;
+            supabase.from('teacher_notes').update({ linked_material_id: (data as Material).id }).eq('id', noteId)
+              .then(({ error: linkError }) => { if (linkError) console.error('[MaterialEditor] linked_material_id 기록 오류:', linkError); });
+          }
+        }
       }
       setAutoSaveStatus('saved');
     } catch (err) {

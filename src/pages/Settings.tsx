@@ -440,11 +440,11 @@ const Settings = () => {
                 </p>
               ) : plan === 'pro' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  클래스 최대 10개 · 학생 최대 35명/반 · AI 세특 월 500회
+                  클래스 최대 10개 · 학생 최대 35명/반 · AI 넉넉하게 사용
                 </p>
               ) : plan === 'basic' ? (
                 <p className="text-xs text-blue-600 mt-0.5">
-                  클래스 최대 5개 · 학생 최대 35명/반 · AI 세특 월 100회
+                  클래스 최대 5개 · 학생 최대 35명/반 · AI 넉넉하게 사용
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
@@ -469,6 +469,8 @@ const Settings = () => {
               <p className="text-xs font-bold text-amber-600 mb-1">이번 달 AI 사용</p>
               {hasByokKey ? (
                 <p className="text-sm font-black text-green-600">내 API 키 사용 중 · 무제한</p>
+              ) : !isFinite(aiMonthlyLimit) ? (
+                <p className="text-sm font-black text-amber-700">넉넉하게 사용 중</p>
               ) : (
                 <>
                   <div className="flex items-center gap-2">
@@ -491,8 +493,8 @@ const Settings = () => {
                 <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
                 <div className="space-y-1">
                   {(isBasicOnly
-                    ? ['AI 세특 월 500회 (Pro)', '클래스 최대 10개 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', 'NAISS 내보내기 (Pro)', '학교 프로젝트 생성 (Pro)']
-                    : ['AI 세특 월 100회 (Basic)', 'AI 세특 월 500회 (Pro)', '클래스 최대 5개 (Basic)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Basic 이상)']
+                    ? ['AI 더 넉넉하게 (Pro)', '클래스 최대 10개 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', 'NAISS 내보내기 (Pro)', '학교 프로젝트 생성 (Pro)']
+                    : ['AI 넉넉하게 사용 (Basic/Pro)', '클래스 최대 5개 (Basic)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Basic 이상)']
                   ).map(item => (
                     <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                       <Sparkles size={10} className="text-amber-400" /> {item}
@@ -506,7 +508,7 @@ const Settings = () => {
           <div className="mt-4 pt-4 border-t border-amber-200">
             <p className="text-xs font-bold text-amber-600 mb-2">Basic / Pro 플랜에서 가능한 것</p>
             <div className="space-y-1">
-              {['AI 세특 월 100회 (Basic)', 'AI 세특 월 500회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)'].map(item => (
+              {['AI 넉넉하게 사용 (Basic/Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)'].map(item => (
                 <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                   <Sparkles size={10} className="text-amber-400" /> {item}
                 </div>

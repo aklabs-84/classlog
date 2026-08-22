@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Megaphone, Send, Loader2, Reply, Clock, ChevronDown,
-  MessageSquare, CheckCircle2, Filter, ArrowLeft
+  MessageSquare, CheckCircle2, Filter, ArrowLeft, Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -37,6 +37,7 @@ const SuggestionsPage = () => {
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // 수업 목록 로드
   useEffect(() => {
@@ -99,6 +100,19 @@ const SuggestionsPage = () => {
       setReplyText('');
     }
     setSavingId(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('이 질문·건의 내용을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.')) return;
+    setDeletingId(id);
+    const { error } = await supabase
+      .from('student_suggestions')
+      .delete()
+      .eq('id', id);
+    if (!error) {
+      setAllSuggestions(prev => prev.filter(s => s.id !== id));
+    }
+    setDeletingId(null);
   };
 
   const formatDate = (d: string) =>
@@ -211,6 +225,7 @@ const SuggestionsPage = () => {
             {filteredSuggestions.map(s => {
               const isReplying = replyingId === s.id;
               const isSaving = savingId === s.id;
+              const isDeleting = deletingId === s.id;
               const className = classes.find(c => c.id === s.class_id)?.name;
               return (
                 <motion.div
@@ -251,6 +266,14 @@ const SuggestionsPage = () => {
                       </div>
                       <p className="text-sm font-medium text-on-surface leading-relaxed">{s.content}</p>
                     </div>
+                    <button
+                      onClick={() => handleDelete(s.id)}
+                      disabled={isDeleting}
+                      title="삭제"
+                      className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-neutral-300 hover:text-rose-500 hover:bg-rose-50 transition-all disabled:opacity-50"
+                    >
+                      {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
                   </div>
 
                   {/* 선생님 답변 영역 */}
