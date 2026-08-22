@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -71,6 +72,44 @@ const noteMdComponents: any = {
   td: ({ children }: any) => <td className="border border-surface-container px-2 py-1.5">{children}</td>,
 };
 
+// ── 노트 원문 전체보기 모달용 마크다운 렌더러 (카드보다 큰 폰트) ─────────────────
+const noteDetailMdComponents: any = {
+  p: ({ children }: any) => <p className="mb-3 last:mb-0 leading-relaxed text-sm text-on-surface/80">{children}</p>,
+  h1: ({ children }: any) => <h1 className="text-lg font-black mb-2 mt-3 text-on-surface">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-base font-black mb-2 mt-3 text-on-surface">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-sm font-black mb-1.5 mt-3 text-on-surface">{children}</h3>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 mb-3 space-y-1 text-sm">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-3 space-y-1 text-sm">{children}</ol>,
+  li: ({ children }: any) => <li className="text-sm text-on-surface/80">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-primary pl-4 italic text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-lg text-sm">
+      {children}
+    </blockquote>
+  ),
+  code: ({ children, className }: any) => {
+    if (!className) {
+      return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+    }
+    return <code className={className}>{children}</code>;
+  },
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const className = child?.props?.className || '';
+    const lang = className.replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-70">{children}</a>
+  ),
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-3 shadow" />,
+  hr: () => <hr className="border-surface-container my-4" />,
+  strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+  table: ({ children }: any) => <div className="overflow-auto mb-3"><table className="w-full border-collapse text-sm">{children}</table></div>,
+  th: ({ children }: any) => <th className="border border-surface-container px-3 py-2 bg-surface-container font-black text-left">{children}</th>,
+  td: ({ children }: any) => <td className="border border-surface-container px-3 py-2">{children}</td>,
+};
+
 interface TeacherNote {
   id: string;
   class_id: string | null;
@@ -91,13 +130,13 @@ const FORMAT_LABEL: Record<IdeaAnalysisResult['suggestedFormat'], string> = {
 
 const NO_CLASS = '__none__';
 
-// 아이디어 카드 왼쪽 액션 스트라이프 + 아이콘 색 — 클래스별로 고정된 색을 갖도록 id를 해싱
+// 아이디어 카드 상단 배너 + 아이콘 색 — 클래스별로 고정된 색을 갖도록 id를 해싱
 const CARD_ACCENTS = [
-  { border: 'border-l-primary', iconBg: 'bg-primary/10', iconText: 'text-primary' },
-  { border: 'border-l-secondary', iconBg: 'bg-secondary/10', iconText: 'text-secondary' },
-  { border: 'border-l-accent', iconBg: 'bg-accent/10', iconText: 'text-accent' },
+  { banner: 'bg-gradient-to-r from-primary to-primary/60', iconBg: 'bg-primary/10', iconText: 'text-primary' },
+  { banner: 'bg-gradient-to-r from-secondary to-secondary/60', iconBg: 'bg-secondary/10', iconText: 'text-secondary' },
+  { banner: 'bg-gradient-to-r from-accent to-accent/60', iconBg: 'bg-accent/10', iconText: 'text-accent' },
 ];
-const NO_CLASS_ACCENT = { border: 'border-l-on-surface/10', iconBg: 'bg-surface-container', iconText: 'text-on-surface-variant/50' };
+const NO_CLASS_ACCENT = { banner: 'bg-gradient-to-r from-on-surface/20 to-on-surface/5', iconBg: 'bg-surface-container', iconText: 'text-on-surface-variant/50' };
 const getCardAccent = (classId: string | null) => {
   if (!classId) return NO_CLASS_ACCENT;
   let hash = 0;
@@ -126,6 +165,9 @@ export default function IdeaRecord() {
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editUploading, setEditUploading] = useState(false);
+
+  // 카드 클릭 시 뜨는 "원문 전체보기" 모달용
+  const [viewingNote, setViewingNote] = useState<TeacherNote | null>(null);
 
   const [analysisNote, setAnalysisNote] = useState<TeacherNote | null>(null);
   const [analysisResult, setAnalysisResult] = useState<IdeaAnalysisResult | null>(null);
@@ -289,6 +331,7 @@ export default function IdeaRecord() {
       const { error } = await supabase.from('teacher_notes').delete().eq('id', id);
       if (error) throw error;
       setNotes(prev => prev.filter(n => n.id !== id));
+      setViewingNote(prev => (prev?.id === id ? null : prev));
     } catch (err) {
       console.error('삭제 오류:', err);
     } finally {
@@ -590,10 +633,10 @@ export default function IdeaRecord() {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className={`bg-surface-container-lowest rounded-2xl p-5 shadow-soft hover:shadow-elevated transition-all hover:-translate-y-0.5 border-y border-r border-on-surface/[0.05] border-l-4 ${accent.border} group ${isEditing ? 'md:col-span-2' : ''}`}
+                  className={`bg-surface-container-lowest rounded-2xl overflow-hidden shadow-soft hover:shadow-elevated transition-all hover:-translate-y-0.5 border border-on-surface/[0.06] group ${isEditing ? 'md:col-span-2' : ''}`}
                 >
                   {isEditing ? (
-                    <div className="space-y-3">
+                    <div className="p-5 space-y-3">
                       <input
                         value={editForm.title}
                         onChange={e => setEditForm(p => ({ ...p, title: e.target.value }))}
@@ -627,74 +670,79 @@ export default function IdeaRecord() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col h-full">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className={`w-9 h-9 rounded-xl ${accent.iconBg} ${accent.iconText} flex items-center justify-center shrink-0`}>
-                          <StickyNote size={16} />
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          <button
-                            onClick={() => handleStartEdit(note)}
-                            title="수정"
-                            className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(note.id)}
-                            disabled={isDeleting}
-                            title="삭제"
-                            className="w-8 h-8 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
-                          >
-                            {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/60">
-                          {note.classes?.name || '미지정'}
-                        </span>
-                        {note.status === 'developed' && (
-                          <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-primary-container text-primary">
-                            <Sparkles size={9} /> AI 분석 완료
-                          </span>
-                        )}
-                        {similarResourceNoteIds.has(note.id) && (
-                          <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                            <Link2 size={9} /> 비슷한 자료 있음
-                          </span>
-                        )}
-                      </div>
-
-                      {note.title && <p className="text-sm font-black text-on-surface mb-1 tracking-tight">{note.title}</p>}
-                      <div className="[&>*:last-child]:mb-0 line-clamp-4 overflow-hidden flex-1">
-                        <ReactMarkdown components={noteMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                          {note.content}
-                        </ReactMarkdown>
-                      </div>
-
-                      {note.tags?.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                          {note.tags.map(tag => (
-                            <span key={tag} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70">
-                              <Tag size={9} /> {tag}
+                    <div className="cursor-pointer" onClick={() => setViewingNote(note)}>
+                      {/* 상단 컬러 배너 */}
+                      <div className={`h-2.5 ${accent.banner}`} />
+                      <div className="flex flex-col h-full p-5">
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className={`w-10 h-10 rounded-xl ${accent.iconBg} ${accent.iconText} flex items-center justify-center shrink-0`}>
+                            <StickyNote size={17} />
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={e => { e.stopPropagation(); handleStartEdit(note); }}
+                                title="수정"
+                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={e => { e.stopPropagation(); handleDelete(note.id); }}
+                                disabled={isDeleting}
+                                title="삭제"
+                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
+                              >
+                                {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                              </button>
+                            </div>
+                            <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant/60 whitespace-nowrap">
+                              {note.classes?.name || '미지정'}
                             </span>
-                          ))}
+                          </div>
                         </div>
-                      )}
 
-                      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-on-surface/[0.05]">
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40">
-                          <Clock size={10} />
-                          {new Date(note.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        {(note.status === 'developed' || similarResourceNoteIds.has(note.id)) && (
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                            {note.status === 'developed' && (
+                              <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-primary-container text-primary">
+                                <Sparkles size={9} /> AI 분석 완료
+                              </span>
+                            )}
+                            {similarResourceNoteIds.has(note.id) && (
+                              <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                                <Link2 size={9} /> 비슷한 자료 있음
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {note.title && <p className="text-sm font-black text-on-surface mb-1 tracking-tight">{note.title}</p>}
+                        <div className="[&>*:last-child]:mb-0 line-clamp-3 overflow-hidden flex-1">
+                          <ReactMarkdown components={noteMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                            {note.content}
+                          </ReactMarkdown>
                         </div>
-                        <button
-                          onClick={() => handleOpenAnalysis(note)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-container text-primary hover:bg-primary/20 transition-all shrink-0"
-                        >
-                          <Sparkles size={12} /> {note.ai_summary ? 'AI 분석 보기' : 'AI로 발전시키기'}
-                        </button>
+
+                        {note.tags?.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                            {note.tags.map(tag => (
+                              <span key={tag} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70">
+                                <Tag size={9} /> {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-on-surface/[0.05]">
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40">
+                            <Clock size={10} />
+                            {new Date(note.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          </div>
+                          <span className="text-[10px] font-black text-on-surface-variant/30 group-hover:text-primary transition-colors">
+                            자세히 보기 →
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -705,6 +753,96 @@ export default function IdeaRecord() {
         </div>
       )}
       </div>
+      )}
+
+      {/* 노트 원문 전체보기 모달 — AnimatePresence는 Portal을 직접 자식으로 받으면 element로 인식하지 못하므로, Portal 내부에 AnimatePresence를 둔다 */}
+      {createPortal(
+        <AnimatePresence>
+          {viewingNote && (() => {
+            const accent = getCardAccent(viewingNote.class_id);
+            return (
+          <motion.div
+            key="idea-detail-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-surface-container-lowest flex flex-col"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              className="w-full h-full overflow-hidden flex flex-col"
+            >
+              <div className={`relative px-6 md:px-10 py-6 shrink-0 ${accent.banner}`}>
+                <div className="max-w-3xl mx-auto w-full">
+                  <button
+                    onClick={() => setViewingNote(null)}
+                    className="absolute top-4 right-4 md:right-8 w-9 h-9 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all"
+                  >
+                    <X size={17} />
+                  </button>
+                  <span className="inline-block text-[10px] font-black px-2.5 py-1 rounded-full bg-white/20 text-white mb-2">
+                    {viewingNote.classes?.name || '미지정'}
+                  </span>
+                  <h3 className="text-xl md:text-2xl font-black text-white tracking-tight pr-10">
+                    {viewingNote.title || '제목 없는 아이디어'}
+                  </h3>
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-white/70 mt-1.5">
+                    <Clock size={11} />
+                    {new Date(viewingNote.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-y-auto p-6 md:px-10 flex-1">
+                <div className="max-w-3xl mx-auto w-full">
+                  <ReactMarkdown components={noteDetailMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                    {viewingNote.content}
+                  </ReactMarkdown>
+                  {viewingNote.tags?.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap mt-4 pt-4 border-t border-on-surface/[0.05]">
+                      {viewingNote.tags.map(tag => (
+                        <span key={tag} className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant/70">
+                          <Tag size={10} /> {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-6 md:px-10 py-4 border-t border-on-surface/[0.06] shrink-0">
+                <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { const n = viewingNote; setViewingNote(null); handleStartEdit(n); }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black bg-surface-container hover:bg-surface-container-high text-on-surface-variant transition-all"
+                    >
+                      <Pencil size={13} /> 수정
+                    </button>
+                    <button
+                      onClick={() => handleDelete(viewingNote.id)}
+                      disabled={deletingId === viewingNote.id}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant transition-all disabled:opacity-50"
+                    >
+                      {deletingId === viewingNote.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} 삭제
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => { const n = viewingNote; setViewingNote(null); handleOpenAnalysis(n); }}
+                    className="flex items-center gap-1.5 px-4 py-2 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20"
+                  >
+                    <Sparkles size={13} /> {viewingNote.ai_summary ? 'AI 분석 보기' : 'AI로 발전시키기'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body
       )}
 
       <AnimatePresence>
