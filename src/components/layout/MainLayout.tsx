@@ -4,6 +4,7 @@ import Navbar from './Navbar';
 import AnnouncementBanner from './AnnouncementBanner';
 import BetaWelcomeBanner from './BetaWelcomeBanner';
 import BetaEndedBanner from './BetaEndedBanner';
+import WaitlistBanner from './WaitlistBanner';
 import FloatingTimer from '../FloatingTimer';
 import FloatingAIProgress from '../FloatingAIProgress';
 import ScrollToTopButton from './ScrollToTopButton';
@@ -22,6 +23,7 @@ const MainLayout = () => {
         <AnnouncementBanner />
         <BetaWelcomeBanner />
         <BetaEndedBanner />
+        <WaitlistBanner />
         <main className="px-4 md:px-8 pb-12 min-h-screen relative z-0">
           <div className="max-w-[1440px] mx-auto pt-4 lg:pt-8">
             <Outlet />

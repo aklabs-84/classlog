@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Check, X, Crown, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
 
@@ -154,11 +155,11 @@ export default function Pricing() {
     if (planKey === 'basic') {
       if (isBasic) return { label: '현재 이용 중', disabled: true, href: null };
       if (isPro) return { label: '다운그레이드', disabled: true, href: null };
-      return { label: 'Basic 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=클래스로그 Basic 플랜 업그레이드 문의' };
+      return { label: '얼리버드 신청 (첫 달 50% 할인)', disabled: false, href: '/waitlist?plan=basic' };
     }
     if (planKey === 'pro') {
       if (isPro && currentPlan !== 'school') return { label: '현재 이용 중', disabled: true, href: null };
-      return { label: 'Pro 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=클래스로그 Pro 플랜 업그레이드 문의' };
+      return { label: '얼리버드 신청 (첫 달 50% 할인)', disabled: false, href: '/waitlist?plan=pro' };
     }
     return { label: '문의하기', disabled: false, href: 'mailto:aklabs84@naver.com' };
   }
@@ -218,7 +219,14 @@ export default function Pricing() {
               )}
 
               <div className="mb-5">
-                <h2 className="text-lg font-black text-on-surface mb-1">{plan.name}</h2>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-lg font-black text-on-surface">{plan.name}</h2>
+                  {(plan.key === 'basic' || plan.key === 'pro') && !isCurrent && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">
+                      오픈 예정
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl font-black text-on-surface">{plan.price}</span>
                   {plan.price !== '무료' && (
@@ -270,17 +278,31 @@ export default function Pricing() {
               </ul>
 
               {cta.href ? (
-                <a
-                  href={cta.href}
-                  className={`w-full py-3 rounded-2xl text-sm font-black text-center transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                    plan.highlight
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-200'
-                      : 'bg-on-surface/5 hover:bg-on-surface/10 text-on-surface'
-                  }`}
-                >
-                  <Mail size={14} />
-                  {cta.label}
-                </a>
+                cta.href.startsWith('/') ? (
+                  <Link
+                    to={cta.href}
+                    className={`w-full py-3 rounded-2xl text-sm font-black text-center transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                      plan.highlight
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-200'
+                        : 'bg-on-surface/5 hover:bg-on-surface/10 text-on-surface'
+                    }`}
+                  >
+                    <Sparkles size={14} />
+                    {cta.label}
+                  </Link>
+                ) : (
+                  <a
+                    href={cta.href}
+                    className={`w-full py-3 rounded-2xl text-sm font-black text-center transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                      plan.highlight
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-200'
+                        : 'bg-on-surface/5 hover:bg-on-surface/10 text-on-surface'
+                    }`}
+                  >
+                    <Mail size={14} />
+                    {cta.label}
+                  </a>
+                )
               ) : (
                 <div
                   className={`w-full py-3 rounded-2xl text-sm font-black text-center ${
@@ -393,7 +415,7 @@ export default function Pricing() {
 
       {/* 결제 예정 안내 */}
       <p className="text-center text-xs text-on-surface-variant mt-8">
-        현재 업그레이드는 이메일 문의를 통해 처리됩니다. 온라인 결제 기능은 곧 추가될 예정입니다.
+        온라인 결제 기능은 준비 중입니다. 지금 얼리버드로 신청하시면 오픈 시 <strong className="text-amber-600">첫 달 50% 할인</strong>을 받으실 수 있어요.
       </p>
     </div>
   );

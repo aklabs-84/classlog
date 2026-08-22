@@ -48,6 +48,7 @@ import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import Waitlist from './pages/Waitlist';
 import Gallery from './pages/Gallery';
 import VideoGuide from './pages/VideoGuide';
 import Pricing from './pages/Pricing';
@@ -244,6 +245,7 @@ function App() {
               <Route path="/report/:shareToken" element={<ParentReportShareView />} />
               <Route path="/school-intro" element={<SchoolIntroPage />} />
               <Route path="/demo" element={<Demo />} />
+              <Route path="/waitlist" element={<Waitlist />} />
 
               {/* 관리자 라우트 */}
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />

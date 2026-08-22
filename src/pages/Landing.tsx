@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   GraduationCap,
   BookOpen,
@@ -27,6 +27,7 @@ import {
   BarChart2,
   LayoutGrid,
   Images,
+  X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseVideoUrl } from '../lib/gallery';
@@ -150,6 +151,7 @@ const pricingPlans = [
     desc: '꾸준히 활용하는 선생님',
     price: '9,900',
     periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
+    waitlistPlan: 'basic',
     features: [
       { text: '클래스 최대 5개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
@@ -172,6 +174,7 @@ const pricingPlans = [
     price: '19,900',
     periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
     highlight: true,
+    waitlistPlan: 'pro',
     features: [
       { text: '클래스 최대 10개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
@@ -206,6 +209,15 @@ const pricingPlans = [
 const Landing = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // 웨이팅리스트 상단 배너
+  const [showWaitlistBar, setShowWaitlistBar] = useState(
+    () => localStorage.getItem('landing_waitlist_bar_dismissed') !== '1'
+  );
+  const dismissWaitlistBar = () => {
+    localStorage.setItem('landing_waitlist_bar_dismissed', '1');
+    setShowWaitlistBar(false);
+  };
 
   // 공개 통계
   const [pubStats, setPubStats] = useState({ total_observations: 0, total_classes: 0, total_students: 0 });
@@ -329,6 +341,35 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-white text-writer-obsidian font-pretendard">
+      {/* ── 웨이팅리스트 상단 배너 ── */}
+      {showWaitlistBar && (
+        <div className="relative bg-writer-obsidian text-white">
+          <div className="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-center gap-3 text-center">
+            <span className="hidden sm:inline-flex shrink-0 items-center gap-1 bg-amber-400 text-writer-obsidian text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <Sparkles size={11} strokeWidth={2.5} />
+              오픈 예정
+            </span>
+            <p className="text-xs sm:text-sm font-medium">
+              유료 플랜 곧 오픈! 지금 얼리버드 신청하면{' '}
+              <span className="text-amber-300 font-bold">첫 달 50% 할인</span>
+            </p>
+            <Link
+              to="/waitlist"
+              className="shrink-0 bg-amber-400 text-writer-obsidian text-xs font-black px-3 py-1 rounded-full hover:bg-amber-300 transition-colors whitespace-nowrap"
+            >
+              신청하기
+            </Link>
+            <button
+              onClick={dismissWaitlistBar}
+              aria-label="닫기"
+              className="absolute right-3 sm:right-6 p-1 text-white/60 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Navbar ── */}
       <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-writer-mist">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -815,7 +856,7 @@ const Landing = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
             <Eyebrow>💳 플랜 안내</Eyebrow>
             <h2 className="text-3xl font-black mb-3">역할에 맞는 플랜을 선택하세요</h2>
-            <p className="text-writer-slate text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 이메일 문의 후 활성화됩니다.</p>
+            <p className="text-writer-slate text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 오픈 예정입니다. 지금 얼리버드로 신청하면 첫 달 50% 할인!</p>
           </motion.div>
 
           {/* 공유 링크 안내 */}
@@ -877,6 +918,9 @@ const Landing = () => {
                   {(plan as any).schoolBadge && (
                     <div className="absolute top-4 right-4 bg-writer-iris text-white text-[9px] font-bold px-2 py-0.5 rounded-full">기관전용</div>
                   )}
+                  {(plan as any).waitlistPlan && (
+                    <div className={`absolute top-4 left-4 text-[9px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-white/15 text-white' : 'bg-amber-400 text-writer-obsidian'}`}>오픈 예정</div>
+                  )}
                   <div className="px-5 py-5">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg font-black">{plan.name}</span>
@@ -918,6 +962,18 @@ const Landing = () => {
                         도입 문의하기
                       </a>
                     )}
+                    {(plan as any).waitlistPlan && (
+                      <Link
+                        to={`/waitlist?plan=${(plan as any).waitlistPlan}`}
+                        className={`mt-3 w-full py-2 text-xs rounded-full font-bold text-center block transition-colors ${
+                          isDark
+                            ? 'bg-writer-orchid hover:bg-writer-orchid/90 text-white'
+                            : `${btnGhost}`
+                        }`}
+                      >
+                        얼리버드 신청 (첫 달 50%↓)
+                      </Link>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -934,7 +990,7 @@ const Landing = () => {
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-writer-slate mt-2"
           >
-            플랜 변경 및 문의: aklabs84@naver.com · 3/6/12개월 선결제 시 할인, 결제 후 7일 이내 전액 환불 (이후 잔여 기간 일할 계산 환불)
+            유료 플랜 결제는 준비 중이며, 얼리버드 신청자에게는 첫 달 50% 할인이 제공됩니다 · 플랜 문의: aklabs84@naver.com
           </motion.p>
         </div>
       </section>

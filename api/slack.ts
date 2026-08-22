@@ -337,6 +337,95 @@ async function handleGoogleSignup(req: any, res: any) {
   }
 }
 
+async function handleWaitlist(req: any, res: any) {
+  const webhookUrl     = process.env.SLACK_WEBHOOK_URL;
+  const supabaseUrl    = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!webhookUrl) {
+    return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
+  }
+
+  const { email, name, plan_interest, memo } = req.body;
+
+  const PLAN_LABELS: Record<string, string> = {
+    basic: 'Basic',
+    pro: 'Pro',
+    school: 'School',
+    unsure: '미정',
+  };
+
+  const payload = {
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: '🎉 클래스로그 AI — 얼리버드 웨이팅리스트 신청', emoji: true },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*이메일*\n${email}` },
+          { type: 'mrkdwn', text: `*이름*\n${name || '(미입력)'}` },
+          { type: 'mrkdwn', text: `*관심 플랜*\n${PLAN_LABELS[plan_interest] || plan_interest}` },
+        ],
+      },
+      ...(memo
+        ? [
+            {
+              type: 'section',
+              text: { type: 'mrkdwn', text: `*하고 싶은 말*\n${memo}` },
+            },
+          ]
+        : []),
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `신청 시각: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`,
+          },
+        ],
+      },
+    ],
+  };
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(`Slack responded with ${response.status}`);
+  } catch (error: any) {
+    console.error('[api/slack?type=waitlist] slack error:', error?.message);
+  }
+
+  // 관리자 PWA 푸시 알림 (notifications insert → 기존 DB 트리거가 /api/send-push 자동 호출)
+  if (supabaseUrl && serviceRoleKey) {
+    try {
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: admins } = await supabaseAdmin.from('profiles').select('id').eq('is_admin', true);
+      if (admins && admins.length > 0) {
+        await supabaseAdmin.from('notifications').insert(
+          admins.map((admin) => ({
+            user_id: admin.id,
+            title: '🎉 새 웨이팅리스트 신청',
+            content: `${email} (${PLAN_LABELS[plan_interest] || plan_interest} 관심)`,
+            type: 'waitlist_signup',
+            link: '/admin',
+          }))
+        );
+      }
+    } catch (error: any) {
+      console.error('[api/slack?type=waitlist] push notify error:', error?.message);
+    }
+  }
+
+  return res.status(200).json({ ok: true });
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -348,5 +437,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'school-inquiry') return handleSchoolInquiry(req, res);
   if (type === 'bug-report') return handleBugReport(req, res);
   if (type === 'google-signup') return handleGoogleSignup(req, res);
-  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup)' });
+  if (type === 'waitlist') return handleWaitlist(req, res);
+  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist)' });
 }
