@@ -71,12 +71,16 @@ async function callDirect(body: any, apiKeyOverride?: string): Promise<string> {
     }
 
     if (mode === 'chat') {
-      const chat = generativeModel.startChat({
+      // startChat()에 systemInstruction을 그대로 넘기면 문자열이 포맷 변환 없이 API로 전달되어
+      // "Invalid value at 'system_instruction'" 오류가 남 → getGenerativeModel() 생성 시점에 넘겨야 SDK가 올바르게 변환함
+      const chatModel = systemInstruction
+        ? genAI.getGenerativeModel({ model: getModelId(model), generationConfig: generativeModel.generationConfig, systemInstruction })
+        : generativeModel;
+      const chat = chatModel.startChat({
         history: (history ?? []).map((h: any) => ({
           role: h.role as 'user' | 'model',
           parts: Array.isArray(h.parts) ? h.parts : [{ text: h.text ?? '' }],
         })),
-        systemInstruction,
       });
       const promptParts: any[] = [{ text: message ?? '' }];
       if (files?.length) promptParts.push(...files);
@@ -524,6 +528,18 @@ function anonymizeObservations(observations: any[]) {
   }));
 }
 
+// AI 채팅 전용: 학급 소유 교사 본인만 보는 대화이므로 학생 이름은 포함하되,
+// SEATUK_GUIDE/PRIVACY 지침으로 주민번호 등 민감정보 노출은 계속 차단한다.
+function formatObservationsForChat(observations: any[]) {
+  return observations.map(o => ({
+    student_name: o.student_name,
+    activity_name: o.activity_name,
+    content: o.content,
+    status: o.status,
+    created_at: o.created_at,
+  }));
+}
+
 export async function generateDetailedReport(className: string, observations: any[], classId?: string) {
   const prompt = `
     학급명: ${className}
@@ -574,14 +590,16 @@ export async function chatWithClassData(
   message: string,
   files?: { inlineData: { data: string; mimeType: string } }[],
   extractedText?: string,
-  classId?: string
+  classId?: string,
+  focusStudentName?: string,
+  totalStudentCount?: number
 ) {
   const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}${SYSTEM_INSTRUCTIONS.PRIVACY}
 당신은 '${className}'의 학급 데이터를 파악하고 있는 AI 어시스턴트입니다.
 선생님이 제공한 데이터와 첨부된 파일의 추출 텍스트를 바탕으로 답변하세요.
-
+${focusStudentName ? `\n[집중 모드] 지금 선생님은 '${focusStudentName}' 학생 한 명에 집중해서 대화하고 있습니다. 아래 데이터도 이 학생의 기록으로 좁혀져 있으니, 답변도 이 학생에 한정해서 작성하세요.\n` : `\n[학급 기본 정보]\n전체 등록 학생 수: ${totalStudentCount ?? '알 수 없음'}명\n아래 관찰 기록에는 각 기록을 남긴 학생 이름(student_name)이 포함되어 있습니다. 이 데이터는 선생님 본인의 학급 데이터이므로, 학생 이름을 언급하며 개별 학생에 대한 질문에도 답변하세요. 다만 주민번호·주소 등 기록에 없는 민감정보를 추측해서 언급하지는 마세요.\n`}
 [학급 데이터 환경 (관찰 기록)]
-${JSON.stringify(anonymizeObservations(observations.slice(0, 100)))}
+${JSON.stringify(focusStudentName ? anonymizeObservations(observations.slice(0, 100)) : formatObservationsForChat(observations.slice(0, 100)))}
 
 [첨부 파일에서 추출된 텍스트 정보]
 ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습니다.'}
@@ -589,7 +607,8 @@ ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습�
 [답변 가이드라인]
 1. 데이터에 기반하여 답변하되, 파일의 내용을 참고했다면 "[파일 참고]"라고 명시하세요.
 2. 학생 성장에 도움이 되는 교육적이고 긍정적인 방향으로 조언하세요.
-3. 세특이나 행특 문구 작성을 요청받으면 기재요령을 준수하여 작성하세요.`;
+3. 세특이나 행특 문구 작성을 요청받으면 기재요령을 준수하여 작성하세요.
+4. 답변은 마크다운으로 가독성 있게 작성하세요. 소제목은 "##", 핵심 용어나 결론은 "**굵게**", 여러 항목을 나열할 때는 "-" 목록을, 여러 학생/활동/시기를 비교할 때는 표(|구분|내용|)를 적극 활용하세요.`;
 
   return callProxy({
     mode: 'chat',

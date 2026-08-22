@@ -225,6 +225,7 @@ const Classroom = () => {
   // AI 인사이트 모달 상태
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [aiChatFocusStudentId, setAiChatFocusStudentId] = useState<string | null>(null);
 
   // 학생 명단 관리 모달 상태
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -2057,6 +2058,16 @@ const Classroom = () => {
                   <span className="hidden sm:inline">이동 중 브리핑</span>
                 </button>
               )}
+              {/* AI에게 물어보기 버튼 */}
+              {activeClassId && (
+                <button
+                  onClick={() => { setAiChatFocusStudentId(null); setIsAIChatOpen(true); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-primary to-primary-dim text-white font-black text-xs shadow-elevated transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  <Sparkles size={14} />
+                  <span className="hidden sm:inline">AI에게 물어보기</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2181,7 +2192,7 @@ const Classroom = () => {
                     classId={activeClassId ?? undefined}
                     students={sortedStudents}
                     onOpenReport={() => setIsAIReportOpen(true)}
-                    onOpenChat={() => setIsAIChatOpen(true)}
+                    onOpenChat={() => { setAiChatFocusStudentId(null); setIsAIChatOpen(true); }}
                   />
                   {sortedStudents.length > 0 && (
                      <p className="mt-10 text-on-surface-variant/70 text-sm font-bold flex items-center gap-2">
@@ -2920,10 +2931,12 @@ const Classroom = () => {
 
       <AIChatModal
         isOpen={isAIChatOpen}
-        onClose={() => setIsAIChatOpen(false)}
+        onClose={() => { setIsAIChatOpen(false); setAiChatFocusStudentId(null); }}
         className={classInfo?.name || ''}
         classId={activeClassId ?? undefined}
         students={students}
+        focusStudentId={aiChatFocusStudentId}
+        onClearFocus={() => setAiChatFocusStudentId(null)}
       />
 
       <StudentDetailDrawer
@@ -2934,6 +2947,12 @@ const Classroom = () => {
         }}
         studentId={detailedStudentId}
         fromClassId={activeClassId || undefined}
+        onAskAI={(studentId) => {
+          setIsDrawerOpen(false);
+          setDetailedStudentId(null);
+          setAiChatFocusStudentId(studentId);
+          setIsAIChatOpen(true);
+        }}
       />
 
       <AnimatePresence>

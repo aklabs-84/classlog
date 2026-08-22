@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  Bell, Settings, Trash2, Plus, GraduationCap, Menu, X,
+  Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
   Bug, Images, Download, Share, MoreVertical, Gift, Lightbulb,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Minus,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { useFontScale } from '../../hooks/useFontScale';
 import NotificationPermissionButton from '../NotificationPermissionButton';
 
 interface NavbarProps {
@@ -22,7 +23,9 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { installState, triggerInstall } = usePWAInstall();
+  const { scale: fontScale, canDecrease: canDecreaseFont, canIncrease: canIncreaseFont, decrease: decreaseFont, increase: increaseFont } = useFontScale();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bugReportOpen, setBugReportOpen] = useState(false);
@@ -237,8 +240,45 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
         <NotificationPermissionButton variant="desktop" />
       </div>
 
+      {/* 글자 크기 조절 (펼침 상태 전용 — 접힘 상태는 아래 아이콘 묶음에 통합) */}
+      {!isCollapsed && (
+        <div className="shrink-0 flex items-center justify-center gap-0.5 p-0.5 mt-3 mb-2 rounded-xl bg-surface-container-low/50 border border-on-surface/5">
+          <button
+            onClick={decreaseFont}
+            disabled={!canDecreaseFont}
+            title="글자 작게"
+            className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/50 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+          >
+            <Minus size={14} strokeWidth={2.5} />
+          </button>
+          <span className="text-[10px] font-black text-on-surface-variant/40 tabular-nums w-8 text-center select-none">{fontScale}%</span>
+          <button
+            onClick={increaseFont}
+            disabled={!canIncreaseFont}
+            title="글자 크게"
+            className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/50 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+          >
+            <Plus size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
+
       {/* 아이콘 액션 묶음 */}
       <div className={`shrink-0 flex items-center gap-1 flex-wrap ${isCollapsed ? 'flex-col pt-3 mt-1 border-t border-on-surface/5' : 'justify-center pt-2'}`}>
+        {isCollapsed && (
+          <>
+            <button onClick={decreaseFont} disabled={!canDecreaseFont} title="글자 작게"
+              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+            >
+              <Minus size={16} strokeWidth={2.5} />
+            </button>
+            <button onClick={increaseFont} disabled={!canIncreaseFont} title="글자 크게"
+              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+            </button>
+          </>
+        )}
         {showInstallBtn && (
           <button onClick={handleNavInstall} title="앱 설치"
             className="w-9 h-9 rounded-xl hover:bg-primary/8 transition-all text-primary/60 hover:text-primary flex items-center justify-center"
@@ -272,26 +312,61 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
           </AnimatePresence>
         </div>
 
-        <button onClick={() => setBugReportOpen(true)} title="버그 신고"
-          className="w-9 h-9 rounded-xl hover:bg-red-50 hover:shadow-soft transition-all text-on-surface-variant/30 hover:text-red-400 flex items-center justify-center"
-        >
-          <Bug size={16} />
-        </button>
-
-        <NavLink to="/settings#referral" title="친구 초대"
-          className="w-9 h-9 rounded-xl hover:bg-emerald-50 hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-emerald-500 flex items-center justify-center"
-        >
-          <Gift size={17} />
-        </NavLink>
-
-        <NavLink to="/settings" title="설정"
-          className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary flex items-center justify-center"
-        >
-          <Settings size={17} />
-        </NavLink>
+        {isCollapsed ? (
+          <div className="relative">
+            <button
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              title="더보기"
+              className={`w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all flex items-center justify-center ${showMoreMenu ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40'}`}
+            >
+              <MoreVertical size={17} />
+            </button>
+            <AnimatePresence>
+              {showMoreMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute left-full bottom-0 ml-3 w-44 glass rounded-2xl shadow-elevated p-1.5 z-50 border border-white/60"
+                >
+                  <button
+                    onClick={() => { setBugReportOpen(true); setShowMoreMenu(false); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-red-50 transition-all text-on-surface-variant/70 hover:text-red-400 text-[13px] font-black"
+                  >
+                    <Bug size={15} /> 버그 신고
+                  </button>
+                  <NavLink
+                    to="/settings#referral"
+                    onClick={() => setShowMoreMenu(false)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-emerald-50 transition-all text-on-surface-variant/70 hover:text-emerald-500 text-[13px] font-black"
+                  >
+                    <Gift size={15} /> 친구 초대
+                  </NavLink>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setBugReportOpen(true)}
+              title="버그 신고"
+              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-red-400 flex items-center justify-center"
+            >
+              <Bug size={17} />
+            </button>
+            <NavLink
+              to="/settings#referral"
+              title="친구 초대"
+              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-emerald-500 flex items-center justify-center"
+            >
+              <Gift size={17} />
+            </NavLink>
+          </>
+        )}
       </div>
 
-      {/* 아바타 */}
+      {/* 아바타 (클릭 시 설정으로 이동) */}
       <NavLink to="/settings"
         className="shrink-0 flex items-center gap-2 pt-3 mt-2 border-t border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-2 rounded-xl group active:scale-95"
       >
@@ -470,13 +545,12 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
                 >
                   <Gift size={16} /> 초대
                 </NavLink>
-                <NavLink
-                  to="/settings"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl font-black text-sm bg-surface-container hover:bg-surface-container-high transition-all text-on-surface-variant"
+                <button
+                  onClick={() => { setBugReportOpen(true); setMobileMenuOpen(false); }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl font-black text-sm bg-red-50 hover:bg-red-100 transition-all text-red-400"
                 >
-                  <Settings size={16} /> 설정
-                </NavLink>
+                  <Bug size={16} /> 버그
+                </button>
               </div>
               {showInstallBtn && (
                 <button
@@ -486,6 +560,28 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
                   <Download size={16} /> 앱 설치하기
                 </button>
               )}
+              <div className="flex items-center justify-between gap-2 w-full px-4 py-2.5 rounded-xl bg-surface-container-low/50 border border-on-surface/5">
+                <span className="text-sm font-black text-on-surface-variant/70">글자 크기</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={decreaseFont}
+                    disabled={!canDecreaseFont}
+                    title="글자 작게"
+                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/50 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+                  >
+                    <Minus size={15} strokeWidth={2.5} />
+                  </button>
+                  <span className="text-[11px] font-black text-on-surface-variant/40 tabular-nums w-9 text-center select-none">{fontScale}%</span>
+                  <button
+                    onClick={increaseFont}
+                    disabled={!canIncreaseFont}
+                    title="글자 크게"
+                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/50 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+                  >
+                    <Plus size={15} strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
               <NotificationPermissionButton variant="mobile" onNavigate={() => setMobileMenuOpen(false)} />
             </div>
           </motion.div>

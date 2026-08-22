@@ -218,12 +218,16 @@ export default async function handler(req: any, res: any) {
       usageMeta = response.usageMetadata ?? null;
 
     } else if (mode === 'chat') {
-      const chat = generativeModel.startChat({
+      // startChat()에 systemInstruction을 그대로 넘기면 문자열이 포맷 변환 없이 API로 전달되어
+      // "Invalid value at 'system_instruction'" 오류가 남 → getGenerativeModel() 생성 시점에 넘겨야 SDK가 올바르게 변환함
+      const chatModel = systemInstruction
+        ? genAI.getGenerativeModel({ model: modelId, generationConfig: generativeModel.generationConfig, systemInstruction })
+        : generativeModel;
+      const chat = chatModel.startChat({
         history: (history ?? []).map((h: any) => ({
           role: h.role as 'user' | 'model',
           parts: Array.isArray(h.parts) ? h.parts : [{ text: h.text ?? '' }],
         })),
-        systemInstruction: systemInstruction,
       });
       const promptParts: any[] = [{ text: message ?? '' }];
       if (files && files.length > 0) promptParts.push(...files);

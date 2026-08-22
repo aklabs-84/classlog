@@ -184,6 +184,15 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
+
+  .custom-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* ── Tiptap WYSIWYG 에디터 스타일 ──────────────────────────────────────── */

@@ -17,9 +17,10 @@ interface StudentDetailDrawerProps {
   onClose: () => void;
   studentId: string | null;
   fromClassId?: string;
+  onAskAI?: (studentId: string) => void;
 }
 
-const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: StudentDetailDrawerProps) => {
+const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI }: StudentDetailDrawerProps) => {
   const { user } = useAuth();
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -324,12 +325,20 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
             </div>
 
             <div className="flex gap-2">
-              <button 
+              <button
                 onClick={handleNavigateToFullPage}
                 className="flex-1 py-3 bg-on-surface text-surface rounded-xl text-xs font-black hover:bg-primary transition-all shadow-soft active:scale-95 flex items-center justify-center gap-2"
               >
                 <BookOpen size={14} /> 전체 기록실 이동
               </button>
+              {onAskAI && (
+                <button
+                  onClick={() => studentId && onAskAI(studentId)}
+                  className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/85 transition-all shadow-soft active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Sparkles size={14} /> AI에게 물어보기
+                </button>
+              )}
             </div>
           </header>
 
