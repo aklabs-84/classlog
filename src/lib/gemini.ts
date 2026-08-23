@@ -146,6 +146,39 @@ async function callProxy(body: object): Promise<string> {
   return data.result as string;
 }
 
+// 텍스트를 768차원 벡터로 변환 — 저장 시(임베딩 캐싱)와 검색 시(쿼리 벡터 계산) 공용으로 사용.
+// 사용자 본인 API 키 등록 여부와 무관하게 항상 서버 GEMINI_API_KEY(또는 개발환경 VITE 키)로 계산한다.
+export async function embedText(text: string): Promise<number[]> {
+  if (!text || !text.trim()) return [];
+  const trimmed = text.slice(0, 8000);
+
+  if ((import.meta as any).env?.DEV) {
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    if (!apiKey) throw new Error('VITE_GEMINI_API_KEY가 .env에 없습니다.');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    // outputDimensionality: DB의 vector(768) 컬럼과 맞추기 위해 768차원으로 축소 요청 — SDK 타입 정의에는 없지만 API는 지원한다.
+    const { embedding } = await embeddingModel.embedContent({
+      content: { role: 'user', parts: [{ text: trimmed }] },
+      outputDimensionality: 768,
+    } as any);
+    return embedding.values;
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ mode: 'embed', text: trimmed }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? '임베딩 처리 중 오류가 발생했습니다.');
+  return data.embedding as number[];
+}
+
 // Compatible wrappers matching the @google/generative-ai interface used in the codebase
 function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown', jsonMode = false) {
   return {

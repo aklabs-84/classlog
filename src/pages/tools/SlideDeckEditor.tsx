@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
@@ -11,7 +11,7 @@ import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import ImportMaterialModal, { type ImportableMaterial } from '../../components/slidedeck/ImportMaterialModal';
-import { generateSlideDeckDraft } from '../../lib/gemini';
+import { generateSlideDeckDraft, embedText } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
@@ -32,6 +32,23 @@ const resolveSourceContent = (material: ImportableMaterial): string => {
   return material.content ?? '';
 };
 
+// DeckSlide.objects[]의 텍스트류(text/link 라벨/code) 값만 이어붙여 임베딩 입력 텍스트로 사용
+const extractSlideDeckText = (slides: DeckSlide[]): string =>
+  slides
+    .flatMap(slide => slide.objects.map(obj => obj.text))
+    .filter((text): text is string => !!text && text.trim().length > 0)
+    .join('\n');
+
+// 저장된 슬라이드덱의 임베딩을 백그라운드로 갱신 — 아이디어 기록의 "참고할 만한 자료" 검색에 쓰인다.
+const syncSlideDeckEmbedding = (deckId: string, title: string, slides: DeckSlide[]) => {
+  embedText(`${title}\n${extractSlideDeckText(slides)}`.trim())
+    .then(vector => {
+      if (vector.length === 0) return;
+      return supabase.from('slide_decks').update({ embedding: vector }).eq('id', deckId);
+    })
+    .catch(err => console.error('[SlideDeckEditor] 임베딩 갱신 오류:', err));
+};
+
 interface DeckListRow {
   id: string;
   title: string;
@@ -45,9 +62,13 @@ export default function SlideDeckEditor() {
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
   const location = useLocation();
+  const navigate = useNavigate();
   // 아이디어 기록(나의 노트)에서 "슬라이드로 만들기"로 넘어온 초안 — 덱 생성 완료 시 원본 노트에 연결 기록
   const pendingDraftNoteIdRef = useRef<string | null>(null);
   const draftHandledRef = useRef(false);
+  const openDeckHandledRef = useRef(false);
+  // 아이디어 기록의 "참고할 만한 자료" 패널을 통해 이 슬라이드로 넘어온 경우 — 에디터 상단에 돌아가기 링크를 보여준다
+  const [cameFromIdeaRecord, setCameFromIdeaRecord] = useState(false);
   const [view, setView] = useState<View>('list');
   const [decks, setDecks] = useState<DeckListRow[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -95,6 +116,18 @@ export default function SlideDeckEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 아이디어 기록의 "참고할 만한 자료" 패널에서 특정 슬라이드로 바로 이동한 경우
+  useEffect(() => {
+    if (openDeckHandledRef.current) return;
+    const state = location.state as { openSlideId?: string; fromIdeaRecord?: boolean } | null;
+    const openId = state?.openSlideId;
+    if (!openId) return;
+    openDeckHandledRef.current = true;
+    if (state?.fromIdeaRecord) setCameFromIdeaRecord(true);
+    handleOpenDeck(openId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── 자동 저장 ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeDeck) return;
@@ -105,6 +138,7 @@ export default function SlideDeckEditor() {
         .from('slide_decks')
         .update({ title: activeDeck.title, slides: activeDeck.slides, updated_at: new Date().toISOString() })
         .eq('id', activeDeck.id);
+      syncSlideDeckEmbedding(activeDeck.id, activeDeck.title, activeDeck.slides);
       setSaveState('saved');
     }, 900);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
@@ -132,6 +166,7 @@ export default function SlideDeckEditor() {
       .select()
       .single();
     if (error || !data) return;
+    syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
     setActiveTemplateId(templateId);
     setActiveDeck(data as SlideDeck);
     setActiveSlideIndex(0);
@@ -161,6 +196,7 @@ export default function SlideDeckEditor() {
         .select()
         .single();
       if (error || !data) return;
+      syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
       setActiveTemplateId(templateId);
       setActiveDeck(data as SlideDeck);
       setActiveSlideIndex(0);
@@ -207,6 +243,7 @@ export default function SlideDeckEditor() {
         .select()
         .single();
       if (error || !data) { alert('슬라이드를 저장하는 중 오류가 발생했습니다.'); return; }
+      syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
       setActiveDeck(data as SlideDeck);
       setActiveSlideIndex(0);
       setSelectedObjectId(null);
@@ -512,6 +549,15 @@ export default function SlideDeckEditor() {
           <span style={{ fontSize: 12, color: '#9CA3AF' }}>
             {saveState === 'saving' ? '저장 중...' : saveState === 'saved' ? '저장됨' : ''}
           </span>
+          {cameFromIdeaRecord && (
+            <button
+              onClick={() => navigate('/dashboard')}
+              title="아이디어 기록 페이지로 돌아갑니다"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ede9fe', color: '#6d28d9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+            >
+              <Lightbulb size={14} /> 아이디어 기록으로
+            </button>
+          )}
           <button
             onClick={() => setShowApplyTemplateModal(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}

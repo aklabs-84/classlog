@@ -249,7 +249,7 @@ export default function MyNotes() {
             className="flex-1 px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div className="rounded-2xl overflow-hidden border border-surface-container">
+        <div className="rounded-2xl border border-surface-container">
           <RichEditor
             value={content}
             onChange={setContent}
@@ -317,7 +317,7 @@ export default function MyNotes() {
                         placeholder="제목 (선택)"
                         className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
-                      <div className="rounded-xl overflow-hidden border border-surface-container">
+                      <div className="rounded-xl border border-surface-container">
                         <RichEditor
                           value={editForm.content}
                           onChange={v => setEditForm(p => ({ ...p, content: v }))}
@@ -325,6 +325,8 @@ export default function MyNotes() {
                           onUploadingChange={setEditUploading}
                           uploading={editUploading}
                           minHeight="240px"
+                          toolbarRoundedClassName="rounded-t-xl"
+                          contentRoundedClassName="rounded-b-xl"
                         />
                       </div>
                       <div className="flex gap-2 justify-end">

@@ -433,8 +433,10 @@ const QuizStudentView = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 flex items-center justify-center p-4">
       {/* 배경 glow */}
-      <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-400/20 rounded-full blur-[100px] pointer-events-none" />
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-400/20 rounded-full blur-[100px] pointer-events-none" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-400/20 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-400/20 rounded-full blur-[100px]" />
+      </div>
 
       <div className={`w-full relative z-10 ${session?.state === 'QUIZ' ? 'max-w-md md:max-w-3xl lg:max-w-4xl' : 'max-w-md'}`}>
         <AnimatePresence mode="wait">

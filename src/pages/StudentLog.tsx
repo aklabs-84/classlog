@@ -5205,7 +5205,7 @@ ${guidePrompt}
                     )}
 
                     {/* 에디터 */}
-                    <div className="relative mx-5 mt-4 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
+                    <div className="relative mx-5 mt-4 mb-6 rounded-2xl border border-neutral-200 bg-white shadow-sm">
                       <RichEditor
                         key={noteEditorKey}
                         value={noteContent}
@@ -5213,6 +5213,7 @@ ${guidePrompt}
                         onUploadImage={handleNoteImageUpload}
                         onUploadingChange={handleNoteImageUploadingChange}
                         minHeight="420px"
+                        toolbarTopClassName="top-[61px]"
                       />
 
                     </div>

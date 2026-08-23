@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,15 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
 import CodeBlock from '../components/CodeBlock';
-import { analyzeIdea, generateLessonPlanDraft, type IdeaAnalysisResult, type RelatedMaterialRef } from '../lib/gemini';
+import { analyzeIdea, generateLessonPlanDraft, embedText, type IdeaAnalysisResult, type RelatedMaterialRef } from '../lib/gemini';
+import type { DeckSlide } from '../components/slidedeck/types';
+
+// DeckSlide.objects[]의 텍스트류 값만 이어붙여 미리보기용 텍스트로 사용 (SlideDeckEditor.tsx의 extractSlideDeckText와 동일 로직)
+const extractSlideDeckPreviewText = (slides: DeckSlide[]): string =>
+  slides
+    .flatMap(slide => slide.objects.map(obj => obj.text))
+    .filter((text): text is string => !!text && text.trim().length > 0)
+    .join('\n');
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -122,6 +130,21 @@ interface TeacherNote {
   classes?: { name: string } | null;
 }
 
+// 6단계: match_my_content RPC 반환 행 — 내 노트/자료/슬라이드 중 임베딩 유사도가 높은 것들
+interface MatchedContent {
+  source_type: 'note' | 'material' | 'slide';
+  id: string;
+  title: string;
+  snippet: string;
+  similarity: number;
+}
+
+const SOURCE_TYPE_LABEL: Record<MatchedContent['source_type'], string> = {
+  note: '아이디어 기록',
+  material: '수업 자료',
+  slide: '슬라이드',
+};
+
 const FORMAT_LABEL: Record<IdeaAnalysisResult['suggestedFormat'], string> = {
   guide: '수업 가이드',
   material: '수업 자료',
@@ -156,6 +179,9 @@ export default function IdeaRecord() {
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  // 자동저장으로 아직 한 번도 insert되지 않은 새 아이디어인지 추적 — insert 이후엔 이 id로 update만 수행
+  const draftNoteIdRef = useRef<string | null>(null);
 
   const [filterClassId, setFilterClassId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'write' | 'list'>('write');
@@ -181,6 +207,41 @@ export default function IdeaRecord() {
   // 5단계: 태그 매칭용 — 카드에 "비슷한 자료 있음" 힌트를 보여주기 위해 한 번만 가져와둠
   const [libraryMaterials, setLibraryMaterials] = useState<{ title: string; content: string }[]>([]);
   const [librarySlides, setLibrarySlides] = useState<{ title: string }[]>([]);
+
+  // 6단계: 작성 중인 내용과 의미적으로 유사한 내 자료/노트/슬라이드를 실시간 검색해 보여주는 패널
+  const [relatedSuggestions, setRelatedSuggestions] = useState<MatchedContent[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [previewItem, setPreviewItem] = useState<MatchedContent | null>(null);
+  const [previewFullContent, setPreviewFullContent] = useState<string | null>(null);
+  const [previewFullLoading, setPreviewFullLoading] = useState(false);
+
+  // 6단계 후속: 미리보기 모달을 열면 스니펫(200자) 대신 전체 원문을 불러와 보여준다
+  useEffect(() => {
+    if (!previewItem) { setPreviewFullContent(null); return; }
+    let cancelled = false;
+    setPreviewFullContent(null);
+    setPreviewFullLoading(true);
+    (async () => {
+      try {
+        if (previewItem.source_type === 'note') {
+          const target = notes.find(n => n.id === previewItem.id);
+          if (!cancelled) setPreviewFullContent(target?.content ?? '');
+        } else if (previewItem.source_type === 'material') {
+          const { data } = await supabase.from('class_materials').select('content').eq('id', previewItem.id).single();
+          if (!cancelled) setPreviewFullContent(data?.content ?? '');
+        } else {
+          const { data } = await supabase.from('slide_decks').select('slides').eq('id', previewItem.id).single();
+          if (!cancelled) setPreviewFullContent(data?.slides ? extractSlideDeckPreviewText(data.slides as DeckSlide[]) : '');
+        }
+      } catch (err) {
+        console.error('[IdeaRecord] 미리보기 원문 로드 오류:', err);
+        if (!cancelled) setPreviewFullContent('');
+      } finally {
+        if (!cancelled) setPreviewFullLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [previewItem, notes]);
 
   // ── 노트 본문 내 이미지 업로드 — WebP 변환 후 Supabase 저장 ─────────────────
   const handleUploadImage = async (file: File): Promise<string> => {
@@ -273,20 +334,98 @@ export default function IdeaRecord() {
     }
   };
 
-  const handleSave = async () => {
-    if (!content.trim()) return;
-    setSaving(true);
+  // ── 새 아이디어 자동 저장 ────────────────────────────────────────────────
+  // 자료 에디터(MaterialEditor)와 동일한 패턴: 첫 자동저장 때 insert, 이후엔 같은 행을 update
+  const doAutoSave = async (): Promise<boolean> => {
+    if (!content.trim()) return false;
+    setAutoSaveStatus('saving');
     try {
-      const { error } = await supabase.from('teacher_notes').insert({
+      const payload = {
         teacher_id: user?.id,
         class_id: formClassId === NO_CLASS ? null : formClassId,
         title: title.trim() || null,
         content: content.trim(),
-      });
-      if (error) throw error;
+      };
+      if (draftNoteIdRef.current) {
+        const { error } = await supabase
+          .from('teacher_notes')
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq('id', draftNoteIdRef.current);
+        if (error) throw error;
+        const noteId = draftNoteIdRef.current;
+        setNotes(prev => prev.map(n => (n.id === noteId ? { ...n, title: payload.title, content: payload.content, class_id: payload.class_id } : n)));
+      } else {
+        const { data, error } = await supabase.from('teacher_notes').insert(payload).select().single();
+        if (error) throw error;
+        if (data) {
+          draftNoteIdRef.current = data.id;
+          const className = classes.find(c => c.id === payload.class_id)?.name ?? null;
+          setNotes(prev => [{ ...(data as TeacherNote), classes: className ? { name: className } : null }, ...prev]);
+        }
+      }
+      setAutoSaveStatus('saved');
+      return true;
+    } catch (err) {
+      console.error('아이디어 자동저장 오류:', err);
+      setAutoSaveStatus('idle');
+      return false;
+    }
+  };
+
+  // 제목/내용/클래스 변경 시 1.5초 debounce 후 자동 저장
+  useEffect(() => {
+    if (activeTab !== 'write') return;
+    if (!content.trim()) return;
+    const timer = setTimeout(() => { doAutoSave(); }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, content, formClassId, activeTab]);
+
+  // 6단계: 작성 중인 내용과 유사한 내 자료를 실시간 검색 — 하나의 임베딩을 검색 쿼리와
+  // 초안 노트의 embedding 갱신에 함께 사용해 Gemini 호출을 중복시키지 않는다.
+  useEffect(() => {
+    if (activeTab !== 'write') { setRelatedSuggestions([]); setSuggestLoading(false); return; }
+    const trimmed = content.replace(/<[^>]+>/g, ' ').trim();
+    if (trimmed.length < 20) { setRelatedSuggestions([]); setSuggestLoading(false); return; }
+    let cancelled = false;
+    setSuggestLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const vector = await embedText(`${title}\n${trimmed}`.trim());
+        if (cancelled || vector.length === 0) return;
+        const { data, error } = await supabase.rpc('match_my_content', {
+          query_embedding: vector,
+          match_count: 5,
+          exclude_note_id: draftNoteIdRef.current,
+        });
+        if (error) throw error;
+        if (!cancelled) setRelatedSuggestions(((data ?? []) as MatchedContent[]).filter(r => r.similarity > 0.55));
+        if (draftNoteIdRef.current) {
+          supabase.from('teacher_notes').update({ embedding: vector }).eq('id', draftNoteIdRef.current)
+            .then(({ error: embedError }) => { if (embedError) console.error('[IdeaRecord] 노트 임베딩 갱신 오류:', embedError); });
+        }
+      } catch (err) {
+        if (!cancelled) console.error('[IdeaRecord] 참고 자료 검색 오류:', err);
+      } finally {
+        if (!cancelled) setSuggestLoading(false);
+      }
+    }, 1800);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, content, activeTab]);
+
+  // "완료" 버튼 — 디바운스를 기다리지 않고 즉시 저장을 보장한 뒤 폼을 비우고 목록으로 이동
+  const handleFinishWriting = async () => {
+    if (!content.trim()) return;
+    setSaving(true);
+    try {
+      const ok = await doAutoSave();
+      if (!ok) throw new Error('저장에 실패했습니다.');
       setTitle('');
       setContent('');
-      await fetchNotes();
+      draftNoteIdRef.current = null;
+      setAutoSaveStatus('idle');
+      setRelatedSuggestions([]);
       setActiveTab('list');
     } catch (err: any) {
       alert('저장 중 오류가 발생했습니다: ' + err.message);
@@ -316,6 +455,12 @@ export default function IdeaRecord() {
       setNotes(prev =>
         prev.map(n => (n.id === id ? { ...n, title: editForm.title.trim() || null, content: editForm.content.trim() } : n))
       );
+      embedText(`${editForm.title.trim()}\n${editForm.content.trim()}`.trim())
+        .then(vector => {
+          if (vector.length === 0) return;
+          return supabase.from('teacher_notes').update({ embedding: vector }).eq('id', id);
+        })
+        .catch(err => console.error('[IdeaRecord] 노트 임베딩 갱신 오류:', err));
       setEditingId(null);
     } catch (err) {
       console.error('수정 오류:', err);
@@ -339,20 +484,27 @@ export default function IdeaRecord() {
     }
   };
 
-  // 같은 클래스(없으면 내 최근 자료 전체)에서 최근 수업 자료 몇 개를 가져와 AI 제안/생성의 참고 맥락으로 사용
+  // 6단계: 이 노트와 의미적으로 유사한 내 수업 자료를 임베딩 검색으로 찾아 AI 제안/생성의 참고 맥락으로 사용
+  // (같은 클래스로 한정하지 않고 내 자료 전체에서 실제 내용이 비슷한 것을 찾는다)
   const fetchRelatedMaterials = async (note: TeacherNote): Promise<RelatedMaterialRef[]> => {
     if (!user) return [];
-    let query = supabase
-      .from('class_materials')
-      .select('title, content')
-      .order('updated_at', { ascending: false })
-      .limit(5);
-    query = note.class_id ? query.eq('class_id', note.class_id) : query.eq('teacher_id', user.id);
-    const { data } = await query;
-    return (data ?? []).map((m: any) => ({
-      title: (m.title as string) || '제목 없음',
-      snippet: ((m.content as string) || '').slice(0, 300),
-    }));
+    try {
+      const vector = await embedText(`${note.title ?? ''}\n${note.content}`.trim());
+      if (vector.length === 0) return [];
+      const { data, error } = await supabase.rpc('match_my_content', {
+        query_embedding: vector,
+        match_count: 8,
+        exclude_note_id: note.id,
+      });
+      if (error) throw error;
+      return ((data ?? []) as MatchedContent[])
+        .filter(r => r.source_type === 'material')
+        .slice(0, 5)
+        .map(r => ({ title: r.title, snippet: r.snippet }));
+    } catch (err) {
+      console.error('관련 자료 조회 오류:', err);
+      return [];
+    }
   };
 
   const runAnalysis = async (note: TeacherNote) => {
@@ -481,6 +633,22 @@ export default function IdeaRecord() {
     }
   };
 
+  // 6단계: "참고할 만한 자료" 카드에서 "자료로 이동" 클릭 시 — 종류별 상세 화면으로 이동
+  const handleGoToReference = (item: MatchedContent) => {
+    setPreviewItem(null);
+    if (item.source_type === 'note') {
+      const target = notes.find(n => n.id === item.id);
+      if (!target) { alert('해당 아이디어 기록을 찾을 수 없습니다. 목록을 새로고침해주세요.'); return; }
+      setViewingNote(target);
+      return;
+    }
+    if (item.source_type === 'material') {
+      navigate('/teaching-tools', { state: { activeToolId: 'material-editor', openMaterialId: item.id, fromIdeaRecord: true } });
+      return;
+    }
+    navigate('/teaching-tools', { state: { activeToolId: 'slide-deck', openSlideId: item.id, fromIdeaRecord: true } });
+  };
+
   const filteredNotes = notes.filter(n => {
     if (filterClassId === 'all') return true;
     if (filterClassId === NO_CLASS) return !n.class_id;
@@ -492,7 +660,7 @@ export default function IdeaRecord() {
   return (
     <div className="space-y-6">
       {/* 히어로 인사 */}
-      <div className="relative">
+      <div className="relative overflow-hidden">
         <div className="absolute -top-20 -right-16 -z-10 w-72 h-72 rounded-full bg-gradient-to-br from-primary to-secondary opacity-[0.12] blur-[64px] pointer-events-none" />
         <div className="relative flex items-end justify-between gap-6 flex-wrap pb-5 border-b border-on-surface/[0.06]">
           <div>
@@ -547,7 +715,19 @@ export default function IdeaRecord() {
           <h3 className="text-sm font-black text-on-surface flex items-center gap-2">
             <StickyNote size={15} className="text-primary" /> 새 아이디어
           </h3>
-          <span className="text-[11px] font-bold text-on-surface-variant/50">가볍게 적어두세요 — 나중에 AI가 다듬어드려요</span>
+          <div className="flex items-center gap-2">
+            {autoSaveStatus === 'saving' && (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant/60">
+                <Loader2 size={11} className="animate-spin" /> 자동 저장 중...
+              </span>
+            )}
+            {autoSaveStatus === 'saved' && (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                <Save size={11} /> 자동 저장됨
+              </span>
+            )}
+            <span className="text-[11px] font-bold text-on-surface-variant/50">가볍게 적어두세요 — 나중에 AI가 다듬어드려요</span>
+          </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <select
@@ -567,7 +747,7 @@ export default function IdeaRecord() {
             className="flex-1 px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div className="rounded-2xl overflow-hidden border border-surface-container">
+        <div className="rounded-2xl border border-surface-container">
           <RichEditor
             value={content}
             onChange={setContent}
@@ -577,13 +757,49 @@ export default function IdeaRecord() {
             minHeight="220px"
           />
         </div>
+
+        {/* 6단계: 작성 중인 내용과 유사한 내 자료 실시간 검색 결과 */}
+        {(suggestLoading || relatedSuggestions.length > 0) && (
+          <div className="rounded-2xl border border-primary/10 bg-primary/[0.03] p-4 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-black text-primary">
+              {suggestLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              참고할 만한 자료
+            </div>
+            {relatedSuggestions.length === 0 && suggestLoading && (
+              <p className="text-[11px] font-bold text-on-surface-variant/50">비슷한 내용을 찾는 중...</p>
+            )}
+            <div className="space-y-2">
+              {relatedSuggestions.map(item => (
+                <div
+                  key={`${item.source_type}-${item.id}`}
+                  onClick={() => setPreviewItem(item)}
+                  className="flex items-start gap-2.5 px-3 py-2.5 bg-surface-container-lowest rounded-xl cursor-pointer hover:bg-surface-container transition-colors"
+                >
+                  <span className="mt-0.5 shrink-0 text-on-surface-variant/50">
+                    {item.source_type === 'material' ? <FileText size={14} /> : item.source_type === 'slide' ? <Presentation size={14} /> : <Lightbulb size={14} />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wide">{SOURCE_TYPE_LABEL[item.source_type]}</span>
+                      <span className="text-xs font-black text-on-surface truncate">{item.title}</span>
+                    </div>
+                    {item.snippet && (
+                      <p className="text-[11px] font-medium text-on-surface-variant/60 line-clamp-2 mt-0.5">{item.snippet}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-end">
           <button
-            onClick={handleSave}
+            onClick={handleFinishWriting}
             disabled={!content.trim() || saving || uploading}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 btn-gradient rounded-xl font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
           >
-            <Save size={16} /> {saving ? '저장 중...' : uploading ? '이미지 업로드 중...' : '아이디어 저장'}
+            <Check size={16} /> {saving ? '저장 중...' : uploading ? '이미지 업로드 중...' : '완료'}
           </button>
         </div>
       </div>
@@ -633,7 +849,7 @@ export default function IdeaRecord() {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className={`bg-surface-container-lowest rounded-2xl overflow-hidden shadow-soft hover:shadow-elevated transition-all hover:-translate-y-0.5 border border-on-surface/[0.06] group ${isEditing ? 'md:col-span-2' : ''}`}
+                  className={`bg-surface-container-lowest rounded-2xl shadow-soft hover:shadow-elevated transition-all hover:-translate-y-0.5 border border-on-surface/[0.06] group ${isEditing ? 'md:col-span-2' : 'overflow-hidden'}`}
                 >
                   {isEditing ? (
                     <div className="p-5 space-y-3">
@@ -643,7 +859,7 @@ export default function IdeaRecord() {
                         placeholder="제목 (선택)"
                         className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
-                      <div className="rounded-xl overflow-hidden border border-surface-container">
+                      <div className="rounded-xl border border-surface-container">
                         <RichEditor
                           value={editForm.content}
                           onChange={v => setEditForm(p => ({ ...p, content: v }))}
@@ -651,6 +867,8 @@ export default function IdeaRecord() {
                           onUploadingChange={setEditUploading}
                           uploading={editUploading}
                           minHeight="200px"
+                          toolbarRoundedClassName="rounded-t-xl"
+                          contentRoundedClassName="rounded-b-xl"
                         />
                       </div>
                       <div className="flex gap-2 justify-end">
@@ -991,6 +1209,63 @@ export default function IdeaRecord() {
                   </div>
                 </div>
               ) : null}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 6단계: 참고 자료 카드 클릭 시 미리보기 모달 */}
+      <AnimatePresence>
+        {previewItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+            onClick={() => setPreviewItem(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-md max-h-[80vh] overflow-hidden bg-surface-container-lowest rounded-3xl shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-primary-container to-secondary-container/50 shrink-0">
+                <span className="flex items-center gap-1.5 text-xs font-black text-primary">
+                  {previewItem.source_type === 'material' ? <FileText size={15} /> : previewItem.source_type === 'slide' ? <Presentation size={15} /> : <Lightbulb size={15} />}
+                  {SOURCE_TYPE_LABEL[previewItem.source_type]}
+                </span>
+                <button onClick={() => setPreviewItem(null)} className="w-8 h-8 rounded-lg hover:bg-white/50 flex items-center justify-center text-primary/70">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="overflow-y-auto p-6 space-y-3">
+                <h3 className="text-base font-black text-on-surface">{previewItem.title}</h3>
+                {previewFullLoading ? (
+                  <div className="flex items-center gap-2 text-xs font-bold text-on-surface-variant/50 py-6 justify-center">
+                    <Loader2 size={14} className="animate-spin" /> 불러오는 중...
+                  </div>
+                ) : previewFullContent ? (
+                  previewItem.source_type === 'slide' ? (
+                    <p className="text-xs font-medium text-on-surface-variant/70 whitespace-pre-line leading-relaxed">{previewFullContent}</p>
+                  ) : (
+                    <ReactMarkdown components={noteMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                      {previewFullContent}
+                    </ReactMarkdown>
+                  )
+                ) : (
+                  <p className="text-xs font-bold text-on-surface-variant/40">미리보기 내용이 없습니다. 자료로 이동해서 전체 내용을 확인해주세요.</p>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-on-surface/[0.06] shrink-0 flex justify-end">
+                <button
+                  onClick={() => handleGoToReference(previewItem)}
+                  className="flex items-center gap-1.5 px-4 py-2 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20"
+                >
+                  <Link2 size={13} /> 자료로 이동
+                </button>
               </div>
             </motion.div>
           </motion.div>

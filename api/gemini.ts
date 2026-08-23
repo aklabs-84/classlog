@@ -66,6 +66,7 @@ export default async function handler(req: any, res: any) {
     feature = 'unknown',
     jsonMode = false,
     class_id = null,
+    text = '',
   } = req.body;
 
   if (!mode) {
@@ -78,6 +79,36 @@ export default async function handler(req: any, res: any) {
 
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  // ── 임베딩 모드: 저장/검색용 벡터 계산 — 사용자에게 보이지 않는 인프라 호출이라
+  // 플랜 한도 체크·과금 로깅을 거치지 않고 인증만 확인한 뒤 바로 처리한다.
+  if (mode === 'embed') {
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const supabase = createClient(supabaseUrl, serviceKey);
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      if (!text || !text.trim()) {
+        return res.status(400).json({ error: 'text is required' });
+      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+      // outputDimensionality: DB의 vector(768) 컬럼과 맞추기 위해 768차원으로 축소 요청 — SDK 타입 정의에는 없지만 API는 지원한다.
+      const { embedding } = await embeddingModel.embedContent({
+        content: { role: 'user', parts: [{ text: text.slice(0, 8000) }] },
+        outputDimensionality: 768,
+      } as any);
+      return res.status(200).json({ embedding: embedding.values });
+    } catch (error: any) {
+      console.error('[api/gemini] embed error:', error?.message);
+      return res.status(500).json({ error: error?.message ?? '임베딩 처리 중 오류가 발생했습니다.' });
+    }
   }
 
   // ── 데모 학급 캐시 응답 (실제 Gemini 호출/과금 없이 예시 응답만 반환) ─────────

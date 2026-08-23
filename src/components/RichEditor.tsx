@@ -20,6 +20,7 @@ import {
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
   MonitorPlay, Palette, Lightbulb, Scissors, Lock, Unlock, ClipboardPaste,
+  HelpCircle, Slash,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -1024,6 +1025,121 @@ const TableColorModal = ({
   );
 };
 
+// ── 입력 가이드 콘텐츠 — 마크다운에 익숙하지 않은 사용자를 위해 "버튼으로도, 문법으로도" 안내 ──
+interface GuideItem { icon: React.ReactNode; label: string; desc: string; syntax?: string }
+interface GuideSection { title: string; items: GuideItem[] }
+
+const EDITOR_GUIDE_SECTIONS: GuideSection[] = [
+  {
+    title: '글자 서식',
+    items: [
+      { icon: <Bold size={14} />, label: '굵게', desc: '문장을 선택한 뒤 버튼을 누르면 굵게 표시돼요.', syntax: '**굵게**' },
+      { icon: <Italic size={14} />, label: '기울임', desc: '문장을 선택한 뒤 버튼을 누르면 기울여 표시돼요.', syntax: '*기울임*' },
+      { icon: <span className="text-[11px] font-black">A</span>, label: '글자 색상', desc: '문장을 선택한 뒤 "A" 버튼으로 원하는 색을 골라요.' },
+    ],
+  },
+  {
+    title: '제목과 목록',
+    items: [
+      { icon: <span className="text-[10px] font-black">H1</span>, label: '제목 1·2·3', desc: '문단을 제목으로 바꿔요. 숫자가 작을수록 크게 표시돼요.', syntax: '# 제목1  /  ## 제목2  /  ### 제목3' },
+      { icon: <List size={14} />, label: '글머리 목록', desc: '점(•)으로 항목을 나열해요.', syntax: '- 항목' },
+      { icon: <ListOrdered size={14} />, label: '번호 목록', desc: '1, 2, 3 순서로 항목을 나열해요.', syntax: '1. 항목' },
+      { icon: <Quote size={14} />, label: '인용구', desc: '문단을 들여쓴 인용 블록으로 표시해요.', syntax: '> 인용문' },
+      { icon: <Minus size={14} />, label: '구분선', desc: '수업 슬라이드 구분 등 내용을 나눌 때 써요.', syntax: '---' },
+    ],
+  },
+  {
+    title: '코드',
+    items: [
+      { icon: <Code size={14} />, label: '인라인 코드', desc: '문장 속 짧은 코드나 명령어를 강조해요.', syntax: '`코드`' },
+      { icon: <Code2 size={14} />, label: '코드 블록', desc: '여러 줄짜리 코드를 회색 박스로 보여줘요. 우측 상단 복사 버튼도 함께 생겨요.', syntax: '```' },
+    ],
+  },
+  {
+    title: '이미지와 링크',
+    items: [
+      { icon: <ImageIcon size={14} />, label: '이미지 업로드', desc: '내 컴퓨터의 이미지 파일을 올려요. 용량은 자동으로 최적화돼요. 복사한 이미지를 붙여넣기(Ctrl/⌘+V)해도 바로 들어가요.' },
+      { icon: <Globe size={14} />, label: '이미지 URL', desc: '인터넷에 있는 이미지 주소를 붙여넣어 삽입해요.' },
+      { icon: <Link2 size={14} />, label: '링크 삽입', desc: '텍스트를 클릭 가능한 링크로 만들어요.' },
+    ],
+  },
+  {
+    title: '자료를 돋보이게',
+    items: [
+      { icon: <ChevronRight size={14} />, label: '토글', desc: '클릭하면 펼쳐지는 접이식 블록이에요. 길게 덧붙일 참고 내용을 숨겨둘 때 좋아요.' },
+      { icon: <Lightbulb size={14} />, label: '콜아웃', desc: '정보·주의·팁·중요 강조 박스예요. 왼쪽 아이콘을 클릭하면 종류가 바뀌어요.' },
+      { icon: <Table2 size={14} />, label: '표', desc: '버튼을 누른 뒤 원하는 행×열 크기만큼 드래그해서 표를 만들어요.' },
+      { icon: <MonitorPlay size={14} />, label: '임베드', desc: 'YouTube 영상이나 구글 슬라이드·문서·시트·설문 링크를 붙여넣으면 화면 안에 바로 재생·표시돼요.' },
+    ],
+  },
+];
+
+const EDITOR_GUIDE_TIP = {
+  icon: <Slash size={14} />,
+  label: '"/" 로 빠르게 넣기',
+  desc: '빈 줄에서 "/"를 입력하면 제목·목록·표·콜아웃 등 원하는 블록을 검색해서 바로 넣을 수 있어요. 위/아래 화살표로 고르고 Enter로 선택해요.',
+};
+
+// ── 입력 가이드 모달 ─────────────────────────────────────────────────────────
+const EditorGuideModal = ({ onClose }: { onClose: () => void }) => (
+  <div
+    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+    onClick={onClose}
+  >
+    <div
+      className="bg-white rounded-3xl shadow-2xl w-[560px] max-w-full max-h-[85vh] flex flex-col"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between px-6 py-5 border-b border-surface-container shrink-0">
+        <div className="flex items-center gap-2">
+          <HelpCircle size={18} className="text-primary" />
+          <h3 className="font-black text-base">입력 가이드</h3>
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-neutral-100 text-neutral-400 transition-colors">
+          <X size={16} />
+        </button>
+      </div>
+      <div className="overflow-y-auto px-6 py-5 space-y-6">
+        <p className="text-xs font-bold text-on-surface-variant leading-relaxed">
+          모든 기능은 위 툴바 버튼을 누르기만 해도 바로 적용돼요. 아래 문법을 직접 타이핑해도 자동으로 같은 결과가 돼요 — 편한 방법을 쓰시면 됩니다.
+        </p>
+        {EDITOR_GUIDE_SECTIONS.map(section => (
+          <div key={section.title}>
+            <p className="text-[11px] font-black text-primary/70 uppercase tracking-widest mb-2.5">{section.title}</p>
+            <div className="space-y-2.5">
+              {section.items.map(item => (
+                <div key={item.label} className="flex items-start gap-3">
+                  <span className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg bg-surface-container text-on-surface-variant">
+                    {item.icon}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-xs text-on-surface">{item.label}</span>
+                      {item.syntax && (
+                        <code className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{item.syntax}</code>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed mt-0.5">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 flex items-start gap-3">
+          <span className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
+            {EDITOR_GUIDE_TIP.icon}
+          </span>
+          <div>
+            <p className="font-black text-xs text-on-surface">{EDITOR_GUIDE_TIP.label}</p>
+            <p className="text-[11px] text-on-surface-variant leading-relaxed mt-0.5">{EDITOR_GUIDE_TIP.desc}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 // ── 표 삽입 그리드 피커 ───────────────────────────────────────────────────────
 const TableGridPicker = ({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) => {
   const [hovered, setHovered] = useState<[number, number]>([0, 0]);
@@ -1296,9 +1412,21 @@ interface RichEditorProps {
   onUploadingChange?: (uploading: boolean) => void;
   uploading?: boolean;
   minHeight?: string;
+  /** 툴바를 상단에 고정할지 여부와 위치 — 페이지 자체가 스크롤되는 일반적인 경우엔 기본값이면 충분하고,
+   *  에디터 위에 이미 고정 헤더가 있는 화면(예: 학생 노트 패널)에서만 offset을 넘겨 겹침을 피한다. */
+  stickyToolbar?: boolean;
+  toolbarTopClassName?: string;
+  /** 상단 고정을 쓰려면 바깥 wrapper의 overflow-hidden을 제거해야 하므로(그래야 sticky가 실제로 동작함),
+   *  그 대신 잘려나가던 둥근 모서리를 여기서 직접 재현한다. wrapper의 rounded-* 값과 맞춰서 넘길 것. */
+  toolbarRoundedClassName?: string;
+  contentRoundedClassName?: string;
 }
 
-const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploading, minHeight = '440px' }: RichEditorProps) => {
+const RichEditor = ({
+  value, onChange, onUploadImage, onUploadingChange, uploading, minHeight = '440px',
+  stickyToolbar = true, toolbarTopClassName = 'top-16 lg:top-0',
+  toolbarRoundedClassName = 'rounded-t-2xl', contentRoundedClassName = 'rounded-b-2xl',
+}: RichEditorProps) => {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -1313,6 +1441,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
   const [pendingImage, setPendingImage] = useState<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const pendingImageRef = useRef<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
   pendingImageRef.current = pendingImage;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1493,10 +1622,11 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       else if (imageUrlDialogOpen) { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }
       else if (tablePickerOpen) { setTablePickerOpen(false); }
       else if (embedDialogOpen) { setEmbedDialogOpen(false); setEmbedUrlInput(''); setEmbedPreview(null); }
+      else if (helpOpen) { setHelpOpen(false); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [linkDialogOpen, imageUrlDialogOpen, tablePickerOpen, embedDialogOpen]);
+  }, [linkDialogOpen, imageUrlDialogOpen, tablePickerOpen, embedDialogOpen, helpOpen]);
 
   // 표 피커 외부 클릭 닫기
   useEffect(() => {
@@ -1579,8 +1709,8 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
 
   return (
     <div className="relative">
-      {/* ── 툴바 ── */}
-      <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-surface-container bg-surface-container-low/30">
+      {/* ── 툴바 (기본적으로 상단 고정 — 내용이 길어져도 스크롤 없이 바로 사용 가능) ── */}
+      <div className={`flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-surface-container bg-surface-container-low ${toolbarRoundedClassName} ${stickyToolbar ? `sticky z-20 shadow-sm ${toolbarTopClassName}` : ''}`}>
         <button onClick={() => editor.chain().focus().toggleBold().run()} title="굵게 (Ctrl+B)" className={btnCls(isActive('bold'))}><Bold size={15} /></button>
         <button onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임 (Ctrl+I)" className={btnCls(isActive('italic'))}><Italic size={15} /></button>
         {/* 글자색 버튼 */}
@@ -1664,7 +1794,16 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageFile(f); e.target.value = ''; } }} />
         <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">/ 입력 → 블록 삽입</span>
+        <button
+          onClick={() => setHelpOpen(true)}
+          title="입력 가이드"
+          className={btnCls(false)}
+        >
+          <HelpCircle size={15} />
+        </button>
       </div>
+
+      {helpOpen && <EditorGuideModal onClose={() => setHelpOpen(false)} />}
 
       {/* ── 표 편집 플로팅 메뉴 (커서가 표 안에 있을 때, 표 근처에 표시) ── */}
       <BubbleMenu
@@ -1760,7 +1899,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       {/* ── 에디터 본문 ── */}
       <div
         style={{ minHeight }}
-        className={`relative transition-colors cursor-text ${isDragging ? 'bg-primary/5 ring-2 ring-primary ring-inset' : ''}`}
+        className={`relative transition-colors cursor-text bg-white overflow-hidden ${contentRoundedClassName} ${isDragging ? 'bg-primary/5 ring-2 ring-primary ring-inset' : ''}`}
         onClick={() => editor.commands.focus()}
         onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}

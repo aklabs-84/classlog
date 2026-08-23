@@ -213,10 +213,12 @@ function App() {
       <IdleWarningModal />
       <ReferralNotice />
       <InstallPromptBanner />
-      <div className="relative min-h-screen bg-surface overflow-hidden">
-        <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="fixed top-[20%] right-[-5%] w-[30%] h-[30%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="relative min-h-screen bg-surface">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px]" />
+          <div className="absolute top-[20%] right-[-5%] w-[30%] h-[30%] bg-accent/5 rounded-full blur-[100px]" />
+        </div>
 
         <BrowserRouter>
           <FloatingClassAlarm />

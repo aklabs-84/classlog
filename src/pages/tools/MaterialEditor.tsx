@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
-import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions } from '../../lib/gemini';
+import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -35,7 +35,7 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
-  Library, Link2, FileDown, Image as ImageIcon, Upload,
+  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -945,9 +945,13 @@ const MaterialEditor = () => {
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
   const location = useLocation();
+  const navigate = useNavigate();
   // 아이디어 기록(나의 노트)에서 "수업 자료로 만들기"로 넘어온 초안 — 첫 자동저장 완료 시 원본 노트에 연결 기록
   const pendingDraftNoteIdRef = useRef<string | null>(null);
   const draftHandledRef = useRef(false);
+  const openMaterialHandledRef = useRef(false);
+  // 아이디어 기록의 "참고할 만한 자료" 패널을 통해 이 자료로 넘어온 경우 — 에디터 상단에 돌아가기 링크를 보여준다
+  const [cameFromIdeaRecord, setCameFromIdeaRecord] = useState(false);
 
   // 클래스
   const [classes, setClasses] = useState<any[]>([]);
@@ -1120,6 +1124,32 @@ const MaterialEditor = () => {
     setIsEditorOpen(true);
   };
 
+  // 아이디어 기록의 "참고할 만한 자료" 패널에서 특정 자료로 바로 이동한 경우 — id로 조회해 에디터를 연다
+  useEffect(() => {
+    if (openMaterialHandledRef.current) return;
+    const state = location.state as { openMaterialId?: string; fromIdeaRecord?: boolean } | null;
+    const openId = state?.openMaterialId;
+    if (!openId) return;
+    openMaterialHandledRef.current = true;
+    if (state?.fromIdeaRecord) setCameFromIdeaRecord(true);
+    (async () => {
+      const { data } = await supabase.from('class_materials').select('*').eq('id', openId).single();
+      if (!data) return;
+      if (data.class_id) {
+        const { data: cls } = await supabase.from('classes').select('*').eq('id', data.class_id).single();
+        setSelectedClass(cls ?? null);
+        setLibraryMode(false);
+        fetchMaterials(data.class_id);
+      } else {
+        setSelectedClass(null);
+        setLibraryMode(true);
+        fetchLibraryMaterials();
+      }
+      handleEdit(data as Material);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── 이미지 업로드 — WebP 변환 후 Supabase 저장 ───────────────────────────
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
@@ -1169,6 +1199,16 @@ const MaterialEditor = () => {
   };
 
   // ── 저장 ──────────────────────────────────────────────────────────────────
+  // 저장된 자료의 임베딩을 백그라운드로 갱신 — 아이디어 기록에서 "참고할 만한 자료" 검색에 쓰인다.
+  const syncMaterialEmbedding = (materialId: string, materialTitle: string, materialContent: string) => {
+    embedText(`${materialTitle}\n${materialContent}`.trim())
+      .then(vector => {
+        if (vector.length === 0) return;
+        return supabase.from('class_materials').update({ embedding: vector }).eq('id', materialId);
+      })
+      .catch(err => console.error('[MaterialEditor] 임베딩 갱신 오류:', err));
+  };
+
   const handleSave = async () => {
     if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
     if (!title.trim()) { alert('제목을 입력해주세요.'); return; }
@@ -1189,6 +1229,7 @@ const MaterialEditor = () => {
       if (editingMaterial) {
         const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
         if (error) throw error;
+        syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
         if (libraryMode) {
           // 공통 자료 원본 수정 시, 이미 연결된 클래스 자료들의 에디터 내용도 함께 반영
           const { error: syncError } = await supabase
@@ -1198,8 +1239,9 @@ const MaterialEditor = () => {
           if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
         }
       } else {
-        const { error } = await supabase.from('class_materials').insert(payload);
+        const { data: inserted, error } = await supabase.from('class_materials').insert(payload).select('id').single();
         if (error) throw error;
+        if (inserted) syncMaterialEmbedding(inserted.id, payload.title, payload.content);
       }
       if (libraryMode) await fetchLibraryMaterials(); else await fetchMaterials(selectedClass.id);
       setIsEditorOpen(false);
@@ -1234,6 +1276,7 @@ const MaterialEditor = () => {
       if (editingMaterial) {
         const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
         if (error) throw error;
+        syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
         if (libraryMode) {
           const { error: syncError } = await supabase
             .from('class_materials')
@@ -1247,6 +1290,7 @@ const MaterialEditor = () => {
         if (error) throw error;
         if (data) {
           setEditingMaterial(data as Material);
+          syncMaterialEmbedding((data as Material).id, payload.title, payload.content);
           if (pendingDraftNoteIdRef.current) {
             const noteId = pendingDraftNoteIdRef.current;
             pendingDraftNoteIdRef.current = null;
@@ -1540,10 +1584,10 @@ const MaterialEditor = () => {
 
       {/* ── 에디터 패널 ── */}
       {isEditorOpen && (
-        <div className="bg-white rounded-3xl border border-surface-container overflow-hidden shadow-sm">
+        <div className="bg-white rounded-3xl border border-surface-container shadow-sm">
 
           {/* 에디터 헤더 */}
-          <div className="flex items-center flex-wrap gap-2 px-5 py-3.5 border-b border-surface-container bg-surface-container-low">
+          <div className="flex items-center flex-wrap gap-2 px-5 py-3.5 border-b border-surface-container bg-surface-container-low rounded-t-3xl">
             <button
               onClick={() => { setIsEditorOpen(false); resetForm(); }}
               className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
@@ -1555,6 +1599,15 @@ const MaterialEditor = () => {
                 ? (editingMaterial ? '공통 자료 수정' : '새 공통 자료 작성')
                 : (editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성')}
             </span>
+            {cameFromIdeaRecord && (
+              <button
+                onClick={() => navigate('/dashboard')}
+                title="아이디어 기록 페이지로 돌아갑니다"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-container text-primary hover:opacity-80 font-black text-xs transition-opacity"
+              >
+                <Lightbulb size={12} /> 아이디어 기록으로
+              </button>
+            )}
             {/* AI로 정리 */}
             <button
               onClick={() => setShowAiReorganize(true)}
@@ -1735,9 +1788,11 @@ const MaterialEditor = () => {
               onChange={setContent}
               onUploadImage={handleUploadImage}
               uploading={uploading}
+              toolbarRoundedClassName=""
+              contentRoundedClassName="rounded-b-3xl"
             />
           ) : (
-            <div className="relative min-h-[440px] p-6 overflow-auto bg-white">
+            <div className="relative min-h-[440px] p-6 overflow-auto bg-white rounded-b-3xl">
               {content.trim() ? (
                 <>
                   <button
