@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   GraduationCap,
@@ -25,9 +25,9 @@ import {
   ClipboardCheck,
   LayoutPanelTop,
   BarChart2,
-  LayoutGrid,
   Images,
   X,
+  Lightbulb,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseVideoUrl } from '../lib/gallery';
@@ -79,9 +79,9 @@ const features = [
     image: '/illustrations/icon-nice-submit.webp',
   },
   {
-    icon: LayoutGrid,
-    title: '7가지 수업 도구',
-    desc: '퀴즈·설문·화이트보드·타이머·조 뽑기·수업 자료·음성 전사 — 수업에 필요한 모든 것.',
+    icon: Lightbulb,
+    title: '아이디어 기록',
+    desc: '수업 아이디어를 메모하듯 기록하면 AI가 분석하고, 의미 기반 검색으로 관련 자료까지 함께 찾아줍니다.',
   },
   {
     icon: Users,
@@ -98,11 +98,11 @@ const features = [
 const teachingTools = [
   { icon: Shuffle, title: '랜덤 조 뽑기', desc: '애니메이션과 함께 랜덤 조 편성', badge: '무료', image: '/screenshots/tools/group-picker.png' },
   { icon: Timer, title: '수업 타이머', desc: '전체화면 발표 모드 · 플로팅 버튼', badge: '무료', image: '/screenshots/tools/timer.png' },
-  { icon: ClipboardCheck, title: '실시간 퀴즈', desc: 'AI 문항 자동 생성 · PIN 참여', badge: 'Pro', image: '/screenshots/tools/quiz.png' },
-  { icon: BookOpen, title: '수업 자료 에디터', desc: '마크다운 작성 · 슬라이드 발표', badge: 'Basic↑＊', image: '/screenshots/tools/materials.png' },
-  { icon: Mic, title: '수업 전사', desc: 'Web Speech / Groq Whisper · AI 분석', badge: 'Basic↑＊', image: '/screenshots/tools/transcription.png' },
-  { icon: LayoutPanelTop, title: '협업 화이트보드', desc: '실시간 조별 협업 · 6종 오브젝트', badge: 'Pro', image: '/screenshots/tools/whiteboard.png' },
-  { icon: BarChart2, title: '실시간 설문', desc: '6가지 문항 유형 · AI 응답 분석', badge: 'Basic↑＊', image: '/screenshots/tools/survey.png' },
+  { icon: ClipboardCheck, title: '실시간 퀴즈', desc: 'AI 문항 자동 생성 · PIN 참여', badge: '무료', image: '/screenshots/tools/quiz.png' },
+  { icon: BookOpen, title: '수업 자료 에디터', desc: '마크다운 작성 · 슬라이드 발표', badge: '무료 2개', image: '/screenshots/tools/materials.png' },
+  { icon: Mic, title: '수업 전사', desc: 'Groq Whisper 실시간 전사 · AI 분석', badge: '무료 월 20회', image: '/screenshots/tools/transcription.png' },
+  { icon: LayoutPanelTop, title: '협업 화이트보드', desc: '실시간 조별 협업 · 6종 오브젝트', badge: '무료 1개', image: '/screenshots/tools/whiteboard.png' },
+  { icon: BarChart2, title: '실시간 설문', desc: '6가지 문항 유형 · AI 응답 분석', badge: '무료 1개', image: '/screenshots/tools/survey.png' },
   { icon: Images, title: '수업 갤러리', desc: '사진·영상 주차별 보관 · 학급 공유', badge: '무료', image: '/screenshots/tools/gallery.png' },
 ];
 
@@ -134,11 +134,11 @@ const pricingPlans = [
       { text: '학생 최대 20명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
       { text: 'AI 세특 월 20회 체험', ok: true },
-      { text: '수업 자료 에디터 (무제한)', ok: true, byok: true },
+      { text: '수업 자료 에디터 (2개까지)', ok: true },
       { text: '퀴즈 (최대 5문항)', ok: true },
-      { text: '설문 (무제한)', ok: true, byok: true },
-      { text: '화이트보드', ok: false },
-      { text: '수업 전사 (무제한)', ok: true, byok: true },
+      { text: '설문 (1개까지)', ok: true },
+      { text: '화이트보드 (1개까지)', ok: true },
+      { text: '수업 전사 (Groq 키 필요, AI 분석 월 20회)', ok: true },
       { text: '일괄 AI 생성', ok: false },
       { text: 'NAISS 내보내기', ok: false },
       { text: '학교 프로젝트', ok: false },
@@ -182,7 +182,7 @@ const pricingPlans = [
       { text: 'AI 사용 가장 넉넉하게', ok: true },
       { text: '수업 자료 에디터', ok: true },
       { text: '퀴즈 · 설문 · 화이트보드 무제한', ok: true },
-      { text: '수업 전사 & AI 분석', ok: true },
+      { text: '수업 전사 & AI 분석 (Groq 키 필요)', ok: true },
       { text: '일괄 AI 생성', ok: true },
       { text: 'NAISS 내보내기', ok: true },
       { text: '학교 프로젝트 생성 · 관리', ok: true },
@@ -217,6 +217,23 @@ const Landing = () => {
   const dismissWaitlistBar = () => {
     localStorage.setItem('landing_waitlist_bar_dismissed', '1');
     setShowWaitlistBar(false);
+  };
+
+  // 얼리버드 신청 팝업 (오늘 하루 보지 않기 체크 시 당일만 숨김)
+  const [showEarlybirdPopup, setShowEarlybirdPopup] = useState(false);
+  const [hideEarlybirdToday, setHideEarlybirdToday] = useState(false);
+  useEffect(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('landing_earlybird_popup_hide_date') === todayStr) return;
+    const timer = setTimeout(() => setShowEarlybirdPopup(true), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+  const closeEarlybirdPopup = () => {
+    if (hideEarlybirdToday) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      localStorage.setItem('landing_earlybird_popup_hide_date', todayStr);
+    }
+    setShowEarlybirdPopup(false);
   };
 
   // 공개 통계
@@ -341,6 +358,70 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-white text-writer-obsidian font-pretendard">
+      {/* ── 얼리버드 신청 팝업 ── */}
+      <AnimatePresence>
+        {showEarlybirdPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
+            onClick={closeEarlybirdPopup}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <button
+                onClick={closeEarlybirdPopup}
+                aria-label="닫기"
+                className="absolute right-4 top-4 z-10 p-1.5 rounded-full bg-white/80 text-writer-obsidian/60 hover:text-writer-obsidian transition-colors"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 px-7 pt-9 pb-7 text-center">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 rounded-full mb-4">
+                  <Sparkles size={13} className="text-writer-obsidian" strokeWidth={2.5} />
+                  <span className="text-xs font-black text-writer-obsidian">얼리버드 이벤트</span>
+                </div>
+                <h2 className="text-xl font-black text-writer-obsidian mb-2 leading-snug">
+                  유료 플랜 오픈 전,
+                  <br />
+                  지금 신청하면 <span className="text-amber-600">첫 달 50% 할인</span>
+                </h2>
+                <p className="text-sm text-writer-obsidian/60 leading-relaxed">
+                  이메일만 남겨두시면 오픈 즉시 가장 먼저 안내드려요.
+                </p>
+              </div>
+
+              <div className="px-7 py-6 space-y-4">
+                <Link
+                  to="/waitlist"
+                  onClick={closeEarlybirdPopup}
+                  className="block w-full text-center py-3.5 rounded-2xl text-sm font-black text-white bg-amber-500 hover:bg-amber-600 transition-all active:scale-95"
+                >
+                  얼리버드 신청하기
+                </Link>
+                <label className="flex items-center justify-center gap-2 text-xs text-writer-obsidian/50 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hideEarlybirdToday}
+                    onChange={(e) => setHideEarlybirdToday(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded accent-amber-500"
+                  />
+                  오늘 하루만 보기
+                </label>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── 웨이팅리스트 상단 배너 ── */}
       {showWaitlistBar && (
         <div className="relative bg-writer-obsidian text-white">
@@ -661,9 +742,6 @@ const Landing = () => {
               </div>
             </div>
           </div>
-          <p className="text-center text-[11px] text-writer-slate/70 mb-6">
-            ＊ 본인 Gemini API 키(Google AI Studio에서 무료 발급) 등록 시 Free 플랜에서도 이용 가능
-          </p>
           {SHOW_DEMO_CTA && (
             <div className="text-center">
               <button
@@ -950,7 +1028,7 @@ const Landing = () => {
                           {f.ok ? '✓' : '✕'}
                         </span>
                         <span className={`text-xs ${f.ok ? (isDark ? 'text-white/90 font-medium' : 'text-writer-obsidian/80 font-medium') : (isDark ? 'text-white/20' : 'text-writer-fog')}`}>
-                          {f.text}{(f as any).byok && '＊'}
+                          {f.text}
                         </span>
                       </div>
                     ))}
@@ -980,12 +1058,6 @@ const Landing = () => {
             })}
           </div>
 
-          <motion.p
-            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-            className="text-center text-[11px] text-writer-slate/70 mt-8"
-          >
-            ＊ 내 키: 본인 Gemini API 키(Google AI Studio에서 무료 발급)를 설정 페이지에 등록하면 Free 플랜에서도 이용할 수 있습니다.
-          </motion.p>
           <motion.p
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-writer-slate mt-2"

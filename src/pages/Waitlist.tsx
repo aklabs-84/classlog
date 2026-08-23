@@ -17,6 +17,7 @@ const Waitlist = () => {
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [planInterest, setPlanInterest] = useState(
     PLAN_OPTIONS.some((p) => p.value === initialPlan) ? (initialPlan as string) : 'basic'
   );
@@ -33,6 +34,7 @@ const Waitlist = () => {
     const { error } = await supabase.from('payment_waitlist').insert({
       email: email.trim().toLowerCase(),
       name: name.trim() || null,
+      phone: phone.trim() || null,
       plan_interest: planInterest,
       memo: memo.trim() || null,
       source: 'waitlist_page',
@@ -57,6 +59,7 @@ const Waitlist = () => {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           name: name.trim() || null,
+          phone: phone.trim() || null,
           plan_interest: planInterest,
           memo: memo.trim() || null,
         }),
@@ -122,6 +125,17 @@ const Waitlist = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="홍길동"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-700 mb-1.5">휴대폰 번호 (선택)</label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="010-1234-5678"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>

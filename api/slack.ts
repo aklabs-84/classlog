@@ -345,7 +345,7 @@ async function handleWaitlist(req: any, res: any) {
     return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
   }
 
-  const { email, name, plan_interest, memo } = req.body;
+  const { email, name, phone, plan_interest, memo } = req.body;
 
   const PLAN_LABELS: Record<string, string> = {
     basic: 'Basic',
@@ -365,6 +365,7 @@ async function handleWaitlist(req: any, res: any) {
         fields: [
           { type: 'mrkdwn', text: `*이메일*\n${email}` },
           { type: 'mrkdwn', text: `*이름*\n${name || '(미입력)'}` },
+          { type: 'mrkdwn', text: `*휴대폰*\n${phone || '(미입력)'}` },
           { type: 'mrkdwn', text: `*관심 플랜*\n${PLAN_LABELS[plan_interest] || plan_interest}` },
         ],
       },
