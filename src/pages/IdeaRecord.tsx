@@ -194,6 +194,8 @@ export default function IdeaRecord() {
 
   // 카드 클릭 시 뜨는 "원문 전체보기" 모달용
   const [viewingNote, setViewingNote] = useState<TeacherNote | null>(null);
+  // "비슷한 자료 있음" 배지 클릭 시 매칭된 항목을 보여주는 팝업용
+  const [similarItemsNote, setSimilarItemsNote] = useState<TeacherNote | null>(null);
 
   const [analysisNote, setAnalysisNote] = useState<TeacherNote | null>(null);
   const [analysisResult, setAnalysisResult] = useState<IdeaAnalysisResult | null>(null);
@@ -205,8 +207,8 @@ export default function IdeaRecord() {
   const [creatingMaterialLength, setCreatingMaterialLength] = useState<'simple' | 'detailed' | null>(null);
 
   // 5단계: 태그 매칭용 — 카드에 "비슷한 자료 있음" 힌트를 보여주기 위해 한 번만 가져와둠
-  const [libraryMaterials, setLibraryMaterials] = useState<{ title: string; content: string }[]>([]);
-  const [librarySlides, setLibrarySlides] = useState<{ title: string }[]>([]);
+  const [libraryMaterials, setLibraryMaterials] = useState<{ id: string; title: string; content: string }[]>([]);
+  const [librarySlides, setLibrarySlides] = useState<{ id: string; title: string }[]>([]);
 
   // 6단계: 작성 중인 내용과 의미적으로 유사한 내 자료/노트/슬라이드를 실시간 검색해 보여주는 패널
   const [relatedSuggestions, setRelatedSuggestions] = useState<MatchedContent[]>([]);
@@ -242,6 +244,13 @@ export default function IdeaRecord() {
     })();
     return () => { cancelled = true; };
   }, [previewItem, notes]);
+
+  // 전체화면/팝업 모달이 떠 있는 동안 뒤쪽 페이지 스크롤을 잠가 이중 스크롤바가 겹쳐 보이지 않게 한다
+  useEffect(() => {
+    const anyModalOpen = viewingNote || analysisNote || similarItemsNote || previewItem;
+    document.body.style.overflow = anyModalOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [viewingNote, analysisNote, similarItemsNote, previewItem]);
 
   // ── 노트 본문 내 이미지 업로드 — WebP 변환 후 Supabase 저장 ─────────────────
   const handleUploadImage = async (file: File): Promise<string> => {
@@ -283,31 +292,34 @@ export default function IdeaRecord() {
   // 5단계: "비슷한 자료 있음" 힌트 계산용 — 자료함 전체를 한 번만 가져와 클라이언트에서 태그 키워드 매칭
   const fetchLibraryResources = async () => {
     const [{ data: materials }, { data: slides }] = await Promise.all([
-      supabase.from('class_materials').select('title, content').eq('teacher_id', user!.id).limit(300),
-      supabase.from('slide_decks').select('title').eq('teacher_id', user!.id).limit(300),
+      supabase.from('class_materials').select('id, title, content').eq('teacher_id', user!.id).limit(300),
+      supabase.from('slide_decks').select('id, title').eq('teacher_id', user!.id).limit(300),
     ]);
     setLibraryMaterials(materials || []);
     setLibrarySlides(slides || []);
   };
 
   // 5단계: 태그가 붙은(=AI 분석 완료된) 노트마다 다른 노트/자료/슬라이드에 같은 태그 키워드가 있는지 클라이언트에서 계산
-  const similarResourceNoteIds = useMemo(() => {
-    const ids = new Set<string>();
+  // — 배지 클릭 시 어떤 항목이 매칭됐는지 바로 보여줄 수 있도록 매칭된 항목 자체를 함께 들고 있는다
+  const similarResourceDetails = useMemo(() => {
+    const map = new Map<string, { notes: TeacherNote[]; materials: { id: string; title: string }[]; slides: { id: string; title: string }[] }>();
     notes.forEach(note => {
       if (!note.tags || note.tags.length === 0) return;
       const tagsLower = note.tags.map(t => t.toLowerCase());
-      const hasSimilarNote = notes.some(other =>
+      const similarNotes = notes.filter(other =>
         other.id !== note.id && other.tags?.some(t => tagsLower.includes(t.toLowerCase()))
       );
-      const hasSimilarMaterial = libraryMaterials.some(m =>
+      const similarMaterials = libraryMaterials.filter(m =>
         tagsLower.some(t => `${m.title} ${m.content}`.toLowerCase().includes(t))
       );
-      const hasSimilarSlide = librarySlides.some(s =>
+      const similarSlides = librarySlides.filter(s =>
         tagsLower.some(t => s.title.toLowerCase().includes(t))
       );
-      if (hasSimilarNote || hasSimilarMaterial || hasSimilarSlide) ids.add(note.id);
+      if (similarNotes.length > 0 || similarMaterials.length > 0 || similarSlides.length > 0) {
+        map.set(note.id, { notes: similarNotes, materials: similarMaterials, slides: similarSlides });
+      }
     });
-    return ids;
+    return map;
   }, [notes, libraryMaterials, librarySlides]);
 
   const thisMonthCount = useMemo(() => {
@@ -660,9 +672,10 @@ export default function IdeaRecord() {
   return (
     <div className="space-y-6">
       {/* 히어로 인사 */}
-      <div className="relative overflow-hidden">
-        <div className="absolute -top-20 -right-16 -z-10 w-72 h-72 rounded-full bg-gradient-to-br from-primary to-secondary opacity-[0.12] blur-[64px] pointer-events-none" />
-        <div className="relative flex items-end justify-between gap-6 flex-wrap pb-5 border-b border-on-surface/[0.06]">
+      <div className="relative overflow-hidden pb-6">
+        <div className="absolute -top-24 -right-20 -z-10 w-96 h-96 rounded-full bg-gradient-to-br from-primary to-secondary opacity-[0.10] blur-[80px] pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 -z-10 h-16 bg-gradient-to-b from-transparent to-surface/60 pointer-events-none" />
+        <div className="relative flex items-end justify-between gap-6 flex-wrap">
           <div>
             <div className="flex items-center gap-1.5 text-[11px] font-black tracking-wide text-primary mb-2">
               <Lightbulb size={13} /> 오늘의 아이디어 기록
@@ -674,7 +687,7 @@ export default function IdeaRecord() {
               떠오른 생각을 가볍게 적어두면, AI가 기존 자료를 살펴보고 수업으로 발전시킬 방법을 함께 찾아드려요.
             </p>
           </div>
-          <div className="text-right shrink-0">
+          <div className="text-right shrink-0 pr-3">
             <p className="text-3xl font-black text-primary leading-none tabular-nums">{thisMonthCount}</p>
             <p className="text-[11px] font-black text-on-surface-variant/50 mt-1">이번 달 기록</p>
           </div>
@@ -920,17 +933,25 @@ export default function IdeaRecord() {
                           </div>
                         </div>
 
-                        {(note.status === 'developed' || similarResourceNoteIds.has(note.id)) && (
+                        {(note.status === 'developed' || similarResourceDetails.has(note.id)) && (
                           <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
                             {note.status === 'developed' && (
-                              <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-primary-container text-primary">
+                              <button
+                                onClick={e => { e.stopPropagation(); handleOpenAnalysis(note); }}
+                                title="AI 분석 결과 바로 보기"
+                                className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-primary-container text-primary hover:bg-primary/20 transition-colors"
+                              >
                                 <Sparkles size={9} /> AI 분석 완료
-                              </span>
+                              </button>
                             )}
-                            {similarResourceNoteIds.has(note.id) && (
-                              <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                            {similarResourceDetails.has(note.id) && (
+                              <button
+                                onClick={e => { e.stopPropagation(); setSimilarItemsNote(note); }}
+                                title="비슷한 자료 보기"
+                                className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                              >
                                 <Link2 size={9} /> 비슷한 자료 있음
-                              </span>
+                              </button>
                             )}
                           </div>
                         )}
@@ -1018,13 +1039,21 @@ export default function IdeaRecord() {
                   <ReactMarkdown components={noteDetailMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                     {viewingNote.content}
                   </ReactMarkdown>
-                  {viewingNote.tags?.length > 0 && (
+                  {(viewingNote.tags?.length > 0 || similarResourceDetails.has(viewingNote.id)) && (
                     <div className="flex items-center gap-1.5 flex-wrap mt-4 pt-4 border-t border-on-surface/[0.05]">
-                      {viewingNote.tags.map(tag => (
+                      {viewingNote.tags?.map(tag => (
                         <span key={tag} className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant/70">
                           <Tag size={10} /> {tag}
                         </span>
                       ))}
+                      {similarResourceDetails.has(viewingNote.id) && (
+                        <button
+                          onClick={() => setSimilarItemsNote(viewingNote)}
+                          className="flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                        >
+                          <Link2 size={10} /> 비슷한 자료 보기
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1063,157 +1092,314 @@ export default function IdeaRecord() {
         document.body
       )}
 
-      <AnimatePresence>
-        {analysisNote && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
-            onClick={handleCloseAnalysis}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              onClick={e => e.stopPropagation()}
-              className="w-full max-w-lg max-h-[85vh] overflow-hidden bg-surface-container-lowest rounded-3xl shadow-2xl flex flex-col"
-            >
-              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-primary-container to-secondary-container/50 shrink-0">
-                <h3 className="text-base font-black text-primary flex items-center gap-2">
-                  <Sparkles size={17} /> AI로 발전시키기
-                </h3>
-                <button onClick={handleCloseAnalysis} className="w-8 h-8 rounded-lg hover:bg-white/50 flex items-center justify-center text-primary/70">
-                  <X size={16} />
-                </button>
-              </div>
+      {/* "비슷한 자료 있음" 배지 클릭 시 매칭된 항목을 보여주는 팝업 */}
+      {createPortal(
+        <AnimatePresence>
+          {similarItemsNote && (() => {
+            const details = similarResourceDetails.get(similarItemsNote.id);
+            return (
+              <motion.div
+                key="similar-items-modal"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"
+                onClick={() => setSimilarItemsNote(null)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                  onClick={e => e.stopPropagation()}
+                  className="w-full max-w-md max-h-[80vh] overflow-hidden bg-surface-container-lowest rounded-3xl shadow-2xl flex flex-col"
+                >
+                  <div className="flex items-center justify-between px-6 py-4 bg-amber-50 shrink-0">
+                    <h3 className="text-sm font-black text-amber-700 flex items-center gap-2">
+                      <Link2 size={15} /> 비슷한 자료
+                    </h3>
+                    <button onClick={() => setSimilarItemsNote(null)} className="w-8 h-8 rounded-lg hover:bg-white/60 flex items-center justify-center text-amber-700/70">
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto p-5 space-y-4">
+                    <p className="text-xs font-bold text-on-surface-variant/60 line-clamp-1">
+                      "{similarItemsNote.title || '제목 없는 아이디어'}"와(과) 태그가 겹치는 자료예요.
+                    </p>
+                    {details && details.notes.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">다른 아이디어 기록</p>
+                        <div className="space-y-1.5">
+                          {details.notes.map(n => (
+                            <button
+                              key={n.id}
+                              onClick={() => { setSimilarItemsNote(null); setViewingNote(n); }}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
+                            >
+                              <StickyNote size={12} className="text-primary shrink-0" />
+                              <span className="truncate">{n.title || '제목 없는 아이디어'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {details && details.materials.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">수업 자료</p>
+                        <div className="space-y-1.5">
+                          {details.materials.map(m => (
+                            <button
+                              key={m.id}
+                              onClick={() => { setSimilarItemsNote(null); handleGoToReference({ source_type: 'material', id: m.id, title: m.title, snippet: '', similarity: 0 }); }}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
+                            >
+                              <FileText size={12} className="text-secondary shrink-0" />
+                              <span className="truncate">{m.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {details && details.slides.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">슬라이드</p>
+                        <div className="space-y-1.5">
+                          {details.slides.map(s => (
+                            <button
+                              key={s.id}
+                              onClick={() => { setSimilarItemsNote(null); handleGoToReference({ source_type: 'slide', id: s.id, title: s.title, snippet: '', similarity: 0 }); }}
+                              className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
+                            >
+                              <Presentation size={12} className="text-secondary shrink-0" />
+                              <span className="truncate">{s.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(!details || (details.notes.length === 0 && details.materials.length === 0 && details.slides.length === 0)) && (
+                      <p className="text-xs text-on-surface-variant/50 text-center py-4">매칭된 자료가 없습니다.</p>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body
+      )}
 
-              <div className="overflow-y-auto p-6">
-              {analysisLoading ? (
-                <div className="py-12 flex flex-col items-center gap-3 text-on-surface-variant">
-                  <Loader2 size={24} className="animate-spin text-primary" />
-                  <p className="text-xs font-bold">아이디어를 분석하고 있습니다...</p>
+      {createPortal(
+        <AnimatePresence>
+          {analysisNote && (
+            <motion.div
+              key="idea-analysis-modal"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-surface-container-lowest flex flex-col"
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                className="w-full h-full overflow-hidden flex flex-col"
+              >
+                <div className="relative px-6 md:px-10 py-6 shrink-0 bg-gradient-to-r from-primary-container to-secondary-container/50">
+                  <div className="max-w-3xl mx-auto w-full">
+                    <button
+                      onClick={handleCloseAnalysis}
+                      className="absolute top-4 right-4 md:right-8 w-9 h-9 rounded-lg bg-white/40 hover:bg-white/60 flex items-center justify-center text-primary transition-all"
+                    >
+                      <X size={17} />
+                    </button>
+                    <h3 className="text-xl md:text-2xl font-black text-primary tracking-tight flex items-center gap-2 pr-10">
+                      <Sparkles size={20} /> AI로 발전시키기
+                    </h3>
+                    <p className="text-xs font-bold text-primary/70 mt-1.5 line-clamp-1">
+                      {analysisNote.title || '제목 없는 아이디어'}
+                    </p>
+                  </div>
                 </div>
-              ) : analysisError ? (
-                <div className="py-8 text-center space-y-3">
-                  <p className="text-xs font-bold text-error">{analysisError}</p>
-                  <button
-                    onClick={() => runAnalysis(analysisNote)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-surface-container rounded-lg text-xs font-black hover:bg-surface-container-high"
-                  >
-                    <RefreshCw size={12} /> 다시 시도
-                  </button>
-                </div>
-              ) : analysisResult ? (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[10px] font-black text-on-surface-variant/50 mb-1">한 줄 요약</p>
-                    <p className="text-sm font-bold text-on-surface leading-relaxed">{analysisResult.summary}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-on-surface-variant/50 mb-1">추천 형태</p>
-                    <span className="inline-block text-xs font-black px-2.5 py-1 rounded-lg bg-primary-container text-primary">
-                      {FORMAT_LABEL[analysisResult.suggestedFormat]}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">수업 가이드 초안</p>
-                    <ol className="space-y-1.5">
-                      {analysisResult.guideOutline.map((step, i) => (
-                        <li key={i} className="flex gap-2 text-xs text-on-surface leading-relaxed">
-                          <span className="shrink-0 w-4 h-4 rounded-full bg-surface-container text-on-surface-variant/60 text-[9px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                  {analysisResult.relatedMaterialsNote && (
-                    <div>
-                      <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">관련 자료 반영 제안</p>
-                      <div className="flex gap-2.5 bg-secondary-container/40 border border-secondary/20 rounded-xl px-3.5 py-3">
-                        <Link2 size={14} className="text-secondary shrink-0 mt-0.5" />
-                        <p className="text-xs text-on-surface leading-relaxed">{analysisResult.relatedMaterialsNote}</p>
-                      </div>
+
+                <div className="overflow-y-auto p-6 md:px-10 flex-1">
+                  <div className="max-w-3xl mx-auto w-full">
+                  {analysisLoading ? (
+                    <div className="py-12 flex flex-col items-center gap-3 text-on-surface-variant">
+                      <Loader2 size={24} className="animate-spin text-primary" />
+                      <p className="text-xs font-bold">아이디어를 분석하고 있습니다...</p>
                     </div>
-                  )}
-                  {analysisResult.relatedTags.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">관련 태그</p>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {analysisResult.relatedTags.map(tag => (
-                          <span key={tag} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70">
-                            <Tag size={9} /> {tag}
-                          </span>
-                        ))}
-                      </div>
+                  ) : analysisError ? (
+                    <div className="py-8 text-center space-y-3">
+                      <p className="text-xs font-bold text-error">{analysisError}</p>
+                      <button
+                        onClick={() => runAnalysis(analysisNote)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-surface-container rounded-lg text-xs font-black hover:bg-surface-container-high"
+                      >
+                        <RefreshCw size={12} /> 다시 시도
+                      </button>
                     </div>
-                  )}
-                  <div className="space-y-2.5 bg-surface-container/50 rounded-2xl p-4 border border-on-surface/[0.05]">
-                    <p className="text-[10px] font-black text-on-surface-variant/50">이 아이디어로 만들기</p>
-                    <div>
-                      <p className="text-[10px] font-bold text-on-surface-variant/60 mb-1 flex items-center gap-1">
-                        <FileText size={11} /> 수업 자료로 만들기 — AI가 계획안을 새로 작성합니다
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
+                  ) : analysisResult ? (
+                    <div className="space-y-5">
+                      <div>
+                        <p className="text-[10px] font-black text-on-surface-variant/50 mb-1">한 줄 요약</p>
+                        <p className="text-sm font-bold text-on-surface leading-relaxed">{analysisResult.summary}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-on-surface-variant/50 mb-1">추천 형태</p>
+                        <span className="inline-block text-xs font-black px-2.5 py-1 rounded-lg bg-primary-container text-primary">
+                          {FORMAT_LABEL[analysisResult.suggestedFormat]}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">
+                          수업 가이드 초안 <span className="font-bold normal-case text-on-surface-variant/40">— 적어주신 내용 정리</span>
+                        </p>
+                        <ol className="space-y-1.5">
+                          {analysisResult.guideOutline.map((step, i) => (
+                            <li key={i} className="flex gap-2 text-xs text-on-surface leading-relaxed">
+                              <span className="shrink-0 w-4 h-4 rounded-full bg-surface-container text-on-surface-variant/60 text-[9px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
+                              {step}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+
+                      {analysisResult.aiSuggestions && (
+                        analysisResult.aiSuggestions.direction ||
+                        analysisResult.aiSuggestions.introActivities.length > 0 ||
+                        analysisResult.aiSuggestions.practiceIdeas.length > 0
+                      ) && (
+                        <div className="space-y-3 bg-primary-container/30 border border-primary/15 rounded-2xl p-4">
+                          <p className="text-[10px] font-black text-primary/70 flex items-center gap-1">
+                            <Lightbulb size={12} /> AI가 제안하는 발전 방향
+                          </p>
+                          {analysisResult.aiSuggestions.direction && (
+                            <p className="text-xs text-on-surface leading-relaxed font-bold">{analysisResult.aiSuggestions.direction}</p>
+                          )}
+                          {analysisResult.aiSuggestions.introActivities.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">도입 활동 제안</p>
+                              <ul className="space-y-1.5">
+                                {analysisResult.aiSuggestions.introActivities.map((item, i) => (
+                                  <li key={i} className="flex gap-2 text-xs text-on-surface leading-relaxed">
+                                    <PenLine size={12} className="text-primary shrink-0 mt-0.5" />
+                                    {item}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {analysisResult.aiSuggestions.practiceIdeas.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">실습·연계 아이디어</p>
+                              <ul className="space-y-1.5">
+                                {analysisResult.aiSuggestions.practiceIdeas.map((item, i) => (
+                                  <li key={i} className="flex gap-2 text-xs text-on-surface leading-relaxed">
+                                    <List size={12} className="text-primary shrink-0 mt-0.5" />
+                                    {item}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {analysisResult.relatedMaterialsNote && (
+                        <div>
+                          <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">관련 자료 반영 제안</p>
+                          <div className="flex gap-2.5 bg-secondary-container/40 border border-secondary/20 rounded-xl px-3.5 py-3">
+                            <Link2 size={14} className="text-secondary shrink-0 mt-0.5" />
+                            <p className="text-xs text-on-surface leading-relaxed">{analysisResult.relatedMaterialsNote}</p>
+                          </div>
+                        </div>
+                      )}
+                      {analysisResult.relatedTags.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-black text-on-surface-variant/50 mb-1.5">관련 태그</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {analysisResult.relatedTags.map(tag => (
+                              <span key={tag} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70">
+                                <Tag size={9} /> {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-2.5 bg-surface-container/50 rounded-2xl p-4 border border-on-surface/[0.05]">
+                        <p className="text-[10px] font-black text-on-surface-variant/50">이 아이디어로 만들기</p>
+                        <div>
+                          <p className="text-[10px] font-bold text-on-surface-variant/60 mb-1 flex items-center gap-1">
+                            <FileText size={11} /> 수업 자료로 만들기 — AI가 계획안을 새로 작성합니다
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleCreateMaterial('simple')}
+                              disabled={creatingMaterialLength !== null}
+                              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition-all disabled:opacity-60 ${
+                                analysisResult.suggestedFormat !== 'slide'
+                                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                              }`}
+                            >
+                              {creatingMaterialLength === 'simple' ? <Loader2 size={13} className="animate-spin" /> : null}
+                              간단히
+                            </button>
+                            <button
+                              onClick={() => handleCreateMaterial('detailed')}
+                              disabled={creatingMaterialLength !== null}
+                              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition-all disabled:opacity-60 ${
+                                analysisResult.suggestedFormat !== 'slide'
+                                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                              }`}
+                            >
+                              {creatingMaterialLength === 'detailed' ? <Loader2 size={13} className="animate-spin" /> : null}
+                              자세히
+                            </button>
+                          </div>
+                        </div>
                         <button
-                          onClick={() => handleCreateMaterial('simple')}
-                          disabled={creatingMaterialLength !== null}
-                          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition-all disabled:opacity-60 ${
-                            analysisResult.suggestedFormat !== 'slide'
+                          onClick={handleCreateSlide}
+                          className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition-all ${
+                            analysisResult.suggestedFormat === 'slide'
                               ? 'bg-primary text-white shadow-lg shadow-primary/20'
                               : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                           }`}
                         >
-                          {creatingMaterialLength === 'simple' ? <Loader2 size={13} className="animate-spin" /> : null}
-                          간단히
-                        </button>
-                        <button
-                          onClick={() => handleCreateMaterial('detailed')}
-                          disabled={creatingMaterialLength !== null}
-                          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition-all disabled:opacity-60 ${
-                            analysisResult.suggestedFormat !== 'slide'
-                              ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                              : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                          }`}
-                        >
-                          {creatingMaterialLength === 'detailed' ? <Loader2 size={13} className="animate-spin" /> : null}
-                          자세히
+                          <Presentation size={13} /> 슬라이드로 만들기
                         </button>
                       </div>
                     </div>
-                    <button
-                      onClick={handleCreateSlide}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black transition-all ${
-                        analysisResult.suggestedFormat === 'slide'
-                          ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                          : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                      }`}
-                    >
-                      <Presentation size={13} /> 슬라이드로 만들기
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-2">
-                    <button
-                      onClick={() => runAnalysis(analysisNote)}
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-black text-on-surface-variant hover:bg-surface-container rounded-lg transition-all"
-                    >
-                      <RefreshCw size={12} /> 다시 생성
-                    </button>
-                    <button
-                      onClick={handleSaveAnalysis}
-                      disabled={analysisSaving}
-                      className="flex items-center gap-1.5 px-5 py-2.5 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20 disabled:opacity-50"
-                    >
-                      {analysisSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
-                    </button>
+                  ) : null}
                   </div>
                 </div>
-              ) : null}
-              </div>
+
+                {analysisResult && !analysisLoading && !analysisError && (
+                  <div className="px-6 md:px-10 py-4 border-t border-on-surface/[0.06] shrink-0">
+                    <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => runAnalysis(analysisNote)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-black text-on-surface-variant hover:bg-surface-container rounded-lg transition-all"
+                      >
+                        <RefreshCw size={12} /> 다시 생성
+                      </button>
+                      <button
+                        onClick={handleSaveAnalysis}
+                        disabled={analysisSaving}
+                        className="flex items-center gap-1.5 px-5 py-2.5 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20 disabled:opacity-50"
+                      >
+                        {analysisSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* 6단계: 참고 자료 카드 클릭 시 미리보기 모달 */}
       <AnimatePresence>

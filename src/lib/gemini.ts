@@ -826,6 +826,49 @@ export async function reorganizeMaterialContent(
   return { content: restoreImagePlaceholders(bodyRaw.trim(), map), feedback };
 }
 
+// 수업 자료 에디터에서 선생님이 드래그로 선택한 일부분만 다른 표현/구성으로 바꿔주는 AI 제안
+// (전체 문서를 다시 짜는 reorganizeMaterialContent와 달리, 선택 영역 외에는 절대 손대지 않음)
+export async function suggestAlternativeContent(
+  selectedText: string,
+  fullContent: string,
+  userInstruction?: string,
+  classId?: string
+): Promise<string[]> {
+  const trimmedInstruction = userInstruction?.trim();
+  const instructionBlock = trimmedInstruction
+    ? `\n\n[선생님이 원하는 방향]\n${trimmedInstruction}`
+    : '\n\n[선생님이 원하는 방향]\n특별한 지시 없음 — 더 명확하거나 참신한 표현으로 자유롭게 제안';
+
+  const prompt = `당신은 수업 자료 에디터에서 선생님이 선택한 일부 문단만 다른 대안으로 다듬어주는 AI입니다.
+
+[전체 자료 내용 — 문맥 참고용, 이 부분은 절대 다시 쓰지 않음]
+${fullContent}
+
+[선생님이 선택한 부분 — 이 부분만 대안을 제안]
+${selectedText}
+${instructionBlock}
+
+[작성 규칙]
+- 선택된 부분은 문서 안의 기존 문단/목록 항목/제목 등 어딘가에 그대로 끼워넣어질 텍스트입니다. 절대 "- ", "1. ", "#", ">" 같은 목록·제목·인용구 기호를 새로 붙이지 마세요 — 순수 인라인 텍스트(필요하면 **굵게**, *기울임* 정도만)로만 작성하세요.
+- 전체 자료의 흐름과 문체에 자연스럽게 이어지도록 작성하세요.
+- 선택되지 않은 나머지 내용은 절대 언급하거나 다시 쓰지 마세요. 오직 선택된 부분의 대안만 제시하세요.
+- 원문에 없는 사실을 지어내지 마세요.
+- 서로 확연히 다른 느낌의 대안 2~3개를 제안하세요 (예: 더 간결하게 / 예시를 추가해서 / 다른 관점으로 등).
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"suggestions":["대안1 마크다운","대안2 마크다운","대안3 마크다운"]}`;
+
+  const result = await materialReorganizeAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions.map((s: any) => String(s).trim()).filter(Boolean) : [];
+  if (suggestions.length === 0) throw new Error('AI가 대안을 생성하지 못했습니다.');
+  return suggestions;
+}
+
 // 수업 자료 PDF 표지 이미지를 위한 AI 프롬프트 문구 제안 (이미지 자체는 생성하지 않음 —
 // 교사가 다른 이미지 생성 도구에 복사해 쓸 수 있는 프롬프트 텍스트만 만들어줌)
 export async function generateCoverPromptSuggestions(
@@ -872,6 +915,11 @@ export interface IdeaAnalysisResult {
   guideOutline: string[];
   relatedTags: string[];
   relatedMaterialsNote: string;
+  aiSuggestions: {
+    direction: string;
+    introActivities: string[];
+    practiceIdeas: string[];
+  };
 }
 
 function buildRelatedMaterialsBlock(relatedMaterials: RelatedMaterialRef[]): string {
@@ -897,12 +945,16 @@ ${relatedBlock}
 [할 일]
 1. 아이디어의 핵심을 1~2문장으로 요약하세요 (summary).
 2. 이 아이디어를 발전시키기에 가장 적합한 형태를 판단하세요 (suggestedFormat): 순서가 있는 절차/활동 설명이면 "guide", 학생에게 나눠줄 읽기 자료·설명 위주 콘텐츠면 "material", 발표·요약 전달이 목적이면 "slide" 중 하나만 선택.
-3. 이 아이디어를 실제 수업에서 진행할 수 있는 수업 가이드 초안을 단계별 항목 3~6개로 작성하세요 (guideOutline). 각 항목은 교사가 바로 참고할 수 있도록 구체적인 행동 지침으로 작성하고, 원문에 없는 사실을 지어내지 마세요.
+3. 선생님이 이미 적어둔 내용을 교사가 바로 참고할 수 있는 수업 가이드 초안으로 정리하세요 (guideOutline, 3~6개 항목). 이 항목은 선생님이 쓴 내용을 벗어나지 않게 정리·구조화만 하고, 원문에 없는 사실을 지어내지 마세요.
 4. 이 아이디어와 관련된 핵심 키워드를 2~5개 뽑으세요 (relatedTags). 향후 비슷한 아이디어나 자료를 찾을 때 쓰일 태그이므로, 과목/주제/활동유형 등 짧은 명사 위주로 작성하세요.
 5. 위에 제시된 기존 수업 자료를 참고해, 이 아이디어를 어떻게 기획하면 좋을지 2~4문장으로 제안하세요 (relatedMaterialsNote). 기존 자료와 겹치지 않게 차별화할 부분, 또는 기존 자료를 이어서 발전시킬 방법을 구체적으로 언급하세요. 참고할 기존 자료가 없다면 "참고할 기존 자료가 없어 새로 기획하면 됩니다." 정도로 짧게 답하세요.
+6. 여기서부터는 선생님이 쓴 내용을 그대로 정리하지 말고, 당신이 교육 전문가로서 새롭게 제안하세요 (aiSuggestions). 선생님이 언급하지 않았더라도 이 수업 주제에 실제로 도움이 될 만한 아이디어를 적극적으로 제시하는 것이 목적입니다.
+   - direction: 이 아이디어를 어떤 방향으로 발전시키면 좋을지, 그리고 왜 그 방향을 추천하는지 근거와 함께 2~3문장으로 제안하세요.
+   - introActivities: 이 수업에 쓸 수 있는 구체적인 도입(동기유발) 활동 아이디어를 2~3개 제안하세요. 선생님 원문에 없는 새로운 아이디어여도 좋습니다. 각 항목은 "활동명 — 구체적 진행 방법" 형태로 한 문장씩 작성하세요.
+   - practiceIdeas: 이 수업과 연계하거나 심화할 수 있는 실습 활동, 관련 학습 도구/사이트/프로그램을 2~3개 제안하세요. 실제로 존재하거나 교사가 검색해 찾을 수 있는 구체적인 종류의 도구·활동으로 제안하고, 왜 이 수업에 맞는지 짧게 덧붙이세요.
 
 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"summary":"...","suggestedFormat":"guide","guideOutline":["...","..."],"relatedTags":["...","..."],"relatedMaterialsNote":"..."}`;
+{"summary":"...","suggestedFormat":"guide","guideOutline":["...","..."],"relatedTags":["...","..."],"relatedMaterialsNote":"...","aiSuggestions":{"direction":"...","introActivities":["...","..."],"practiceIdeas":["...","..."]}}`;
 
   const result = await ideaAnalysisAI.generateContent(
     prompt,
@@ -914,12 +966,19 @@ ${relatedBlock}
   const suggestedFormat: IdeaAnalysisResult['suggestedFormat'] =
     ['guide', 'material', 'slide'].includes(parsed.suggestedFormat) ? parsed.suggestedFormat : 'guide';
 
+  const aiSuggestions = parsed.aiSuggestions || {};
+
   return {
     summary: String(parsed.summary || '').trim(),
     suggestedFormat,
     guideOutline: Array.isArray(parsed.guideOutline) ? parsed.guideOutline.map((s: any) => String(s)) : [],
     relatedTags: Array.isArray(parsed.relatedTags) ? parsed.relatedTags.map((s: any) => String(s)) : [],
     relatedMaterialsNote: String(parsed.relatedMaterialsNote || '').trim(),
+    aiSuggestions: {
+      direction: String(aiSuggestions.direction || '').trim(),
+      introActivities: Array.isArray(aiSuggestions.introActivities) ? aiSuggestions.introActivities.map((s: any) => String(s)) : [],
+      practiceIdeas: Array.isArray(aiSuggestions.practiceIdeas) ? aiSuggestions.practiceIdeas.map((s: any) => String(s)) : [],
+    },
   };
 }
 

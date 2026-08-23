@@ -1790,6 +1790,7 @@ const MaterialEditor = () => {
               uploading={uploading}
               toolbarRoundedClassName=""
               contentRoundedClassName="rounded-b-3xl"
+              classId={selectedClass?.id}
             />
           ) : (
             <div className="relative min-h-[440px] p-6 overflow-auto bg-white rounded-b-3xl">

@@ -15,12 +15,14 @@ import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Suggestion from '@tiptap/suggestion';
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import type { Ref } from 'react';
+import { createPortal } from 'react-dom';
+import { suggestAlternativeContent } from '../lib/gemini';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
   MonitorPlay, Palette, Lightbulb, Scissors, Lock, Unlock, ClipboardPaste,
-  HelpCircle, Slash,
+  HelpCircle, Slash, Sparkles,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -1420,12 +1422,15 @@ interface RichEditorProps {
    *  그 대신 잘려나가던 둥근 모서리를 여기서 직접 재현한다. wrapper의 rounded-* 값과 맞춰서 넘길 것. */
   toolbarRoundedClassName?: string;
   contentRoundedClassName?: string;
+  /** 선택 영역 AI 제안 기능에서 AI 비용을 특정 학급에 귀속시키기 위한 값 (선택) */
+  classId?: string;
 }
 
 const RichEditor = ({
   value, onChange, onUploadImage, onUploadingChange, uploading, minHeight = '440px',
   stickyToolbar = true, toolbarTopClassName = 'top-16 lg:top-0',
   toolbarRoundedClassName = 'rounded-t-2xl', contentRoundedClassName = 'rounded-b-2xl',
+  classId,
 }: RichEditorProps) => {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
@@ -1442,6 +1447,12 @@ const RichEditor = ({
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
   const [pendingImage, setPendingImage] = useState<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [aiSuggestOpen, setAiSuggestOpen] = useState(false);
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+  const [aiSuggestError, setAiSuggestError] = useState<string | null>(null);
+  const [aiSuggestResults, setAiSuggestResults] = useState<string[] | null>(null);
+  const [aiSuggestInstruction, setAiSuggestInstruction] = useState('');
+  const aiSuggestRangeRef = useRef<{ from: number; to: number } | null>(null);
   const pendingImageRef = useRef<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
   pendingImageRef.current = pendingImage;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1707,6 +1718,72 @@ const RichEditor = ({
   const sep = <div className="w-px h-4 bg-surface-container mx-1" />;
   const tableBtnCls = 'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors';
 
+  // 선택 영역 텍스트를 마크다운으로 추출 — 굵게/목록 등 구조를 AI가 파악할 수 있게 함
+  // 선택 영역은 항상 기존 블록(문단/목록 항목/제목 등) "안"의 텍스트 위치에 다시 끼워넣어지므로,
+  // 목록·제목·인용구 기호가 붙어 있으면 그대로 삽입할 때 중첩된 목록처럼 구조가 깨진다 — 줄 앞의 블록 기호만 제거.
+  const stripBlockMarkers = (markdown: string) =>
+    markdown
+      .split('\n')
+      .map(line => line.replace(/^\s*(?:[-*+]|\d+\.|#{1,6}|>)\s+/, ''))
+      .join('\n')
+      .trim();
+
+  const getSelectedMarkdown = (from: number, to: number) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const serialized = (editor.storage as any).markdown.serializer.serialize(editor.state.doc.cut(from, to)) as string;
+      return stripBlockMarkers(serialized);
+    } catch {
+      return editor.state.doc.textBetween(from, to, '\n\n');
+    }
+  };
+
+  const openAiSuggest = () => {
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    aiSuggestRangeRef.current = { from, to };
+    setAiSuggestInstruction('');
+    setAiSuggestResults(null);
+    setAiSuggestError(null);
+    setAiSuggestOpen(true);
+  };
+
+  const runAiSuggest = async () => {
+    const range = aiSuggestRangeRef.current;
+    if (!range) return;
+    setAiSuggestLoading(true);
+    setAiSuggestError(null);
+    try {
+      const selectedMarkdown = getSelectedMarkdown(range.from, range.to);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fullMarkdown = (editor.storage as any).markdown.getMarkdown() as string;
+      const suggestions = await suggestAlternativeContent(selectedMarkdown, fullMarkdown, aiSuggestInstruction, classId);
+      setAiSuggestResults(suggestions);
+    } catch (err: any) {
+      setAiSuggestError(
+        err?.message === 'AI_LIMIT_EXCEEDED'
+          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          : (err?.message || 'AI 제안 생성 중 오류가 발생했습니다.')
+      );
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  };
+
+  const applyAiSuggestion = (suggestion: string) => {
+    const range = aiSuggestRangeRef.current;
+    if (!range) return;
+    // 드래그로 선택한 범위 끝에 공백이 딸려 들어간 경우, 대안 텍스트는 trim되어 있어
+    // 그대로 끼워넣으면 "...했고새로운..."처럼 공백이 사라진다 — 원래 선택 영역의 앞뒤 공백을 그대로 보존.
+    const rawSelected = editor.state.doc.textBetween(range.from, range.to, '\n');
+    const leadingSpace = rawSelected.match(/^[^\S\n]+/)?.[0] ?? '';
+    const trailingSpace = rawSelected.match(/[^\S\n]+$/)?.[0] ?? '';
+    editor.chain().focus().insertContentAt(range, leadingSpace + stripBlockMarkers(suggestion) + trailingSpace).run();
+    setAiSuggestOpen(false);
+    setAiSuggestResults(null);
+    aiSuggestRangeRef.current = null;
+  };
+
   return (
     <div className="relative">
       {/* ── 툴바 (기본적으로 상단 고정 — 내용이 길어져도 스크롤 없이 바로 사용 가능) ── */}
@@ -1894,7 +1971,68 @@ const RichEditor = ({
           </span>
         </button>
         <button onClick={() => setLinkDialogOpen(true)} title="링크 삽입" className={btnCls(isActive('link'))}><Link2 size={14} /></button>
+        <div className="w-px h-4 bg-surface-container mx-0.5" />
+        <button onClick={openAiSuggest} title="선택 영역만 AI로 다르게 제안받기" className={btnCls(false) + ' text-primary'}><Sparkles size={14} /></button>
       </BubbleMenu>
+
+      {/* ── 선택 영역 AI 제안 패널 (사이드바 위에 뜨도록 body에 포탈) ── */}
+      {aiSuggestOpen && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setAiSuggestOpen(false)}>
+          <div className="w-full max-w-lg max-h-[80vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-container">
+              <p className="flex items-center gap-2 text-sm font-black text-on-surface"><Sparkles size={16} className="text-primary" />선택 영역 AI 제안</p>
+              <button onClick={() => setAiSuggestOpen(false)} className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-container"><X size={16} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              <p className="text-xs text-on-surface-variant/70">선택한 부분만 다른 표현으로 바꿔드려요. 나머지 내용은 그대로 유지됩니다.</p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={aiSuggestInstruction}
+                  onChange={e => setAiSuggestInstruction(e.target.value)}
+                  placeholder="원하는 방향 (선택, 예: 더 간결하게, 예시 추가해서)"
+                  className="w-full px-4 py-3.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  onKeyDown={e => e.key === 'Enter' && !aiSuggestLoading && runAiSuggest()}
+                />
+                <button
+                  onClick={runAiSuggest}
+                  disabled={aiSuggestLoading}
+                  className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-black disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {aiSuggestLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                  {aiSuggestResults ? '다시 제안' : '제안받기'}
+                </button>
+              </div>
+
+              {aiSuggestLoading && (
+                <div className="flex items-center justify-center gap-2 py-8 text-xs font-bold text-on-surface-variant/60">
+                  <Loader2 size={16} className="animate-spin" />AI가 대안을 만들고 있어요...
+                </div>
+              )}
+
+              {aiSuggestError && !aiSuggestLoading && (
+                <p className="text-xs font-bold text-rose-600 bg-rose-50 rounded-xl px-3 py-2.5">{aiSuggestError}</p>
+              )}
+
+              {!aiSuggestLoading && aiSuggestResults && (
+                <div className="space-y-2">
+                  {aiSuggestResults.map((suggestion, i) => (
+                    <button
+                      key={i}
+                      onClick={() => applyAiSuggestion(suggestion)}
+                      className="w-full text-left px-3.5 py-3 rounded-xl bg-surface-container hover:bg-primary/10 hover:ring-1 hover:ring-primary/30 transition-colors group"
+                    >
+                      <p className="text-[10px] font-black text-primary/70 mb-1">대안 {i + 1} · 클릭해서 적용</p>
+                      <p className="text-xs font-medium text-on-surface whitespace-pre-wrap line-clamp-6">{suggestion}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* ── 에디터 본문 ── */}
       <div
