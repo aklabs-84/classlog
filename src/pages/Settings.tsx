@@ -31,7 +31,10 @@ import {
   KeyRound,
   ShieldCheck,
   GraduationCap,
+  MessageCircle,
 } from 'lucide-react';
+
+const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 
 const Settings = () => {
   const { user, profile: authProfile, loading: authLoading, refreshProfile, signOut } = useAuth();
@@ -517,6 +520,37 @@ const Settings = () => {
           </div>
         )}
       </div>
+
+      {/* 사용법 교육 신청 + 카카오톡 커뮤니티 (무료 플랜에게만 노출) */}
+      {!isEffectivelyPro && (
+        <div className="layered-card rounded-3xl p-6 border border-indigo-100 bg-gradient-to-br from-indigo-50 to-blue-50">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center">
+              <GraduationCap size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="font-black text-base text-indigo-900">앱 사용법이 궁금하신가요?</p>
+              <p className="text-xs text-indigo-500">교육 신청 또는 카카오톡 커뮤니티에서 편하게 도움받으세요</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <NavLink
+              to="/training-request?source=settings"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors"
+            >
+              <GraduationCap size={14} /> 사용법 교육 신청
+            </NavLink>
+            <a
+              href={KAKAO_OPEN_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#fee500] hover:brightness-95 text-[#3c1e1e] text-sm font-bold rounded-xl transition-colors"
+            >
+              <MessageCircle size={14} /> 카카오톡 커뮤니티
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* 쿠폰 / 베타 코드 입력 */}
       <div className="layered-card rounded-3xl p-6 border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50">

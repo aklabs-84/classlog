@@ -28,6 +28,7 @@ import {
   Images,
   X,
   Lightbulb,
+  MessageCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseVideoUrl } from '../lib/gallery';
@@ -39,6 +40,8 @@ const DOODLE_INK = '#27272b';
 const DOODLE_ACCENT = '#a95ef8';
 
 const ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
+
+const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 
 // 체험하기(/demo) 버튼 임시 비활성화 — 다시 노출하려면 true로 변경
 const SHOW_DEMO_CTA = false;
@@ -1190,6 +1193,39 @@ const Landing = () => {
               </div>
             </motion.div>
           )}
+        </div>
+      </section>
+
+      {/* ── 사용법 교육 신청 + 카카오톡 커뮤니티 ── */}
+      <section className="py-16 bg-white">
+        <div className="max-w-4xl mx-auto px-6 grid md:grid-cols-2 gap-5">
+          <div className="rounded-[16px] border border-writer-mist bg-writer-lavender/20 p-8 flex flex-col">
+            <GraduationCap size={28} className="text-writer-iris mb-3" />
+            <h3 className="text-lg font-black mb-2">사용법 교육이 필요하신가요?</h3>
+            <p className="text-sm text-writer-slate leading-relaxed mb-5 flex-1">
+              처음이라 막막하셨다면 신청해 주세요. 화상통화, 방문, 자료 안내 중 원하시는 방식으로 사용법을 직접 알려드립니다.
+            </p>
+            <Link to="/training-request?source=landing" className={`${btnAccent} px-6 py-3 text-sm`}>
+              <GraduationCap size={16} />
+              사용법 교육 신청하기
+            </Link>
+          </div>
+          <div className="rounded-[16px] border border-writer-mist bg-[#fee500]/10 p-8 flex flex-col">
+            <MessageCircle size={28} className="text-[#3c1e1e] mb-3" />
+            <h3 className="text-lg font-black mb-2">카카오톡 커뮤니티</h3>
+            <p className="text-sm text-writer-slate leading-relaxed mb-5 flex-1">
+              다른 선생님들과 활용 팁을 나누고, 궁금한 점을 빠르게 물어볼 수 있는 오픈채팅방입니다.
+            </p>
+            <a
+              href={KAKAO_OPEN_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#fee500] text-[#3c1e1e] font-semibold hover:brightness-95 transition-colors px-6 py-3 text-sm whitespace-nowrap"
+            >
+              <MessageCircle size={16} />
+              카카오톡 오픈채팅 참여하기
+            </a>
+          </div>
         </div>
       </section>
 

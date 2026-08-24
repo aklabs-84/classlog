@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import AnnouncementBanner from './AnnouncementBanner';
 import BetaWelcomeBanner from './BetaWelcomeBanner';
-import BetaEndedBanner from './BetaEndedBanner';
+import TrialEndedModal from './TrialEndedModal';
 import WaitlistBanner from './WaitlistBanner';
 import FloatingTimer from '../FloatingTimer';
 import FloatingAIProgress from '../FloatingAIProgress';
@@ -22,7 +22,7 @@ const MainLayout = () => {
       >
         <AnnouncementBanner />
         <BetaWelcomeBanner />
-        <BetaEndedBanner />
+        <TrialEndedModal />
         <WaitlistBanner />
         <main className="px-4 md:px-8 pb-12 min-h-screen relative z-0">
           <div className="max-w-[1440px] mx-auto pt-4 lg:pt-8">

@@ -49,6 +49,7 @@ import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Waitlist from './pages/Waitlist';
+import TrainingRequest from './pages/TrainingRequest';
 import Gallery from './pages/Gallery';
 import VideoGuide from './pages/VideoGuide';
 import Pricing from './pages/Pricing';
@@ -248,6 +249,7 @@ function App() {
               <Route path="/school-intro" element={<SchoolIntroPage />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/waitlist" element={<Waitlist />} />
+              <Route path="/training-request" element={<TrainingRequest />} />
 
               {/* 관리자 라우트 */}
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
