@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import RichEditor from '../components/RichEditor';
+import CodeBlock from '../components/CodeBlock';
 import {
   Trash2,
   X,
@@ -117,6 +122,44 @@ const generateBreakTimes = (startTime: string, endTime: string, gen: BreakGenSet
     cur += gen.lunchEnabled && period === gen.lunchAfterPeriod ? gen.lunchMinutes : gen.breakMinutes;
   }
   return times;
+};
+
+// ── 공지사항 내용 마크다운 렌더러 (카드 안에서 컴팩트하게 표시) ─────────────────
+const announcementMdComponents: any = {
+  p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed text-xs font-bold text-on-surface-variant/70">{children}</p>,
+  h1: ({ children }: any) => <h1 className="text-sm font-black mb-1.5 mt-2 text-on-surface">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-sm font-black mb-1.5 mt-2 text-on-surface">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-xs font-black mb-1 mt-2 text-on-surface">{children}</h3>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2 space-y-0.5 text-xs">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2 space-y-0.5 text-xs">{children}</ol>,
+  li: ({ children }: any) => <li className="text-xs text-on-surface-variant/70">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-amber-400 pl-3 italic text-on-surface-variant my-2 bg-amber-50 py-1.5 rounded-r-lg text-xs">
+      {children}
+    </blockquote>
+  ),
+  code: ({ children, className }: any) => {
+    if (!className) {
+      return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
+    }
+    return <code className={className}>{children}</code>;
+  },
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const className = child?.props?.className || '';
+    const lang = className.replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-70">{children}</a>
+  ),
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow" />,
+  hr: () => <hr className="border-amber-200 my-3" />,
+  strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+  table: ({ children }: any) => <div className="overflow-auto mb-2"><table className="w-full border-collapse text-xs">{children}</table></div>,
+  th: ({ children }: any) => <th className="border border-surface-container px-2 py-1.5 bg-surface-container font-black text-left">{children}</th>,
+  td: ({ children }: any) => <td className="border border-surface-container px-2 py-1.5">{children}</td>,
 };
 
 const Classroom = () => {
@@ -2426,13 +2469,14 @@ const Classroom = () => {
                         placeholder="공지 제목"
                         className="w-full px-4 py-3 rounded-2xl border border-amber-200 bg-white text-sm font-black focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:font-normal"
                       />
-                      <textarea
-                        value={announcementForm.content}
-                        onChange={e => setAnnouncementForm(f => ({ ...f, content: e.target.value }))}
-                        placeholder="공지 내용 (선택사항)"
-                        rows={4}
-                        className="w-full px-4 py-3 rounded-2xl border border-amber-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:font-normal resize-none"
-                      />
+                      <div className="rounded-2xl border border-amber-200 overflow-hidden bg-white">
+                        <RichEditor
+                          value={announcementForm.content}
+                          onChange={content => setAnnouncementForm(f => ({ ...f, content }))}
+                          minHeight="140px"
+                          stickyToolbar={false}
+                        />
+                      </div>
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => { setShowAnnouncementForm(false); setAnnouncementForm({ title: '', content: '' }); }}
                           className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-amber-100 transition-all">취소</button>
@@ -2472,7 +2516,11 @@ const Classroom = () => {
                                 <p className="text-sm font-black">{a.title}</p>
                               </div>
                               {a.content && (
-                                <p className="text-xs font-bold text-on-surface-variant/70 mt-1 leading-relaxed whitespace-pre-wrap">{a.content}</p>
+                                <div className="mt-1">
+                                  <ReactMarkdown components={announcementMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                                    {a.content}
+                                  </ReactMarkdown>
+                                </div>
                               )}
                               <p className="text-[10px] text-on-surface-variant/40 font-bold mt-2">
                                 {new Date(a.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}

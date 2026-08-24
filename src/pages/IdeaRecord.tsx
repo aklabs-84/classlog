@@ -5,13 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List } from 'lucide-react';
+import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
 import CodeBlock from '../components/CodeBlock';
-import { analyzeIdea, generateLessonPlanDraft, embedText, type IdeaAnalysisResult, type RelatedMaterialRef } from '../lib/gemini';
+import { analyzeIdea, generateLessonPlanDraft, embedText, type IdeaAnalysisResult, type RelatedMaterialRef, type LessonPRD } from '../lib/gemini';
 import type { DeckSlide } from '../components/slidedeck/types';
+import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
 
 // DeckSlide.objects[]의 텍스트류 값만 이어붙여 미리보기용 텍스트로 사용 (SlideDeckEditor.tsx의 extractSlideDeckText와 동일 로직)
 const extractSlideDeckPreviewText = (slides: DeckSlide[]): string =>
@@ -205,6 +206,7 @@ export default function IdeaRecord() {
   // 분석 시점에 함께 조회한 관련 기존 수업 자료 — "수업 자료로 만들기" 생성 시 재사용
   const [analysisRelatedMaterials, setAnalysisRelatedMaterials] = useState<RelatedMaterialRef[]>([]);
   const [creatingMaterialLength, setCreatingMaterialLength] = useState<'simple' | 'detailed' | null>(null);
+  const [wizardFormat, setWizardFormat] = useState<'material' | 'slide' | null>(null);
 
   // 5단계: 태그 매칭용 — 카드에 "비슷한 자료 있음" 힌트를 보여주기 위해 한 번만 가져와둠
   const [libraryMaterials, setLibraryMaterials] = useState<{ id: string; title: string; content: string }[]>([]);
@@ -247,10 +249,10 @@ export default function IdeaRecord() {
 
   // 전체화면/팝업 모달이 떠 있는 동안 뒤쪽 페이지 스크롤을 잠가 이중 스크롤바가 겹쳐 보이지 않게 한다
   useEffect(() => {
-    const anyModalOpen = viewingNote || analysisNote || similarItemsNote || previewItem;
+    const anyModalOpen = viewingNote || analysisNote || similarItemsNote || previewItem || wizardFormat;
     document.body.style.overflow = anyModalOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [viewingNote, analysisNote, similarItemsNote, previewItem]);
+  }, [viewingNote, analysisNote, similarItemsNote, previewItem, wizardFormat]);
 
   // ── 노트 본문 내 이미지 업로드 — WebP 변환 후 Supabase 저장 ─────────────────
   const handleUploadImage = async (file: File): Promise<string> => {
@@ -626,6 +628,39 @@ export default function IdeaRecord() {
           noteId: analysisNote.id,
           title: analysisNote.title || '제목 없는 아이디어',
           content: buildDraftContent(analysisNote, analysisResult),
+          classId: analysisNote.class_id,
+        },
+      },
+    });
+  };
+
+  // 위저드(질문 3단계 → PRD → 승인)로 만든 초안을 기존 "자료로 만들기"/"슬라이드로 만들기" 이동 경로에 그대로 태움
+  const handleWizardApprove = (content: string, _prd: LessonPRD) => {
+    if (!analysisNote || !analysisResult) return;
+    const format = wizardFormat;
+    setWizardFormat(null);
+    persistAnalysis(analysisNote, analysisResult).catch(err => console.error('AI 분석 저장 오류:', err));
+    if (format === 'slide') {
+      navigate('/teaching-tools', {
+        state: {
+          activeToolId: 'slide-deck',
+          draftSlide: {
+            noteId: analysisNote.id,
+            title: analysisNote.title || '제목 없는 아이디어',
+            content,
+            classId: analysisNote.class_id,
+          },
+        },
+      });
+      return;
+    }
+    navigate('/teaching-tools', {
+      state: {
+        activeToolId: 'material-editor',
+        draftMaterial: {
+          noteId: analysisNote.id,
+          title: analysisNote.title || '제목 없는 아이디어',
+          content,
           classId: analysisNote.class_id,
         },
       },
@@ -1369,6 +1404,14 @@ export default function IdeaRecord() {
                         >
                           <Presentation size={13} /> 슬라이드로 만들기
                         </button>
+                        <div className="pt-1 border-t border-on-surface/[0.06]">
+                          <button
+                            onClick={() => setWizardFormat(analysisResult.suggestedFormat === 'slide' ? 'slide' : 'material')}
+                            className="w-full mt-2.5 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black bg-primary-container/50 text-primary hover:bg-primary-container transition-all"
+                          >
+                            <Wand2 size={13} /> AI와 질문하며 구체화하기
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : null}
@@ -1399,6 +1442,17 @@ export default function IdeaRecord() {
           )}
         </AnimatePresence>,
         document.body
+      )}
+
+      {wizardFormat && analysisNote && (
+        <IdeaPRDWizard
+          ideaContent={analysisNote.content}
+          format={wizardFormat}
+          relatedMaterials={analysisRelatedMaterials}
+          classId={analysisNote.class_id ?? undefined}
+          onClose={() => setWizardFormat(null)}
+          onApprove={handleWizardApprove}
+        />
       )}
 
       {/* 6단계: 참고 자료 카드 클릭 시 미리보기 모달 */}

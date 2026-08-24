@@ -35,7 +35,7 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
-  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb,
+  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -43,6 +43,8 @@ import PresentationModal, { renderCallout } from '../../components/PresentationM
 import MaterialCoverPage from '../../components/MaterialCoverPage';
 import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
+import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
+import type { LessonPRD } from '../../lib/gemini';
 
 // PDF 목차 페이지용 — 본문 마크다운 소제목(#~###)을 순서대로 추출
 const extractHeadingsForToc = (content: string): TocSection[] => {
@@ -974,6 +976,9 @@ const MaterialEditor = () => {
   const [title, setTitle] = useState('');
   const [weekNumber, setWeekNumber] = useState(1);
   const [content, setContent] = useState('');
+  const [aiIdeaModalOpen, setAiIdeaModalOpen] = useState(false);
+  const [aiIdeaText, setAiIdeaText] = useState('');
+  const [aiWizardOpen, setAiWizardOpen] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [coverSource, setCoverSource] = useState<'template' | 'upload'>('template');
@@ -1107,6 +1112,34 @@ const MaterialEditor = () => {
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
+  };
+
+  // "AI와 아이디어로 만들기" — 자유 텍스트 아이디어 입력 → 질문 위저드 → 승인 시 새 자료로 프리필해 연다
+  const handleStartAiIdea = () => {
+    if (!aiIdeaText.trim()) return;
+    setAiIdeaModalOpen(false);
+    setAiWizardOpen(true);
+  };
+
+  const handleAiWizardApprove = async (draftContent: string, prd: LessonPRD) => {
+    setAiWizardOpen(false);
+    if (!checkIsBasicOrAbove(profile)) {
+      const { count } = await supabase
+        .from('class_materials')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacher_id', user!.id);
+      if ((count ?? 0) >= FREE_MATERIAL_LIMIT) {
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        return;
+      }
+    }
+    resetForm();
+    setTitle(prd.title || '제목 없는 자료');
+    setContent(draftContent);
+    autosaveSkipRef.current = true;
+    setAutoSaveStatus('idle');
+    setIsEditorOpen(true);
+    setAiIdeaText('');
   };
 
   const handleEdit = (material: Material) => {
@@ -1580,181 +1613,253 @@ const MaterialEditor = () => {
             <Plus size={15} /> 새 자료 작성
           </button>
         )}
+        {(selectedClass || libraryMode) && !isEditorOpen && (
+          <button
+            onClick={() => setAiIdeaModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 border-primary/20 bg-primary-container/40 text-primary font-black text-sm hover:bg-primary-container/70 transition-all"
+          >
+            <Wand2 size={15} /> AI와 아이디어로 만들기
+          </button>
+        )}
       </div>
+
+      {aiIdeaModalOpen && (
+        <div className="fixed inset-0 z-[9998] bg-black/40 flex items-center justify-center p-4" onClick={() => setAiIdeaModalOpen(false)}>
+          <div
+            className="bg-white rounded-3xl shadow-xl w-full max-w-lg p-6 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
+              <Wand2 size={18} className="text-primary" /> 아이디어로 자료 만들기
+            </h3>
+            <p className="text-xs font-bold text-on-surface-variant">
+              떠오른 아이디어를 자유롭게 적어주시면, AI가 몇 가지 질문을 드리고 기획서(PRD)를 만들어 확인시켜드려요.
+            </p>
+            <textarea
+              value={aiIdeaText}
+              onChange={e => setAiIdeaText(e.target.value)}
+              placeholder="예: 3단원 광합성 수업에 모둠 실험 활동을 넣고 싶어요"
+              rows={5}
+              className="w-full px-4 py-3 rounded-2xl border-2 border-surface-container focus:border-primary/40 outline-none text-sm resize-none"
+            />
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setAiIdeaModalOpen(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-surface-container text-on-surface-variant font-black text-sm hover:bg-surface-container-high transition-all"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleStartAiIdea}
+                disabled={!aiIdeaText.trim()}
+                className="flex-1 px-4 py-2.5 rounded-xl btn-gradient text-white font-black text-sm shadow-lg disabled:opacity-50 transition-all"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aiWizardOpen && (
+        <IdeaPRDWizard
+          ideaContent={aiIdeaText}
+          format="material"
+          relatedMaterials={[]}
+          classId={libraryMode ? undefined : selectedClass?.id}
+          onClose={() => setAiWizardOpen(false)}
+          onApprove={handleAiWizardApprove}
+        />
+      )}
 
       {/* ── 에디터 패널 ── */}
       {isEditorOpen && (
         <div className="bg-white rounded-3xl border border-surface-container shadow-sm">
 
           {/* 에디터 헤더 */}
-          <div className="flex items-center flex-wrap gap-2 px-5 py-3.5 border-b border-surface-container bg-surface-container-low rounded-t-3xl">
-            <button
-              onClick={() => { setIsEditorOpen(false); resetForm(); }}
-              className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <span className="font-black text-sm flex-1">
-              {libraryMode
-                ? (editingMaterial ? '공통 자료 수정' : '새 공통 자료 작성')
-                : (editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성')}
-            </span>
-            {cameFromIdeaRecord && (
+          <div className="border-b border-surface-container bg-surface-container-low rounded-t-3xl">
+            {/* 1줄: 목록 이동 + 제목 + 뷰 모드 + 저장(가장 중요한 것만). 모바일은 폭이 부족하면 줄바꿈 */}
+            <div className="flex items-center flex-wrap gap-2 px-3 sm:px-5 pt-3.5 pb-2">
               <button
-                onClick={() => navigate('/dashboard')}
-                title="아이디어 기록 페이지로 돌아갑니다"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-container text-primary hover:opacity-80 font-black text-xs transition-opacity"
+                onClick={() => { setIsEditorOpen(false); resetForm(); }}
+                title={libraryMode ? '공통 자료 목록으로' : '자료 목록으로'}
+                className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-black text-xs transition-colors shrink-0"
               >
-                <Lightbulb size={12} /> 아이디어 기록으로
+                <ArrowLeft size={14} />
+                {libraryMode ? '공통 자료 목록' : '자료 목록'}
               </button>
-            )}
-            {/* AI로 정리 */}
-            <button
-              onClick={() => setShowAiReorganize(true)}
-              disabled={!content.trim()}
-              title={content.trim() ? 'AI로 학습 가이드/발표 자료 정리' : '내용을 먼저 작성해주세요'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors border border-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Sparkles size={12} /> AI로 정리
-            </button>
-            {/* AI 정리 히스토리 */}
-            {aiVersions.length > 0 && (
-              <div className="relative">
+              <span className="hidden sm:inline-block font-bold text-xs text-on-surface-variant truncate">
+                {libraryMode
+                  ? (editingMaterial ? '공통 자료 수정' : '새 공통 자료 작성')
+                  : (editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성')}
+              </span>
+              <div className="flex items-center gap-2 ml-auto shrink-0">
+                {/* 뷰 모드 토글 */}
+                <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1 shrink-0">
+                  {(['edit', 'preview'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode)}
+                      title={mode === 'edit' ? '편집 모드' : '미리보기'}
+                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                        viewMode === mode
+                          ? 'bg-white shadow text-primary'
+                          : 'text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      {mode === 'edit' ? <Pencil size={12} /> : <Eye size={12} />}
+                      <span className="hidden sm:inline">{mode === 'edit' ? '편집' : '미리보기'}</span>
+                    </button>
+                  ))}
+                </div>
+                {/* 저장 (가장 중요한 동작이므로 항상 눈에 띄게 우측 고정) */}
                 <button
-                  onClick={() => setShowVersionMenu(o => !o)}
-                  title="AI로 정리한 이전 결과 보기"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-low hover:text-primary font-black text-xs transition-colors border border-surface-container"
+                  onClick={handleSave}
+                  disabled={saving || uploading}
+                  title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
+                  className="flex items-center gap-1.5 px-3 py-1.5 btn-gradient rounded-xl font-black text-xs text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 shrink-0"
                 >
-                  <History size={12} /> 정리 히스토리 ({aiVersions.length})
+                  {(saving || uploading) ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                  {editingMaterial ? '수정 완료' : '저장'}
                 </button>
-                {showVersionMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowVersionMenu(false)} />
-                    <div className="absolute top-full mt-2 right-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-72 overflow-hidden">
-                      <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                        AI 정리 결과 목록
-                      </p>
-                      <div className="max-h-64 overflow-y-auto">
-                        {aiVersions.map(v => (
-                          <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
-                            <button
-                              onClick={() => {
-                                setShowVersionMenu(false);
-                                // 원본(content)은 건드리지 않고, 이 버전만 발표 모드로 열어서 보기/편집한다
-                                setPresentingMaterial({
-                                  id: editingMaterial?.id ?? 'draft',
-                                  class_id: selectedClass?.id ?? null,
-                                  week_number: weekNumber,
-                                  title: `${title.trim() || '(제목 없음)'} · ${v.label}`,
-                                  content: v.content,
-                                  url: '',
-                                  is_published: isPublished,
-                                  created_at: v.created_at,
-                                  updated_at: new Date().toISOString(),
-                                });
-                                setPresentingOnSave(() => (updated: string) => {
-                                  setAiVersions(prev => prev.map(x => x.id === v.id ? { ...x, content: updated } : x));
-                                });
-                              }}
-                              className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
-                            >
-                              {v.mode === 'guide'
-                                ? <BookOpen size={13} className="text-primary shrink-0" />
-                                : <Presentation size={13} className="text-violet-600 shrink-0" />}
-                              <span className="flex-1 min-w-0">
-                                <span className="block text-xs font-black truncate">{v.label}</span>
-                                <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAiVersion(v)}
-                              title="이 버전 삭제"
-                              className="shrink-0 p-1.5 mr-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
               </div>
-            )}
-            {/* 편집 중인 내용을 바로 발표 모드로 */}
-            <button
-              onClick={() => {
-                setPresentingMaterial({
-                  id: editingMaterial?.id ?? 'draft',
-                  class_id: selectedClass?.id ?? '',
-                  week_number: weekNumber,
-                  title: title.trim() || '(제목 없음)',
-                  content,
-                  url: '',
-                  is_published: isPublished,
-                  created_at: editingMaterial?.created_at ?? new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                });
-                // 발표 화면에서 슬라이드를 편집해도 원본(content)은 건드리지 않는다 — 편집은 발표 세션 내에서만 반영
-                setPresentingOnSave(() => () => {});
-              }}
-              disabled={!content.trim()}
-              title={content.trim() ? '지금 편집 중인 내용을 바로 발표 모드로 보기' : '내용을 먼저 작성해주세요'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors border border-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Presentation size={12} /> 발표
-            </button>
-            {/* 다른 클래스에서 가져오기 */}
-            <button
-              onClick={() => setShowImportModal(true)}
-              title="다른 클래스 자료 가져오기"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
-            >
-              <Download size={12} /> 가져오기
-            </button>
-            {/* 표지 설정 — PDF 다운로드 시 맨 앞에 자동으로 붙는 표지 페이지 */}
-            <button
-              onClick={() => setShowCoverModal(true)}
-              title="PDF 표지 설정"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
-            >
-              <ImageIcon size={12} /> 표지
-            </button>
-            {/* PDF 다운로드 — 화면에 보이는 서식 그대로 브라우저 인쇄를 통해 PDF로 저장 */}
-            <button
-              onClick={handlePrintPdf}
-              disabled={!content.trim()}
-              title={content.trim() ? '지금 작성된 내용을 PDF로 다운로드 (인쇄창에서 "PDF로 저장" 선택)' : '내용을 먼저 작성해주세요'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <FileDown size={12} /> PDF 다운로드
-            </button>
-            {/* 저장 (상단에서도 바로 저장 가능) */}
-            <button
-              onClick={handleSave}
-              disabled={saving || uploading}
-              title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
-              className="flex items-center gap-1.5 px-3 py-1.5 btn-gradient rounded-xl font-black text-xs text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-            >
-              {(saving || uploading) ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              {editingMaterial ? '수정 완료' : '저장'}
-            </button>
-            {/* 뷰 모드 토글 */}
-            <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1">
-              {(['edit', 'preview'] as const).map(mode => (
+            </div>
+
+            {/* 2줄: 부가 도구 — 작고 옅은 톤으로 눌러서 1줄과 위계를 구분 */}
+            <div className="flex items-center flex-wrap gap-1.5 px-3 sm:px-5 pb-3">
+              {cameFromIdeaRecord && (
                 <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  title={mode === 'edit' ? '편집 모드' : '미리보기'}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                    viewMode === mode
-                      ? 'bg-white shadow text-primary'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
+                  onClick={() => navigate('/dashboard')}
+                  title="아이디어 기록 페이지로 돌아갑니다"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-container text-primary hover:opacity-80 font-bold text-[11px] transition-opacity"
                 >
-                  {mode === 'edit' ? <>편집</> : <><Eye size={12}/> 미리보기</>}
+                  <Lightbulb size={11} /> 아이디어 기록으로
                 </button>
-              ))}
+              )}
+              {/* AI로 정리 */}
+              <button
+                onClick={() => setShowAiReorganize(true)}
+                disabled={!content.trim()}
+                title={content.trim() ? 'AI로 학습 가이드/발표 자료 정리' : '내용을 먼저 작성해주세요'}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Sparkles size={11} /> AI로 정리
+              </button>
+              {/* AI 정리 히스토리 */}
+              {aiVersions.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowVersionMenu(o => !o)}
+                    title="AI로 정리한 이전 결과 보기"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors"
+                  >
+                    <History size={11} /> 정리 히스토리 ({aiVersions.length})
+                  </button>
+                  {showVersionMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowVersionMenu(false)} />
+                      <div className="absolute top-full mt-2 right-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-72 overflow-hidden">
+                        <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                          AI 정리 결과 목록
+                        </p>
+                        <div className="max-h-64 overflow-y-auto">
+                          {aiVersions.map(v => (
+                            <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
+                              <button
+                                onClick={() => {
+                                  setShowVersionMenu(false);
+                                  // 원본(content)은 건드리지 않고, 이 버전만 발표 모드로 열어서 보기/편집한다
+                                  setPresentingMaterial({
+                                    id: editingMaterial?.id ?? 'draft',
+                                    class_id: selectedClass?.id ?? null,
+                                    week_number: weekNumber,
+                                    title: `${title.trim() || '(제목 없음)'} · ${v.label}`,
+                                    content: v.content,
+                                    url: '',
+                                    is_published: isPublished,
+                                    created_at: v.created_at,
+                                    updated_at: new Date().toISOString(),
+                                  });
+                                  setPresentingOnSave(() => (updated: string) => {
+                                    setAiVersions(prev => prev.map(x => x.id === v.id ? { ...x, content: updated } : x));
+                                  });
+                                }}
+                                className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
+                              >
+                                {v.mode === 'guide'
+                                  ? <BookOpen size={13} className="text-primary shrink-0" />
+                                  : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                                <span className="flex-1 min-w-0">
+                                  <span className="block text-xs font-black truncate">{v.label}</span>
+                                  <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAiVersion(v)}
+                                title="이 버전 삭제"
+                                className="shrink-0 p-1.5 mr-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {/* 편집 중인 내용을 바로 발표 모드로 */}
+              <button
+                onClick={() => {
+                  setPresentingMaterial({
+                    id: editingMaterial?.id ?? 'draft',
+                    class_id: selectedClass?.id ?? '',
+                    week_number: weekNumber,
+                    title: title.trim() || '(제목 없음)',
+                    content,
+                    url: '',
+                    is_published: isPublished,
+                    created_at: editingMaterial?.created_at ?? new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  });
+                  // 발표 화면에서 슬라이드를 편집해도 원본(content)은 건드리지 않는다 — 편집은 발표 세션 내에서만 반영
+                  setPresentingOnSave(() => () => {});
+                }}
+                disabled={!content.trim()}
+                title={content.trim() ? '지금 편집 중인 내용을 바로 발표 모드로 보기' : '내용을 먼저 작성해주세요'}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Presentation size={11} /> 발표
+              </button>
+
+              <div className="w-px h-4 bg-surface-container mx-0.5" />
+
+              {/* 다른 클래스에서 가져오기 */}
+              <button
+                onClick={() => setShowImportModal(true)}
+                title="다른 클래스 자료 가져오기"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors"
+              >
+                <Download size={11} /> 가져오기
+              </button>
+              {/* 표지 설정 — PDF 다운로드 시 맨 앞에 자동으로 붙는 표지 페이지 */}
+              <button
+                onClick={() => setShowCoverModal(true)}
+                title="PDF 표지 설정"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors"
+              >
+                <ImageIcon size={11} /> 표지
+              </button>
+              {/* PDF 다운로드 — 화면에 보이는 서식 그대로 브라우저 인쇄를 통해 PDF로 저장 */}
+              <button
+                onClick={handlePrintPdf}
+                disabled={!content.trim()}
+                title={content.trim() ? '지금 작성된 내용을 PDF로 다운로드 (인쇄창에서 "PDF로 저장" 선택)' : '내용을 먼저 작성해주세요'}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <FileDown size={11} /> PDF 다운로드
+              </button>
             </div>
           </div>
 
@@ -1814,18 +1919,18 @@ const MaterialEditor = () => {
             </div>
           )}
 
-          {/* 하단 액션 바 */}
-          <div className="flex items-center gap-3 px-5 py-4 border-t border-surface-container bg-surface-container-low/50">
+          {/* 하단 액션 바. 설명 텍스트는 모바일에서 숨기고, 취소/저장 버튼은 항상 오른쪽 고정 */}
+          <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-surface-container bg-surface-container-low/50">
             {libraryMode ? (
-              <p className="text-xs font-bold text-on-surface-variant opacity-60 flex items-center gap-1.5">
-                <Library size={14} /> 공통 자료함에는 학생에게 공개되지 않습니다. 저장 후 원하는 클래스에 연결하면 그 클래스에서 공개 여부를 설정할 수 있습니다.
+              <p className="hidden sm:flex min-w-0 text-xs font-bold text-on-surface-variant opacity-60 items-center gap-1.5">
+                <Library size={14} className="shrink-0" /> 공통 자료함에는 학생에게 공개되지 않습니다. 저장 후 원하는 클래스에 연결하면 그 클래스에서 공개 여부를 설정할 수 있습니다.
               </p>
             ) : (
               <>
                 {/* 공개 토글 */}
                 <button
                   onClick={() => setIsPublished(p => !p)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm transition-all shrink-0 ${
                     isPublished
                       ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                       : 'bg-white border-surface-container text-on-surface-variant hover:border-primary/20'
@@ -1833,34 +1938,35 @@ const MaterialEditor = () => {
                 >
                   {isPublished ? <><Globe size={14} /> 학생 공개 중</> : <><Lock size={14} /> 비공개</>}
                 </button>
-                <p className="text-xs font-bold text-on-surface-variant opacity-60">
+                <p className="hidden sm:block text-xs font-bold text-on-surface-variant opacity-60">
                   {isPublished ? '학생이 수업자료 탭에서 볼 수 있습니다' : '저장 후 공개 여부를 설정하세요'}
                 </p>
               </>
             )}
-            <div className="flex-1" />
-            <button
-              onClick={() => { setIsEditorOpen(false); resetForm(); }}
-              className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
-            >
-              취소
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || uploading}
-              title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
-              className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-            >
-              {saving ? <Loader2 size={15} className="animate-spin" /> : uploading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              {uploading ? '이미지 업로드 중...' : editingMaterial ? '수정 완료' : '저장'}
-            </button>
+            <div className="flex items-center gap-3 ml-auto shrink-0">
+              <button
+                onClick={() => { setIsEditorOpen(false); resetForm(); }}
+                className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || uploading}
+                title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
+                className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={15} className="animate-spin" /> : uploading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {uploading ? '이미지 업로드 중...' : editingMaterial ? '수정 완료' : '저장'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* 자동 저장 상태 — 본문을 스크롤해도 항상 보이도록 화면에 고정 */}
       {isEditorOpen && autoSaveStatus !== 'idle' && (
-        <div className="fixed bottom-24 right-5 z-[60] flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg font-bold text-xs bg-white border border-surface-container">
+        <div className="fixed bottom-40 sm:bottom-24 right-4 sm:right-5 z-[60] flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg font-bold text-xs bg-white border border-surface-container">
           {autoSaveStatus === 'saving' ? (
             <span className="text-on-surface-variant flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin" /> 자동 저장 중...

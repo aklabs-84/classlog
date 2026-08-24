@@ -59,6 +59,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
@@ -151,6 +152,37 @@ const MATERIAL_MD_COMPONENTS = {
     </summary>
   ),
   div: (props: any) => renderMaterialCallout(props),
+};
+
+// 공지사항 내용 마크다운 렌더러 (카드 안에서 컴팩트하게 표시) — 모듈 레벨 고정으로 리마운트 방지
+const ANNOUNCEMENT_MD_COMPONENTS = {
+  p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed text-sm font-bold text-on-surface-variant">{children}</p>,
+  h1: ({ children }: any) => <h1 className="text-sm font-black mb-1.5 mt-2">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-sm font-black mb-1.5 mt-2">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-xs font-black mb-1 mt-2">{children}</h3>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2 space-y-0.5 text-sm">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2 space-y-0.5 text-sm">{children}</ol>,
+  li: ({ children }: any) => <li className="text-sm text-on-surface-variant">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-amber-400 pl-3 italic text-on-surface-variant my-2 bg-amber-50 py-1.5 rounded-r-lg text-sm">{children}</blockquote>
+  ),
+  code: ({ children, className }: any) => {
+    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
+    return <code className={className}>{children}</code>;
+  },
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-70">{children}</a>,
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow" />,
+  hr: () => <hr className="border-amber-200 my-3" />,
+  strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+  table: ({ children }: any) => <div className="overflow-auto mb-2"><table className="w-full border-collapse text-xs">{children}</table></div>,
+  th: ({ children }: any) => <th className="border border-surface-container px-2 py-1.5 bg-surface-container font-black text-left">{children}</th>,
+  td: ({ children }: any) => <td className="border border-surface-container px-2 py-1.5">{children}</td>,
 };
 
 interface NoteItem {
@@ -2642,9 +2674,11 @@ ${guidePrompt}
                           </button>
                           {expandedAnnouncementId === a.id && a.content && (
                             <div className="px-4 pb-4">
-                              <p className="text-sm font-bold text-on-surface-variant leading-relaxed whitespace-pre-wrap p-3 bg-white/60 rounded-xl border border-amber-100">
-                                {a.content}
-                              </p>
+                              <div className="p-3 bg-white/60 rounded-xl border border-amber-100">
+                                <ReactMarkdown components={ANNOUNCEMENT_MD_COMPONENTS} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                                  {a.content}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           )}
                         </div>

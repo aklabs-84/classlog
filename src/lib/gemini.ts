@@ -221,6 +221,9 @@ export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_dra
 export const coverPromptAI         = makeModelWrapper('flash', 'cover_prompt_suggest', true);
 export const ideaAnalysisAI        = makeModelWrapper('flash', 'idea_analysis', true);
 export const lessonPlanDraftAI     = makeModelWrapper('flash', 'lesson_plan_draft');
+export const ideaQuestionAI        = makeModelWrapper('flash', 'idea_clarify_question', true);
+export const ideaPRDAI             = makeModelWrapper('flash', 'idea_prd_generate', true);
+export const ideaPRDDraftAI        = makeModelWrapper('flash', 'idea_prd_draft');
 
 /**
  * 파일을 Gemini API 파트로 변환 (Base64) - 브라우저에서 실행, 결과를 서버로 전달
@@ -658,6 +661,37 @@ ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습�
   });
 }
 
+// 실제 수업 계획안(수업 자료 에디터에 그대로 들어가는 문서)이 밋밋한 소제목+불릿 나열에
+// 그치지 않고, 교재처럼 쓸 수 있도록 표/인용문/코드블록/토글을 상황에 맞게 활용하도록
+// 유도하는 공통 지시문. 에디터(RichEditor)가 이 문법을 그대로 렌더링하므로 프롬프트에서만
+// 유도하면 되고, 슬라이드/프레젠테이션처럼 공간이 빠듯한 포맷에는 붙이지 않는다.
+const RICH_FORMATTING_GUIDE = `[형식 활용 규칙 — 실제 교재처럼 보이도록]
+- 소제목은 반드시 "## 제목"처럼 #과 제목 사이에 공백을 하나 넣어서 쓰세요. "##제목"처럼 공백 없이 붙여 쓰면 제목으로 렌더링되지 않고 화면에 "##" 글자가 그대로 노출됩니다. 절대 공백을 빠뜨리지 마세요.
+- 소제목과 불릿만 나열하지 말고, 아래 요소를 실제로 도움이 되는 곳에만 자연스럽게 섞어 쓰세요. 모든 섹션에 억지로 넣지 마세요.
+- 표: 활동별 시간·준비물·역할, 차시별 진행 순서, 비교 항목처럼 여러 항목을 나란히 비교/정리하기 좋은 내용은 마크다운 표로 작성하세요. 표는 3~4행 이내로 간결하게 작성하고, 각 셀은 짧은 한두 단어~한 문장으로만 채우세요. **절대 열 너비를 맞추려고 셀 안에 공백을 추가하지 마세요.** 헤더 행, 구분선 행, 데이터 행 모두 셀 내용 바로 뒤에 공백 없이 바로 \`|\`를 쓰고, 다음 줄로 바로 넘어가세요. **표는 반드시 독립된 블록으로, 줄 맨 앞부터(들여쓰기 없이) 시작하세요. 불릿(*, -)이나 번호 목록 항목의 텍스트 뒤에 이어 붙이거나 목록 안에 중첩하지 말고, 표 앞뒤에 빈 줄을 두어 문단과 분리하세요.** 아래 예시의 형식을 정확히 그대로 따르세요(각 줄 길이가 달라도 됩니다):
+
+| 항목 | 내용 |
+| --- | --- |
+| 예시 항목1 | 짧은 설명 |
+| 예시 항목2 | 짧은 설명 |
+- 인용문: 교사가 학생에게 그대로 던질 발문, 핵심 메시지나 명언, 꼭 강조하고 싶은 한 문장은 \`> \`로 시작하는 인용문으로 표시하세요.
+- 코드 블록: 학생에게 나눠줄 대화 스크립트, 활동지 양식, 프로그래밍 코드 등 줄바꿈·서식을 그대로 보존해야 하는 내용은 \`\`\`로 감싼 코드 블록으로 작성하세요.
+- 토글: 본문 흐름을 방해하지 않되 참고하면 좋은 심화 설명, 배경 지식, 추가 예시는 토글로 접어 넣으세요. **반드시 독립된 문단으로, 줄 맨 앞부터(들여쓰기·불릿·번호 없이) 시작하세요. 목록(*, -, 1. 등) 항목 안에 중첩해서 넣지 마세요.** \`<details>\`, \`<summary>\`, 내용, \`</details>\`는 각각 줄 맨 앞에서 시작하고, \`<summary>\` 다음 줄과 \`</details>\` 앞 줄은 반드시 빈 줄로 띄우세요. 아래 예시를 정확히 그대로 따르세요:
+
+<details>
+<summary>토글 제목</summary>
+
+접혀 있다가 펼치면 보이는 내용
+
+</details>
+- 이미지 제안: 사진·그림·도식이 있으면 이해에 크게 도움이 될 부분(실험 장면, 구조도, 결과물 예시, 현장 사진 등)에는 어떤 이미지가 있으면 좋을지 짧고 구체적으로 제안하는 콜아웃을 넣으세요. 모든 섹션에 넣지 말고 정말 필요한 곳 1~3곳에만 자연스럽게 넣으세요. **반드시 독립된 블록으로, 줄 맨 앞부터(들여쓰기·목록 중첩 없이) 시작하고, 앞뒤에 빈 줄을 두세요.** 아래 예시를 정확히 그대로 따르세요:
+
+<div data-callout="info">
+
+이미지 제안: (어떤 이미지가 있으면 좋을지 한 문장으로 구체적으로 — 예: 시금치 잎 단면 구조를 보여주는 확대 사진이나 도식)
+
+</div>`;
+
 // ── 수업 자료 AI 재구성 (학습 가이드 / 발표 자료) ─────────────────────────────
 
 // 선생님이 UI에서 그대로 읽을 수 있도록 작성된 기본 프롬프트 (투명 공개용)
@@ -668,7 +702,9 @@ export const MATERIAL_REORG_PROMPTS: Record<'guide' | 'presentation', string> = 
 - 각 단계는 소제목과 설명으로 구성하고, 필요하면 "확인해보기" 질문을 덧붙입니다.
 - 마지막에 "정리 체크리스트" 섹션을 불릿으로 추가합니다.
 - 원문에 없는 정보를 임의로 추가하거나 빼지 않습니다.
-- {{IMG:n}} 형태의 자리표시자는 텍스트를 바꾸지 말고 문맥에 맞는 위치로만 재배치합니다.`,
+- {{IMG:n}} 형태의 자리표시자는 텍스트를 바꾸지 말고 문맥에 맞는 위치로만 재배치합니다.
+
+${RICH_FORMATTING_GUIDE}`,
 
   presentation: `이 내용을 발표 화면(16:9 프레젠테이션)에서 스크롤 없이 한 화면에 다 보이도록 슬라이드 자료로 재구성합니다.
 - 슬라이드는 빈 줄 다음 "---" 한 줄로 구분합니다.
@@ -1013,9 +1049,196 @@ ${outlineBlock}${relatedBlock}
 - 마크다운 문서로 작성하세요. "## 수업 목표", "## 도입", "## 전개", "## 정리", "## 준비물 및 유의사항" 순서의 소제목 구조를 기본으로 사용하세요 (내용에 맞지 않는 섹션은 생략 가능).
 - ${lengthInstruction}
 - 원문 아이디어에 없는 사실 정보를 임의로 지어내지 말고, 교육적으로 자연스럽게 살을 붙이는 수준으로 작성하세요.
-- 결과에는 수업 계획안 본문만 작성하고, 다른 설명이나 인사말은 넣지 마세요.`;
+- 결과에는 수업 계획안 본문만 작성하고, 다른 설명이나 인사말은 넣지 마세요.
+
+${RICH_FORMATTING_GUIDE}`;
 
   const result = await lessonPlanDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  return result.response.text().trim().replace(/^```(markdown)?\n?/, '').replace(/```$/, '').trim();
+}
+
+// ── 아이디어 → 질문형 위저드: 단계별 4지선다 질문 → PRD → PRD 기반 초안 ────────
+
+export interface ClarifyingQuestion {
+  question: string;
+  options: string[]; // 정확히 4개
+  exampleAnswers: string[]; // "직접 입력" 시 참고할 샘플 답변 2~3개
+}
+
+export interface LessonPRD {
+  title: string;
+  goal: string;
+  structure: { phase: string; description: string }[];
+  tone: string;
+  keyPoints: string[];
+}
+
+type QAPair = { question: string; answer: string };
+
+const WIZARD_FORMAT_LABEL: Record<'material' | 'slide', string> = {
+  material: '수업 계획안(수업 자료)',
+  slide: '수업 슬라이드',
+};
+
+const WIZARD_STAGE_GOAL = [
+  '수업 인원 규모를 파악하는 질문 (예: 소수 정예로 개별 밀착 실습이 가능한지, 학급 단위 다수라 공통 지도가 필요한지)',
+  '수업 기간을 파악하는 질문 (예: 원데이·단기 체험형인지, 한 학기·연간에 걸친 장기 프로젝트형인지)',
+  '학생들의 해당 주제에 대한 이해도·스킬 수준을 파악하는 질문',
+  '학생들의 참여 성향을 파악하는 질문 (자발적으로 적극 참여하는 편인지, 수동적이라 흥미 유도가 필요한 편인지)',
+  '이 수업에서 선생님이 가장 중요하게 생각하는 것, 원하는 목표나 결과를 파악하는 질문 — 선생님마다 답이 크게 다를 수 있는 주제이니, 질문 문구에서 보기보다 자유롭게 직접 답을 적어도 좋다는 뉘앙스를 자연스럽게 전달하세요',
+  '수업 기획에서 가장 도움받고 싶은 영역이 무엇인지 파악하는 질문',
+  '결과물의 성격을 파악하는 질문 (개인/모둠 여부, 발표까지 포함되는지 등)',
+];
+
+// "가장 도움받고 싶은 영역" 단계는 수업의 4단계 흐름(인트로/학습전달/실습/발표)과 1:1로 대응시켜 보기를 고정한다.
+const HELP_AREA_STAGE_INDEX = 5;
+const HELP_AREA_OPTIONS = [
+  '인트로 활동 아이디어 (팀 체험, AI 도구 활용 등)',
+  '학습 내용 전달 방법',
+  '실습·프로젝트 아이디어',
+  '발표·마무리 방식',
+];
+
+function buildQAHistoryBlock(qaHistory: QAPair[]): string {
+  if (qaHistory.length === 0) return '';
+  return `\n\n[지금까지 선생님이 답변한 내용]\n${qaHistory
+    .map((qa, i) => `${i + 1}. Q: ${qa.question}\n   A: ${qa.answer}`)
+    .join('\n')}`;
+}
+
+// 3단계 중 현재 라운드에서 몇 번째 질문인지에 맞춰 4지선다 질문 1개를 생성.
+// revisionOf가 있으면 "PRD를 반려당한 뒤 이전 답변은 유지한 채 무엇을 조정할지 좁히는 질문"으로 프레이밍.
+export async function generateNextClarifyingQuestion(
+  ideaContent: string,
+  format: 'material' | 'slide',
+  qaHistory: QAPair[],
+  classId?: string,
+  revisionOf?: LessonPRD
+): Promise<ClarifyingQuestion> {
+  const roundQaHistory = revisionOf ? [] : qaHistory;
+  const stageIndex = Math.min(roundQaHistory.length, WIZARD_STAGE_GOAL.length - 1);
+  const qaBlock = buildQAHistoryBlock(qaHistory);
+  const revisionBlock = revisionOf
+    ? `\n\n[상황] 아래 PRD를 선생님이 마음에 들어 하지 않아 반려했습니다. 위의 이전 답변들은 그대로 유효하다고 보고, 선생님이 이 PRD의 어떤 부분을 다르게 하고 싶은지 좁혀가는 질문을 하세요.\n[반려된 PRD]\n${JSON.stringify(revisionOf)}`
+    : '';
+
+  const prompt = `당신은 선생님의 수업 아이디어를 ${WIZARD_FORMAT_LABEL[format]}(으)로 구체화하기 위해, 방향을 좁히는 질문을 하는 AI입니다.
+
+[선생님이 기록한 아이디어]
+${ideaContent}
+${qaBlock}${revisionBlock}
+
+[할 일]
+지금은 총 ${WIZARD_STAGE_GOAL.length}단계 질문 중 ${stageIndex + 1}단계입니다. 이 단계의 목적: ${WIZARD_STAGE_GOAL[stageIndex]}
+이 목적에 맞는 질문을 정확히 1개 만들고, 선생님이 고민 없이 고를 수 있도록 서로 뚜렷하게 구분되는 보기를 정확히 4개 제시하세요. 각 보기는 15자 내외로 짧고 구체적으로 작성하세요.
+또한 선생님이 보기 대신 이 질문에 자기 말로 직접 답을 적고 싶을 때 참고할 수 있도록, 실제로 적을 법한 자연스러운 답변 예시를 2~3개 만드세요.
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"question":"...","options":["...","...","...","..."],"exampleAnswers":["...","..."]}`;
+
+  const result = await ideaQuestionAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  let options = Array.isArray(parsed.options) ? parsed.options.map((s: any) => String(s)) : [];
+  if (stageIndex === HELP_AREA_STAGE_INDEX) {
+    options = HELP_AREA_OPTIONS;
+  }
+  const exampleAnswers = Array.isArray(parsed.exampleAnswers) ? parsed.exampleAnswers.map((s: any) => String(s)).slice(0, 3) : [];
+  return {
+    question: String(parsed.question || '').trim(),
+    options: options.slice(0, 4),
+    exampleAnswers,
+  };
+}
+
+// 3단계 질문·답변을 종합해 PRD(수업 설계 기획서)를 생성
+export async function generateLessonPRD(
+  ideaContent: string,
+  format: 'material' | 'slide',
+  qaHistory: QAPair[],
+  classId?: string
+): Promise<LessonPRD> {
+  const qaBlock = buildQAHistoryBlock(qaHistory);
+
+  const prompt = `당신은 선생님의 수업 아이디어와 질문 답변을 바탕으로 ${WIZARD_FORMAT_LABEL[format]} 제작을 위한 PRD(기획서)를 작성하는 AI입니다.
+
+[선생님이 기록한 아이디어]
+${ideaContent}
+${qaBlock}
+
+[할 일]
+위 답변들을 반영해 아래 항목을 작성하세요.
+- title: 이 수업/자료의 제목 (15자 내외)
+- goal: 수업 목표를 한 문장으로 — "가장 중요하게 생각하는 것/원하는 목표·결과"로 답한 내용을 최우선으로 반영하세요.
+- structure: 도입/전개/정리 등 진행 단계별로 phase(단계명)와 description(그 단계에서 할 일, 1~2문장)을 3~5개. 기본 골격은 "인트로 활동 → 학습 내용 전달 → 실습 활동 → 발표/마무리"로 하되, "가장 도움받고 싶은 영역"으로 답한 단계는 다른 단계보다 훨씬 구체적이고 아이디어가 풍부하게 description을 작성하세요. 인원 규모·수업 기간·참여 성향 답변에 맞춰 각 단계의 비중과 성격(체험 중심 vs 학습 중심, 개별 밀착 vs 공통 지도)을 조정하세요.
+- tone: 분량·난이도·문체 방향을 한 문장으로 요약 — 이해도·스킬 수준 답변을 반영하세요.
+- keyPoints: 이 결과물에 반드시 반영해야 할 핵심 요소 2~4개 — "결과물의 성격" 답변에서 요구하는 산출물이 반드시 포함되도록 하고, 참여 성향이 수동적이라면 재미·참여 유도 요소를 keyPoints에 명시하세요.
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"title":"...","goal":"...","structure":[{"phase":"...","description":"..."}],"tone":"...","keyPoints":["...","..."]}`;
+
+  const result = await ideaPRDAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  return {
+    title: String(parsed.title || '').trim(),
+    goal: String(parsed.goal || '').trim(),
+    structure: Array.isArray(parsed.structure)
+      ? parsed.structure.map((s: any) => ({ phase: String(s.phase || ''), description: String(s.description || '') }))
+      : [],
+    tone: String(parsed.tone || '').trim(),
+    keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.map((s: any) => String(s)) : [],
+  };
+}
+
+// 승인된 PRD를 바탕으로 실제 문서(수업 계획안 마크다운 또는 슬라이드용 원고)를 생성
+export async function generateContentFromPRD(
+  ideaContent: string,
+  prd: LessonPRD,
+  relatedMaterials: RelatedMaterialRef[],
+  format: 'material' | 'slide',
+  classId?: string
+): Promise<string> {
+  const relatedBlock = relatedMaterials.length > 0
+    ? `\n\n[선생님이 이미 만들어둔 관련 수업 자료 — 내용이 겹치지 않도록 참고만 하고, 그대로 베끼지 마세요]\n${relatedMaterials
+        .map((m, i) => `${i + 1}. ${m.title}\n${m.snippet}`)
+        .join('\n\n')}`
+    : '';
+  const formatInstruction = format === 'slide'
+    ? '이 문서는 발표용 슬라이드로 옮겨질 원고입니다. 슬라이드 한 장에 들어갈 만한 분량으로 섹션을 짧게 끊어 작성하세요.'
+    : '이 문서는 그대로 교사가 수업에 쓸 수업 계획안입니다.';
+  const richFormattingBlock = format === 'material' ? `\n\n${RICH_FORMATTING_GUIDE}` : '';
+
+  const prompt = `당신은 아래 PRD(기획서)를 그대로 따라 ${WIZARD_FORMAT_LABEL[format]} 문서를 작성하는 AI입니다.
+
+[선생님이 기록한 원본 아이디어]
+${ideaContent}
+
+[승인된 PRD]
+- 제목: ${prd.title}
+- 목표: ${prd.goal}
+- 구성: ${prd.structure.map(s => `${s.phase}(${s.description})`).join(' → ')}
+- 톤/분량: ${prd.tone}
+- 꼭 반영할 요소: ${prd.keyPoints.join(', ')}
+${relatedBlock}
+
+[작성 규칙]
+- 마크다운 문서로 작성하세요. PRD의 구성(structure) 단계를 "## " 소제목으로 그대로 사용하세요.
+- ${formatInstruction}
+- PRD의 톤/분량 지침과 꼭 반영할 요소를 반드시 따르세요.
+- 원문 아이디어에 없는 사실 정보를 임의로 지어내지 말고, 교육적으로 자연스럽게 살을 붙이는 수준으로 작성하세요.
+- 결과에는 문서 본문만 작성하고, 다른 설명이나 인사말은 넣지 마세요.${richFormattingBlock}`;
+
+  const result = await ideaPRDDraftAI.generateContent(
     prompt,
     classId ? { class_id: classId } : undefined
   );
