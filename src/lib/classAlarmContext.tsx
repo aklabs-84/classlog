@@ -162,13 +162,57 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const dismissAlert = useCallback((key: string) => {
+    const alert = activeAlerts.find((a) => a.key === key);
+
     setActiveAlerts((prev) => prev.filter((a) => a.key !== key));
     const intervalId = alarmIntervalsRef.current.get(key);
     if (intervalId) {
       clearInterval(intervalId);
       alarmIntervalsRef.current.delete(key);
     }
-  }, []);
+
+    // 이 기기에서 정지했다는 사실을 서버에 기록 — PWA로 설치된 다른 기기나
+    // 열려있는 다른 브라우저 탭도 동일한 알람을 함께 정지시키기 위함
+    if (alert) {
+      supabase
+        .rpc('dismiss_class_alarm_owned', {
+          p_trigger_key: alert.key,
+          p_class_id: alert.classId,
+          p_type: alert.type,
+          p_minutes_left: alert.minutesLeft,
+          p_class_name: alert.className,
+        })
+        .then(({ error }) => {
+          if (error) console.error('[classAlarm] 기기 간 정지 동기화 실패', error);
+        });
+    }
+  }, [activeAlerts]);
+
+  // 알람이 울리는 중에만(불필요한 네트워크 요청 방지) 다른 기기에서 이미 정지시켰는지 주기적으로 확인
+  useEffect(() => {
+    if (activeAlerts.length === 0) return;
+
+    const checkRemoteDismiss = async () => {
+      const keys = activeAlerts.map((a) => a.key);
+      const { data } = await supabase
+        .from('class_alarm_triggers')
+        .select('trigger_key')
+        .in('trigger_key', keys)
+        .not('dismissed_at', 'is', null);
+
+      (data || []).forEach(({ trigger_key }) => {
+        setActiveAlerts((prev) => prev.filter((a) => a.key !== trigger_key));
+        const intervalId = alarmIntervalsRef.current.get(trigger_key);
+        if (intervalId) {
+          clearInterval(intervalId);
+          alarmIntervalsRef.current.delete(trigger_key);
+        }
+      });
+    };
+
+    const pollId = window.setInterval(checkRemoteDismiss, 5000);
+    return () => clearInterval(pollId);
+  }, [activeAlerts]);
 
   useEffect(() => {
     const intervalsMap = alarmIntervalsRef.current;

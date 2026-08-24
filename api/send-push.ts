@@ -44,6 +44,9 @@ export default async function handler(req: any, res: any) {
     body: record.content || '',
     url: record.link || '/',
     tag: record.id,
+    // 클래스 알람 전용 — 있을 때만 서비스워커가 "정지" 액션 버튼을 표시
+    triggerKey: record.trigger_key,
+    dismissToken: record.dismiss_token,
   });
 
   let sent = 0;
