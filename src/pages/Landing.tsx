@@ -1002,7 +1002,7 @@ const Landing = () => {
                   {(plan as any).waitlistPlan && (
                     <div className={`absolute top-4 left-4 text-[9px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-white/15 text-white' : 'bg-amber-400 text-writer-obsidian'}`}>오픈 예정</div>
                   )}
-                  <div className="px-5 py-5">
+                  <div className={`px-5 py-5 ${(plan as any).waitlistPlan ? 'pt-11' : ''}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg font-black">{plan.name}</span>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isDark ? 'bg-white/15 text-white' : 'bg-writer-mist text-writer-slate'}`}>{plan.badge}</span>
