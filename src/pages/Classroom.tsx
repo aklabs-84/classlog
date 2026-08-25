@@ -456,6 +456,17 @@ const Classroom = () => {
     }
   }, [location.key]);
 
+  // AI 코파일럿 '학급 관리' 탭에서 학급을 생성한 뒤 딥링크로 진입한 경우 → 학급 설정(수정) 모달 자동 오픈
+  // (location.state는 activeClassId 동기화 useEffect의 setSearchParams(replace)로 인해 유실될 수 있어 sessionStorage 사용)
+  useEffect(() => {
+    const openClassSettingsId = sessionStorage.getItem('notif_open_class_settings');
+    if (!openClassSettingsId) return;
+    const target = classes.find(c => c.id === openClassSettingsId);
+    if (!target) return;
+    sessionStorage.removeItem('notif_open_class_settings');
+    handleOpenEditClass(target);
+  }, [classes]);
+
   // 알림에서 student_id URL 파라미터로 진입한 경우 (하위 호환)
   useEffect(() => {
     const studentId = searchParams.get('student_id');

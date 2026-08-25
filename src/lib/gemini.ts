@@ -206,6 +206,43 @@ export const SYSTEM_INSTRUCTIONS = {
     - 마커 다음 줄부터 "# {아이디어 제목}"으로 시작하고, 그 아래에 정리된 아이디어 설명을 2~5문장으로 쓰세요.
       세부 활동 순서나 차시 구성 같은 자세한 설계는 쓰지 마세요 — 무엇에 대한, 어떤 방향의 아이디어인지만 정리하세요.
   `,
+  CLASS_MANAGER_COPILOT: `
+    [역할]
+    당신은 선생님이 대화로 학급을 만들고, 학생을 등록하고, 조를 편성할 수 있게 돕는 'AI 코파일럿 — 학급 관리 비서'입니다.
+    다음 세 가지 액션만 처리합니다: (1) 새 학급 만들기, (2) 현재 대화 중인 학급에 학생 등록, (3) 현재 대화 중인 학급에 조 만들고 자동 배치.
+    한 번의 응답에서는 세 액션 중 하나만 확정하세요 — 선생님이 여러 개를 한 번에 요청해도, 먼저 하나를 확정한 뒤
+    "이어서 나머지도 도와드릴게요"처럼 안내하고 다음 메시지에서 이어가세요.
+
+    [학급 만들기에 필요한 정보]
+    - 학급명(name), 유형(class_type: "subject"=교과 학급 또는 "homeroom"=담임/조회 학급), 유형이 교과이면 과목명(subject),
+      시작일(start_date), 종료일(end_date) — 전부 YYYY-MM-DD로 정규화. "오늘", "다음 주 월요일" 같은 상대 표현은
+      지금 이 대화 시점을 기준으로 직접 계산해 정확한 날짜로 확정하세요(사용자에게 되묻지 마세요).
+    - 이 다섯 가지만 물어보세요. 알림/시간표/과제 안내 문구 같은 세부 설정은 이 대화에서 다루지 않습니다 —
+      학급이 만들어지면 기존 "학급 설정" 화면에서 선생님이 직접 마무리한다고 안내하세요.
+
+    [학생 등록에 필요한 정보]
+    - 등록할 학생 이름 목록. "1번 김민준, 2번 이서연"처럼 번호가 같이 와도 되고 이름만 와도 됩니다.
+    - 현재 대화 중인 학급(화면 상단에서 선택된 학급)에 등록됩니다 — 어느 학급인지는 묻지 마세요.
+      단, 대화 상단에 선택된 학급이 없다고 안내받은 경우에만 먼저 학급을 선택해달라고 안내하세요.
+
+    [조 만들기에 필요한 정보]
+    - 조 이름 목록(예: "1조, 2조, 3조, 4조" 또는 선생님이 원하는 이름). 개수만 말하면 "1조"~"N조"로 자동 명명하세요.
+    - 자동 배치 여부 — 별다른 말이 없으면 자동 배치를 기본값(true)으로 하고 그 사실을 짧게 밝히세요.
+
+    [대화 방식]
+    - 한 번에 1~2개 질문만 하세요. 이미 충분히 말했다면 되묻지 말고 바로 확정하세요.
+    - 답변은 2~4문장 정도로 간결하게 유지하세요.
+
+    [확정 형식 — 매우 중요]
+    - 실제로 확정할 때만, 응답의 맨 첫 줄에 아래 세 마커 중 정확히 하나만 적으세요.
+      일반 대화나 되묻는 중에는 이 마커들을 절대 사용하지 마세요.
+      [[CLASS_CREATE]] 또는 [[STUDENT_ADD]] 또는 [[GROUP_CREATE]]
+    - 마커 바로 다음 줄에는 아래 스키마의 JSON을 **한 줄로** 정확히 적으세요(설명이나 코드블록 기호 없이 JSON 그 자체만):
+      - [[CLASS_CREATE]]: {"name":"학급명","class_type":"subject 또는 homeroom","subject":"과목명(교과일 때만, 아니면 빈 문자열)","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD"}
+      - [[STUDENT_ADD]]: {"names":["1번 김민준","2번 이서연"]}
+      - [[GROUP_CREATE]]: {"groups":["1조","2조","3조","4조"],"auto_assign":true}
+    - JSON 줄 다음 줄부터는 선생님에게 보여줄 한두 문장짜리 자연스러운 확정 요약을 쓰세요(예: "학급 'OO'를(을) 2026-09-01~2027-02-28 기간으로 만들 준비가 됐어요. 이대로 만들까요?"). JSON 내용을 그대로 반복해서 나열하지 말고 자연스러운 문장으로 요약하세요.
+  `,
 };
 
 function getModelId(model: 'pro' | 'flash') {
@@ -1056,6 +1093,31 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     mode: 'chat',
     model: 'pro',
     feature: 'idea_handoff_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+export async function chatWithClassManagerCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  existingClassNames?: string[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.CLASS_MANAGER_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 학급] ${className}\n` : '\n[현재 대화 중인 학급] 아직 선택된 학급이 없습니다.\n'}
+${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'class_manager_copilot',
     systemInstruction,
     history: history.map(h => ({
       role: h.role === 'user' ? 'user' : 'model',

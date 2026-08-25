@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2 } from 'lucide-react';
+import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
-import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
-import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, embedText, generateSeatukDraft, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
+import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit } from '../lib/auth';
+import { isDemoTeacher } from '../lib/demo';
+import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, chatWithClassManagerCopilot, embedText, generateSeatukDraft, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 import CodeBlock from '../components/CodeBlock';
 import type { DeckSlide, SlideLayoutKind } from '../components/slidedeck/types';
@@ -19,6 +20,9 @@ const MATERIAL_DRAFT_MARKER = '[[MATERIAL_DRAFT]]';
 const QUIZ_DRAFT_MARKER = '[[QUIZ_DRAFT]]';
 const SURVEY_DRAFT_MARKER = '[[SURVEY_DRAFT]]';
 const IDEA_DRAFT_MARKER = '[[IDEA_DRAFT]]';
+const CLASS_CREATE_MARKER = '[[CLASS_CREATE]]';
+const STUDENT_ADD_MARKER = '[[STUDENT_ADD]]';
+const GROUP_CREATE_MARKER = '[[GROUP_CREATE]]';
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
 const FREE_SLIDE_DECK_LIMIT = 1;
 const FREE_SURVEY_LIMIT = 1;
@@ -53,6 +57,21 @@ function extractDraftTitle(content: string): string {
 function stripDraftPreamble(content: string): string {
   const match = content.match(/^#\s+.+$/m);
   return match ? content.slice(content.indexOf(match[0])).trim() : content.trim();
+}
+
+// 학급 관리 코파일럿 전용 — 마커 다음 줄의 JSON 한 줄을 파싱하고, 그 이후 줄들을 화면에 보여줄 자연어 요약으로 분리
+function parseActionPayload<T = any>(content: string, marker: string): { payload: T | null; displayText: string } {
+  const withoutMarker = content.replace(marker, '').trim();
+  const newlineIdx = withoutMarker.indexOf('\n');
+  const jsonLine = (newlineIdx === -1 ? withoutMarker : withoutMarker.slice(0, newlineIdx)).trim();
+  const rest = newlineIdx === -1 ? '' : withoutMarker.slice(newlineIdx + 1).trim();
+  let payload: T | null = null;
+  try {
+    payload = JSON.parse(jsonLine);
+  } catch {
+    payload = null;
+  }
+  return { payload, displayText: rest || '확정된 내용을 확인해 주세요.' };
 }
 
 function formatTranscriptChipLabel(recordedAt: string, durationSeconds: number): string {
@@ -115,7 +134,7 @@ type CopilotMessage = { id: string; role: 'user' | 'ai'; text: string; meta?: { 
 
 // 페르소나(탭)별 순수 카피/UI 플래그. 쿼리·호출 함수 같은 로직은 컴포넌트 안에서 모드별로 직접 분기한다
 // (페르소나마다 실제 로직이 다르므로 여기 억지로 파라미터화하지 않음 — 프로젝트 관행상 성급한 공용 추상화 지양).
-type CopilotModeId = 'lesson_plan' | 'observation_analyst' | 'seatuk_writer' | 'slide_deck_maker' | 'material_maker' | 'quiz_maker' | 'survey_maker' | 'idea_brainstorm';
+type CopilotModeId = 'lesson_plan' | 'observation_analyst' | 'seatuk_writer' | 'slide_deck_maker' | 'material_maker' | 'quiz_maker' | 'survey_maker' | 'idea_brainstorm' | 'class_manager';
 
 type CopilotModeConfig = {
   tabLabel: string;
@@ -137,6 +156,7 @@ type CopilotModeConfig = {
   showTranscriptTrigger?: boolean;
   showSurveyAction?: boolean;
   showIdeaAction?: boolean;
+  showClassManagerAction?: boolean;
 };
 
 const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
@@ -246,6 +266,19 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showReferenceSearch: false,
     showIdeaAction: true,
   },
+  class_manager: {
+    tabLabel: '🏫 학급 관리',
+    heroTitle: '학급 관리 비서',
+    heroSubtitle: '대화만으로 학급을 만들고, 학생을 추가하고, 조를 나눠 자동으로 배치할 수 있어요. 세부 설정은 확정 후 기존 화면에서 마무리해요.',
+    chatHeaderTitle: 'AI 코파일럿 · 학급 관리 비서',
+    chatHeaderSubtitle: '대화로 학급/학생/조 만들기',
+    emptyTitle: '무엇을 만들어 드릴까요?',
+    emptyBody: '예: "3학년 2반 담임 학급 만들어줘", "1번 김민준, 2번 이서연 학생 추가해줘", "조 4개 만들고 자동으로 배치해줘" 처럼 편하게 말씀해 주세요.',
+    inputPlaceholder: '학급/학생/조 관련 요청을 편하게 이야기해 보세요...',
+    showDraftActions: false,
+    showReferenceSearch: false,
+    showClassManagerAction: true,
+  },
 };
 
 const COPILOT_MODE_IDS = Object.keys(COPILOT_MODES) as CopilotModeId[];
@@ -264,6 +297,7 @@ const AiCopilot = () => {
     quiz_maker: [],
     survey_maker: [],
     idea_brainstorm: [],
+    class_manager: [],
   });
   const messages = messagesByMode[activeMode];
 
@@ -273,7 +307,7 @@ const AiCopilot = () => {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [monthAiCount, setMonthAiCount] = useState(0);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [upgradeReason, setUpgradeReason] = useState<'ai_limit' | 'ai_bulk'>('ai_limit');
+  const [upgradeReason, setUpgradeReason] = useState<'ai_limit' | 'ai_bulk' | 'class_limit'>('ai_limit');
   const [lessonPlanObservations, setLessonPlanObservations] = useState<any[]>([]);
   const [analystObservations, setAnalystObservations] = useState<any[]>([]);
   const [referenceSuggestions, setReferenceSuggestions] = useState<MatchedContent[]>([]);
@@ -535,6 +569,14 @@ const AiCopilot = () => {
             selectedClassId || undefined,
             selectedClass?.subject,
             [],
+          )
+        : modeAtSend === 'class_manager'
+        ? await chatWithClassManagerCopilot(
+            history,
+            userMessage,
+            selectedClass?.name,
+            selectedClassId || undefined,
+            classes.map(c => c.name),
           )
         : await chatWithObservationAnalyst(
             history,
@@ -1076,6 +1118,242 @@ ${contentSource}
     }
   };
 
+  // 학급 관리 비서 탭 전용 — Classroom.tsx의 handleCreateClass()와 동일한 필드/기본값/플랜 제한을 복제.
+  // 대화로는 최소 필드(이름/유형/과목/기간)만 받고, 나머지 세부 설정은 완료 버블의 딥링크로 기존 화면에서 마무리한다.
+  const handleCreateClassAction = async (payload: { name?: string; class_type?: string; subject?: string; start_date?: string; end_date?: string }) => {
+    if (loading || !user?.id) return;
+    if (isDemoTeacher(user)) {
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '체험 계정에서는 새 학급을 만들 수 없어요. 무료로 가입하면 나만의 학급을 만들 수 있어요!' }],
+      }));
+      return;
+    }
+    const classType = payload.class_type === 'homeroom' ? 'homeroom' : 'subject';
+    if (!payload.name || (classType === 'subject' && !payload.subject) || !payload.start_date || !payload.end_date) {
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '학급을 만들기에 정보가 부족해요. 이름/유형/기간을 다시 확인해 주세요.' }],
+      }));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const classLimit = getClassLimit(profile);
+      const { count } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true })
+        .eq('teacher_id', user.id);
+      if ((count ?? 0) >= classLimit) {
+        setUpgradeReason('class_limit');
+        setUpgradeOpen(true);
+        return;
+      }
+
+      const entryCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const { data: newClass, error } = await supabase
+        .from('classes')
+        .insert({
+          teacher_id: user.id,
+          name: payload.name,
+          subject: classType === 'homeroom' ? '담임' : payload.subject,
+          class_type: classType,
+          student_guide_prompt: '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요. 의미없이 반복되는 문장이나 맥락상 전혀 이해 할 수 없는 아무 의미없는 내용을 작성하는 것도 지양해 주세요. 글의 일부에라도 같은 글자·자음·모음이 의미 없이 반복되는 부분이 있다면, 앞부분에 정상적인 내용이 있더라도 반드시 반려 처리해 주세요.',
+          teacher_report_prompt: '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
+          min_obs_chars: 0,
+          blocked_keywords: [],
+          ai_review_enabled: true,
+          weekly_plan: [],
+          entry_code: entryCode,
+          start_date: payload.start_date,
+          end_date: payload.end_date,
+          class_days_of_week: [],
+          class_specific_dates: [],
+          break_times: [],
+          end_alarm_minutes: [],
+        })
+        .select()
+        .single();
+      if (error || !newClass) throw error || new Error('학급 생성 실패');
+
+      setClasses(prev => [...prev, { id: newClass.id, name: newClass.name, subject: newClass.subject, class_type: newClass.class_type, weekly_plan: [] }]);
+      setSelectedClassId(newClass.id);
+      sessionStorage.setItem('notif_open_class_settings', newClass.id);
+
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: `✅ '${newClass.name}' 학급을 만들었어요. 요일/시간표 같은 세부 설정은 학급 설정 화면에서 마무리해 주세요.`,
+          meta: { navigateTo: `/classroom?id=${newClass.id}`, state: { openClassSettingsId: newClass.id } },
+        }],
+      }));
+    } catch (err: any) {
+      console.error('[AiCopilot] 학급 생성 오류:', err);
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '죄송합니다. 학급 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }],
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 학급 관리 비서 탭 전용 — Classroom.tsx의 handleBulkRegister()와 동일한 이름 파싱/스키마/플랜 제한을 복제.
+  // 대상 학급은 탭 상단 공용 학급 선택 select의 selectedClassId를 그대로 사용한다.
+  const handleAddStudentsAction = async (payload: { names?: string[] }) => {
+    if (loading || !user?.id) return;
+    if (!selectedClassId) {
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '먼저 위에서 학급을 선택해 주세요.' }],
+      }));
+      return;
+    }
+    const names = (payload.names || []).map(n => n.trim()).filter(n => n.length > 0);
+    if (names.length === 0) {
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '추가할 학생 이름을 확인하지 못했어요. 다시 말씀해 주세요.' }],
+      }));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const studentLimit = getStudentLimit(profile);
+      const { count } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .eq('class_id', selectedClassId);
+      const currentCount = count ?? 0;
+      if (currentCount + names.length > studentLimit) {
+        const remaining = Math.max(0, studentLimit - currentCount);
+        setMessagesByMode(prev => ({
+          ...prev,
+          class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: `현재 플랜에서는 한 학급에 최대 ${studentLimit}명까지 등록할 수 있어요.\n현재 ${currentCount}명 등록 중이라 ${remaining}명만 추가할 수 있어요. 플랜을 업그레이드하면 더 많은 학생을 추가할 수 있어요.` }],
+        }));
+        return;
+      }
+
+      const newStudents = names.map(rawText => {
+        let name = rawText;
+        let number: string | null = null;
+        const match = rawText.match(/(\d+)번?/);
+        if (match) {
+          number = match[1];
+          name = rawText.replace(match[0], '').trim();
+          name = name.replace(/^[\s.\-]+|[\s.\-]+$/g, '');
+        }
+        return { class_id: selectedClassId, full_name: name, student_number: number, tag: '학생' };
+      });
+
+      const { error } = await supabase.from('students').insert(newStudents);
+      if (error) throw error;
+
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: `✅ 학생 ${newStudents.length}명을 추가했어요.`,
+          meta: { navigateTo: `/classroom?id=${selectedClassId}` },
+        }],
+      }));
+    } catch (err: any) {
+      console.error('[AiCopilot] 학생 추가 오류:', err);
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '죄송합니다. 학생 추가 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }],
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 학급 관리 비서 탭 전용 — GroupTab.tsx의 조 생성/autoAssign() 로직을 복제. 조에는 플랜 제한이 없다.
+  const handleCreateGroupsAction = async (payload: { groups?: string[]; auto_assign?: boolean }) => {
+    if (loading || !user?.id) return;
+    if (!selectedClassId) {
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '먼저 위에서 학급을 선택해 주세요.' }],
+      }));
+      return;
+    }
+    const groupNames = (payload.groups || []).map(n => n.trim()).filter(n => n.length > 0);
+    if (groupNames.length === 0) {
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '만들 조 이름을 확인하지 못했어요. 다시 말씀해 주세요.' }],
+      }));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const GROUP_COLORS = ['#6366F1', '#EC4899', '#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#8B5CF6', '#06B6D4'];
+      const { count: existingCount } = await supabase
+        .from('class_groups')
+        .select('*', { count: 'exact', head: true })
+        .eq('class_id', selectedClassId);
+      const baseOrder = existingCount ?? 0;
+
+      const { data: newGroups, error } = await supabase
+        .from('class_groups')
+        .insert(groupNames.map((name, idx) => ({
+          class_id: selectedClassId,
+          name,
+          color: GROUP_COLORS[(baseOrder + idx) % GROUP_COLORS.length],
+          sort_order: baseOrder + idx,
+        })))
+        .select();
+      if (error || !newGroups) throw error || new Error('조 생성 실패');
+
+      let assignedCount = 0;
+      if (payload.auto_assign) {
+        const { data: allGroups } = await supabase
+          .from('class_groups')
+          .select('id')
+          .eq('class_id', selectedClassId);
+        const { data: studentRows } = await supabase
+          .from('students')
+          .select('id')
+          .eq('class_id', selectedClassId);
+        const groupIds = (allGroups || []).map(g => g.id);
+        if (groupIds.length > 0 && studentRows && studentRows.length > 0) {
+          await supabase.from('class_group_members').delete().in('group_id', groupIds);
+          const shuffled = [...studentRows].sort(() => Math.random() - 0.5);
+          const inserts = shuffled.map((s, idx) => ({ group_id: groupIds[idx % groupIds.length], student_id: s.id }));
+          await supabase.from('class_group_members').insert(inserts);
+          assignedCount = inserts.length;
+        }
+      }
+
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, {
+          id: crypto.randomUUID(),
+          role: 'ai',
+          text: payload.auto_assign
+            ? `✅ 조 ${newGroups.length}개를 만들고 학생 ${assignedCount}명을 자동으로 배치했어요.`
+            : `✅ 조 ${newGroups.length}개를 만들었어요.`,
+          meta: { navigateTo: `/classroom?id=${selectedClassId}` },
+        }],
+      }));
+    } catch (err: any) {
+      console.error('[AiCopilot] 조 생성 오류:', err);
+      setMessagesByMode(prev => ({
+        ...prev,
+        class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: '죄송합니다. 조 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }],
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAnalyzeTranscript = async (session: { id: string; class_name: string | null; subject: string | null; transcript_text: string }) => {
     if (loading || !user?.id) return;
 
@@ -1373,6 +1651,12 @@ ${session.transcript_text}
               const isQuizDraft = m.role === 'ai' && modeConfig.showQuizAction && m.text.includes(QUIZ_DRAFT_MARKER);
               const isSurveyDraft = m.role === 'ai' && modeConfig.showSurveyAction && m.text.includes(SURVEY_DRAFT_MARKER);
               const isIdeaDraft = m.role === 'ai' && modeConfig.showIdeaAction && m.text.includes(IDEA_DRAFT_MARKER);
+              const isClassCreateDraft = m.role === 'ai' && modeConfig.showClassManagerAction && m.text.includes(CLASS_CREATE_MARKER);
+              const isStudentAddDraft = m.role === 'ai' && modeConfig.showClassManagerAction && m.text.includes(STUDENT_ADD_MARKER);
+              const isGroupCreateDraft = m.role === 'ai' && modeConfig.showClassManagerAction && m.text.includes(GROUP_CREATE_MARKER);
+              const classCreatePayload = isClassCreateDraft ? parseActionPayload<{ name?: string; class_type?: string; subject?: string; start_date?: string; end_date?: string }>(m.text, CLASS_CREATE_MARKER) : null;
+              const studentAddPayload = isStudentAddDraft ? parseActionPayload<{ names?: string[] }>(m.text, STUDENT_ADD_MARKER) : null;
+              const groupCreatePayload = isGroupCreateDraft ? parseActionPayload<{ groups?: string[]; auto_assign?: boolean }>(m.text, GROUP_CREATE_MARKER) : null;
               const displayText = isDraft
                 ? m.text.replace(modeConfig.draftMarker!, '').trim()
                 : isSlideDraft
@@ -1383,6 +1667,12 @@ ${session.transcript_text}
                 ? m.text.replace(SURVEY_DRAFT_MARKER, '').trim()
                 : isIdeaDraft
                 ? m.text.replace(IDEA_DRAFT_MARKER, '').trim()
+                : classCreatePayload
+                ? classCreatePayload.displayText
+                : studentAddPayload
+                ? studentAddPayload.displayText
+                : groupCreatePayload
+                ? groupCreatePayload.displayText
                 : m.text;
               return (
                 <motion.div
@@ -1481,6 +1771,42 @@ ${session.transcript_text}
                         </button>
                       </div>
                     )}
+                    {isClassCreateDraft && classCreatePayload?.payload && (
+                      <div className="mt-4 pt-4 border-t border-surface-container">
+                        <button
+                          onClick={() => handleCreateClassAction(classCreatePayload.payload!)}
+                          disabled={loading}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <FolderPlus size={16} />
+                          이대로 학급 만들기
+                        </button>
+                      </div>
+                    )}
+                    {isStudentAddDraft && studentAddPayload?.payload && (
+                      <div className="mt-4 pt-4 border-t border-surface-container">
+                        <button
+                          onClick={() => handleAddStudentsAction(studentAddPayload.payload!)}
+                          disabled={loading}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <User size={16} />
+                          이대로 학생 추가하기
+                        </button>
+                      </div>
+                    )}
+                    {isGroupCreateDraft && groupCreatePayload?.payload && (
+                      <div className="mt-4 pt-4 border-t border-surface-container">
+                        <button
+                          onClick={() => handleCreateGroupsAction(groupCreatePayload.payload!)}
+                          disabled={loading}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Users size={16} />
+                          이대로 조 만들기
+                        </button>
+                      </div>
+                    )}
                     {m.meta?.navigateTo && (
                       <div className="mt-4 pt-4 border-t border-surface-container">
                         <button
@@ -1488,7 +1814,7 @@ ${session.transcript_text}
                           className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
                         >
                           <ArrowRight size={16} />
-                          {activeMode === 'slide_deck_maker' ? '슬라이드 보러 가기' : activeMode === 'quiz_maker' ? '퀴즈 보러 가기' : activeMode === 'survey_maker' ? '설문 보러 가기' : activeMode === 'observation_analyst' ? '분석 결과 보러 가기' : activeMode === 'idea_brainstorm' ? '아이디어 보러 가기' : 'AI 초안 페이지로 이동'}
+                          {activeMode === 'slide_deck_maker' ? '슬라이드 보러 가기' : activeMode === 'quiz_maker' ? '퀴즈 보러 가기' : activeMode === 'survey_maker' ? '설문 보러 가기' : activeMode === 'observation_analyst' ? '분석 결과 보러 가기' : activeMode === 'idea_brainstorm' ? '아이디어 보러 가기' : activeMode === 'class_manager' ? (m.meta?.state?.openClassSettingsId ? '학급 설정 마무리하기' : '학급으로 가기') : 'AI 초안 페이지로 이동'}
                         </button>
                       </div>
                     )}
@@ -1617,13 +1943,13 @@ ${session.transcript_text}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 px-2">
+      <div className="flex items-center gap-2 px-2 overflow-x-auto custom-scrollbar">
         {COPILOT_MODE_IDS.map(id => (
           <button
             key={id}
             type="button"
             onClick={() => setActiveMode(id)}
-            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all ${
+            className={`shrink-0 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[11px] md:text-xs font-black transition-all ${
               activeMode === id
                 ? 'bg-primary text-white shadow-md shadow-primary/20'
                 : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
