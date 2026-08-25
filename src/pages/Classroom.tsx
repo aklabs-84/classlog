@@ -3784,24 +3784,41 @@ const Classroom = () => {
                       </div>
 
                       {/* 수업 종료 선언 */}
-                      <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${updateClassData.is_closed ? 'bg-rose-50 border-rose-200' : 'bg-neutral-50 border-neutral-200'}`}>
-                        <div className="flex items-center gap-3">
-                          {updateClassData.is_closed ? <Lock size={18} className="text-rose-500 shrink-0" /> : <Unlock size={18} className="text-neutral-400 shrink-0" />}
-                          <div>
-                            <p className={`text-sm font-black ${updateClassData.is_closed ? 'text-rose-700' : 'text-neutral-700'}`}>수업 종료 선언</p>
-                            <p className="text-[11px] font-bold text-neutral-400 mt-0.5">
-                              {updateClassData.is_closed ? '현재 수업이 종료된 상태입니다.' : '수업을 종료하면 학생의 기록·제출이 차단됩니다.'}
-                            </p>
+                      {(() => {
+                        const endDatePassed = !!updateClassData.end_date && updateClassData.end_date < getTodayStr();
+                        return (
+                        <div className="space-y-2">
+                          <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${updateClassData.is_closed ? 'bg-rose-50 border-rose-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                            <div className="flex items-center gap-3">
+                              {updateClassData.is_closed ? <Lock size={18} className="text-rose-500 shrink-0" /> : <Unlock size={18} className="text-neutral-400 shrink-0" />}
+                              <div>
+                                <p className={`text-sm font-black ${updateClassData.is_closed ? 'text-rose-700' : 'text-neutral-700'}`}>수업 종료 선언</p>
+                                <p className="text-[11px] font-bold text-neutral-400 mt-0.5">
+                                  {updateClassData.is_closed
+                                    ? '현재 수업이 종료된 상태입니다.'
+                                    : endDatePassed
+                                      ? '토글은 꺼져 있지만 종료일이 지나 여전히 종료된 상태입니다.'
+                                      : '수업을 종료하면 학생의 기록·제출이 차단됩니다.'}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setUpdateClassData({...updateClassData, is_closed: !updateClassData.is_closed})}
+                              className={`relative w-12 h-6 rounded-full transition-all duration-300 ${updateClassData.is_closed ? 'bg-rose-500' : 'bg-neutral-300'}`}
+                            >
+                              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${updateClassData.is_closed ? 'left-6' : 'left-0.5'}`} />
+                            </button>
                           </div>
+                          {endDatePassed && (
+                            <p className="text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-start gap-1.5">
+                              <span>⚠</span>
+                              <span>이 토글과 무관하게, 위의 종료일({updateClassData.end_date})이 지나 수업이 자동 종료된 상태예요. 수업을 재개하려면 종료일을 오늘 이후 날짜로 변경하거나 비워야 합니다.</span>
+                            </p>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setUpdateClassData({...updateClassData, is_closed: !updateClassData.is_closed})}
-                          className={`relative w-12 h-6 rounded-full transition-all duration-300 ${updateClassData.is_closed ? 'bg-rose-500' : 'bg-neutral-300'}`}
-                        >
-                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${updateClassData.is_closed ? 'left-6' : 'left-0.5'}`} />
-                        </button>
-                      </div>
+                        );
+                      })()}
                     </motion.div>
                   ) : editModalTab === 'syllabus' ? (
                     <motion.div 
