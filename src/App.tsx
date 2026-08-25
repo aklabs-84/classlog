@@ -26,6 +26,7 @@ import Landing from './pages/Landing';
 import Admin from './pages/Admin';
 import Classroom from './pages/Classroom';
 import AIAssistant from './pages/AIAssistant';
+import AiCopilot from './pages/AiCopilot';
 import ActivityLog from './pages/ActivityLog';
 import Settings from './pages/Settings';
 import Export from './pages/Export';
@@ -285,6 +286,7 @@ function App() {
                 <Route path="classroom" element={<Classroom />} />
                 <Route path="student-view/:id" element={<StudentView />} />
                 <Route path="ai-assistant" element={<AIAssistant />} />
+                <Route path="ai-copilot" element={<AiCopilot />} />
                 <Route path="export" element={<Export />} />
                 <Route path="archive" element={<Archive />} />
                 <Route path="activity-log" element={<ActivityLog />} />

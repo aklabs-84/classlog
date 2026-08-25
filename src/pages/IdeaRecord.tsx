@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -171,6 +171,8 @@ const getCardAccent = (classId: string | null) => {
 export default function IdeaRecord() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const openNoteHandledRef = useRef(false);
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
   const [notes, setNotes] = useState<TeacherNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,6 +281,19 @@ export default function IdeaRecord() {
       fetchNotes();
       fetchLibraryResources();
     }
+  }, [user?.id]);
+
+  // AI 코파일럿 "아이디어 기획" 탭에서 방금 기록한 노트로 딥링크 진입 시, 분석 화면을 자동으로 연다
+  useEffect(() => {
+    if (openNoteHandledRef.current) return;
+    const state = location.state as { openNoteId?: string } | null;
+    const openId = state?.openNoteId;
+    if (!openId || !user?.id) return;
+    openNoteHandledRef.current = true;
+    (async () => {
+      const { data: note } = await supabase.from('teacher_notes').select('*, classes(name)').eq('id', openId).single();
+      if (note) handleOpenAnalysis(note);
+    })();
   }, [user?.id]);
 
   const fetchClasses = async () => {

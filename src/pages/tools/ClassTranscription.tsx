@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -354,6 +354,8 @@ const SelfEvalTab = ({
 const ClassTranscription = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const openSessionHandledRef = useRef(false);
 
   // ── Data ───────────────────────────────────────────────────────────────────
   const [classes, setClasses]                 = useState<any[]>([]);
@@ -492,6 +494,26 @@ const ClassTranscription = () => {
   useEffect(() => {
     if (mainTab === 'history') fetchPastSessions();
   }, [mainTab, fetchPastSessions]);
+
+  // AI 코파일럿에서 방금 분석한 전사록으로 바로 이동한 경우 — 기록 탭으로 전환 후 해당 세션을 자동으로 펼침
+  useEffect(() => {
+    const state = location.state as { openSessionId?: string } | null;
+    if (!state?.openSessionId || openSessionHandledRef.current) return;
+    setMainTab('history');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (openSessionHandledRef.current) return;
+    const state = location.state as { openSessionId?: string } | null;
+    const openId = state?.openSessionId;
+    if (!openId || pastSessions.length === 0) return;
+    if (!pastSessions.some(s => s.id === openId)) return;
+    openSessionHandledRef.current = true;
+    setExpandedSessionId(openId);
+    setHistoryActiveTab('students');
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [pastSessions, location, navigate]);
 
   const deleteSession = async (id: string) => {
     if (!window.confirm('이 전사 기록을 삭제하시겠습니까?')) return;

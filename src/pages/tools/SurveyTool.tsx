@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import {
   Plus, Trash2, Edit3, X, ChevronDown,
@@ -625,9 +626,32 @@ export default function SurveyTool() {
   const [expandedResponderId, setExpandedResponderId] = useState<string | null>(null);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const location = useLocation();
+  const openFormHandledRef = useRef(false);
 
   // ── 초기 로드 ──────────────────────────────────────────────────────────────
   useEffect(() => { if (user) fetchClasses(); }, [user?.id]);
+
+  // AI 코파일럿에서 방금 만든 설문 폼으로 바로 이동한 경우
+  useEffect(() => {
+    if (openFormHandledRef.current) return;
+    const state = location.state as { openSurveyFormId?: string } | null;
+    const openId = state?.openSurveyFormId;
+    if (!openId) return;
+    openFormHandledRef.current = true;
+    (async () => {
+      const { data: form } = await supabase.from('survey_forms').select('*').eq('id', openId).single();
+      if (!form) return;
+      if (form.class_id) {
+        const { data: cls } = await supabase
+          .from('classes').select('id, name, class_type')
+          .eq('id', form.class_id).single();
+        if (cls) setSelectedClass(cls);
+      }
+      await fetchForms(form.class_id || undefined);
+      openBuilder(form);
+    })();
+  }, []);
 
   const fetchClasses = async () => {
     const { data: ownData } = await supabase.from('classes').select('id, name, class_type')

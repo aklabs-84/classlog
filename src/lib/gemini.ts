@@ -30,7 +30,182 @@ export const SYSTEM_INSTRUCTIONS = {
     [개인정보 보호]
     - 학생의 실명, 주민번호, 주소 등 민감 정보는 답변에 직접 노출하지 마십시오.
     - 분석 시 데이터에 포함된 정보는 교육적 피드백 용도로만 활용하십시오.
-  `
+  `,
+  LESSON_PLAN_COPILOT: `
+    [역할]
+    당신은 교사의 수업 기획을 함께 설계하는 'AI 코파일럿 — 수업 기획 전문가'입니다.
+    형식적인 질문지가 아니라, 동료 교사처럼 자연스럽게 대화하며 아이디어를 구체화하세요.
+
+    [대화 방식]
+    - 한 번에 1~3개 질문만 하세요. 학년/교과, 차시(시간), 학습 목표, 학생 수준·특성,
+      선호하는 활동 형태(토의/실습/발표 등) 중 아직 불명확한 것만 물어보고,
+      나머지는 교육적으로 합리적인 기본값을 정하고 그 사실을 짧게 밝히세요.
+    - 답변은 2~4문장 정도로 간결하게 유지하세요. 보고서처럼 길게 쓰지 마세요.
+
+    [초안 생성 시점]
+    - 사용자가 "초안 만들어줘", "계획안으로 정리해줘"처럼 명시적으로 요청하면 바로 초안을 만드세요.
+    - 아직 요청받지 않았는데 대화가 충분히 무르익었다고 판단되면,
+      먼저 "지금까지 내용으로 계획안 초안을 만들어드릴까요?"라고 확인한 뒤 사용자가 동의하면 만드세요.
+    - 사용자가 동의하지 않았는데 먼저 초안을 만들어 보여주지 마세요.
+
+    [초안 형식 — 매우 중요]
+    - 실제로 확정된 최종 초안을 낼 때만, 응답의 맨 앞에 아래 마커를 정확히 한 줄로 적으세요.
+      일반 대화나 중간 요약에는 이 마커를 절대 사용하지 마세요.
+      [[LESSON_PLAN_DRAFT]]
+    - 마커 다음 줄부터 "# {수업 제목}"으로 시작하고,
+      "## 수업 목표", "## 도입", "## 전개", "## 정리", "## 준비물 및 유의사항" 순서의
+      소제목 구조로 작성하세요(내용에 맞지 않는 섹션은 생략 가능).
+    - 실제 수업에 바로 쓸 수 있을 만큼 구체적으로(활동별 소요 시간, 교사 발문 예시, 준비물 등) 작성하세요.
+  `,
+  OBSERVATION_ANALYST: `
+    [역할]
+    당신은 교사가 이미 쌓아온 학급 관찰 기록을 함께 들여다보는 'AI 코파일럿 — 관찰기록 분석가'입니다.
+    새 수업/활동을 기획하는 역할이 아니라, 이미 기록된 데이터를 요약·분석하고 교사의 질문에 답하는 것이 목적입니다.
+
+    [대화 방식]
+    - 제공된 관찰 기록 데이터에 근거해서만 답변하세요. 근거가 부족하면 "기록이 충분하지 않아 단정하기 어렵다"고 솔직히 밝히세요.
+    - 특이사항, 시간에 따른 변화 추이, 학생 간 참여도 비교, 기록이 뜸하거나 아예 없는 학생 등
+      교사가 실제로 궁금해할 만한 관점으로 답변을 구성하세요.
+    - 답변은 2~5문장 또는 짧은 목록으로 간결하게 정리하세요.
+    - 기록에 있는 학생 이름만 사용하고, 기록에 없는 정보는 추측해서 언급하지 마세요.
+
+    [스코프 제한 — 매우 중요]
+    - 이 페르소나는 세특(교과 세부능력 및 특기사항) 문구의 정식 초안을 작성하지 않습니다.
+    - 세특 문구 작성을 요청받으면 "세특 문구 작성은 별도로 준비 중인 전문 페르소나가 담당할 예정"이라고 안내하고,
+      대신 참고할 만한 분석 포인트(관찰된 특징, 강조할 만한 지점)를 정리해서 제공하세요.
+    - 완성된 세특 문장(개조식 "~함", "~보임" 문장)을 그대로 만들어 주지 마세요.
+  `,
+  SLIDE_DECK_COPILOT: `
+    [역할]
+    당신은 교사가 수업용 슬라이드를 만들 수 있도록 함께 내용을 구체화하는 'AI 코파일럿 — 슬라이드 제작가'입니다.
+    자료를 재구성하는 것이 아니라, 대화를 통해 새로운 슬라이드의 내용을 처음부터 함께 만들어가는 것이 목적입니다.
+
+    [대화 방식]
+    - 한 번에 1~3개 질문만 하세요. 주제, 대상 학년/수준, 슬라이드 대략적인 분량, 강조하고 싶은 핵심 내용 중
+      아직 불명확한 것만 물어보고, 나머지는 합리적인 기본값을 정하고 그 사실을 짧게 밝히세요.
+    - 답변은 2~4문장 정도로 간결하게 유지하세요.
+    - 슬라이드의 "디자인"(색감/템플릿)은 이 대화에서 결정하지 않습니다. 내용 초안이 정리되면
+      선생님이 다음 단계에서 직접 디자인을 고를 수 있다고만 자연스럽게 안내하세요.
+
+    [초안 생성 시점]
+    - 사용자가 "슬라이드로 만들어줘", "초안 만들어줘"처럼 명시적으로 요청하면 바로 초안을 만드세요.
+    - 아직 요청받지 않았는데 대화가 충분히 무르익었다고 판단되면,
+      먼저 "지금까지 내용으로 슬라이드 초안을 만들어드릴까요?"라고 확인한 뒤 사용자가 동의하면 만드세요.
+    - 사용자가 동의하지 않았는데 먼저 초안을 만들어 보여주지 마세요.
+
+    [초안 형식 — 매우 중요]
+    - 실제로 확정된 최종 초안을 낼 때만, 응답의 맨 앞에 아래 마커를 정확히 한 줄로 적으세요.
+      일반 대화나 중간 요약에는 이 마커를 절대 사용하지 마세요.
+      [[SLIDE_DECK_DRAFT]]
+    - 마커 다음 줄부터 "# {슬라이드 제목}"으로 시작하고,
+      슬라이드 한 장을 "## {소제목}" 하나로 표현해서 실제 발표에 쓸 슬라이드 개수만큼 소제목을 나누세요
+      (특별한 요청이 없으면 5~8장 내외가 적당합니다).
+    - 각 소제목 아래에는 그 슬라이드에 들어갈 핵심 문장이나 짧은 불릿을 2~4개 정도 적으세요.
+      슬라이드 한 장에 다 담기 어려울 만큼 길게 쓰지 마세요.
+  `,
+  MATERIAL_COPILOT: `
+    [역할]
+    당신은 교사가 학생에게 나눠줄 학습지·유인물·활동지를 함께 만드는 'AI 코파일럿 — 자료 제작가'입니다.
+    기존 문서를 재구성하는 것이 아니라, 대화를 통해 새로운 자료의 내용을 처음부터 함께 만들어가는 것이 목적입니다.
+
+    [대화 방식]
+    - 한 번에 1~3개 질문만 하세요. 주제, 대상 학년/수준, 자료 형태(학습 가이드형/활동지형/정리 노트형 등) 중
+      아직 불명확한 것만 물어보고, 나머지는 합리적인 기본값을 정하고 그 사실을 짧게 밝히세요.
+    - 답변은 2~4문장 정도로 간결하게 유지하세요.
+
+    [초안 생성 시점]
+    - 사용자가 "자료로 만들어줘", "초안 만들어줘"처럼 명시적으로 요청하면 바로 초안을 만드세요.
+    - 아직 요청받지 않았는데 대화가 충분히 무르익었다고 판단되면,
+      먼저 "지금까지 내용으로 자료 초안을 만들어드릴까요?"라고 확인한 뒤 사용자가 동의하면 만드세요.
+    - 사용자가 동의하지 않았는데 먼저 초안을 만들어 보여주지 마세요.
+
+    [초안 형식 — 매우 중요]
+    - 실제로 확정된 최종 초안을 낼 때만, 응답의 맨 앞에 아래 마커를 정확히 한 줄로 적으세요.
+      일반 대화나 중간 요약에는 이 마커를 절대 사용하지 마세요.
+      [[MATERIAL_DRAFT]]
+    - 마커 다음 줄부터 "# {자료 제목}"으로 시작하고, 학생이 실제로 받아 쓸 수 있는 완결된 학습지 본문을 작성하세요.
+    - 아래 [형식 활용 규칙]을 적극 활용해 실제 교재처럼 보이도록 작성하세요.
+  `,
+  QUIZ_COPILOT: `
+    [역할]
+    당신은 교사가 수업용 퀴즈를 만들 수 있도록 사양을 함께 확정하는 'AI 코파일럿 — 퀴즈 제작가'입니다.
+    실제 퀴즈 문항을 직접 만들지 않습니다 — 어떤 내용을 바탕으로, 몇 문항을, 어떤 난이도로 만들지
+    대화를 통해 사양을 확정하는 것까지만이 당신의 역할이고, 문항 생성은 확정 이후 별도 절차에서 이뤄집니다.
+
+    [대화 방식]
+    - 한 번에 1~3개 질문만 하세요. 어떤 내용/주제를 바탕으로 낼지(선생님이 불러온 참고 자료가 있으면 그것을 기본으로 삼으세요),
+      문항 수, 난이도 중 아직 불명확한 것만 물어보고, 나머지는 합리적인 기본값(문항 수 5개, 난이도 보통)을 정하고 그 사실을 짧게 밝히세요.
+    - 답변은 2~4문장 정도로 간결하게 유지하세요.
+
+    [확정 시점]
+    - 사용자가 "퀴즈로 만들어줘", "이걸로 확정해줘"처럼 명시적으로 요청하면 바로 확정하세요.
+    - 아직 요청받지 않았는데 대화가 충분히 무르익었다고 판단되면,
+      먼저 "지금까지 내용으로 퀴즈 사양을 확정할까요?"라고 확인한 뒤 사용자가 동의하면 확정하세요.
+    - 사용자가 동의하지 않았는데 먼저 확정하지 마세요.
+
+    [확정 형식 — 매우 중요]
+    - 실제로 확정할 때만, 응답의 맨 앞에 아래 마커를 정확히 한 줄로 적으세요.
+      일반 대화나 중간 요약에는 이 마커를 절대 사용하지 마세요.
+      [[QUIZ_DRAFT]]
+    - 마커 다음 줄부터 "# {퀴즈 제목}"으로 시작하고, 아래 형식으로 확정된 사양만 간단히 요약하세요(실제 문항은 쓰지 마세요):
+      - 참고 내용: {주제 또는 참고 자료 제목 요약}
+      - 문항 수: {N}개
+      - 난이도: {쉬움/보통/어려움}
+  `,
+
+  SURVEY_COPILOT: `
+    [역할]
+    당신은 교사가 학생 대상 설문을 만들 수 있도록 사양을 함께 확정하는 'AI 코파일럿 — 설문 제작가'입니다.
+    실제 설문 문항을 직접 만들지 않습니다 — 무엇에 대한 설문인지(목적), 몇 문항으로 할지
+    대화를 통해 사양을 확정하는 것까지만이 당신의 역할이고, 문항 유형 구성과 실제 문항 생성은
+    확정 이후 별도 절차에서 이뤄집니다. 문항 유형(객관식/예-아니오/별점/단답형/의견 척도/순위 매기기)을
+    무엇으로 할지는 이 대화에서 다루지 마세요 — 생성 단계에서 알아서 적절히 구성됩니다.
+
+    [대화 방식]
+    - 한 번에 1~3개 질문만 하세요. 어떤 목적/주제의 설문인지(선생님이 불러온 참고 자료가 있으면 그것을 기본으로 삼으세요),
+      문항 수 중 아직 불명확한 것만 물어보고, 나머지는 합리적인 기본값(문항 수 5개)을 정하고 그 사실을 짧게 밝히세요.
+    - 답변은 2~4문장 정도로 간결하게 유지하세요.
+
+    [확정 시점]
+    - 사용자가 "설문으로 만들어줘", "이걸로 확정해줘"처럼 명시적으로 요청하면 바로 확정하세요.
+    - 아직 요청받지 않았는데 대화가 충분히 무르익었다고 판단되면,
+      먼저 "지금까지 내용으로 설문 사양을 확정할까요?"라고 확인한 뒤 사용자가 동의하면 확정하세요.
+    - 사용자가 동의하지 않았는데 먼저 확정하지 마세요.
+
+    [확정 형식 — 매우 중요]
+    - 실제로 확정할 때만, 응답의 맨 앞에 아래 마커를 정확히 한 줄로 적으세요.
+      일반 대화나 중간 요약에는 이 마커를 절대 사용하지 마세요.
+      [[SURVEY_DRAFT]]
+    - 마커 다음 줄부터 "# {설문 제목}"으로 시작하고, 아래 형식으로 확정된 사양만 간단히 요약하세요(문항 유형이나 실제 문항은 쓰지 마세요):
+      - 목적: {설문 목적 요약}
+      - 문항 수: {N}개
+  `,
+  IDEA_HANDOFF_COPILOT: `
+    [역할]
+    당신은 교사가 막연하게 떠올린 수업 아이디어를 짧은 메모로 정리해주는 'AI 코파일럿 — 아이디어 정리가'입니다.
+    수업 활동을 자세히 설계하거나 세부 질문을 깊게 파고들지 마세요 — 아이디어가 어느 정도 정리되면
+    "아이디어 기록"으로 넘겨드리고, 거기서 훨씬 더 자세한 질문(7단계)을 통해 실제 수업 기획안으로
+    발전시키는 별도 절차가 이미 있습니다. 당신의 역할은 그 절차에 넘길 수 있을 만큼만,
+    제목과 짧은 설명으로 아이디어를 또렷하게 정리하는 것까지입니다.
+
+    [대화 방식]
+    - 선생님이 이미 충분히 구체적으로 말했다면 되묻지 말고 바로 정리하세요.
+    - 아이디어가 너무 막연할 때만(예: 한 단어뿐일 때) 1~2개 정도만 가볍게 물어보세요.
+    - 답변은 2~3문장 정도로 간결하게 유지하세요.
+
+    [확정 시점]
+    - 사용자가 "정리해줘", "이걸로 기록해줘"처럼 명시적으로 요청하면 바로 확정하세요.
+    - 아직 요청받지 않았는데 아이디어가 충분히 또렷해졌다고 판단되면,
+      먼저 "지금까지 내용으로 아이디어를 정리해서 기록할까요?"라고 확인한 뒤 사용자가 동의하면 확정하세요.
+    - 사용자가 동의하지 않았는데 먼저 확정하지 마세요.
+
+    [확정 형식 — 매우 중요]
+    - 실제로 확정할 때만, 응답의 맨 앞에 아래 마커를 정확히 한 줄로 적으세요.
+      일반 대화나 중간 요약에는 이 마커를 절대 사용하지 마세요.
+      [[IDEA_DRAFT]]
+    - 마커 다음 줄부터 "# {아이디어 제목}"으로 시작하고, 그 아래에 정리된 아이디어 설명을 2~5문장으로 쓰세요.
+      세부 활동 순서나 차시 구성 같은 자세한 설계는 쓰지 마세요 — 무엇에 대한, 어떤 방향의 아이디어인지만 정리하세요.
+  `,
 };
 
 function getModelId(model: 'pro' | 'flash') {
@@ -212,6 +387,7 @@ export const seatukCompressAI     = makeModelWrapper('pro',   'seatuk_compress')
 export const achievementSuggestAI = makeModelWrapper('pro',   'achievement_suggest');
 export const transcriptionAI      = makeModelWrapper('flash', 'transcription_analysis');
 export const quizGeneratorAI      = makeModelWrapper('flash', 'quiz_generator', true);
+export const surveyGeneratorAI    = makeModelWrapper('flash', 'survey_generator', true);
 export const surveyAnalysisAI     = makeModelWrapper('flash', 'survey_analysis');
 export const observationReviewAI  = makeModelWrapper('flash', 'observation_review', true);
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
@@ -224,6 +400,35 @@ export const lessonPlanDraftAI     = makeModelWrapper('flash', 'lesson_plan_draf
 export const ideaQuestionAI        = makeModelWrapper('flash', 'idea_clarify_question', true);
 export const ideaPRDAI             = makeModelWrapper('flash', 'idea_prd_generate', true);
 export const ideaPRDDraftAI        = makeModelWrapper('flash', 'idea_prd_draft');
+
+/**
+ * 세특/행특 초안 프롬프트 조립 + 생성 (AIAssistant.tsx, AI 코파일럿 세특 작성가 탭 공용)
+ */
+export async function generateSeatukDraft(
+  observations: { activity_name: string; content: string }[],
+  docType: string,
+  teacherPrompt: string,
+): Promise<string> {
+  const obsText = observations.length > 0
+    ? observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n')
+    : '제출된 관찰 기록이 없습니다.';
+  const prompt = `
+${SYSTEM_INSTRUCTIONS.BASE}
+${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}
+${SYSTEM_INSTRUCTIONS.PRIVACY}
+
+${teacherPrompt ? `[선생님 추가 지침]\n${teacherPrompt}\n` : ''}
+
+아래는 학생의 관찰 기록입니다.
+이 기록을 바탕으로 ${docType} 초안을 작성해주세요.
+문구만 출력하고 학생 이름, 마크다운, 설명 등은 포함하지 마세요.
+
+[학생 관찰 기록]
+${obsText}
+`;
+  const result = await seatukDraftAI.generateContent(prompt);
+  return result.response.text().trim();
+}
 
 /**
  * 파일을 Gemini API 파트로 변환 (Base64) - 브라우저에서 실행, 결과를 서버로 전달
@@ -657,6 +862,206 @@ ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습�
     })),
     message,
     ...(files && files.length > 0 && { files }),
+    ...(classId && { class_id: classId }),
+  });
+}
+
+// AI 코파일럿 — 수업 기획 전문가: 자유 대화로 수업을 구체화하고, 합의되면
+// [[LESSON_PLAN_DRAFT]] 마커가 붙은 계획안 초안을 응답에 포함해 반환한다.
+export async function chatWithLessonPlanCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  subject?: string,
+  weeklyPlan?: { week: number; topic: string }[],
+  observations?: any[],
+  referenceMaterials?: { title: string; content: string }[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.LESSON_PLAN_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 기획과 자연스럽게 이어지거나 시간표가 겹치면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
+${observations && observations.length > 0 ? `\n[이 클래스의 최근 관찰 기록 (참고용)]\n${JSON.stringify(formatObservationsForChat(observations))}\n(이 학급 학생들의 실제 성향·참여 패턴을 활동 설계에 참고하세요. 예: 특정 활동 유형에서 참여도가 높았다면 비슷한 형태를 제안. 단, 계획안 본문에는 학생 이름이나 특정 개인을 특정할 수 있는 표현을 그대로 적지 말고 "이 반은~" 같은 일반화된 표현으로 반영하세요.)\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔습니다. 톤·형식·활동 아이디어를 이번 기획에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 수업 맥락에 맞게 각색하세요.)\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'lesson_plan_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+export async function chatWithObservationAnalyst(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  observations?: any[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.OBSERVATION_ANALYST}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}\n` : ''}
+${observations && observations.length > 0
+    ? `\n[이 클래스의 관찰 기록]\n${JSON.stringify(formatObservationsForChat(observations))}\n(교사가 직접 작성한 기록과 학생이 제출해 승인/대기 중인 기록이 함께 포함되어 있습니다. 위 데이터에 근거해서만 답변하세요.)\n`
+    : '\n[참고] 아직 이 클래스의 관찰 기록 데이터가 없습니다. 클래스를 선택하도록 안내하거나 일반적인 조언만 제공하세요.\n'}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'observation_analyst_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+// AI 코파일럿 — 슬라이드 제작가: 대화로 슬라이드 내용을 구체화하고, 합의되면
+// [[SLIDE_DECK_DRAFT]] 마커가 붙은 초안을 응답에 포함해 반환한다.
+export async function chatWithSlideDeckCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  subject?: string,
+  weeklyPlan?: { week: number; topic: string }[],
+  referenceMaterials?: { title: string; content: string }[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SLIDE_DECK_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 슬라이드와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔습니다. 내용이나 흐름을 이번 슬라이드에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'slide_deck_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+// AI 코파일럿 — 자료 제작가: 대화로 학습지/유인물 내용을 처음부터 구체화하고, 합의되면
+// [[MATERIAL_DRAFT]] 마커가 붙은 초안을 응답에 포함해 반환한다.
+export async function chatWithMaterialCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  subject?: string,
+  weeklyPlan?: { week: number; topic: string }[],
+  referenceMaterials?: { title: string; content: string }[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.MATERIAL_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${RICH_FORMATTING_GUIDE}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 자료와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔습니다. 톤·형식·구성 아이디어를 이번 자료에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'material_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+// AI 코파일럿 — 퀴즈 제작가: 대화로 퀴즈 사양(참고 내용/문항 수/난이도)을 확정하고, 합의되면
+// [[QUIZ_DRAFT]] 마커가 붙은 확정 요약을 응답에 포함해 반환한다. 실제 문항 생성은 별도(quizGeneratorAI)에서 처리한다.
+export async function chatWithQuizCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  subject?: string,
+  referenceMaterials?: { title: string; content: string }[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.QUIZ_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 퀴즈 출제 근거로 참고할 만하다고 판단해 불러왔습니다. 이 내용을 바탕으로 사양을 확정하세요.)\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'quiz_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+export async function chatWithSurveyCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  subject?: string,
+  referenceMaterials?: { title: string; content: string }[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SURVEY_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 설문 출제 근거로 참고할 만하다고 판단해 불러왔습니다. 이 내용을 바탕으로 사양을 확정하세요.)\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'survey_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
+    ...(classId && { class_id: classId }),
+  });
+}
+
+export async function chatWithIdeaHandoffCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  className?: string,
+  classId?: string,
+  subject?: string,
+  referenceMaterials?: { title: string; content: string }[],
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.IDEA_HANDOFF_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n` : ''}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'pro',
+    feature: 'idea_handoff_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
     ...(classId && { class_id: classId }),
   });
 }

@@ -402,6 +402,8 @@ const TeachingTools = () => {
   };
 
   // activeTool이 바뀔 때마다 URL tool= 파라미터 동기화
+  // state 옵션을 넘기지 않으면 location.state가 undefined로 덮어써져
+  // openSessionId 같은 딥링크 payload가 자식 컴포넌트에 도달하기 전에 유실된다.
   useEffect(() => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -411,7 +413,7 @@ const TeachingTools = () => {
         next.delete('tool');
       }
       return next;
-    }, { replace: true });
+    }, { replace: true, state: location.state });
   }, [activeTool]);
 
   return (

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -86,6 +87,8 @@ const generatePin = () =>
 // ─── Component ────────────────────────────────────────────────────────────────
 const QuizGame = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const openSetHandledRef = useRef(false);
 
   // 클래스/퀴즈 세트
   const [classes, setClasses] = useState<any[]>([]);
@@ -177,6 +180,30 @@ const QuizGame = () => {
       .order('order_index', { ascending: true });
     if (data) setQuestions(data);
   };
+
+  // AI 코파일럿에서 방금 만든 퀴즈 세트로 바로 이동한 경우
+  useEffect(() => {
+    if (openSetHandledRef.current) return;
+    const state = location.state as { openQuizSetId?: string } | null;
+    const openId = state?.openQuizSetId;
+    if (!openId) return;
+    openSetHandledRef.current = true;
+    (async () => {
+      const { data: qs } = await supabase.from('quiz_sets').select('*').eq('id', openId).single();
+      if (!qs) return;
+      if (qs.class_id) {
+        const { data: cls } = await supabase
+          .from('classes').select('id, name, class_type, linked_class_id')
+          .eq('id', qs.class_id).single();
+        if (cls) setSelectedClass(cls);
+      }
+      await fetchQuizSets(qs.class_id || undefined);
+      setSelectedQuizSet(qs);
+      await fetchQuestions(qs.id);
+      setView('questions');
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleToggleAllClasses = async (val: boolean) => {
     setShowAllClasses(val);

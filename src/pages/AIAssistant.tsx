@@ -23,9 +23,9 @@ import {
   X,
   Link2,
 } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useSearchParams } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
-import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
+import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS, generateSeatukDraft } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
 
@@ -49,6 +49,7 @@ interface StudentDraft {
 
 const AIAssistant = () => {
   const { user, profile } = useAuth();
+  const [searchParams] = useSearchParams();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -188,8 +189,7 @@ const AIAssistant = () => {
     } catch (e) { console.error(e); }
   };
 
-  const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value;
+  const selectClass = (id: string) => {
     setSelectedClassId(id);
     setStudents([]);
     setSelectedStudentIds([]);
@@ -203,6 +203,20 @@ const AIAssistant = () => {
     setShowDraft(false);
     setDraftResults([]);
   };
+
+  const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    selectClass(e.target.value);
+  };
+
+  // AI 코파일럿 "세특 작성가" 탭에서 "이동하기"로 넘어온 경우 해당 학급 자동 선택
+  useEffect(() => {
+    if (classes.length === 0) return;
+    const deepLinkClassId = searchParams.get('classId');
+    if (deepLinkClassId && classes.some(c => c.id === deepLinkClassId) && deepLinkClassId !== selectedClassId) {
+      selectClass(deepLinkClassId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classes]);
 
   const toggleStudent = (id: string) => {
     setSelectedStudentIds(prev =>
@@ -232,13 +246,15 @@ const AIAssistant = () => {
     teacherPrompt: string,
     mode: 'school' | 'academy' = 'school'
   ): Promise<string> => {
+    if (mode !== 'academy') {
+      return generateSeatukDraft(observations, docType, teacherPrompt);
+    }
+
     const obsText = observations.length > 0
       ? observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n')
       : '제출된 관찰 기록이 없습니다.';
 
-    const isAcademy = mode === 'academy';
-    const prompt = isAcademy
-      ? `
+    const prompt = `
 당신은 학원·교습소에서 학부모에게 학생의 성장을 안내하는 전문 AI 어시스턴트입니다.
 ${SYSTEM_INSTRUCTIONS.PARENT_REPORT_GUIDE}
 ${SYSTEM_INSTRUCTIONS.PRIVACY}
@@ -257,20 +273,6 @@ ${teacherPrompt ? `[강사 추가 지침]\n${teacherPrompt}\n` : ''}
 문구만 출력하고 학생 이름, 마크다운, 번호 목록, 설명 등은 포함하지 마세요.
 
 [수강생 관찰 기록]
-${obsText}
-`
-      : `
-${SYSTEM_INSTRUCTIONS.BASE}
-${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}
-${SYSTEM_INSTRUCTIONS.PRIVACY}
-
-${teacherPrompt ? `[선생님 추가 지침]\n${teacherPrompt}\n` : ''}
-
-아래는 학생의 관찰 기록입니다.
-이 기록을 바탕으로 ${docType} 초안을 작성해주세요.
-문구만 출력하고 학생 이름, 마크다운, 설명 등은 포함하지 마세요.
-
-[학생 관찰 기록]
 ${obsText}
 `;
     const result = await seatukDraftAI.generateContent(prompt);
