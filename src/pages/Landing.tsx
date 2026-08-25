@@ -583,7 +583,17 @@ const Landing = () => {
                     </>
                   )}
                 </button>
+                <button
+                  onClick={() => navigate('/classroom-entry')}
+                  className={`${btnGhost} px-8 py-4 text-base`}
+                >
+                  <KeyRound size={18} strokeWidth={2.5} />
+                  수업 참여
+                </button>
               </div>
+              <p className="mt-3 text-xs text-writer-slate">
+                학생이신가요? 선생님께 받은 수업 코드로 참여하려면 위 <strong className="text-writer-obsidian">"수업 참여"</strong>를 눌러주세요.
+              </p>
               <a
                 href="/catalog.html"
                 target="_blank"

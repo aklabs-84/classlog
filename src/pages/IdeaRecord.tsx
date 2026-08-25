@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2 } from 'lucide-react';
+import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
@@ -730,30 +730,40 @@ export default function IdeaRecord() {
       </div>
 
       {/* 탭 전환 */}
-      <div className="flex items-center gap-1 bg-surface-container/70 p-1 rounded-2xl w-fit">
-        <button
-          onClick={() => setActiveTab('write')}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-            activeTab === 'write' ? 'bg-surface-container-lowest text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'
-          }`}
-        >
-          <PenLine size={14} /> 입력
-        </button>
-        <button
-          onClick={() => setActiveTab('list')}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-            activeTab === 'list' ? 'bg-surface-container-lowest text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'
-          }`}
-        >
-          <List size={14} /> 목록
-          {notes.length > 0 && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full tabular-nums ${
-              activeTab === 'list' ? 'bg-primary/10 text-primary' : 'bg-on-surface/5 text-on-surface-variant/50'
-            }`}>
-              {notes.length}
-            </span>
-          )}
-        </button>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1 bg-surface-container/70 p-1 rounded-2xl w-fit">
+          <button
+            onClick={() => setActiveTab('write')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              activeTab === 'write' ? 'bg-surface-container-lowest text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'
+            }`}
+          >
+            <PenLine size={14} /> 입력
+          </button>
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              activeTab === 'list' ? 'bg-surface-container-lowest text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'
+            }`}
+          >
+            <List size={14} /> 목록
+            {notes.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full tabular-nums ${
+                activeTab === 'list' ? 'bg-primary/10 text-primary' : 'bg-on-surface/5 text-on-surface-variant/50'
+              }`}>
+                {notes.length}
+              </span>
+            )}
+          </button>
+        </div>
+        {activeTab === 'write' && (
+          <button
+            onClick={() => navigate('/teaching-tools', { state: { activeToolId: 'material-editor' } })}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-primary bg-primary/10 hover:bg-primary/15 transition-colors"
+          >
+            <BookOpen size={14} /> 수업 자료 에디터로 이동 <ArrowRight size={13} />
+          </button>
+        )}
       </div>
 
       {/* 작성 폼 */}

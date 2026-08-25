@@ -49,6 +49,18 @@ const TrainingRequest = () => {
     }
 
     setSubmitted(true);
+
+    fetch('/api/slack?type=training-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name.trim(),
+        phone: phone.trim(),
+        preferred_method: preferredMethod,
+        memo: memo.trim() || null,
+        source,
+      }),
+    }).catch((err) => console.error('[TrainingRequest] slack/push notify failed:', err));
   };
 
   return (

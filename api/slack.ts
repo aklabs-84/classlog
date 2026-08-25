@@ -427,6 +427,94 @@ async function handleWaitlist(req: any, res: any) {
   return res.status(200).json({ ok: true });
 }
 
+async function handleTrainingRequest(req: any, res: any) {
+  const webhookUrl     = process.env.SLACK_WEBHOOK_URL;
+  const supabaseUrl    = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  const { name, phone, preferred_method, memo, source } = req.body;
+
+  const METHOD_LABELS: Record<string, string> = {
+    video_call: '화상통화로 안내받기',
+    visit: '학교(현장) 방문 안내',
+    kakao: '카카오톡으로 편하게 문의',
+    material_only: '사용법 자료만 받아보기',
+  };
+
+  if (webhookUrl) {
+    const payload = {
+      blocks: [
+        {
+          type: 'header',
+          text: { type: 'plain_text', text: '🎓 클래스로그 AI — 사용법 교육 신청', emoji: true },
+        },
+        {
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*이름*\n${name}` },
+            { type: 'mrkdwn', text: `*연락처*\n${phone}` },
+            { type: 'mrkdwn', text: `*희망 방식*\n${METHOD_LABELS[preferred_method] || preferred_method}` },
+          ],
+        },
+        ...(memo
+          ? [
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: `*하고 싶은 말*\n${memo}` },
+              },
+            ]
+          : []),
+        { type: 'divider' },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `신청 시각: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} | source: ${source || '-'}`,
+            },
+          ],
+        },
+      ],
+    };
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(`Slack responded with ${response.status}`);
+    } catch (error: any) {
+      console.error('[api/slack?type=training-request] slack error:', error?.message);
+    }
+  }
+
+  // 관리자 PWA 푸시 알림 (notifications insert → 기존 DB 트리거가 /api/send-push 자동 호출)
+  if (supabaseUrl && serviceRoleKey) {
+    try {
+      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: admins } = await supabaseAdmin.from('profiles').select('id').eq('is_admin', true);
+      if (admins && admins.length > 0) {
+        await supabaseAdmin.from('notifications').insert(
+          admins.map((admin) => ({
+            user_id: admin.id,
+            title: '🎓 새 사용법 교육 신청',
+            content: `${name} (${phone}) — ${METHOD_LABELS[preferred_method] || preferred_method}`,
+            type: 'training_request',
+            link: '/admin',
+          }))
+        );
+      }
+    } catch (error: any) {
+      console.error('[api/slack?type=training-request] push notify error:', error?.message);
+    }
+  }
+
+  return res.status(200).json({ ok: true });
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -439,5 +527,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'bug-report') return handleBugReport(req, res);
   if (type === 'google-signup') return handleGoogleSignup(req, res);
   if (type === 'waitlist') return handleWaitlist(req, res);
-  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist)' });
+  if (type === 'training-request') return handleTrainingRequest(req, res);
+  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request)' });
 }

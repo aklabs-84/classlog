@@ -10,14 +10,15 @@ import {
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
   TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
   Shuffle, DollarSign, Cpu, Layers, X, ChevronRight, Activity,
-  ArrowUpDown, LogIn, ChevronUp, ChevronDown, Calculator,
+  ArrowUpDown, LogIn, ChevronUp, ChevronDown, Calculator, Sparkles,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'activity' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'refund_calc' | 'ai_cost' | 'video_guides';
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'refund_calc' | 'ai_cost' | 'video_guides'
+  | 'waitlist' | 'training_requests';
 
 interface TeacherActivityRow {
   id: string;
@@ -137,6 +138,15 @@ interface CouponRow {
   expires_at: string | null; is_active: boolean;
   note: string | null; created_at: string;
 }
+interface WaitlistRow {
+  id: string; email: string; name: string | null; phone: string | null;
+  plan_interest: string; memo: string | null;
+  notified_at: string | null; created_at: string;
+}
+interface TrainingRequestRow {
+  id: string; name: string; phone: string; preferred_method: string;
+  memo: string | null; notified_at: string | null; created_at: string;
+}
 
 interface DashboardStats {
   users: number; classes: number; students: number;
@@ -163,6 +173,12 @@ const PLAN_OPTIONS_ALL = [
   ...PLAN_OPTIONS,
   { value: 'school', label: 'School', color: 'bg-violet-100 text-violet-700' },
 ];
+const WAITLIST_PLAN_LABELS: Record<string, string> = {
+  basic: 'Basic', pro: 'Pro', school: 'School', unsure: '미정',
+};
+const TRAINING_METHOD_LABELS: Record<string, string> = {
+  video_call: '화상통화', visit: '방문', kakao: '카카오톡', material_only: '자료만',
+};
 const OBS_STATUS: Record<string, { label: string; color: string }> = {
   pending:  { label: '대기', color: 'bg-amber-100 text-amber-700' },
   approved: { label: '승인', color: 'bg-emerald-100 text-emerald-700' },
@@ -171,6 +187,8 @@ const OBS_STATUS: Record<string, { label: string; color: string }> = {
 const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard',     label: '현황',      icon: BarChart3 },
   { id: 'requests',      label: '사용 신청',  icon: ShieldCheck },
+  { id: 'waitlist',      label: '웨이팅리스트', icon: Sparkles },
+  { id: 'training_requests', label: '교육신청', icon: GraduationCap },
   { id: 'users',         label: '사용자',     icon: Users },
   { id: 'activity',      label: '활동 현황',  icon: Activity },
   { id: 'classes',       label: '학급',       icon: BookOpen },
@@ -389,6 +407,14 @@ const Admin = () => {
   const [bugs, setBugs]               = useState<any[]>([]);
   const [bugsLoading, setBugsLoading] = useState(false);
 
+  // ── 웨이팅리스트 ────────────────────────────────────────────────────────────
+  const [waitlist, setWaitlist]               = useState<WaitlistRow[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+
+  // ── 교육신청 ────────────────────────────────────────────────────────────────
+  const [trainingRequests, setTrainingRequests]             = useState<TrainingRequestRow[]>([]);
+  const [trainingRequestsLoading, setTrainingRequestsLoading] = useState(false);
+
   // ── 쿠폰 ────────────────────────────────────────────────────────────────────
   const [coupons, setCoupons]             = useState<CouponRow[]>([]);
   const [couponsLoading, setCouponsLoading] = useState(false);
@@ -450,6 +476,8 @@ const Admin = () => {
     if (activeTab === 'bugs')          fetchBugs();
     if (activeTab === 'coupons')       fetchCoupons();
     if (activeTab === 'ai_cost')       { fetchAiCost('daily'); fetchAiCreditUsage(); }
+    if (activeTab === 'waitlist')      fetchWaitlist();
+    if (activeTab === 'training_requests') fetchTrainingRequests();
   }, [activeTab, authLoading, profile]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -861,6 +889,36 @@ const Admin = () => {
   const updateBugStatus = async (id: string, status: string) => {
     await supabase.from('bug_reports').update({ status }).eq('id', id);
     setBugs(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+  };
+
+  const fetchWaitlist = async () => {
+    setWaitlistLoading(true);
+    const { data } = await supabase.from('payment_waitlist')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data) setWaitlist(data);
+    setWaitlistLoading(false);
+  };
+
+  const toggleWaitlistNotified = async (id: string, notified: boolean) => {
+    const notified_at = notified ? new Date().toISOString() : null;
+    await supabase.from('payment_waitlist').update({ notified_at }).eq('id', id);
+    setWaitlist(prev => prev.map(w => w.id === id ? { ...w, notified_at } : w));
+  };
+
+  const fetchTrainingRequests = async () => {
+    setTrainingRequestsLoading(true);
+    const { data } = await supabase.from('training_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data) setTrainingRequests(data);
+    setTrainingRequestsLoading(false);
+  };
+
+  const toggleTrainingRequestNotified = async (id: string, notified: boolean) => {
+    const notified_at = notified ? new Date().toISOString() : null;
+    await supabase.from('training_requests').update({ notified_at }).eq('id', id);
+    setTrainingRequests(prev => prev.map(t => t.id === id ? { ...t, notified_at } : t));
   };
 
   const fetchAiCost = async (view: AiCostView = aiCostView) => {
@@ -2325,6 +2383,121 @@ const Admin = () => {
             )}
             {!bugsLoading && bugs.length > 0 && (
               <Pager page={page} totalPages={Math.ceil(bugs.length / PAGE_SIZE)} onChange={setPage} />
+            )}
+          </>
+        )}
+
+        {/* ── 웨이팅리스트 ──────────────────────────────────────────────────── */}
+        {activeTab === 'waitlist' && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-amber-700 font-bold">총 {waitlist.length}건</p>
+              <button onClick={fetchWaitlist} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
+            {waitlistLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+            ) : waitlist.length === 0 ? (
+              <div className="text-center py-20 text-amber-400">
+                <Sparkles size={40} className="mx-auto mb-3 opacity-40" />
+                <p>웨이팅리스트 신청이 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {waitlist.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((w, i) => (
+                  <motion.div key={w.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                    className="bg-white rounded-2xl border border-amber-100 p-5 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            w.notified_at ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {w.notified_at ? '✅ 연락완료' : '🔴 대기'}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-black">
+                            {WAITLIST_PLAN_LABELS[w.plan_interest] || w.plan_interest}
+                          </span>
+                          <span className="text-[10px] text-amber-400">{new Date(w.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="font-black text-amber-900">{w.name || '(이름 미입력)'} · {w.email}</p>
+                        {w.phone && <p className="text-[11px] text-amber-500 mt-0.5">{w.phone}</p>}
+                        {w.memo && <p className="text-sm text-amber-700 mt-1 leading-relaxed">{w.memo}</p>}
+                      </div>
+                      <button
+                        onClick={() => toggleWaitlistNotified(w.id, !w.notified_at)}
+                        className={`shrink-0 px-3 py-1.5 text-[10px] font-black rounded-xl transition-colors ${
+                          w.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        }`}
+                      >
+                        {w.notified_at ? '연락취소' : '연락완료'}
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+            {!waitlistLoading && waitlist.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(waitlist.length / PAGE_SIZE)} onChange={setPage} />
+            )}
+          </>
+        )}
+
+        {/* ── 교육신청 ──────────────────────────────────────────────────────── */}
+        {activeTab === 'training_requests' && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-amber-700 font-bold">총 {trainingRequests.length}건</p>
+              <button onClick={fetchTrainingRequests} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
+            {trainingRequestsLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+            ) : trainingRequests.length === 0 ? (
+              <div className="text-center py-20 text-amber-400">
+                <GraduationCap size={40} className="mx-auto mb-3 opacity-40" />
+                <p>교육 신청 내역이 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {trainingRequests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((t, i) => (
+                  <motion.div key={t.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                    className="bg-white rounded-2xl border border-amber-100 p-5 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            t.notified_at ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {t.notified_at ? '✅ 연락완료' : '🔴 대기'}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-black">
+                            {TRAINING_METHOD_LABELS[t.preferred_method] || t.preferred_method}
+                          </span>
+                          <span className="text-[10px] text-amber-400">{new Date(t.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="font-black text-amber-900">{t.name} · {t.phone}</p>
+                        {t.memo && <p className="text-sm text-amber-700 mt-1 leading-relaxed">{t.memo}</p>}
+                      </div>
+                      <button
+                        onClick={() => toggleTrainingRequestNotified(t.id, !t.notified_at)}
+                        className={`shrink-0 px-3 py-1.5 text-[10px] font-black rounded-xl transition-colors ${
+                          t.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        }`}
+                      >
+                        {t.notified_at ? '연락취소' : '연락완료'}
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+            {!trainingRequestsLoading && trainingRequests.length > 0 && (
+              <Pager page={page} totalPages={Math.ceil(trainingRequests.length / PAGE_SIZE)} onChange={setPage} />
             )}
           </>
         )}
