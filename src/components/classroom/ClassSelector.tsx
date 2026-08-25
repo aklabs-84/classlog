@@ -64,8 +64,8 @@ const ClassSelector = ({
   };
 
   return (
-    <nav className="w-full bg-surface-container-lowest border-b border-surface-container-high px-6 py-3 shrink-0 z-50 sticky top-0 shadow-soft">
-      <div className="max-w-[1600px] mx-auto flex items-center gap-6">
+    <nav className="w-full bg-surface-container-lowest border-b border-surface-container-high px-3 sm:px-6 py-3 shrink-0 z-50 sticky top-0 shadow-soft">
+      <div className="max-w-[1600px] mx-auto flex items-center gap-2 sm:gap-6">
         {/* Brand/Label */}
         <div className="hidden lg:flex flex-col items-start shrink-0 mr-2">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/70 leading-none">Classboard</span>
@@ -78,13 +78,13 @@ const ClassSelector = ({
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen(!open)}
-            className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl shadow-sm transition-all group ${
+            className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-2.5 rounded-2xl shadow-sm transition-all group ${
               activeClass?.parent_class_id
                 ? 'bg-violet-50 border border-violet-200 hover:bg-violet-100'
                 : 'bg-primary/5 border border-primary/20 hover:bg-primary/10'
             }`}
           >
-            <div className={`w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 ${
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-white flex items-center justify-center shrink-0 ${
               activeClass?.parent_class_id
                 ? 'bg-violet-500 shadow-lg shadow-violet-200'
                 : 'bg-primary shadow-lg shadow-primary/20'
@@ -298,17 +298,17 @@ const ClassSelector = ({
         )}
 
         {/* Global Actions (드롭다운 외부에도 유지) */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             onClick={onOpenArchive}
-            className="w-9 h-9 rounded-xl bg-white border border-white/60 hover:border-secondary/20 text-on-surface hover:text-secondary transition-all active:scale-90 group shadow-sm hover:shadow-soft flex items-center justify-center"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-white/60 hover:border-secondary/20 text-on-surface hover:text-secondary transition-all active:scale-90 group shadow-sm hover:shadow-soft flex items-center justify-center"
             title="아카이브함 열기"
           >
             <Archive size={16} className="group-hover:-translate-y-0.5 transition-transform" />
           </button>
           <button
             onClick={onCreateClass}
-            className="w-9 h-9 rounded-xl bg-white border border-white/60 hover:border-primary/20 text-on-surface hover:text-primary transition-all active:scale-90 group shadow-sm hover:shadow-soft flex items-center justify-center"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-white/60 hover:border-primary/20 text-on-surface hover:text-primary transition-all active:scale-90 group shadow-sm hover:shadow-soft flex items-center justify-center"
             title="새 학급 추가"
           >
             <Plus size={16} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-500" />
