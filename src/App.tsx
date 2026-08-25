@@ -229,6 +229,8 @@ function App() {
             <Routes>
               {/* 공개 라우트 */}
               <Route path="/" element={<RootRedirect />} />
+              {/* 로그인 상태와 무관하게 랜딩페이지 자체를 확인하기 위한 경로 (RootRedirect의 /dashboard 강제 이동 없음) */}
+              <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/set-password" element={<SetPassword />} />
               <Route path="/classroom-entry" element={<ClassroomEntry />} />
