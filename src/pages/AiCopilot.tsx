@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb } from 'lucide-react';
+import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
@@ -284,6 +285,9 @@ const AiCopilot = () => {
   const [pendingTranscripts, setPendingTranscripts] = useState<{ id: string; class_name: string | null; subject: string | null; transcript_text: string; duration_seconds: number; recorded_at: string }[]>([]);
   const [analyzingTranscriptId, setAnalyzingTranscriptId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -396,6 +400,14 @@ const AiCopilot = () => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, loading]);
+
+  // 입력창 높이를 내용에 맞춰 자동으로 늘림(최대 8줄 정도까지, 그 이상은 스크롤)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
 
   // Task 3(수업 기획 탭 전용): 이번 메시지 내용과 의미적으로 유사한 내 과거 자료(노트/수업자료/슬라이드)를 검색해
   // "참고자료" 카드로 제안한다. 메인 AI 응답을 막지 않도록 별도로 병행 실행한다.
@@ -1230,35 +1242,9 @@ ${session.transcript_text}
 
   const modeConfig = COPILOT_MODES[activeMode];
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="px-2">
-        <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">AI 코파일럿 · 파일럿</p>
-        <h1 className="text-xl md:text-4xl font-extrabold font-manrope mb-4">{modeConfig.heroTitle}</h1>
-        <p className="text-on-surface-variant text-base max-w-2xl leading-relaxed">
-          {modeConfig.heroSubtitle}
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2 px-2">
-        {COPILOT_MODE_IDS.map(id => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveMode(id)}
-            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all ${
-              activeMode === id
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
-            }`}
-          >
-            {COPILOT_MODES[id].tabLabel}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-col rounded-[2rem] border border-surface-container bg-white shadow-ambient overflow-hidden h-[70vh]">
-        <div className="px-6 py-4 border-b border-surface-container flex items-center justify-between gap-4 bg-surface/50">
+  const chatPanel = (
+      <div className={isFullscreen ? 'fixed inset-0 z-[9999] flex flex-col bg-white' : 'flex flex-col rounded-[2rem] border border-surface-container bg-white shadow-ambient overflow-hidden h-[70vh]'}>
+        <div className="px-6 py-4 border-b border-surface-container flex items-center justify-between gap-4 bg-surface/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
               <Bot size={20} />
@@ -1268,18 +1254,29 @@ ${session.transcript_text}
               <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{modeConfig.chatHeaderSubtitle}</p>
             </div>
           </div>
-          {classes.length > 0 && (
-            <select
-              value={selectedClassId}
-              onChange={e => setSelectedClassId(e.target.value)}
-              className="text-xs font-bold bg-surface-container-low border border-surface-container rounded-xl px-3 py-2 text-on-surface focus:outline-none"
+          <div className="flex items-center gap-2">
+            {classes.length > 0 && (
+              <select
+                value={selectedClassId}
+                onChange={e => setSelectedClassId(e.target.value)}
+                className="text-xs font-bold bg-surface-container-low border border-surface-container rounded-xl px-3 py-2 text-on-surface focus:outline-none"
+              >
+                <option value="">클래스 선택 안 함</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(v => !v)}
+              className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors"
+              aria-label={isFullscreen ? '전체화면 닫기' : '전체화면으로 보기'}
+              title={isFullscreen ? '전체화면 닫기' : '전체화면으로 보기'}
             >
-              <option value="">클래스 선택 안 함</option>
-              {classes.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          )}
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </div>
         </div>
 
         {modeConfig.showStudentPicker && (
@@ -1580,26 +1577,64 @@ ${session.transcript_text}
 
         <div className={`p-5 shrink-0 bg-neutral-50 ${modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0) ? 'pt-3' : 'border-t border-surface-container-high'}`}>
           <form
+            ref={formRef}
             onSubmit={activeMode === 'seatuk_writer' ? handleSeatukGenerate : handleSend}
-            className="flex items-center gap-3 bg-white rounded-[1.75rem] border-2 border-transparent focus-within:border-primary/20 shadow-md pl-5 pr-2 py-2"
+            className="flex items-end gap-3 bg-white rounded-[1.75rem] border-2 border-transparent focus-within:border-primary/20 shadow-md pl-5 pr-2 py-2"
           >
-            <input
-              type="text"
+            <textarea
+              ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  formRef.current?.requestSubmit();
+                }
+              }}
               placeholder={modeConfig.inputPlaceholder}
-              className="flex-1 py-3 bg-transparent text-sm font-black focus:outline-none placeholder:text-neutral-400"
+              rows={1}
+              className="flex-1 py-3 bg-transparent text-sm font-black focus:outline-none placeholder:text-neutral-400 resize-none max-h-[200px] overflow-y-auto custom-scrollbar leading-relaxed"
             />
             <button
               type="submit"
               disabled={activeMode === 'seatuk_writer' ? (seatukSelectedIds.length === 0 || loading) : (!input.trim() || loading)}
-              className="p-3.5 bg-primary text-white rounded-2xl shadow hover:shadow-primary/40 transition-all disabled:opacity-20 disabled:pointer-events-none active:scale-95"
+              className="p-3.5 bg-primary text-white rounded-2xl shadow hover:shadow-primary/40 transition-all disabled:opacity-20 disabled:pointer-events-none active:scale-95 shrink-0"
             >
               <Send size={18} />
             </button>
           </form>
         </div>
       </div>
+    );
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <div className="px-2">
+        <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">AI 코파일럿 · 파일럿</p>
+        <h1 className="text-xl md:text-4xl font-extrabold font-manrope mb-4">{modeConfig.heroTitle}</h1>
+        <p className="text-on-surface-variant text-base max-w-2xl leading-relaxed">
+          {modeConfig.heroSubtitle}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2 px-2">
+        {COPILOT_MODE_IDS.map(id => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveMode(id)}
+            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all ${
+              activeMode === id
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+            }`}
+          >
+            {COPILOT_MODES[id].tabLabel}
+          </button>
+        ))}
+      </div>
+
+      {isFullscreen ? createPortal(chatPanel, document.body) : chatPanel}
 
       <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} reason={upgradeReason} />
     </motion.div>

@@ -120,12 +120,12 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
 
   const navItems = [
     { label: '아이디어 기록', path: '/dashboard', icon: Lightbulb },
+    { label: 'AI 코파일럿', path: '/ai-copilot', icon: Bot },
     { label: '학급 관리', path: '/classes', icon: LayoutDashboard },
     { label: '클래스룸', path: '/classroom', icon: School },
     { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
     { label: '갤러리', path: '/gallery', icon: Images },
-    { label: 'AI 초안', path: '/ai-assistant', icon: Sparkles },
-    { label: 'AI 코파일럿', path: '/ai-copilot', icon: Bot },
+    { label: 'AI 세특 초안', path: '/ai-assistant', icon: Sparkles },
     { label: '보고서', path: '/export', icon: FileBarChart2 },
     { label: '아카이브', path: '/archive', icon: Archive },
   ];
