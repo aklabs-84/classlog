@@ -558,6 +558,25 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
               </div>
             </div>
 
+            {/* AI 사용량 위젯 — 무제한(admin/베타/BYOK)이면 숨김 */}
+            {aiUsage && (
+              <div className="mx-2 mt-2 p-2.5 rounded-xl bg-surface-container-low/50 border border-on-surface/5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-black uppercase tracking-wide text-on-surface-variant/50 flex items-center gap-1">
+                    <Zap size={10} /> AI 사용량
+                  </span>
+                  <span className="text-[10px] font-black text-on-surface">{aiUsageRightLabel}</span>
+                </div>
+                <div className="h-1.5 bg-on-surface/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${aiUsageBarColor}`}
+                    style={{ width: `${Math.min(aiUsage.percent, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[9px] text-on-surface-variant/60 mt-1">{aiUsageSubLabel}</p>
+              </div>
+            )}
+
             {/* 네비 메뉴 */}
             <nav className="flex flex-col p-2 gap-0.5">
               {navItems.map((tab) => (

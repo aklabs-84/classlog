@@ -478,7 +478,7 @@ const Admin = () => {
     if (activeTab === 'users')         fetchUsers();
     if (activeTab === 'activity')      fetchTeacherActivity();
     if (activeTab === 'classes')       fetchClasses();
-    if (activeTab === 'students')      fetchStudents();
+    if (activeTab === 'students')    { fetchStudents(); fetchClasses(); }
     if (activeTab === 'observations')  fetchObservations();
     if (activeTab === 'results')       fetchResults();
     if (activeTab === 'suggestions')   fetchSuggestions();
@@ -1221,7 +1221,7 @@ const Admin = () => {
     if (activeTab === 'users')         fetchUsers();
     if (activeTab === 'activity')      fetchTeacherActivity();
     if (activeTab === 'classes')       fetchClasses();
-    if (activeTab === 'students')      fetchStudents();
+    if (activeTab === 'students')    { fetchStudents(); fetchClasses(); }
     if (activeTab === 'observations')  fetchObservations();
     if (activeTab === 'results')       fetchResults();
     if (activeTab === 'suggestions')   fetchSuggestions();
@@ -1323,6 +1323,8 @@ const Admin = () => {
     if (deleteTarget.table === 'student_results')    setResults(p => p.filter(r => r.id !== deleteTarget.id));
     if (deleteTarget.table === 'student_suggestions') setSuggestions(p => p.filter(r => r.id !== deleteTarget.id));
     if (deleteTarget.table === 'announcements')      setAnnouncements(p => p.filter(r => r.id !== deleteTarget.id));
+    if (deleteTarget.table === 'payment_waitlist')   setWaitlist(p => p.filter(r => r.id !== deleteTarget.id));
+    if (deleteTarget.table === 'training_requests')  setTrainingRequests(p => p.filter(r => r.id !== deleteTarget.id));
     setDeleting(false);
     setDeleteTarget(null);
   };
@@ -2436,14 +2438,18 @@ const Admin = () => {
                         {w.phone && <p className="text-[11px] text-amber-500 mt-0.5">{w.phone}</p>}
                         {w.memo && <p className="text-sm text-amber-700 mt-1 leading-relaxed">{w.memo}</p>}
                       </div>
-                      <button
-                        onClick={() => toggleWaitlistNotified(w.id, !w.notified_at)}
-                        className={`shrink-0 px-3 py-1.5 text-[10px] font-black rounded-xl transition-colors ${
-                          w.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        }`}
-                      >
-                        {w.notified_at ? '연락취소' : '연락완료'}
-                      </button>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <button
+                          onClick={() => toggleWaitlistNotified(w.id, !w.notified_at)}
+                          className={`px-3 py-1.5 text-[10px] font-black rounded-xl transition-colors ${
+                            w.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                          }`}
+                        >
+                          {w.notified_at ? '연락취소' : '연락완료'}
+                        </button>
+                        <button onClick={() => setDeleteTarget({ table: 'payment_waitlist', id: w.id, label: `웨이팅리스트: ${w.name || w.email}` })}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -2493,14 +2499,18 @@ const Admin = () => {
                         <p className="font-black text-amber-900">{t.name} · {t.phone}</p>
                         {t.memo && <p className="text-sm text-amber-700 mt-1 leading-relaxed">{t.memo}</p>}
                       </div>
-                      <button
-                        onClick={() => toggleTrainingRequestNotified(t.id, !t.notified_at)}
-                        className={`shrink-0 px-3 py-1.5 text-[10px] font-black rounded-xl transition-colors ${
-                          t.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        }`}
-                      >
-                        {t.notified_at ? '연락취소' : '연락완료'}
-                      </button>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <button
+                          onClick={() => toggleTrainingRequestNotified(t.id, !t.notified_at)}
+                          className={`px-3 py-1.5 text-[10px] font-black rounded-xl transition-colors ${
+                            t.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                          }`}
+                        >
+                          {t.notified_at ? '연락취소' : '연락완료'}
+                        </button>
+                        <button onClick={() => setDeleteTarget({ table: 'training_requests', id: t.id, label: `교육신청: ${t.name}` })}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
