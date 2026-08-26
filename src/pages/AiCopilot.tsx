@@ -193,6 +193,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     inputPlaceholder: '수업 아이디어를 편하게 이야기해 보세요...',
     showDraftActions: true,
     showReferenceSearch: true,
+    showMaterialImport: true,
     draftMarker: DRAFT_MARKER,
   },
   observation_analyst: {
@@ -247,6 +248,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     inputPlaceholder: '자료에 담고 싶은 내용을 편하게 이야기해 보세요...',
     showDraftActions: true,
     showReferenceSearch: true,
+    showMaterialImport: true,
     draftMarker: MATERIAL_DRAFT_MARKER,
     showCoverPromptAction: true,
   },
@@ -276,6 +278,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showDraftActions: false,
     showReferenceSearch: true,
     showSurveyAction: true,
+    showMaterialImport: true,
   },
   idea_brainstorm: {
     tabLabel: '💡 아이디어 기획',

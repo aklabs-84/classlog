@@ -92,7 +92,7 @@ const formatVersionDate = (iso: string) => {
 
 // 발표 모드 컴포넌트는 src/components/PresentationModal.tsx로 분리됨 (Classroom.tsx와 공유)
 
-// ── 다른 클래스에서 가져오기 모달 ─────────────────────────────────────────────
+// ── 다른 클래스·공통 자료함에서 가져오기 모달 ─────────────────────────────────
 const ImportFromClassModal = ({
   currentClassId,
   userId,
@@ -107,6 +107,7 @@ const ImportFromClassModal = ({
   const [step, setStep] = useState<'class' | 'material'>('class');
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [isLibrary, setIsLibrary] = useState(false);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -124,6 +125,7 @@ const ImportFromClassModal = ({
 
   const handleSelectClass = async (cls: any) => {
     setSelectedClass(cls);
+    setIsLibrary(false);
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
@@ -131,6 +133,22 @@ const ImportFromClassModal = ({
       .eq('class_id', cls.id)
       .order('week_number', { ascending: true });
     if (error) console.error('[ImportModal] class_materials fetch error:', error);
+    setMaterials((data || []) as Material[]);
+    setLoading(false);
+    setStep('material');
+  };
+
+  const handleSelectLibrary = async () => {
+    setSelectedClass(null);
+    setIsLibrary(true);
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('class_materials')
+      .select('id, title, content, is_published, week_number, created_at')
+      .is('class_id', null)
+      .eq('teacher_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) console.error('[ImportModal] library materials fetch error:', error);
     setMaterials((data || []) as Material[]);
     setLoading(false);
     setStep('material');
@@ -155,7 +173,7 @@ const ImportFromClassModal = ({
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           {step === 'material' && (
             <button
-              onClick={() => { setStep('class'); setSelectedClass(null); setMaterials([]); }}
+              onClick={() => { setStep('class'); setSelectedClass(null); setIsLibrary(false); setMaterials([]); }}
               className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
             >
               <ArrowLeft size={16} />
@@ -163,10 +181,10 @@ const ImportFromClassModal = ({
           )}
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-on-surface">
-              {step === 'class' ? '다른 클래스에서 가져오기' : selectedClass?.name}
+              {step === 'class' ? '다른 자료에서 가져오기' : isLibrary ? '공통 자료함' : selectedClass?.name}
             </p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {step === 'class' ? '가져올 자료가 있는 클래스를 선택하세요' : '가져올 자료를 선택하세요'}
+              {step === 'class' ? '가져올 자료가 있는 클래스나 공통 자료함을 선택하세요' : '가져올 자료를 선택하세요'}
             </p>
           </div>
           <button
@@ -184,14 +202,24 @@ const ImportFromClassModal = ({
               <Loader2 size={24} className="animate-spin text-primary" />
             </div>
           ) : step === 'class' ? (
-            classes.length === 0 ? (
-              <div className="flex flex-col items-center py-12 gap-3 opacity-40">
-                <BookOpen size={36} />
-                <p className="font-black text-sm">다른 클래스가 없습니다</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {classes.map(cls => (
+            <div className="flex flex-col gap-1.5">
+              <button
+                onClick={handleSelectLibrary}
+                className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl hover:bg-surface-container-low transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Library size={15} />
+                </div>
+                <span className="font-bold text-sm flex-1 text-on-surface">공통 자료함</span>
+                <ChevronRight size={14} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+              </button>
+              {classes.length === 0 ? (
+                <div className="flex flex-col items-center py-12 gap-3 opacity-40">
+                  <BookOpen size={36} />
+                  <p className="font-black text-sm">다른 클래스가 없습니다</p>
+                </div>
+              ) : (
+                classes.map(cls => (
                   <button
                     key={cls.id}
                     onClick={() => handleSelectClass(cls)}
@@ -203,14 +231,14 @@ const ImportFromClassModal = ({
                     <span className="font-bold text-sm flex-1 text-on-surface">{cls.name}</span>
                     <ChevronRight size={14} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                   </button>
-                ))}
-              </div>
-            )
+                ))
+              )}
+            </div>
           ) : (
             materials.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 opacity-40">
                 <BookOpen size={36} />
-                <p className="font-black text-sm">이 클래스에 자료가 없습니다</p>
+                <p className="font-black text-sm">{isLibrary ? '공통 자료함에 자료가 없습니다' : '이 클래스에 자료가 없습니다'}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
@@ -1840,7 +1868,7 @@ const MaterialEditor = () => {
               {/* 다른 클래스에서 가져오기 */}
               <button
                 onClick={() => setShowImportModal(true)}
-                title="다른 클래스 자료 가져오기"
+                title="다른 클래스·공통 자료함에서 가져오기"
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors"
               >
                 <Download size={11} /> 가져오기
