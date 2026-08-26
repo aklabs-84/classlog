@@ -1316,7 +1316,12 @@ const Admin = () => {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    await supabase.from(deleteTarget.table).delete().eq('id', deleteTarget.id);
+    const { data, error } = await supabase.from(deleteTarget.table).delete().eq('id', deleteTarget.id).select('id');
+    if (error || !data || data.length === 0) {
+      alert(`삭제 실패: ${error?.message || '삭제 권한이 없거나 이미 삭제된 항목입니다.'}`);
+      setDeleting(false);
+      return;
+    }
     if (deleteTarget.table === 'classes')            setClasses(p => p.filter(r => r.id !== deleteTarget.id));
     if (deleteTarget.table === 'students')           setStudents(p => p.filter(r => r.id !== deleteTarget.id));
     if (deleteTarget.table === 'observations')       setObservations(p => p.filter(r => r.id !== deleteTarget.id));
