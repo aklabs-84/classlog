@@ -1568,6 +1568,16 @@ const MaterialEditor = () => {
     <div className="space-y-5">
       {/* ── 상단: 클래스 선택 + 새 자료 버튼 ── */}
       <div className="flex items-center gap-3 flex-wrap">
+        {isEditorOpen && (
+          <button
+            onClick={() => { setIsEditorOpen(false); resetForm(); }}
+            title={libraryMode ? '공통 자료 목록으로' : '자료 목록으로'}
+            className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-black text-xs transition-colors shrink-0"
+          >
+            <ArrowLeft size={14} />
+            {libraryMode ? '공통 자료 목록' : '자료 목록'}
+          </button>
+        )}
         <div className="relative">
           <button
             onClick={() => setClassDropdownOpen(o => !o)}
@@ -1680,14 +1690,6 @@ const MaterialEditor = () => {
           <div className="border-b border-surface-container bg-surface-container-low rounded-t-3xl">
             {/* 1줄: 목록 이동 + 제목 + 뷰 모드 + 저장(가장 중요한 것만). 모바일은 폭이 부족하면 줄바꿈 */}
             <div className="flex items-center flex-wrap gap-2 px-3 sm:px-5 pt-3.5 pb-2">
-              <button
-                onClick={() => { setIsEditorOpen(false); resetForm(); }}
-                title={libraryMode ? '공통 자료 목록으로' : '자료 목록으로'}
-                className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-black text-xs transition-colors shrink-0"
-              >
-                <ArrowLeft size={14} />
-                {libraryMode ? '공통 자료 목록' : '자료 목록'}
-              </button>
               <span className="hidden sm:inline-block font-bold text-xs text-on-surface-variant truncate">
                 {libraryMode
                   ? (editingMaterial ? '공통 자료 수정' : '새 공통 자료 작성')

@@ -22,7 +22,7 @@ import {
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
   MonitorPlay, Palette, Lightbulb, Scissors, Lock, Unlock, ClipboardPaste,
-  HelpCircle, Slash, Sparkles,
+  HelpCircle, Slash, Sparkles, GripVertical,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -658,8 +658,11 @@ const CalloutExtension = Node.create({
   },
 });
 
-// ── 코드블록 NodeView (복사 버튼 포함) ───────────────────────────────────────
-const CodeBlockView = ({ node }: NodeViewProps) => {
+// ── 코드블록 드래그 이동 시 dataTransfer에 실어 보내는 커스텀 MIME 타입 ─────────
+const CODEBLOCK_DRAG_MIME = 'application/x-richeditor-codeblock-pos';
+
+// ── 코드블록 NodeView (복사/삭제 버튼 + 드래그 손잡이 포함) ───────────────────
+const CodeBlockView = ({ node, editor, getPos }: NodeViewProps) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -678,20 +681,47 @@ const CodeBlockView = ({ node }: NodeViewProps) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    if (typeof getPos !== 'function') return;
+    const pos = getPos();
+    if (typeof pos !== 'number') return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(CODEBLOCK_DRAG_MIME, String(pos));
+  };
+
   return (
     <NodeViewWrapper className="relative my-3 group">
-      <pre className="bg-[#1e293b] rounded-xl px-5 py-4 overflow-x-auto">
+      <div
+        contentEditable={false}
+        draggable
+        onDragStart={handleDragStart}
+        onMouseDown={e => e.stopPropagation()}
+        className="absolute top-2 left-2 p-1 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/10 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-all z-10"
+        title="드래그해서 토글 등으로 이동"
+      >
+        <GripVertical size={14} />
+      </div>
+      <pre className="bg-[#1e293b] rounded-xl pl-9 pr-5 py-4 overflow-x-auto">
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <NodeViewContent as={"code" as any} className="text-[#e2e8f0] text-sm font-mono" />
       </pre>
-      <button
-        onMouseDown={e => e.preventDefault()}
-        onClick={handleCopy}
-        className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-[11px] font-bold transition-all opacity-0 group-hover:opacity-100"
-        title="코드 복사"
-      >
-        {copied ? <><Check size={11} /> 복사됨</> : <><Copy size={11} /> 복사</>}
-      </button>
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={handleCopy}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-[11px] font-bold transition-all"
+          title="코드 복사"
+        >
+          {copied ? <><Check size={11} /> 복사됨</> : <><Copy size={11} /> 복사</>}
+        </button>
+        <button
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+          className="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 text-white/60 hover:text-white transition-all"
+          title="코드 블록 삭제"
+        >
+          <X size={13} />
+        </button>
+      </div>
     </NodeViewWrapper>
   );
 };
@@ -699,6 +729,72 @@ const CodeBlockView = ({ node }: NodeViewProps) => {
 const CustomCodeBlock = CodeBlockExt.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
+  },
+
+  // 그립 손잡이로 시작된 드래그를 받아, 코드 블록을 드롭 위치(토글 내부 등)로
+  // 옮긴다. 노드 스키마 자체를 draggable로 만들면 코드 텍스트 선택과 충돌하므로
+  // 손잡이에서만 네이티브 드래그를 시작하고, 이동 자체는 이 플러그인이 처리한다.
+  addProseMirrorPlugins() {
+    const parentPlugins = this.parent?.() ?? [];
+    return [
+      ...parentPlugins,
+      new Plugin({
+        props: {
+          handleDOMEvents: {
+            dragover(_view, event) {
+              if (event.dataTransfer?.types.includes(CODEBLOCK_DRAG_MIME)) {
+                event.preventDefault();
+              }
+              return false;
+            },
+            drop(view, event) {
+              const dt = event.dataTransfer;
+              if (!dt || !dt.types.includes(CODEBLOCK_DRAG_MIME)) return false;
+              event.preventDefault();
+
+              const sourcePos = Number(dt.getData(CODEBLOCK_DRAG_MIME));
+              if (!Number.isFinite(sourcePos)) return true;
+
+              const { state, dispatch } = view;
+              const node = state.doc.nodeAt(sourcePos);
+              if (!node || node.type.name !== 'codeBlock') return true;
+
+              const dropResult = view.posAtCoords({ left: event.clientX, top: event.clientY });
+              if (!dropResult) return true;
+
+              const $pos = state.doc.resolve(dropResult.pos);
+              let insertPos: number;
+              if ($pos.depth === 0) {
+                insertPos = $pos.pos;
+              } else {
+                const beforePos = $pos.before($pos.depth);
+                const afterPos = $pos.after($pos.depth);
+                const domAtBefore = view.nodeDOM(beforePos);
+                let useAfter = false;
+                if (domAtBefore instanceof HTMLElement) {
+                  const rect = domAtBefore.getBoundingClientRect();
+                  useAfter = event.clientY > rect.top + rect.height / 2;
+                }
+                insertPos = useAfter ? afterPos : beforePos;
+              }
+
+              // 자기 자신 위/안으로 드롭한 경우는 무시
+              if (insertPos >= sourcePos && insertPos <= sourcePos + node.nodeSize) return true;
+
+              let tr = state.tr.delete(sourcePos, sourcePos + node.nodeSize);
+              const mappedInsertPos = tr.mapping.map(insertPos);
+              try {
+                tr = tr.insert(mappedInsertPos, node.type.create(node.attrs, node.content, node.marks));
+              } catch {
+                return true;
+              }
+              dispatch(tr.scrollIntoView());
+              return true;
+            },
+          },
+        },
+      }),
+    ];
   },
 });
 
