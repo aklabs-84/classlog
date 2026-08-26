@@ -362,6 +362,7 @@ const AiCopilot = () => {
   const [analystObservations, setAnalystObservations] = useState<any[]>([]);
   const [referenceSuggestions, setReferenceSuggestions] = useState<MatchedContent[]>([]);
   const [loadedReferences, setLoadedReferences] = useState<{ id: string; title: string; content: string }[]>([]);
+  const [libraryIndex, setLibraryIndex] = useState<{ title: string; snippet: string }[]>([]);
   const [loadingReferenceId, setLoadingReferenceId] = useState<string | null>(null);
   const [showMaterialImportModal, setShowMaterialImportModal] = useState(false);
   const [seatukStudents, setSeatukStudents] = useState<{ id: string; full_name: string; hasObservation: boolean; alreadyDraft: boolean }[]>([]);
@@ -379,6 +380,22 @@ const AiCopilot = () => {
     supabase.from('classes').select('id, name, subject, class_type, weekly_plan').eq('teacher_id', user.id).then(({ data }) => {
       if (data) setClasses(data);
     });
+  }, [user?.id]);
+
+  // 공통 자료함(class_id 없음) 제목+짧은 요약 목록 — AI가 "공통자료에 뭐 있어?" 같은 질문에
+  // 매번 검색 없이도 바로 답할 수 있게 항상 가벼운 형태로 시스템 프롬프트에 포함시킨다
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('class_materials')
+      .select('title, content')
+      .is('class_id', null)
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(60)
+      .then(({ data }) => {
+        setLibraryIndex((data || []).map(m => ({ title: m.title, snippet: (m.content || '').replace(/\s+/g, ' ').trim().slice(0, 120) })));
+      });
   }, [user?.id]);
 
   // 수업 기획 전문가용 그라운딩 — 학생 자기기록만(is_student_record=true, 승인/대기), 노이즈 억제 목적으로 60건 제한
@@ -514,24 +531,59 @@ const AiCopilot = () => {
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [input]);
 
-  // Task 3(수업 기획 탭 전용): 이번 메시지 내용과 의미적으로 유사한 내 과거 자료(노트/수업자료/슬라이드)를 검색해
-  // "참고자료" 카드로 제안한다. 메인 AI 응답을 막지 않도록 별도로 병행 실행한다.
-  const searchReferences = async (query: string) => {
+  // MatchedContent 한 건의 원문 전체를 가져온다 (스니펫은 200자로 잘려 있어 AI 컨텍스트로 쓰기엔 부족)
+  const fetchReferenceContent = async (item: MatchedContent): Promise<string> => {
+    if (item.source_type === 'note') {
+      const { data } = await supabase.from('teacher_notes').select('content').eq('id', item.id).single();
+      return data?.content ?? item.snippet;
+    } else if (item.source_type === 'material') {
+      const { data } = await supabase.from('class_materials').select('content').eq('id', item.id).single();
+      return data?.content ?? item.snippet;
+    } else {
+      const { data } = await supabase.from('slide_decks').select('slides').eq('id', item.id).single();
+      return data?.slides ? extractSlideDeckPreviewText(data.slides as DeckSlide[]) : item.snippet;
+    }
+  };
+
+  const AUTO_LOAD_SIMILARITY = 0.62;
+  const SUGGEST_SIMILARITY = 0.55;
+
+  // 이번 메시지와 의미적으로 유사한 내 과거 자료(노트/수업자료/슬라이드 — 공통자료함 포함)를 검색해,
+  // 확신도가 높은 자료는 원문까지 자동으로 불러와 이번 AI 응답부터 바로 대화로 참고할 수 있게 하고,
+  // 애매한 것들은 기존처럼 "참고자료 제안" 카드로 남겨 수동으로 고르게 한다.
+  // AI 호출 직전에 await로 실행되어야 이번 턴 응답에 반영되므로, 화면에 보여줄 참고자료 목록을 그대로 반환한다.
+  const resolveAutoReferences = async (
+    query: string,
+    currentLoaded: { id: string; title: string; content: string }[],
+  ): Promise<{ id: string; title: string; content: string }[]> => {
     try {
       const vector = await embedText(query);
-      if (vector.length === 0) return;
+      if (vector.length === 0) return currentLoaded;
       const { data, error } = await supabase.rpc('match_my_content', {
         query_embedding: vector,
         match_count: 5,
         exclude_note_id: null,
       });
       if (error) throw error;
-      const loadedIds = new Set(loadedReferences.map(r => r.id));
+      const loadedIds = new Set(currentLoaded.map(r => r.id));
+      const matches = ((data ?? []) as MatchedContent[]).filter(r => !loadedIds.has(r.id));
+
       setReferenceSuggestions(
-        ((data ?? []) as MatchedContent[]).filter(r => r.similarity > 0.55 && !loadedIds.has(r.id)).slice(0, 3)
+        matches.filter(r => r.similarity > SUGGEST_SIMILARITY && r.similarity <= AUTO_LOAD_SIMILARITY).slice(0, 3)
       );
+
+      const autoLoad = matches.filter(r => r.similarity > AUTO_LOAD_SIMILARITY).slice(0, 2);
+      if (autoLoad.length === 0) return currentLoaded;
+
+      const fetched = await Promise.all(autoLoad.map(async item => ({
+        id: item.id,
+        title: item.title,
+        content: await fetchReferenceContent(item),
+      })));
+      return [...currentLoaded, ...fetched];
     } catch (err) {
-      console.error('[AiCopilot] 참고자료 검색 오류:', err);
+      console.error('[AiCopilot] 참고자료 자동 검색 오류:', err);
+      return currentLoaded;
     }
   };
 
@@ -539,17 +591,7 @@ const AiCopilot = () => {
   const handleLoadReference = async (item: MatchedContent) => {
     setLoadingReferenceId(item.id);
     try {
-      let content = item.snippet;
-      if (item.source_type === 'note') {
-        const { data } = await supabase.from('teacher_notes').select('content').eq('id', item.id).single();
-        content = data?.content ?? item.snippet;
-      } else if (item.source_type === 'material') {
-        const { data } = await supabase.from('class_materials').select('content').eq('id', item.id).single();
-        content = data?.content ?? item.snippet;
-      } else {
-        const { data } = await supabase.from('slide_decks').select('slides').eq('id', item.id).single();
-        content = data?.slides ? extractSlideDeckPreviewText(data.slides as DeckSlide[]) : item.snippet;
-      }
+      const content = await fetchReferenceContent(item);
       setLoadedReferences(prev => [...prev, { id: item.id, title: item.title, content }]);
       setReferenceSuggestions(prev => prev.filter(r => r.id !== item.id));
     } catch (err) {
@@ -589,7 +631,12 @@ const AiCopilot = () => {
       [modeAtSend]: [...prev[modeAtSend], { id: crypto.randomUUID(), role: 'user', text: userMessage }],
     }));
     setLoading(true);
-    if (modeAtSend === 'lesson_plan' || modeAtSend === 'slide_deck_maker' || modeAtSend === 'material_maker' || modeAtSend === 'quiz_maker' || modeAtSend === 'survey_maker') searchReferences(userMessage);
+    const usesReferences = modeAtSend === 'lesson_plan' || modeAtSend === 'slide_deck_maker' || modeAtSend === 'material_maker' || modeAtSend === 'quiz_maker' || modeAtSend === 'survey_maker';
+    let activeReferences = loadedReferences;
+    if (usesReferences) {
+      activeReferences = await resolveAutoReferences(userMessage, loadedReferences);
+      if (activeReferences !== loadedReferences) setLoadedReferences(activeReferences);
+    }
 
     try {
       const history = messagesByMode[modeAtSend].map(m => ({ role: m.role, text: m.text }));
@@ -603,7 +650,8 @@ const AiCopilot = () => {
             selectedClass?.subject,
             selectedClass?.weekly_plan,
             lessonPlanObservations,
-            loadedReferences,
+            activeReferences,
+            libraryIndex,
           )
         : modeAtSend === 'slide_deck_maker'
         ? await chatWithSlideDeckCopilot(
@@ -613,7 +661,8 @@ const AiCopilot = () => {
             selectedClassId || undefined,
             selectedClass?.subject,
             selectedClass?.weekly_plan,
-            loadedReferences,
+            activeReferences,
+            libraryIndex,
           )
         : modeAtSend === 'material_maker'
         ? await chatWithMaterialCopilot(
@@ -623,7 +672,8 @@ const AiCopilot = () => {
             selectedClassId || undefined,
             selectedClass?.subject,
             selectedClass?.weekly_plan,
-            loadedReferences,
+            activeReferences,
+            libraryIndex,
           )
         : modeAtSend === 'quiz_maker'
         ? await chatWithQuizCopilot(
@@ -632,7 +682,8 @@ const AiCopilot = () => {
             selectedClass?.name,
             selectedClassId || undefined,
             selectedClass?.subject,
-            loadedReferences,
+            activeReferences,
+            libraryIndex,
           )
         : modeAtSend === 'survey_maker'
         ? await chatWithSurveyCopilot(
@@ -641,7 +692,8 @@ const AiCopilot = () => {
             selectedClass?.name,
             selectedClassId || undefined,
             selectedClass?.subject,
-            loadedReferences,
+            activeReferences,
+            libraryIndex,
           )
         : modeAtSend === 'idea_brainstorm'
         ? await chatWithIdeaHandoffCopilot(
