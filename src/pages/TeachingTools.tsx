@@ -49,7 +49,7 @@ interface Tool {
   quickGuide?: QuickGuide;
 }
 
-const tools: Tool[] = [
+export const tools: Tool[] = [
   {
     id: 'group-picker',
     icon: <Shuffle size={28} />,

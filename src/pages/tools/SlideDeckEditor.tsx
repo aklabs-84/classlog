@@ -10,7 +10,7 @@ import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
 import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
-import ImportMaterialModal, { type ImportableMaterial } from '../../components/slidedeck/ImportMaterialModal';
+import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../../components/slidedeck/ImportMaterialModal';
 import { generateSlideDeckDraft, embedText } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
@@ -21,16 +21,6 @@ import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 type View = 'list' | 'template' | 'editor';
 
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
-
-// class_materials.ai_versions 중 mode:'presentation' 최신본이 있으면 그걸, 없으면 원문(content)을 초안 원본으로 사용
-const resolveSourceContent = (material: ImportableMaterial): string => {
-  const presentationVersions = (material.ai_versions ?? []).filter(v => v.mode === 'presentation');
-  if (presentationVersions.length > 0) {
-    const latest = [...presentationVersions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    return latest.content;
-  }
-  return material.content ?? '';
-};
 
 // DeckSlide.objects[]의 텍스트류(text/link 라벨/code) 값만 이어붙여 임베딩 입력 텍스트로 사용
 const extractSlideDeckText = (slides: DeckSlide[]): string =>

@@ -229,6 +229,7 @@ const FEATURE_LABELS: Record<string, string> = {
   survey_copilot:             '설문 제작 코파일럿',
   idea_handoff_copilot:       '아이디어 기획 코파일럿',
   class_manager_copilot:      '학급 관리 코파일럿',
+  app_guide_copilot:          '사용법 가이드 코파일럿',
 };
 
 // ── CSV Helper ─────────────────────────────────────────────────────────────────

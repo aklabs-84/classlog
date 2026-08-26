@@ -2,17 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users } from 'lucide-react';
+import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users, BookOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
-import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit } from '../lib/auth';
+import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft } from '../lib/auth';
 import { isDemoTeacher } from '../lib/demo';
-import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, chatWithClassManagerCopilot, embedText, generateSeatukDraft, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
+import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, chatWithClassManagerCopilot, chatWithAppGuideCopilot, embedText, generateSeatukDraft, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 import CodeBlock from '../components/CodeBlock';
 import type { DeckSlide, SlideLayoutKind } from '../components/slidedeck/types';
 import { SLIDE_TEMPLATES, getTemplate, getLayoutSlotSpec, buildDraftDeckSlides } from '../components/slidedeck/templates';
+import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../components/slidedeck/ImportMaterialModal';
+import { tools as TEACHING_TOOLS } from './TeachingTools';
+import { PLANS, FEATURE_ROWS } from './Pricing';
 
 const DRAFT_MARKER = '[[LESSON_PLAN_DRAFT]]';
 const SLIDE_DECK_DRAFT_MARKER = '[[SLIDE_DECK_DRAFT]]';
@@ -26,6 +29,24 @@ const GROUP_CREATE_MARKER = '[[GROUP_CREATE]]';
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
 const FREE_SLIDE_DECK_LIMIT = 1;
 const FREE_SURVEY_LIMIT = 1;
+
+// 사용법 가이드 탭의 그라운딩 데이터 — TeachingTools.tsx/Pricing.tsx의 실제 화면 데이터를 그대로 재사용해
+// 가이드 답변이 실제 앱 상태와 어긋나지 않도록 한다(직접 설명 문구를 새로 쓰지 않음).
+const TOOLS_GUIDE_TEXT = TEACHING_TOOLS.map(t => {
+  const steps = t.quickGuide?.steps.map((s, i) => `  ${i + 1}. ${s.title} — ${s.desc}`).join('\n') ?? '  (사용 단계 안내 없음)';
+  const tip = t.quickGuide?.tip ? `\n  TIP: ${t.quickGuide.tip}` : '';
+  return `### ${t.label}\n${t.description}\n${steps}${tip}`;
+}).join('\n\n');
+
+const PLANS_GUIDE_TEXT = PLANS.map(p => {
+  const feats = FEATURE_ROWS.map(r => {
+    const v = p.features[r.key];
+    const display = v === true ? '가능' : v === false ? '불가' : v;
+    return `  - ${r.label}: ${display}`;
+  }).join('\n');
+  return `### ${p.name} 플랜 (${p.price}${p.priceAnnual ? ` · 연간 결제 시 ${p.priceAnnual}` : ''})\n${feats}`;
+}).join('\n\n')
+  + `\n\n### 환불 정책\n  - 결제 후 7일 이내이고 서비스를 이용하지 않았다면 전액 환불.\n  - 7일이 지난 뒤 해지하면, 이미 이용한 기간을 제외한 잔여 기간을 일할 계산해 환불.\n  - Free 플랜은 환불 대상이 아님(결제한 적이 없으므로).`;
 
 // DeckSlide.objects[]의 텍스트류 값만 이어붙여 참고용 텍스트로 사용 (IdeaRecord.tsx의 동일 로직을 자체 함수로 복제)
 const extractSlideDeckPreviewText = (slides: DeckSlide[]): string =>
@@ -134,7 +155,7 @@ type CopilotMessage = { id: string; role: 'user' | 'ai'; text: string; meta?: { 
 
 // 페르소나(탭)별 순수 카피/UI 플래그. 쿼리·호출 함수 같은 로직은 컴포넌트 안에서 모드별로 직접 분기한다
 // (페르소나마다 실제 로직이 다르므로 여기 억지로 파라미터화하지 않음 — 프로젝트 관행상 성급한 공용 추상화 지양).
-type CopilotModeId = 'lesson_plan' | 'observation_analyst' | 'seatuk_writer' | 'slide_deck_maker' | 'material_maker' | 'quiz_maker' | 'survey_maker' | 'idea_brainstorm' | 'class_manager';
+type CopilotModeId = 'lesson_plan' | 'observation_analyst' | 'seatuk_writer' | 'slide_deck_maker' | 'material_maker' | 'quiz_maker' | 'survey_maker' | 'idea_brainstorm' | 'class_manager' | 'app_guide';
 
 type CopilotModeConfig = {
   tabLabel: string;
@@ -157,6 +178,7 @@ type CopilotModeConfig = {
   showSurveyAction?: boolean;
   showIdeaAction?: boolean;
   showClassManagerAction?: boolean;
+  showMaterialImport?: boolean;
 };
 
 const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
@@ -212,6 +234,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showDraftActions: false,
     showReferenceSearch: true,
     showTemplatePicker: true,
+    showMaterialImport: true,
   },
   material_maker: {
     tabLabel: '📄 자료 제작',
@@ -239,6 +262,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showDraftActions: false,
     showReferenceSearch: true,
     showQuizAction: true,
+    showMaterialImport: true,
   },
   survey_maker: {
     tabLabel: '📊 설문 제작',
@@ -279,9 +303,31 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showReferenceSearch: false,
     showClassManagerAction: true,
   },
+  app_guide: {
+    tabLabel: '❓ 사용법 가이드',
+    heroTitle: '사용법 가이드',
+    heroSubtitle: '이 앱을 어떻게 쓰는지 무엇이든 물어보세요. 클래스 생성 방법부터 수업 도구 사용법, 요금제, 지금 내 AI 사용량까지 안내해 드려요.',
+    chatHeaderTitle: 'AI 코파일럿 · 사용법 가이드',
+    chatHeaderSubtitle: '앱 사용법에 대해 무엇이든 물어보세요',
+    emptyTitle: '무엇이 궁금하신가요?',
+    emptyBody: '예: "클래스는 어떻게 만들어?", "지금 내 AI 사용량이 얼마나 남았어?", "Basic이랑 Pro 뭐가 달라?" 처럼 편하게 물어보세요.',
+    inputPlaceholder: '앱 사용법에 대해 궁금한 점을 물어보세요...',
+    showDraftActions: false,
+    showReferenceSearch: false,
+    quickStarts: ['클래스는 어떻게 만들어?', '지금 내 AI 사용량이 얼마나 남았어?', 'Basic이랑 Pro 플랜 차이가 뭐야?', '수업 도구에는 뭐가 있어?'],
+  },
 };
 
 const COPILOT_MODE_IDS = Object.keys(COPILOT_MODES) as CopilotModeId[];
+
+// 탭 간 "이어가기" — 한 탭에서 확정된 초안을 다음 탭의 참고자료로 넘길 수 있는 자연스러운 조합만 선별.
+// 관찰기록 분석·세특 작성·학급 관리는 구조가 달라 체인에서 제외.
+const HANDOFF_TARGETS: Partial<Record<CopilotModeId, CopilotModeId[]>> = {
+  idea_brainstorm: ['lesson_plan', 'material_maker', 'slide_deck_maker', 'quiz_maker', 'survey_maker'],
+  lesson_plan: ['slide_deck_maker', 'material_maker', 'quiz_maker', 'survey_maker'],
+  material_maker: ['slide_deck_maker', 'quiz_maker', 'survey_maker'],
+  slide_deck_maker: ['quiz_maker', 'survey_maker'],
+};
 
 const AiCopilot = () => {
   const { user, profile } = useAuth();
@@ -298,6 +344,7 @@ const AiCopilot = () => {
     survey_maker: [],
     idea_brainstorm: [],
     class_manager: [],
+    app_guide: [],
   });
   const messages = messagesByMode[activeMode];
 
@@ -313,6 +360,7 @@ const AiCopilot = () => {
   const [referenceSuggestions, setReferenceSuggestions] = useState<MatchedContent[]>([]);
   const [loadedReferences, setLoadedReferences] = useState<{ id: string; title: string; content: string }[]>([]);
   const [loadingReferenceId, setLoadingReferenceId] = useState<string | null>(null);
+  const [showMaterialImportModal, setShowMaterialImportModal] = useState(false);
   const [seatukStudents, setSeatukStudents] = useState<{ id: string; full_name: string; hasObservation: boolean; alreadyDraft: boolean }[]>([]);
   const [seatukSelectedIds, setSeatukSelectedIds] = useState<string[]>([]);
   const [seatukProgress, setSeatukProgress] = useState({ current: 0, total: 0 });
@@ -429,6 +477,26 @@ const AiCopilot = () => {
     setMonthAiCount(profile.ai_monthly_reset === thisMonth ? (profile.ai_monthly_count ?? 0) : 0);
   }, [profile]);
 
+  // 사용법 가이드 탭용 — 지금 이 선생님의 실제 플랜/AI 사용량 상태를 문장으로 요약해 그라운딩 데이터로 전달
+  const guideAccountContext = (() => {
+    const planLabel = profile?.plan === 'free' ? 'Free'
+      : profile?.plan === 'basic' ? 'Basic'
+      : profile?.plan === 'pro' ? 'Pro'
+      : profile?.plan === 'school' ? 'School'
+      : profile?.plan === 'admin' ? 'Admin'
+      : (profile?.plan ?? '알 수 없음');
+    const hasByokKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
+    const betaDaysLeft = getBetaDaysLeft(profile);
+    const usage = getAiUsageStatus(profile);
+    const parts = [`현재 플랜: ${planLabel}`];
+    if (hasByokKey) parts.push('내 Gemini API 키(BYOK)를 설정에 등록해 사용 중 → AI 사용량 무제한');
+    else if (betaDaysLeft != null) parts.push(`베타 체험 기간 중(${betaDaysLeft}일 남음) → 이 기간 동안 Pro 기능을 무제한으로 사용 가능`);
+    else if (!usage) parts.push('이 플랜은 AI 사용량이 넉넉하거나 제한이 없음');
+    else if (usage.kind === 'count') parts.push(`이번 달 AI 사용: ${usage.used}/${usage.limit}회 사용함(매월 1일 초기화)`);
+    else parts.push(`이번 달 AI 사용 예산 소진율: 약 ${usage.percent}%${usage.state === 'saving' ? ' → 현재 절약 모드(더 저렴한 모델)로 자동 전환된 상태' : usage.state === 'critical' ? ' → 한도에 근접' : ''}`);
+    return parts.join('\n');
+  })();
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -485,6 +553,17 @@ const AiCopilot = () => {
       console.error('[AiCopilot] 참고자료 로드 오류:', err);
     } finally {
       setLoadingReferenceId(null);
+    }
+  };
+
+  // "학급 자료에서 불러오기" 모달(클래스 → 주차별 자료 2단계 선택)에서 자료를 고르면 참고자료로 추가하고,
+  // 그 자료가 속한 클래스로 상단 클래스 선택도 맞춰준다 — 대화로 어떤 자료인지 다시 설명할 필요가 없게 한다.
+  const handleImportMaterialAsReference = (material: ImportableMaterial) => {
+    if (loadedReferences.some(r => r.id === material.id)) return;
+    const content = resolveSourceContent(material);
+    setLoadedReferences(prev => [...prev, { id: material.id, title: material.title, content }]);
+    if (material.class_id && material.class_id !== selectedClassId) {
+      setSelectedClassId(material.class_id);
     }
   };
 
@@ -577,6 +656,15 @@ const AiCopilot = () => {
             selectedClass?.name,
             selectedClassId || undefined,
             classes.map(c => c.name),
+            selectedClass?.weekly_plan,
+          )
+        : modeAtSend === 'app_guide'
+        ? await chatWithAppGuideCopilot(
+            history,
+            userMessage,
+            TOOLS_GUIDE_TEXT,
+            PLANS_GUIDE_TEXT,
+            guideAccountContext,
           )
         : await chatWithObservationAnalyst(
             history,
@@ -584,6 +672,7 @@ const AiCopilot = () => {
             selectedClass?.name,
             selectedClassId || undefined,
             analystObservations,
+            selectedClass?.weekly_plan,
           );
       setMessagesByMode(prev => ({
         ...prev,
@@ -746,6 +835,15 @@ const AiCopilot = () => {
         state: { activeToolId: 'slide-deck', draftSlide: { noteId: '', title, content: draftContent, classId } },
       });
     }
+  };
+
+  // 탭 간 "이어가기" — 현재 탭의 확정 초안(제목/본문)을 대상 탭의 참고자료로 걸어두고 전환만 한다.
+  // 자동으로 메시지를 보내지 않고, 사용자가 직접 다음 요청을 입력하게 한다.
+  const handleContinueInTab = (targetMode: CopilotModeId, title: string, content: string) => {
+    const sourceLabel = COPILOT_MODES[activeMode].tabLabel.replace(/^\S+\s*/, '');
+    setLoadedReferences(prev => [...prev, { id: crypto.randomUUID(), title: `[${sourceLabel}] ${title}`, content }]);
+    setActiveMode(targetMode);
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   // 자료 제작가 탭 전용 — 기존 MaterialEditor.tsx의 표지 이미지 프롬프트 제안 기능(generateCoverPromptSuggestions)을
@@ -1807,6 +1905,29 @@ ${session.transcript_text}
                         </button>
                       </div>
                     )}
+                    {(() => {
+                      const targets = HANDOFF_TARGETS[activeMode];
+                      const isFinalDraft = isDraft || isSlideDraft || isQuizDraft || isSurveyDraft || isIdeaDraft;
+                      if (!isFinalDraft || !targets || targets.length === 0) return null;
+                      const handoffTitle = extractDraftTitle(displayText);
+                      const handoffContent = stripDraftPreamble(displayText);
+                      return (
+                        <div className="mt-4 pt-4 border-t border-surface-container flex flex-wrap gap-2 items-center">
+                          <span className="w-full text-[11px] font-bold text-on-surface-variant">이 내용으로 이어서 만들기</span>
+                          {targets.map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => handleContinueInTab(t, handoffTitle, handoffContent)}
+                              className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95"
+                            >
+                              <ArrowRight size={16} />
+                              {COPILOT_MODES[t].tabLabel}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {m.meta?.navigateTo && (
                       <div className="mt-4 pt-4 border-t border-surface-container">
                         <button
@@ -1842,8 +1963,20 @@ ${session.transcript_text}
           )}
         </div>
 
-        {modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0) && (
+        {modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0 || modeConfig.showMaterialImport) && (
         <div className="px-5 pt-4 border-t border-surface-container-high bg-neutral-50 shrink-0 space-y-2">
+          {modeConfig.showMaterialImport && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowMaterialImportModal(true)}
+                className="flex items-center gap-1.5 pl-3 pr-3 py-1.5 bg-white border border-dashed border-primary/40 rounded-xl text-[11px] font-black text-primary hover:bg-primary/5 transition-colors"
+              >
+                <BookOpen size={12} />
+                학급 자료에서 불러오기
+              </button>
+            </div>
+          )}
           {loadedReferences.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {loadedReferences.map(r => (
@@ -1963,6 +2096,13 @@ ${session.transcript_text}
       {isFullscreen ? createPortal(chatPanel, document.body) : chatPanel}
 
       <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} reason={upgradeReason} />
+      {showMaterialImportModal && user?.id && (
+        <ImportMaterialModal
+          userId={user.id}
+          onSelect={handleImportMaterialAsReference}
+          onClose={() => setShowMaterialImportModal(false)}
+        />
+      )}
     </motion.div>
   );
 };

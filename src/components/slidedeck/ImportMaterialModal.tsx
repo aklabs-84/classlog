@@ -26,6 +26,16 @@ interface Props {
   onClose: () => void;
 }
 
+// class_materials.ai_versions 중 mode:'presentation' 최신본이 있으면 그걸, 없으면 원문(content)을 사용
+export const resolveSourceContent = (material: ImportableMaterial): string => {
+  const presentationVersions = (material.ai_versions ?? []).filter(v => v.mode === 'presentation');
+  if (presentationVersions.length > 0) {
+    const latest = [...presentationVersions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    return latest.content;
+  }
+  return material.content ?? '';
+};
+
 // MaterialEditor.tsx의 ImportFromClassModal과 같은 클래스 → 자료 2단계 선택 패턴.
 // 내용을 그 자리에서 복사하는 대신 선택한 자료 전체를 onSelect로 넘겨 AI 초안 생성에 사용한다.
 export default function ImportMaterialModal({ userId, onSelect, onClose }: Props) {

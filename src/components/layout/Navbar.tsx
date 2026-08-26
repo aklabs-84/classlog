@@ -3,13 +3,13 @@ import {
   Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
   Bug, Images, Download, Share, MoreVertical, Gift, Lightbulb,
-  ChevronLeft, ChevronRight, Minus, Bot,
+  ChevronLeft, ChevronRight, Minus, Bot, Zap,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, getAiUsageStatus } from '../../lib/auth';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useFontScale } from '../../hooks/useFontScale';
 import NotificationPermissionButton from '../NotificationPermissionButton';
@@ -22,6 +22,22 @@ interface NavbarProps {
 const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const hasByokKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
+  const aiUsage = hasByokKey ? null : getAiUsageStatus(profile);
+  const aiUsageBarColor =
+    aiUsage?.kind === 'count'
+      ? (aiUsage.percent >= 100 ? 'bg-error' : aiUsage.percent >= 80 ? 'bg-amber-400' : 'bg-primary')
+      : aiUsage?.kind === 'credit'
+      ? (aiUsage.state === 'critical' ? 'bg-error' : aiUsage.state === 'saving' ? 'bg-amber-400' : 'bg-primary')
+      : 'bg-primary';
+  const aiUsageRightLabel =
+    aiUsage?.kind === 'count' ? `${aiUsage.used} / ${aiUsage.limit}` : aiUsage?.kind === 'credit' ? `${aiUsage.percent}%` : '';
+  const aiUsageSubLabel =
+    aiUsage?.kind === 'count'
+      ? (aiUsage.percent >= 100 ? '이번 달 AI 사용량을 모두 썼어요' : '매월 1일 자동 초기화')
+      : aiUsage?.kind === 'credit'
+      ? (aiUsage.state === 'critical' ? '한도에 가까워지고 있어요' : aiUsage.state === 'saving' ? '절약 모드(Flash)로 자동 전환됨' : '이번 달 AI 정상 속도로 사용 중')
+      : '';
   const { installState, triggerInstall } = usePWAInstall();
   const { scale: fontScale, canDecrease: canDecreaseFont, canIncrease: canIncreaseFont, decrease: decreaseFont, increase: increaseFont } = useFontScale();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -235,6 +251,40 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
           </NavLink>
         ))}
       </nav>
+
+      {/* AI 사용량 위젯 — 무제한(admin/베타/BYOK)이면 숨김 */}
+      {aiUsage && (
+        isCollapsed ? (
+          <div className="shrink-0 relative group flex justify-center mb-1">
+            <div className="w-9 h-9 rounded-xl bg-surface-container-low/50 border border-on-surface/5 flex items-center justify-center relative overflow-hidden">
+              <div
+                className={`absolute bottom-0 left-0 right-0 ${aiUsageBarColor} opacity-25 transition-all`}
+                style={{ height: `${Math.min(aiUsage.percent, 100)}%` }}
+              />
+              <Zap size={14} className="text-on-surface-variant/60 relative" />
+            </div>
+            <div className="absolute left-full ml-3 px-3 py-1.5 bg-on-surface text-surface text-[10px] font-black rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap z-50 shadow-xl">
+              AI 사용량 {aiUsageRightLabel} · {aiUsageSubLabel}
+            </div>
+          </div>
+        ) : (
+          <div className="shrink-0 p-2.5 mb-1 rounded-xl bg-surface-container-low/50 border border-on-surface/5">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-black uppercase tracking-wide text-on-surface-variant/50 flex items-center gap-1">
+                <Zap size={10} /> AI 사용량
+              </span>
+              <span className="text-[10px] font-black text-on-surface">{aiUsageRightLabel}</span>
+            </div>
+            <div className="h-1.5 bg-on-surface/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${aiUsageBarColor}`}
+                style={{ width: `${Math.min(aiUsage.percent, 100)}%` }}
+              />
+            </div>
+            <p className="text-[9px] text-on-surface-variant/60 mt-1">{aiUsageSubLabel}</p>
+          </div>
+        )
+      )}
 
       {/* 알림 켜기 (클래스 알림) */}
       <div className={`shrink-0 pt-3 mt-1 border-t border-on-surface/5 ${isCollapsed ? 'hidden' : ''}`}>

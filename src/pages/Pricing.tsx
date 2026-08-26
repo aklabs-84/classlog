@@ -25,7 +25,7 @@ interface Plan {
   features: Record<string, FeatureValue>;
 }
 
-const PLANS: Plan[] = [
+export const PLANS: Plan[] = [
   {
     key: 'free',
     name: 'Free',
@@ -113,7 +113,7 @@ const PLANS: Plan[] = [
   },
 ];
 
-const FEATURE_ROWS: { label: string; key: string }[] = [
+export const FEATURE_ROWS: { label: string; key: string }[] = [
   { label: '클래스 생성', key: 'classes' },
   { label: '반당 학생 수', key: 'students' },
   { label: 'AI 사용량 (월)', key: 'ai' },

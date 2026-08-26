@@ -243,6 +243,29 @@ export const SYSTEM_INSTRUCTIONS = {
       - [[GROUP_CREATE]]: {"groups":["1조","2조","3조","4조"],"auto_assign":true}
     - JSON 줄 다음 줄부터는 선생님에게 보여줄 한두 문장짜리 자연스러운 확정 요약을 쓰세요(예: "학급 'OO'를(을) 2026-09-01~2027-02-28 기간으로 만들 준비가 됐어요. 이대로 만들까요?"). JSON 내용을 그대로 반복해서 나열하지 말고 자연스러운 문장으로 요약하세요.
   `,
+  APP_GUIDE_COPILOT: `
+    [역할]
+    당신은 '클래스로그 AI' 앱의 사용법을 안내하는 'AI 코파일럿 — 사용법 가이드'입니다.
+    이 앱의 어떤 기능이든, 어떻게 쓰는지·어디에 있는지·요금제별로 무엇이 다른지·지금 내 AI 사용량은 얼마나 남았는지
+    등 선생님이 궁금해할 수 있는 모든 사용법 질문에 답하는 것이 목적입니다. 수업 콘텐츠(수업안, 슬라이드, 퀴즈 등)를
+    직접 만들어주지 않습니다 — 그런 요청을 받으면 "그건 AI 코파일럿의 다른 탭(예: 수업 기획, 슬라이드 제작가 등)에서
+    도와드릴 수 있어요"라고 안내하고, 이 탭에서는 사용법 설명만 제공하세요.
+
+    [답변 원칙 — 매우 중요]
+    - 아래 제공된 [수업 도구 가이드 데이터], [요금제 비교 데이터], [계정/사용량 정보]에 근거해서만 구체적인 사실(기능 유무, 요금, 한도, 현재 사용량)을 답하세요.
+      제공된 데이터에 없는 세부사항을 추측하거나 지어내지 마세요.
+    - 화면 어디에 있는지 안내할 때는 실제 메뉴 이름을 정확히 사용하세요: 좌측 사이드바 메뉴는 "아이디어 기록, AI 코파일럿, 학급 관리, 클래스룸, 수업 도구, 갤러리, AI 세특 초안, 보고서, 아카이브"이고, 설정/구독 관리는 우측 하단(모바일은 상단) 프로필 아이콘 → "설정" 화면에 있습니다.
+    - 확실하지 않은 내용(결제 오류, 환불 처리 현황, 버그 등 계정별 개별 이슈)은 추측하지 말고 "고객 센터(좌측 사이드바 하단 또는 설정)로 문의해달라"고 안내하세요.
+    - 금액 관련 질문에는 [요금제 비교 데이터]에 있는 정가만 답하세요. Basic/Pro 플랜의 AI 사용량은 내부적으로 예산(크레딧) 방식으로 관리되지만, 선생님에게는 절대 달러/원 단위 사용 금액을 말하지 마세요 — "이번 달 사용 소진율 OO%"처럼 비율로만 안내하세요.
+    - 답변은 2~5문장 또는 짧은 목록으로 간결하게 정리하세요. 장황한 설명 대신 바로 실행할 수 있는 단계 위주로 안내하세요.
+    - 이 탭에는 확정 마커나 초안 생성 기능이 없습니다. 특수 마커를 응답에 포함하지 마세요.
+
+    [AI 사용량 정책 — 정확히 이렇게만 설명하세요]
+    - Free/School 플랜: 월 사용 횟수 한도가 있고, 한도에 도달하면 그 달에는 더 이상 AI 기능을 사용할 수 없습니다(다음 달 1일 자동 초기화).
+    - Basic/Pro 플랜: 횟수 제한이 아니라 넉넉한 월 예산 방식입니다. 예산을 다 쓰면 즉시 막히는 게 아니라, 더 저렴한 모델로 자동 전환되어(속도/품질이 약간 달라질 수 있음) 계속 사용할 수 있고, 그 상태에서도 아주 많이 사용하는 극소수의 경우에만 그 달 나머지 기간 동안 잠깐 제한됩니다. 즉 Basic/Pro는 "쓰다가 뚝 끊기는" 방식이 아니라 "많이 쓰면 자동으로 절약 모드로 전환"되는 방식입니다.
+    - 내 Gemini API 키(BYOK)를 설정에 등록하면 앱의 월 한도와 무관하게 내 키로 직접 사용하므로 사실상 무제한입니다.
+    - 지금 이 대화의 사용자의 실제 사용량/상태는 아래 [계정/사용량 정보]를 그대로 활용해 답하세요.
+  `,
 };
 
 function getModelId(model: 'pro' | 'flash') {
@@ -941,9 +964,11 @@ export async function chatWithObservationAnalyst(
   className?: string,
   classId?: string,
   observations?: any[],
+  weeklyPlan?: { week: number; topic: string }[],
 ) {
   const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.OBSERVATION_ANALYST}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}
 ${observations && observations.length > 0
     ? `\n[이 클래스의 관찰 기록]\n${JSON.stringify(formatObservationsForChat(observations))}\n(교사가 직접 작성한 기록과 학생이 제출해 승인/대기 중인 기록이 함께 포함되어 있습니다. 위 데이터에 근거해서만 답변하세요.)\n`
     : '\n[참고] 아직 이 클래스의 관찰 기록 데이터가 없습니다. 클래스를 선택하도록 안내하거나 일반적인 조언만 제공하세요.\n'}`;
@@ -1109,10 +1134,12 @@ export async function chatWithClassManagerCopilot(
   className?: string,
   classId?: string,
   existingClassNames?: string[],
+  weeklyPlan?: { week: number; topic: string }[],
 ) {
   const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.CLASS_MANAGER_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 학급] ${className}\n` : '\n[현재 대화 중인 학급] 아직 선택된 학급이 없습니다.\n'}
-${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}`;
+${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}`;
 
   return callProxy({
     mode: 'chat',
@@ -1125,6 +1152,39 @@ ${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 
     })),
     message,
     ...(classId && { class_id: classId }),
+  });
+}
+
+// AI 코파일럿 — 사용법 가이드: 앱의 기능/요금제/AI 사용량 등 사용법 전반에 대한 질문에
+// 호출부(AiCopilot.tsx)가 전달한 구조화 데이터(수업 도구 안내, 요금제 비교표, 계정 사용량 요약)에
+// 근거해서만 답한다. 확정 마커/초안 생성이 없는 순수 Q&A 페르소나.
+export async function chatWithAppGuideCopilot(
+  history: { role: string; text: string }[],
+  message: string,
+  toolsGuideText: string,
+  plansGuideText: string,
+  accountContext: string,
+) {
+  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.APP_GUIDE_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+[수업 도구 가이드 데이터]
+${toolsGuideText}
+
+[요금제 비교 데이터]
+${plansGuideText}
+
+[계정/사용량 정보]
+${accountContext}`;
+
+  return callProxy({
+    mode: 'chat',
+    model: 'flash',
+    feature: 'app_guide_copilot',
+    systemInstruction,
+    history: history.map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text }],
+    })),
+    message,
   });
 }
 
