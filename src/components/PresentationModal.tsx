@@ -4,10 +4,11 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { useTimer } from '../lib/timerContext';
+import RichEditor from './RichEditor';
 import {
   ArrowLeft, Save, Pencil, X as XIcon,
   ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
-  Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText,
+  Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText, BellOff,
 } from 'lucide-react';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
@@ -32,6 +33,20 @@ const normalizeStandaloneHr = (md: string): string => {
     }
   }
   return out.join('\n');
+};
+
+// "#1. 제목"처럼 "#"과 글자 사이에 공백이 없으면 CommonMark가 제목(heading)이 아니라
+// 그냥 텍스트로 인식해 "#"이 화면에 그대로 노출된다. 렌더링 직전에 공백을 강제로 넣어 보정한다.
+// (코드펜스 안의 "#"은 건드리지 않음)
+const normalizeHeadingSpace = (md: string): string => {
+  const lines = md.split('\n');
+  let inFence = false;
+  return lines.map(line => {
+    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; return line; }
+    if (inFence) return line;
+    const m = line.match(/^(#{1,6})([^#\s].*)$/);
+    return m ? `${m[1]} ${m[2]}` : line;
+  }).join('\n');
 };
 
 // 슬라이드 글자 크기 편집 — 편집 패널의 %를 --slide-font-scale CSS 변수로 상위에서 지정하면
@@ -302,6 +317,18 @@ const PresentationModal = ({
   const [showResourcePanel, setShowResourcePanel] = useState(false);
   const resourcePanelRef = useRef<HTMLDivElement>(null);
 
+  // 전체화면 오버레이가 떠 있는 동안 배경 페이지 스크롤을 잠근다 — 안 그러면 배경 페이지의
+  // 스크롤바와 본문 영역(stageBoxRef)의 자체 스크롤바가 겹쳐 오른쪽에 2중으로 보인다.
+  useEffect(() => {
+    const prev = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = prev;
+      document.body.style.overflow = '';
+    };
+  }, []);
+
   useEffect(() => {
     if (!showResourcePanel) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -330,7 +357,7 @@ const PresentationModal = ({
         if (e.key === '2') { selectTool('zoom'); return; }
         if (e.key === '3') { selectTool('pen'); return; }
         if (e.key === '4') { selectTool('spotlight'); return; }
-        if (e.key === '5') { timer.toggle(); return; }
+        if (e.key === '5') { if (timer.isAlarming) timer.stopAlarm(); else timer.toggle(); return; }
         if (weekNav && tool === 'none') {
           if (e.key === 'ArrowLeft') { goPrevWeek(); return; }
           if (e.key === 'ArrowRight') { goNextWeek(); return; }
@@ -391,7 +418,7 @@ const PresentationModal = ({
   );
   const docInner = (
     <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-      {normalizeStandaloneHr(material.content)}
+      {normalizeHeadingSpace(normalizeStandaloneHr(material.content))}
     </ReactMarkdown>
   );
 
@@ -610,11 +637,11 @@ const PresentationModal = ({
             </button>
             <div className={`flex items-center rounded-xl ${dark ? 'bg-white/10' : 'bg-slate-900/5'}`}>
               <button
-                onClick={timer.toggle}
-                title="타이머 시작/정지 (5)"
-                className={`flex items-center gap-1.5 pl-2.5 pr-1.5 py-2 rounded-l-xl text-xs font-black tabular-nums transition-all ${timer.isRunning ? 'bg-primary text-white' : dark ? 'text-white/70 hover:bg-white/20' : 'text-slate-600 hover:bg-slate-900/10'}`}
+                onClick={timer.isAlarming ? timer.stopAlarm : timer.toggle}
+                title={timer.isAlarming ? '알림 끄기 (5)' : '타이머 시작/정지 (5)'}
+                className={`flex items-center gap-1.5 pl-2.5 pr-1.5 py-2 rounded-l-xl text-xs font-black tabular-nums transition-all ${timer.isAlarming ? 'bg-red-500 text-white animate-pulse' : timer.isRunning ? 'bg-primary text-white' : dark ? 'text-white/70 hover:bg-white/20' : 'text-slate-600 hover:bg-slate-900/10'}`}
               >
-                {timer.isRunning ? <Pause size={14} /> : <Play size={14} />}
+                {timer.isAlarming ? <BellOff size={14} /> : timer.isRunning ? <Pause size={14} /> : <Play size={14} />}
                 <TimerIcon size={14} />
                 {String(Math.floor(timer.remainingSeconds / 60)).padStart(2, '0')}:{String(timer.remainingSeconds % 60).padStart(2, '0')}
               </button>
@@ -655,12 +682,11 @@ const PresentationModal = ({
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div ref={viewRef} className="relative flex-1 min-h-0">
           {editMode ? (
-            <div className="absolute inset-0 p-6">
-              <textarea
+            <div className="absolute inset-0 p-6 overflow-y-auto">
+              <RichEditor
                 value={editedContent}
-                onChange={e => setEditedContent(e.target.value)}
-                className={`w-full h-full px-5 py-4 rounded-2xl border text-sm font-mono focus:outline-none focus:border-primary/40 resize-none ${dark ? 'bg-white/5 border-white/10 text-white/90' : 'bg-white border-slate-900/10 text-slate-800'}`}
-                placeholder="마크다운 내용을 입력하세요"
+                onChange={setEditedContent}
+                stickyToolbar={false}
               />
             </div>
           ) : (
