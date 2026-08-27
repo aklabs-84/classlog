@@ -73,4 +73,8 @@ export interface SlideTemplate {
   accentColor: string;
   swatch: string;   // 갤러리 카드에 보여줄 대표 색상
   layouts: Record<SlideLayoutKind, Omit<SlideObject, 'id'>[]>;
+  // 레이아웃(구조)과 테마(색상)를 분리해서 만든 템플릿끼리 묶는 키.
+  // 같은 layoutGroup을 가진 템플릿들은 오브젝트 배치가 동일하고 색상만 다르다 — 갤러리에서 색상 스와치 선택 UI로 보여줄 때 사용.
+  layoutGroup?: string;
+  themeName?: string;  // 이 템플릿의 색상 테마 이름(갤러리 스와치 라벨용)
 }

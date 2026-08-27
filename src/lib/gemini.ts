@@ -1801,16 +1801,50 @@ export interface AiDraftSlide {
   code: number[];
 }
 
-// 선택한 템플릿의 레이아웃 스펙에 맞춰 원문을 슬라이드 초안(JSON)으로 재구성
+// 자료 가져오기 → 템플릿 선택 후, 실제 슬라이드를 생성하기 전에 먼저 보여줄 구성 개요(계획)를 생성.
+// 승인되면 이 개요의 "## 소제목" 구조를 generateSlideDeckDraft의 approvedOutline으로 그대로 넘겨
+// 실제 생성 단계도 같은 슬라이드 구성을 따르게 한다.
+export async function generateSlideOutline(rawContent: string, classId?: string): Promise<string> {
+  const sectionOutline = extractSectionOutline(rawContent);
+  const sectionBlock = sectionOutline.length > 0
+    ? `\n[원문 섹션 구조 — 이 순서를 그대로 슬라이드 구성 순서로 사용하세요]\n${sectionOutline.join('\n')}\n`
+    : '';
+
+  const prompt = `이 수업 자료를 발표용 슬라이드로 만들기 전에, 먼저 슬라이드 구성 개요(기획안)를 작성합니다.
+
+[원문]
+${rawContent}
+${sectionBlock}
+[작성 규칙]
+- 첫 줄에 "# {슬라이드 전체 제목}"을 적으세요(원문 내용을 대표하는 15자 내외 제목).
+- 슬라이드 한 장을 "## {소제목}" 하나로 표현해서, 실제 발표에 쓸 슬라이드 개수만큼 소제목을 나누세요(특별한 요청이 없으면 5~8장 내외가 적당합니다).
+- 각 소제목 아래에는 그 슬라이드에 들어갈 핵심 문장이나 짧은 불릿을 2~4개 정도, 원문 내용을 요약해서 적으세요.
+- 원문에 없는 내용을 지어내지 마세요.
+- 결과에는 개요 본문만 작성하고, 다른 설명이나 인사말은 넣지 마세요.`;
+
+  const result = await slideDeckDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  return result.response.text().trim().replace(/^```(markdown)?\n?/, '').replace(/```$/, '').trim();
+}
+
+// 선택한 템플릿의 레이아웃 스펙에 맞춰 원문을 슬라이드 초안(JSON)으로 재구성.
+// approvedOutline이 있으면(=teacher가 계획 화면에서 승인한 개요) 그 "## 소제목" 구성을 그대로 슬라이드
+// 순서/개수로 사용하고, 실제 문장 내용은 원문(rawContent)에서 가져와 채운다.
 export async function generateSlideDeckDraft(
   rawContent: string,
   layoutSpecs: SlideLayoutSpec[],
-  classId?: string
+  classId?: string,
+  approvedOutline?: string
 ): Promise<{ slides: AiDraftSlide[]; imageUrls: string[]; codeBlocks: { lang: string; code: string }[] }> {
   const { replaced: withoutImages } = extractImagePlaceholders(rawContent);
   const { replaced, blocks: codeBlocks } = extractCodePlaceholders(withoutImages);
   const imageUrls = extractImageUrls(rawContent);
-  const sectionOutline = extractSectionOutline(rawContent);
+  const approvedHeadings = approvedOutline
+    ? approvedOutline.split('\n').filter(l => l.trim().startsWith('## ')).map(l => l.replace(/^##\s*/, '').trim())
+    : [];
+  const sectionOutline = approvedHeadings.length > 0 ? approvedHeadings : extractSectionOutline(rawContent);
 
   const layoutDescriptions = layoutSpecs.map(spec => {
     const textsDesc = spec.textSlots.length

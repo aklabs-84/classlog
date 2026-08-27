@@ -13,6 +13,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@google/generative-ai": "^0.24.1",
+    "@marp-team/marp-core": "^4.4.0",
     "@supabase/supabase-js": "^2.101.1",
     "@tailwindcss/vite": "^4.2.2",
     "@tiptap/extension-bubble-menu": "^3.26.0",

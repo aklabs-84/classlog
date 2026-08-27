@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
@@ -11,14 +13,14 @@ import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../../components/slidedeck/ImportMaterialModal';
-import { generateSlideDeckDraft, embedText } from '../../lib/gemini';
+import { generateSlideDeckDraft, generateSlideOutline, embedText } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
 import { parsePptxFile } from '../../components/slidedeck/utils/importPptx';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 
-type View = 'list' | 'template' | 'editor';
+type View = 'list' | 'template' | 'planning' | 'editor';
 
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
 
@@ -72,6 +74,10 @@ export default function SlideDeckEditor() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importedMaterial, setImportedMaterial] = useState<ImportableMaterial | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
+  // 자료 가져오기 → 템플릿 선택 후, 실제 생성 전에 보여주는 "계획(개요) 확인" 단계
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  const [planOutline, setPlanOutline] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
   const [exporting, setExporting] = useState<'pptx' | 'pdf' | null>(null);
   const [importingPptx, setImportingPptx] = useState(false);
@@ -165,8 +171,28 @@ export default function SlideDeckEditor() {
     loadDecks();
   };
 
-  // ── AI 초안 생성 (자료 에디터에서 가져오기) ────────────────────────────────
-  const handleCreateDraftFromMaterial = async (templateId: string) => {
+  // ── 계획(개요) 확인 — 템플릿을 고르면 바로 생성하지 않고, 먼저 AI가 슬라이드 구성 개요를 만들어 보여준다 ──
+  const handlePickTemplateForMaterial = async (templateId: string) => {
+    if (!importedMaterial) return;
+    setPendingTemplateId(templateId);
+    setPlanOutline(null);
+    setPlanLoading(true);
+    setView('planning');
+    try {
+      const sourceContent = resolveSourceContent(importedMaterial);
+      const outline = await generateSlideOutline(sourceContent, importedMaterial.class_id ?? undefined);
+      setPlanOutline(outline);
+    } catch (err: any) {
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || '슬라이드 구성 개요를 만드는 중 오류가 발생했습니다.'));
+      setView('template');
+      setPendingTemplateId(null);
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  // ── AI 초안 생성 (자료 에디터에서 가져오기, 계획 승인 후 실행) ────────────────────
+  const handleCreateDraftFromMaterial = async (templateId: string, approvedOutline?: string) => {
     if (!user || !importedMaterial) return;
     if (!canCreateDeck()) return;
     setAiGenerating(true);
@@ -177,7 +203,8 @@ export default function SlideDeckEditor() {
       const { slides: aiSlides, imageUrls, codeBlocks } = await generateSlideDeckDraft(
         sourceContent,
         layoutSpecs,
-        importedMaterial.class_id ?? undefined
+        importedMaterial.class_id ?? undefined,
+        approvedOutline
       );
       const draftSlides = buildDraftDeckSlides(template, aiSlides, imageUrls, codeBlocks);
       const { data, error } = await supabase
@@ -204,6 +231,8 @@ export default function SlideDeckEditor() {
     } finally {
       setAiGenerating(false);
       setImportedMaterial(null);
+      setPendingTemplateId(null);
+      setPlanOutline(null);
     }
   };
 
@@ -504,7 +533,53 @@ export default function SlideDeckEditor() {
             <Sparkles size={14} /> '{importedMaterial.title}' 자료로 AI 초안을 만듭니다
           </p>
         )}
-        <TemplateGallery onSelect={importedMaterial ? handleCreateDraftFromMaterial : handleCreateFromTemplate} />
+        <TemplateGallery onSelect={importedMaterial ? handlePickTemplateForMaterial : handleCreateFromTemplate} />
+      </div>
+    );
+  }
+
+  if (view === 'planning') {
+    return (
+      <div style={{ padding: '4px 2px', position: 'relative' }}>
+        <LimitToast message={limitToastMessage} />
+        <button
+          onClick={() => { setView('template'); setPlanOutline(null); setPendingTemplateId(null); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, marginBottom: 16 }}
+        >
+          <ArrowLeft size={16} /> 다른 템플릿 선택
+        </button>
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>슬라이드 구성을 확인하세요</h2>
+        <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+          AI가 만든 구성안을 승인하면 이 순서대로 실제 슬라이드가 만들어집니다.
+        </p>
+        {planLoading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 0', color: '#6b7280' }}>
+            <Loader2 className="animate-spin" size={28} color="#3B82F6" />
+            <p style={{ fontSize: 13, fontWeight: 600 }}>AI가 슬라이드 구성안을 만들고 있어요...</p>
+          </div>
+        ) : planOutline && (
+          <>
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', padding: '20px 24px', maxWidth: 720 }}>
+              <div className="prose prose-sm" style={{ maxWidth: 'none' }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{planOutline}</ReactMarkdown>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => pendingTemplateId && handleCreateDraftFromMaterial(pendingTemplateId, planOutline)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+              >
+                <Check size={16} /> 이 구성대로 만들기
+              </button>
+              <button
+                onClick={() => { setView('template'); setPlanOutline(null); setPendingTemplateId(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+              >
+                다른 템플릿 선택
+              </button>
+            </div>
+          </>
+        )}
         {aiGenerating && (
           <div style={{
             position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 9995,

@@ -9,7 +9,7 @@ const MANROPE = "'Manrope', 'Pretendard Variable', sans-serif";
 const PUBLIC_SANS = "'Public Sans', 'Pretendard Variable', sans-serif";
 const PRETENDARD = "'Pretendard Variable', sans-serif";
 
-export const SLIDE_TEMPLATES: SlideTemplate[] = [
+const BASE_TEMPLATES: SlideTemplate[] = [
   {
     id: 'bold-statement',
     name: '핵심 강조',
@@ -224,8 +224,361 @@ export const SLIDE_TEMPLATES: SlideTemplate[] = [
   },
 ];
 
+// ── 테마(색상) × 템플릿(레이아웃 구조) 축 분리 ─────────────────────────────
+// Marp로 탐색한 4개 색상 테마 × 4개 레이아웃 구조를 별도 축으로 두고,
+// 여기서 16개 SlideTemplate을 자동 생성해 BASE_TEMPLATES 뒤에 이어붙인다.
+// 레이아웃 구조 함수는 색상 토큰(ThemeColors)만 받아 오브젝트 배열을 만들고,
+// 실제 색상 결정은 THEME_COLORS 목록을 순회하며 이루어진다.
+
+interface ThemeColors {
+  id: string;
+  name: string;
+  bg: string;
+  ink: string;        // 밝은 배경 위에 쓰는 기본 텍스트색
+  accent: string;
+  accentSoft: string;  // 카드/배지 배경 등 옅은 강조색
+}
+
+const THEME_COLORS: ThemeColors[] = [
+  { id: 'indigo', name: '인디고', bg: '#ffffff', ink: '#1e1b2e', accent: '#4f46e5', accentSoft: '#eef2ff' },
+  { id: 'coral', name: '선셋코랄', bg: '#ffffff', ink: '#2b1a12', accent: '#ea580c', accentSoft: '#fff1e6' },
+  { id: 'teal', name: '포레스트틸', bg: '#ffffff', ink: '#0a2e2b', accent: '#0f766e', accentSoft: '#e6f5f3' },
+  { id: 'midnight', name: '미드나잇', bg: '#14131f', ink: '#f4f2ff', accent: '#a78bfa', accentSoft: 'rgba(167,139,250,0.16)' },
+];
+
+type ThemedLayouts = Record<SlideLayoutKind, Omit<SlideObject, 'id'>[]>;
+
+// 카드 그리드형 — 개조식 내용을 카드형 박스로 나눠 보여준다
+function cardsLayouts(t: ThemeColors): ThemedLayouts {
+  return {
+    title: [
+      { type: 'text', x: 600, y: 220, width: 80, height: 6, zIndex: 1,
+        text: '', style: { background: t.accent } },
+      { type: 'text', x: 140, y: 250, width: 1000, height: 130, zIndex: 2,
+        text: '슬라이드 제목을 입력하세요',
+        style: { fontSize: 52, align: 'center', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 140, y: 400, width: 1000, height: 50, zIndex: 3,
+        text: '부제목을 입력하세요',
+        style: { fontSize: 20, align: 'center', color: t.accent, fontFamily: PRETENDARD } },
+    ],
+    textOnly: [
+      { type: 'text', x: 100, y: 60, width: 1080, height: 60, zIndex: 1,
+        text: '제목을 입력하세요',
+        style: { fontSize: 30, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 170, width: 330, height: 430, zIndex: 2,
+        text: '카드 1의 내용을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, background: t.accentSoft, borderRadius: 16, fontFamily: PRETENDARD } },
+      { type: 'text', x: 475, y: 170, width: 330, height: 430, zIndex: 3,
+        text: '카드 2의 내용을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, background: t.accentSoft, borderRadius: 16, fontFamily: PRETENDARD } },
+      { type: 'text', x: 850, y: 170, width: 330, height: 430, zIndex: 4,
+        text: '카드 3의 내용을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, background: t.accentSoft, borderRadius: 16, fontFamily: PRETENDARD } },
+    ],
+    textImage1: [
+      { type: 'text', x: 100, y: 60, width: 1080, height: 50, zIndex: 1,
+        text: '제목을 입력하세요',
+        style: { fontSize: 28, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 150, width: 520, height: 460, zIndex: 2,
+        text: '카드 설명을 입력하세요',
+        style: { fontSize: 22, align: 'left', color: t.ink, background: t.accentSoft, borderRadius: 16, fontFamily: PRETENDARD } },
+      { type: 'image', x: 660, y: 150, width: 520, height: 460, zIndex: 3, style: { frame: 'rounded' } },
+    ],
+    textImagesMany: [
+      { type: 'text', x: 100, y: 50, width: 1080, height: 50, zIndex: 1,
+        text: '제목을 입력하세요',
+        style: { fontSize: 26, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'image', x: 100, y: 140, width: 330, height: 330, zIndex: 2, style: { frame: 'rounded' } },
+      { type: 'image', x: 475, y: 140, width: 330, height: 330, zIndex: 3, style: { frame: 'rounded' } },
+      { type: 'image', x: 850, y: 140, width: 330, height: 330, zIndex: 4, style: { frame: 'rounded' } },
+      { type: 'text', x: 100, y: 500, width: 1080, height: 100, zIndex: 5,
+        text: '각 카드에 대한 설명을 입력하세요',
+        style: { fontSize: 20, align: 'center', color: t.ink, fontFamily: PRETENDARD } },
+    ],
+  };
+}
+
+// 타임라인·스텝형 — 번호 원 + 세로선으로 순서를 안내한다
+function timelineLayouts(t: ThemeColors): ThemedLayouts {
+  const circle = (n: string) => ({
+    type: 'text' as const,
+    text: n,
+    style: { fontSize: 20, align: 'center' as const, bold: true, color: '#ffffff', background: t.accent, borderRadius: 24, fontFamily: PRETENDARD },
+  });
+  return {
+    title: [
+      { type: 'text', x: 140, y: 250, width: 1000, height: 130, zIndex: 1,
+        text: '실습/활동 이름을 입력하세요',
+        style: { fontSize: 52, align: 'center', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 140, y: 400, width: 1000, height: 50, zIndex: 2,
+        text: '단계별로 함께 진행해요',
+        style: { fontSize: 20, align: 'center', color: t.accent, fontFamily: PRETENDARD } },
+      { type: 'emoji', x: 900, y: 440, width: 240, height: 240, zIndex: 0,
+        text: '🧭', style: { opacity: 0.08 } },
+    ],
+    textOnly: [
+      { type: 'text', x: 122, y: 90, width: 4, height: 500, zIndex: 0,
+        text: '', style: { background: t.accentSoft } },
+      { x: 100, y: 90, width: 48, height: 48, zIndex: 1, ...circle('1') },
+      { type: 'text', x: 170, y: 92, width: 1010, height: 100, zIndex: 2,
+        text: '1단계에서 할 일을 입력하세요',
+        style: { fontSize: 24, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { x: 100, y: 260, width: 48, height: 48, zIndex: 1, ...circle('2') },
+      { type: 'text', x: 170, y: 262, width: 1010, height: 100, zIndex: 2,
+        text: '2단계에서 할 일을 입력하세요',
+        style: { fontSize: 24, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { x: 100, y: 430, width: 48, height: 48, zIndex: 1, ...circle('3') },
+      { type: 'text', x: 170, y: 432, width: 1010, height: 100, zIndex: 2,
+        text: '3단계에서 할 일을 입력하세요',
+        style: { fontSize: 24, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+    ],
+    textImage1: [
+      { x: 100, y: 150, width: 48, height: 48, zIndex: 1, ...circle('1') },
+      { type: 'text', x: 170, y: 152, width: 430, height: 170, zIndex: 2,
+        text: '1단계 내용을 입력하세요',
+        style: { fontSize: 22, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { x: 100, y: 400, width: 48, height: 48, zIndex: 1, ...circle('2') },
+      { type: 'text', x: 170, y: 402, width: 430, height: 170, zIndex: 2,
+        text: '2단계 내용을 입력하세요',
+        style: { fontSize: 22, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'image', x: 660, y: 150, width: 520, height: 420, zIndex: 3, style: { frame: 'rounded' } },
+    ],
+    textImagesMany: [
+      { x: 100, y: 70, width: 48, height: 48, zIndex: 1, ...circle('1') },
+      { type: 'text', x: 170, y: 72, width: 1010, height: 60, zIndex: 2,
+        text: '1단계 내용을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { x: 100, y: 170, width: 48, height: 48, zIndex: 1, ...circle('2') },
+      { type: 'text', x: 170, y: 172, width: 1010, height: 60, zIndex: 2,
+        text: '2단계 내용을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'image', x: 100, y: 270, width: 520, height: 340, zIndex: 3, style: { frame: 'rounded' } },
+      { type: 'image', x: 660, y: 270, width: 520, height: 340, zIndex: 4, style: { frame: 'rounded' } },
+    ],
+  };
+}
+
+// 듀오톤 와이드형 — 화면을 반으로 나눠 텍스트와 이미지를 대비시킨다
+function duotoneLayouts(t: ThemeColors): ThemedLayouts {
+  const panel: Omit<SlideObject, 'id'> = { type: 'text', x: 640, y: 0, width: 640, height: 720, zIndex: 0, text: '', style: { background: t.accent } };
+  return {
+    title: [
+      panel,
+      { type: 'emoji', x: 820, y: 260, width: 280, height: 280, zIndex: 1, text: '✨', style: { opacity: 0.9 } },
+      { type: 'text', x: 100, y: 120, width: 200, height: 30, zIndex: 2,
+        text: 'POINT',
+        style: { fontSize: 14, align: 'left', bold: true, color: t.accent, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 170, width: 480, height: 200, zIndex: 3,
+        text: '제목을 입력하세요',
+        style: { fontSize: 44, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 390, width: 480, height: 100, zIndex: 4,
+        text: '부제목을 입력하세요',
+        style: { fontSize: 18, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+    ],
+    textOnly: [
+      panel,
+      { type: 'emoji', x: 820, y: 260, width: 280, height: 280, zIndex: 1, text: '✨', style: { opacity: 0.9 } },
+      { type: 'text', x: 100, y: 90, width: 480, height: 110, zIndex: 2,
+        text: '제목을 입력하세요',
+        style: { fontSize: 32, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 220, width: 480, height: 400, zIndex: 3,
+        text: '본문 내용을 입력하세요\n- 첫 번째 내용\n- 두 번째 내용',
+        style: { fontSize: 20, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+    ],
+    textImage1: [
+      { type: 'text', x: 100, y: 80, width: 480, height: 140, zIndex: 0,
+        text: '제목을 입력하세요',
+        style: { fontSize: 34, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 240, width: 480, height: 380, zIndex: 1,
+        text: '설명을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'image', x: 660, y: 0, width: 620, height: 720, zIndex: 2, style: { frame: 'none' } },
+    ],
+    textImagesMany: [
+      { type: 'text', x: 100, y: 70, width: 480, height: 100, zIndex: 0,
+        text: '제목을 입력하세요',
+        style: { fontSize: 30, align: 'left', bold: true, color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 190, width: 480, height: 430, zIndex: 1,
+        text: '설명을 입력하세요',
+        style: { fontSize: 20, align: 'left', color: t.ink, fontFamily: PRETENDARD } },
+      { type: 'image', x: 660, y: 0, width: 620, height: 360, zIndex: 2, style: { frame: 'none' } },
+      { type: 'image', x: 660, y: 360, width: 620, height: 360, zIndex: 3, style: { frame: 'none' } },
+    ],
+  };
+}
+
+// 빅 커버형 — 이미지를 전체 배경으로 채우고 하단에 그라데이션+제목을 얹는다.
+// 이미지가 없는 textOnly는 슬라이드 배경 자체가 accent색이라 컬러 블록형 커버가 된다.
+function coverLayouts(): ThemedLayouts {
+  const scrim = (y: number, height: number, zIndex: number): Omit<SlideObject, 'id'> => ({
+    type: 'text', x: 0, y, width: 1280, height, zIndex, text: '',
+    style: { background: 'linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)' },
+  });
+  return {
+    title: [
+      { type: 'image', x: 0, y: 0, width: 1280, height: 720, zIndex: 1, style: { frame: 'full' } },
+      scrim(400, 320, 2),
+      { type: 'text', x: 100, y: 460, width: 300, height: 30, zIndex: 3,
+        text: 'COVER',
+        style: { fontSize: 14, align: 'left', bold: true, color: '#ffffff', fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 500, width: 1080, height: 140, zIndex: 4,
+        text: '제목을 입력하세요',
+        style: { fontSize: 48, align: 'left', bold: true, color: '#ffffff', fontFamily: PRETENDARD } },
+    ],
+    textOnly: [
+      { type: 'text', x: 100, y: 120, width: 300, height: 30, zIndex: 0,
+        text: 'COVER',
+        style: { fontSize: 14, align: 'left', bold: true, color: '#ffffff', fontFamily: PRETENDARD } },
+      { type: 'text', x: 140, y: 260, width: 1000, height: 160, zIndex: 1,
+        text: '제목을 입력하세요',
+        style: { fontSize: 56, align: 'center', bold: true, color: '#ffffff', fontFamily: PRETENDARD } },
+      { type: 'text', x: 140, y: 430, width: 1000, height: 60, zIndex: 2,
+        text: '부제목을 입력하세요',
+        style: { fontSize: 22, align: 'center', color: 'rgba(255,255,255,0.85)', fontFamily: PRETENDARD } },
+    ],
+    textImage1: [
+      { type: 'image', x: 0, y: 0, width: 1280, height: 720, zIndex: 1, style: { frame: 'full' } },
+      scrim(460, 260, 2),
+      { type: 'text', x: 100, y: 500, width: 1080, height: 90, zIndex: 3,
+        text: '제목을 입력하세요',
+        style: { fontSize: 36, align: 'left', bold: true, color: '#ffffff', fontFamily: PRETENDARD } },
+      { type: 'text', x: 100, y: 600, width: 1080, height: 60, zIndex: 4,
+        text: '설명을 입력하세요',
+        style: { fontSize: 18, align: 'left', color: 'rgba(255,255,255,0.85)', fontFamily: PRETENDARD } },
+    ],
+    textImagesMany: [
+      { type: 'image', x: 0, y: 0, width: 640, height: 720, zIndex: 1, style: { frame: 'full' } },
+      { type: 'image', x: 640, y: 0, width: 640, height: 720, zIndex: 2, style: { frame: 'full' } },
+      scrim(500, 220, 3),
+      { type: 'text', x: 100, y: 560, width: 1080, height: 100, zIndex: 4,
+        text: '제목을 입력하세요',
+        style: { fontSize: 36, align: 'left', bold: true, color: '#ffffff', fontFamily: PRETENDARD } },
+    ],
+  };
+}
+
+interface LayoutStructure {
+  key: string;
+  name: string;
+  description: string;
+  bgMode: 'paper' | 'accent';   // 'accent' = 슬라이드 배경 자체를 테마 accent색으로 채움(빅 커버형)
+  textColorMode: 'ink' | 'white';
+  build: (t: ThemeColors) => ThemedLayouts;
+}
+
+const LAYOUT_STRUCTURES: LayoutStructure[] = [
+  { key: 'cards', name: '카드 그리드', description: '개조식 내용을 카드형 박스로 나눠 보여주는 스타일', bgMode: 'paper', textColorMode: 'ink', build: cardsLayouts },
+  { key: 'timeline', name: '타임라인·스텝', description: '번호 원과 세로선으로 순서·단계를 안내하는 스타일', bgMode: 'paper', textColorMode: 'ink', build: timelineLayouts },
+  { key: 'duotone', name: '듀오톤 와이드', description: '화면을 반으로 나눠 텍스트와 이미지를 선명하게 대비시키는 스타일', bgMode: 'paper', textColorMode: 'ink', build: duotoneLayouts },
+  { key: 'cover', name: '빅 커버', description: '이미지를 전체 배경으로 채우고 하단에 제목을 얹는 임팩트 있는 스타일', bgMode: 'accent', textColorMode: 'white', build: coverLayouts },
+];
+
+const THEMED_TEMPLATES: SlideTemplate[] = LAYOUT_STRUCTURES.flatMap(layout =>
+  THEME_COLORS.map((theme): SlideTemplate => ({
+    id: `${layout.key}-${theme.id}`,
+    name: `${layout.name} · ${theme.name}`,
+    description: layout.description,
+    bg: layout.bgMode === 'accent' ? theme.accent : theme.bg,
+    textColor: layout.textColorMode === 'white' ? '#ffffff' : theme.ink,
+    accentColor: theme.accent,
+    swatch: theme.accent,
+    layoutGroup: layout.key,
+    themeName: theme.name,
+    layouts: layout.build(theme),
+  }))
+);
+
+const THEMED_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
+  cards: {
+    title: [
+      { objectIndex: 1, role: '헤드라인 문장', maxChars: 30 },
+      { objectIndex: 2, role: '부제목', maxChars: 50 },
+    ],
+    textOnly: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 1, role: '카드 1 내용', maxChars: 80 },
+      { objectIndex: 2, role: '카드 2 내용', maxChars: 80 },
+      { objectIndex: 3, role: '카드 3 내용', maxChars: 80 },
+    ],
+    textImage1: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 1, role: '카드 설명', maxChars: 100 },
+    ],
+    textImagesMany: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 4, role: '카드들에 대한 설명', maxChars: 80 },
+    ],
+  },
+  timeline: {
+    title: [
+      { objectIndex: 0, role: '실습/활동 이름', maxChars: 30 },
+      { objectIndex: 1, role: '부제목', maxChars: 40 },
+    ],
+    textOnly: [
+      { objectIndex: 2, role: '1단계 설명', maxChars: 60 },
+      { objectIndex: 4, role: '2단계 설명', maxChars: 60 },
+      { objectIndex: 6, role: '3단계 설명', maxChars: 60 },
+    ],
+    textImage1: [
+      { objectIndex: 1, role: '1단계 설명', maxChars: 70 },
+      { objectIndex: 3, role: '2단계 설명', maxChars: 70 },
+    ],
+    textImagesMany: [
+      { objectIndex: 1, role: '1단계 설명', maxChars: 60 },
+      { objectIndex: 3, role: '2단계 설명', maxChars: 60 },
+    ],
+  },
+  duotone: {
+    title: [
+      { objectIndex: 3, role: '제목', maxChars: 30 },
+      { objectIndex: 4, role: '부제목', maxChars: 50 },
+    ],
+    textOnly: [
+      { objectIndex: 2, role: '제목', maxChars: 30 },
+      { objectIndex: 3, role: '본문(줄바꿈으로 여러 줄 가능)', maxChars: 150 },
+    ],
+    textImage1: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 1, role: '설명', maxChars: 120 },
+    ],
+    textImagesMany: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 1, role: '설명', maxChars: 120 },
+    ],
+  },
+  cover: {
+    title: [{ objectIndex: 3, role: '제목', maxChars: 30 }],
+    textOnly: [
+      { objectIndex: 1, role: '제목', maxChars: 30 },
+      { objectIndex: 2, role: '부제목', maxChars: 50 },
+    ],
+    textImage1: [
+      { objectIndex: 2, role: '제목', maxChars: 30 },
+      { objectIndex: 3, role: '설명', maxChars: 60 },
+    ],
+    textImagesMany: [{ objectIndex: 3, role: '제목', maxChars: 30 }],
+  },
+};
+
+export const SLIDE_TEMPLATES: SlideTemplate[] = [...BASE_TEMPLATES, ...THEMED_TEMPLATES];
+
 export const getTemplate = (id: string): SlideTemplate =>
   SLIDE_TEMPLATES.find(t => t.id === id) ?? SLIDE_TEMPLATES[0];
+
+// 템플릿 갤러리 UI(웹 갤러리 화면 + AI 코파일럿 채팅 내 픽커)가 공통으로 쓰는 그룹핑.
+// layoutGroup 없는 기존 4개는 플랫 카드로, layoutGroup 있는 템플릿은 레이아웃 구조 하나에
+// 색상 변형(테마) 여러 개가 묶인 그룹으로 나눈다.
+export const getSlideTemplateGroups = () => {
+  const flatTemplates = SLIDE_TEMPLATES.filter(t => !t.layoutGroup);
+  const groupKeys = Array.from(
+    new Set(SLIDE_TEMPLATES.filter(t => t.layoutGroup).map(t => t.layoutGroup!))
+  );
+  const groups = groupKeys.map(key => ({
+    key,
+    variants: SLIDE_TEMPLATES.filter(t => t.layoutGroup === key),
+  }));
+  return { flatTemplates, groups };
+};
 
 // 템플릿의 레이아웃 원본(Omit<SlideObject,'id'>[])에 새 id를 부여해 실제 슬라이드로 인스턴스화
 export const instantiateSlide = (template: SlideTemplate, kind: SlideLayoutKind): DeckSlide => ({
@@ -268,7 +621,7 @@ export const applyTemplateToDeck = (deck: SlideDeck, templateId: string): SlideD
 // 고정 라벨)는 AI가 건드리지 않고 템플릿 기본값을 그대로 유지한다.
 interface FillSlot { objectIndex: number; role: string; maxChars: number }
 
-export const LAYOUT_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
+const BASE_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
   'bold-statement': {
     title: [
       { objectIndex: 1, role: '헤드라인 문장', maxChars: 30 },
@@ -311,6 +664,20 @@ export const LAYOUT_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[
     textImage1: [{ objectIndex: 1, role: '이 단계 설명', maxChars: 120 }],
     textImagesMany: [{ objectIndex: 1, role: '이 단계 설명', maxChars: 80 }],
   },
+};
+
+// 새로 추가한 4개 레이아웃(카드/타임라인/듀오톤/커버)은 색상 4종이 전부 같은 오브젝트 구조를
+// 공유하므로, 슬롯 정의도 레이아웃당 하나씩만 만들고 테마별 id(cards-indigo 등)에 그대로 복제한다.
+const THEMED_FILL_SLOTS_BY_ID: Record<string, Record<SlideLayoutKind, FillSlot[]>> =
+  Object.fromEntries(
+    LAYOUT_STRUCTURES.flatMap(layout =>
+      THEME_COLORS.map(theme => [`${layout.key}-${theme.id}`, THEMED_FILL_SLOTS[layout.key]])
+    )
+  );
+
+export const LAYOUT_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
+  ...BASE_FILL_SLOTS,
+  ...THEMED_FILL_SLOTS_BY_ID,
 };
 
 // 템플릿·레이아웃의 텍스트/이미지/코드 슬롯 스펙 — AI 프롬프트에 그대로 전달

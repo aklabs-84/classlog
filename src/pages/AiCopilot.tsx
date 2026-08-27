@@ -12,7 +12,7 @@ import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDec
 import UpgradeModal from '../components/UpgradeModal';
 import CodeBlock from '../components/CodeBlock';
 import type { DeckSlide, SlideLayoutKind } from '../components/slidedeck/types';
-import { SLIDE_TEMPLATES, getTemplate, getLayoutSlotSpec, buildDraftDeckSlides } from '../components/slidedeck/templates';
+import { getTemplate, getLayoutSlotSpec, buildDraftDeckSlides, getSlideTemplateGroups } from '../components/slidedeck/templates';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../components/slidedeck/ImportMaterialModal';
 import { tools as TEACHING_TOOLS } from './TeachingTools';
 import { PLANS, FEATURE_ROWS } from './Pricing';
@@ -353,6 +353,8 @@ const AiCopilot = () => {
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  // 채팅 내 슬라이드 템플릿 픽커 — 레이아웃 그룹별로 고른 색상 테마 인덱스(TemplateGallery와 동일한 방식)
+  const [slideThemeIdxByGroup, setSlideThemeIdxByGroup] = useState<Record<string, number>>({});
   const [classes, setClasses] = useState<{ id: string; name: string; subject?: string; class_type?: string; weekly_plan?: { week: number; topic: string }[] }[]>([]);
   const [selectedClassId, setSelectedClassId] = useState('');
   const [monthAiCount, setMonthAiCount] = useState(0);
@@ -1869,25 +1871,65 @@ ${session.transcript_text}
                         )}
                       </div>
                     )}
-                    {isSlideDraft && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
-                        <p className="text-[11px] font-bold text-on-surface-variant mb-3">디자인을 골라주세요</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {SLIDE_TEMPLATES.map(t => (
-                            <button
-                              key={t.id}
-                              type="button"
-                              disabled={loading}
-                              onClick={() => handleGenerateSlideDeck(t.id, stripDraftPreamble(displayText), extractDraftTitle(displayText))}
-                              className="flex items-center gap-2 px-3 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-                            >
-                              <span className="w-5 h-5 rounded-full shrink-0 border border-surface-container" style={{ background: t.swatch }} />
-                              <span className="truncate">{t.name}</span>
-                            </button>
-                          ))}
+                    {isSlideDraft && (() => {
+                      const { flatTemplates, groups } = getSlideTemplateGroups();
+                      return (
+                        <div className="mt-4 pt-4 border-t border-surface-container">
+                          <p className="text-[11px] font-bold text-on-surface-variant mb-3">디자인을 골라주세요</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {flatTemplates.map(t => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => handleGenerateSlideDeck(t.id, stripDraftPreamble(displayText), extractDraftTitle(displayText))}
+                                className="flex items-center gap-2 px-3 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                              >
+                                <span className="w-5 h-5 rounded-full shrink-0 border border-surface-container" style={{ background: t.swatch }} />
+                                <span className="truncate">{t.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                          {groups.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {groups.map(g => {
+                                const idx = slideThemeIdxByGroup[g.key] ?? 0;
+                                const current = g.variants[idx];
+                                const layoutName = current.name.split(' · ')[0];
+                                return (
+                                  <div key={g.key} className="flex items-center gap-2 px-3 py-2 bg-surface-container-high rounded-2xl">
+                                    <button
+                                      type="button"
+                                      disabled={loading}
+                                      onClick={() => handleGenerateSlideDeck(current.id, stripDraftPreamble(displayText), extractDraftTitle(displayText))}
+                                      className="flex-1 min-w-0 text-left text-xs font-black text-on-surface truncate disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {layoutName}
+                                    </button>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {g.variants.map((v, i) => (
+                                        <button
+                                          key={v.id}
+                                          type="button"
+                                          title={v.themeName}
+                                          aria-label={v.themeName}
+                                          onClick={() => setSlideThemeIdxByGroup(s => ({ ...s, [g.key]: i }))}
+                                          style={{
+                                            width: 16, height: 16, borderRadius: '50%', background: v.swatch,
+                                            border: i === idx ? '2px solid #111827' : '2px solid #fff',
+                                            boxShadow: '0 0 0 1px #e5e7eb', cursor: 'pointer', padding: 0,
+                                          }}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                     {isQuizDraft && (
                       <div className="mt-4 pt-4 border-t border-surface-container">
                         <button

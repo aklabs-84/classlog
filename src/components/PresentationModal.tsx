@@ -16,7 +16,7 @@ const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 // 문단 바로 뒤에 빈 줄 없이 "---"가 붙으면 CommonMark가 구분선(hr) 대신 제목(Setext heading)이나
 // 그냥 텍스트로 잘못 해석하는 경우가 있어, 렌더링 직전에 "---" 단독 줄 앞뒤로 빈 줄을 강제 삽입해 보정한다.
 // (코드펜스 안의 "---"는 건드리지 않음)
-const normalizeStandaloneHr = (md: string): string => {
+export const normalizeStandaloneHr = (md: string): string => {
   const lines = md.split('\n');
   const out: string[] = [];
   let inFence = false;
@@ -38,7 +38,7 @@ const normalizeStandaloneHr = (md: string): string => {
 // "#1. 제목"처럼 "#"과 글자 사이에 공백이 없으면 CommonMark가 제목(heading)이 아니라
 // 그냥 텍스트로 인식해 "#"이 화면에 그대로 노출된다. 렌더링 직전에 공백을 강제로 넣어 보정한다.
 // (코드펜스 안의 "#"은 건드리지 않음)
-const normalizeHeadingSpace = (md: string): string => {
+export const normalizeHeadingSpace = (md: string): string => {
   const lines = md.split('\n');
   let inFence = false;
   return lines.map(line => {

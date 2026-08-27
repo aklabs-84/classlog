@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -35,11 +35,13 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
-  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2,
+  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
 import PresentationModal, { renderCallout } from '../../components/PresentationModal';
+// Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
+const SlideModeView = lazy(() => import('../../components/SlideModeView'));
 import MaterialCoverPage from '../../components/MaterialCoverPage';
 import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
@@ -579,7 +581,7 @@ const AiReorganizeModal = ({
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<ReorganizeStep>('configure');
-  const mode = 'guide' as const;
+  const [mode, setMode] = useState<'guide' | 'presentation'>('guide');
   const [userInstruction, setUserInstruction] = useState('');
   const [showBasePrompt, setShowBasePrompt] = useState(false);
   const [result, setResult] = useState('');
@@ -641,7 +643,7 @@ const AiReorganizeModal = ({
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-on-surface">AI로 정리</p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {step === 'configure' && '학습 가이드로 정리'}
+              {step === 'configure' && (mode === 'guide' ? '학습 가이드로 정리' : '발표 자료(슬라이드)로 정리')}
               {step === 'loading' && 'AI가 정리하는 중입니다...'}
               {step === 'preview' && '결과를 확인하세요'}
               {step === 'error' && '오류가 발생했습니다'}
@@ -661,6 +663,25 @@ const AiReorganizeModal = ({
         <div className="flex-1 overflow-y-auto p-5">
           {step === 'configure' && (
             <div className="space-y-3">
+              <div className="flex items-center gap-2 p-1 rounded-2xl bg-surface-container-low">
+                <button
+                  onClick={() => { setMode('guide'); setValidationWarning(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${mode === 'guide' ? 'bg-white text-primary shadow' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  <BookOpen size={14} /> 학습 가이드
+                </button>
+                <button
+                  onClick={() => { setMode('presentation'); setValidationWarning(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${mode === 'presentation' ? 'bg-white text-primary shadow' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >
+                  <Presentation size={14} /> 발표 자료(슬라이드)
+                </button>
+              </div>
+              <p className="text-xs text-on-surface-variant leading-relaxed px-0.5">
+                {mode === 'guide'
+                  ? '학생이 순서대로 따라가는 STEP 단계 구조로 정리합니다.'
+                  : '16:9 슬라이드 화면 단위로 나눠 정리합니다. 정리 후 "슬라이드로 보기"에서 장면별로 넘겨볼 수 있어요.'}
+              </p>
               <button
                 onClick={() => setShowBasePrompt(s => !s)}
                 className="flex items-center gap-1.5 text-xs font-bold text-primary hover:opacity-70 transition-opacity"
@@ -1026,6 +1047,7 @@ const MaterialEditor = () => {
   // 발표 모드에서 "저장" 시 어디에 반영할지 (원본 draft / 특정 AI 버전 / DB 직접 저장 등 호출부마다 다름)
   const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
+  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null } | null>(null);
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
@@ -1513,6 +1535,15 @@ const MaterialEditor = () => {
         onClose={closePresenting}
         onSave={presentingOnSave ?? undefined}
       />
+    )}
+    {slideModeMaterial && (
+      <Suspense fallback={null}>
+        <SlideModeView
+          material={slideModeMaterial}
+          coverImageUrl={slideModeMaterial.coverImageUrl}
+          onClose={() => setSlideModeMaterial(null)}
+        />
+      </Suspense>
     )}
     {showImportModal && user && (
       <ImportFromClassModal
@@ -2077,6 +2108,22 @@ const MaterialEditor = () => {
                           className="p-2.5 rounded-xl bg-white/90 text-violet-700 hover:bg-white transition-colors"
                         >
                           <Presentation size={16} />
+                        </button>
+                      )}
+                      {material.content && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSlideModeMaterial({
+                              title: material.title,
+                              content: getActiveVersion(material).content,
+                              coverImageUrl: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
+                            });
+                          }}
+                          title="슬라이드로 보기"
+                          className="p-2.5 rounded-xl bg-white/90 text-sky-700 hover:bg-white transition-colors"
+                        >
+                          <GalleryHorizontal size={16} />
                         </button>
                       )}
                       <button
