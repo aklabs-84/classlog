@@ -28,8 +28,83 @@ function fixBoldFlanking(content: string): string {
   return content.replace(/\*\*([^\n*]+?[\])}"'.,;:!?…”’」』》〉])\*\*(?=[^\s*\n])/g, '**$1** ');
 }
 
+// headingDivider:1로 h1마다 자동으로 새 슬라이드가 시작되는데, 문서에 있던 "---" 구분선이
+// h1 바로 앞에 있으면 그 hr 자체도 Marpit 기본 동작으로 슬라이드 경계가 되어 h1의 자동 분리와
+// 겹친다 — 그 사이에 내용 없는 빈 슬라이드가 하나 더 생기므로, h1 바로 앞의 "---"만 제거한다.
+// (h1이 없는 발표자료 재구성 콘텐츠는 "---"가 유일한 슬라이드 구분자이므로 영향받지 않는다.)
+function stripHrBeforeH1(content: string): string {
+  const lines = content.split('\n');
+  const out: string[] = [];
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; out.push(line); continue; }
+    if (!inFence && /^(-{3,}|_{3,}|\*{3,})$/.test(line.trim())) {
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === '') j++;
+      if (j < lines.length && /^#\s/.test(lines[j])) continue; // hr 줄 자체를 제거
+    }
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+// 자료 에디터(RichEditor)는 이미지 폭을 조절하면 `![alt](url "width:500")`처럼 title
+// 속성 안에 "width:숫자" 관례로 저장한다(ResizableImage 참고). 이건 문서뷰 전용 규칙이라
+// Marp/markdown-it은 이해하지 못하고 title을 그냥 툴팁 문구로 남긴 채 이미지를 원본 해상도로
+// 렌더링한다 — 그러면 나란히 배치한 이미지가 컨테이너 폭을 각각 다 채워버려 옆으로 못 붙고
+// 세로로 밀려난다. Marp가 이해하는 명시적 style width를 가진 <img> 태그로 미리 바꿔준다.
+function widthImagesForMarp(content: string): string {
+  return content.replace(
+    /!\[([^\]]*)\]\(((?:\\.|[^()\s])+)(?:\s+"([^"]*)")?\)/g,
+    (match, alt, src, title) => {
+      const wm = title && title.match(/(?:^|,)width:(\d+)/);
+      const hm = title && title.match(/(?:^|,)height:(\d+)/);
+      if (!wm && !hm) return match;
+      const unescapedSrc = src.replace(/\\([()])/g, '$1');
+      const style = [wm ? `width:${wm[1]}px` : null, hm ? `height:${hm[1]}px` : null, 'max-width:100%']
+        .filter(Boolean).join(';');
+      const altAttr = alt ? ` alt="${String(alt).replace(/"/g, '&quot;')}"` : '';
+      return `<img src="${unescapedSrc}"${altAttr} style="${style}" />`;
+    },
+  );
+}
+
+// RichEditor에서 이미지 여러 장을 같은 문단 안에서 줄바꿈(Shift+Enter)으로 나란히
+// 배치하면, 마크다운에는 각 이미지 줄 끝에 하드브레이크 `\`가 직렬화된다(HardBreak
+// 노드 → "\\\n", RichEditor.tsx 참고). widthImagesForMarp로 폭을 줄여도 이 `\`는
+// Marp에서 그대로 <br />로 렌더링되어 강제로 다음 줄로 밀려난다 — 이미지 한 장만
+// 있는 줄들이 하드브레이크로 이어진 구간을 찾아 한 줄로 합쳐, 인라인 흐름 안에서
+// 자연스럽게 옆으로 붙을 수 있게 한다(일반 문단 텍스트의 하드브레이크는 건드리지 않음).
+function joinAdjacentImageHardBreaks(content: string): string {
+  const isImageLine = (line: string) => /^\s*!\[[^\]]*\]\([^)]*\)\s*\\?\s*$/.test(line);
+  const hasHardBreak = (line: string) => /\\\s*$/.test(line.trimEnd());
+  const lines = content.split('\n');
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (isImageLine(lines[i]) && hasHardBreak(lines[i]) && i + 1 < lines.length && isImageLine(lines[i + 1])) {
+      let merged = lines[i].trimEnd().replace(/\\$/, '').trim();
+      let j = i + 1;
+      while (j < lines.length && isImageLine(lines[j])) {
+        const cur = lines[j].trimEnd();
+        const broke = hasHardBreak(cur);
+        merged += ' ' + cur.replace(/\\$/, '').trim();
+        j++;
+        if (!broke) break;
+      }
+      out.push(merged);
+      i = j;
+      continue;
+    }
+    out.push(lines[i]);
+    i++;
+  }
+  return out.join('\n');
+}
+
 const normalize = (content: string) =>
-  fixBoldFlanking(normalizeHeadingSpace(normalizeStandaloneHr(content || '')));
+  widthImagesForMarp(joinAdjacentImageHardBreaks(fixBoldFlanking(stripHrBeforeH1(normalizeHeadingSpace(normalizeStandaloneHr(content || ''))))));
 
 // 사이트 브랜드 팔레트(보라 #8b5cf6 / 시안 #06b6d4 / 핑크 #f472b6)를 반영한
 // Marp 커스텀 테마. Marp 기본 테마 CSS 뒤에 이어붙여 덮어쓴다.
@@ -119,14 +194,29 @@ ${selDark(' table tr')} { background: #201a35; }
 ${selDark(' table tr:nth-child(even)')} { background: #251e40; }
 ${selDark(' table td')} { color: #e2e8f0; }
 ${sel(' code')} {
-  background: #ede9fe;
+  background: rgba(139,92,246,0.14);
   color: #6d28d9;
-  border-radius: 6px;
-  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  padding: 0.05em 0.4em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
-${selDark(' code')} { background: #322150; color: #d8b4fe; }
+${selDark(' code')} { background: rgba(216,180,254,0.16); color: #e9d5ff; }
+${sel(' pre code')} {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  box-decoration-break: initial;
+  -webkit-box-decoration-break: initial;
+}
+${selDark(' pre code')} { background: none; color: inherit; }
 ${sel('::-webkit-scrollbar')} { width: 10px; }
 ${sel('::-webkit-scrollbar-thumb')} { background: rgba(139,92,246,0.35); border-radius: 999px; }
+${sel(' img')} {
+  display: inline;
+  vertical-align: middle;
+}
 `;
 
 export interface MarpRenderResult {

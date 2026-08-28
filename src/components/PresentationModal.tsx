@@ -93,7 +93,7 @@ const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: str
       alt={alt}
       style={style}
       onClick={zoom ? () => zoom(src!) : undefined}
-      className={`max-w-full h-auto rounded-2xl my-4 shadow-xl ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
+      className={`inline-block align-middle max-w-full h-auto rounded-2xl my-4 shadow-xl ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
     />
   );
 };

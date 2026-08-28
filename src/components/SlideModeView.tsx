@@ -32,10 +32,9 @@ const SlideModeView = ({
   const rootRef = useRef<HTMLDivElement>(null);
   const timer = useTimer();
 
-  // 슬라이드 모드 진입 시 브라우저 실제 전체화면(Fullscreen API) 자동 시도.
-  // 브라우저 정책상 거부될 수 있으므로 실패는 무시하고, 상단 바의 버튼으로 수동 전환 가능.
+  // 슬라이드 모드는 기본적으로 전체화면으로 진입하지 않는다 — 상단 바의 버튼을 눌러야만
+  // 브라우저 실제 전체화면(Fullscreen API)으로 전환된다.
   useEffect(() => {
-    rootRef.current?.requestFullscreen?.().catch(() => {});
     const handleChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleChange);
     return () => {
