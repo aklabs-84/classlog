@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import GroupPicker from './tools/GroupPicker';
@@ -14,6 +14,8 @@ import SurveyTool from './tools/SurveyTool';
 import SlideDeckEditor from './tools/SlideDeckEditor';
 import OnlineMeeting from './tools/OnlineMeeting';
 import MyNotes from './tools/MyNotes';
+import LessonPlanTool from './tools/LessonPlanTool';
+import PortfolioManager from './tools/PortfolioManager';
 
 const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -150,6 +152,58 @@ export const tools: Tool[] = [
         { title: '저장 후 공개', desc: '저장 후 🔒 비공개 토글을 켜면 학생이 학생 페이지에서 자료를 확인할 수 있습니다.' },
       ],
       tip: '무료 플랜은 자료 2개까지만 만들 수 있습니다. # 제목 / **굵게** / - 목록 / `코드` 등 마크다운 기초 문법으로 빠르게 작성하세요.',
+    },
+  },
+  {
+    id: 'lesson-plan',
+    icon: <FileText size={28} />,
+    label: '수업 계획서 만들기',
+    description: '저장된 수업 자료로 제출용 계획서 초안을 AI가 만들고, 워드·한글용으로 복사하거나 PDF로 내보냅니다',
+    newSince: '2026-08-28',
+    available: true,
+    planRequired: 'limited',
+    byokEligible: true,
+    limits: {
+      freeDesc: '월 AI 한도 내 사용',
+      basicDesc: 'AI 사용 가능',
+      proDesc: 'AI 사용 가능',
+      usesAi: true,
+    },
+    component: <LessonPlanTool />,
+    quickGuide: {
+      steps: [
+        { title: '자료 선택', desc: '+ 새 계획서 만들기를 클릭하고, 계획서로 만들 클래스와 저장된 자료를 선택합니다.' },
+        { title: '용도 · 옵션 설정', desc: '정식 지도안/간단 요약/학부모 안내 중 용도를 고르고, 필요하면 다른 주차 자료·평가계획·성취기준 연계를 추가합니다.' },
+        { title: 'AI 초안 확인 · 수정', desc: 'AI가 만든 초안을 항목별로 확인하고 자유롭게 수정한 뒤 저장합니다.' },
+        { title: '내보내기', desc: '저장 후 클립보드 복사(워드·구글독스 붙여넣기) 또는 PDF 다운로드로 바로 제출할 수 있습니다.' },
+      ],
+      tip: '저장한 계획서는 목록에 남아 언제든 다시 열람하거나 복사·PDF로 재출력할 수 있습니다.',
+    },
+  },
+  {
+    id: 'portfolio',
+    icon: <Award size={28} />,
+    label: '강사 포트폴리오',
+    description: '누적된 클래스·수업 자료 통계를 자동 집계해 외부에 공유할 수 있는 포트폴리오 페이지를 만듭니다',
+    newSince: '2026-08-28',
+    available: true,
+    planRequired: 'limited',
+    byokEligible: true,
+    limits: {
+      freeDesc: '월 AI 한도 내 사용',
+      basicDesc: 'AI 사용 가능',
+      proDesc: 'AI 사용 가능',
+      usesAi: true,
+    },
+    component: <PortfolioManager />,
+    quickGuide: {
+      steps: [
+        { title: '공개 주소 설정', desc: '영문 소문자/숫자/하이픈으로 나만의 URL을 정합니다.' },
+        { title: '공개 범위 · 클래스 선택', desc: '비공개/링크 전용/전체 공개 중 고르고, 통계에 포함할 클래스를 선택합니다.' },
+        { title: '대표 수업 사례 선택', desc: '선택한 클래스의 자료 중 소개하고 싶은 사례를 미리보기 확인 후 고릅니다.' },
+        { title: '소개글 작성 · 저장', desc: '직접 작성하거나 AI 초안을 생성한 뒤 저장하면 공개 페이지가 즉시 만들어집니다.' },
+      ],
+      tip: '기본값은 전체 비공개입니다. 선택하지 않은 클래스/자료와 학생 개인정보는 공개 페이지에 전혀 노출되지 않습니다.',
     },
   },
   {

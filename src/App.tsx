@@ -55,6 +55,7 @@ import Gallery from './pages/Gallery';
 import VideoGuide from './pages/VideoGuide';
 import Pricing from './pages/Pricing';
 import SchoolIntroPage from './pages/SchoolIntroPage';
+import PortfolioPublic from './pages/PortfolioPublic';
 import Demo from './pages/Demo';
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
@@ -250,6 +251,7 @@ function App() {
               <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
               <Route path="/report/:shareToken" element={<ParentReportShareView />} />
               <Route path="/school-intro" element={<SchoolIntroPage />} />
+              <Route path="/portfolio/:slug" element={<PortfolioPublic />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/waitlist" element={<Waitlist />} />
               <Route path="/training-request" element={<TrainingRequest />} />

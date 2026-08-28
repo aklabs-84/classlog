@@ -460,6 +460,9 @@ export const lessonPlanDraftAI     = makeModelWrapper('flash', 'lesson_plan_draf
 export const ideaQuestionAI        = makeModelWrapper('flash', 'idea_clarify_question', true);
 export const ideaPRDAI             = makeModelWrapper('flash', 'idea_prd_generate', true);
 export const ideaPRDDraftAI        = makeModelWrapper('flash', 'idea_prd_draft');
+// 수업 계획서 자동생성(MaterialEditor) 전용 — 위 lessonPlanDraftAI(아이디어→마크다운)와는 별개 기능
+export const lessonPlanSectionsAI  = makeModelWrapper('pro', 'lesson_plan_sections', true);
+export const portfolioIntroDraftAI = makeModelWrapper('flash', 'portfolio_intro');
 
 /**
  * 세특/행특 초안 프롬프트 조립 + 생성 (AIAssistant.tsx, AI 코파일럿 세특 작성가 탭 공용)
@@ -1595,6 +1598,132 @@ ${RICH_FORMATTING_GUIDE}`;
     classId ? { class_id: classId } : undefined
   );
   return result.response.text().trim().replace(/^```(markdown)?\n?/, '').replace(/```$/, '').trim();
+}
+
+// ── 수업 계획서 자동생성 (MaterialEditor "계획서 만들기") ──────────────────────
+// 수업 자료 내용(들)을 바탕으로 제출용 수업 계획서(LessonPlanSections) 초안을 만든다.
+// 위 아이디어 위저드용 generateLessonPlanDraft(마크다운 본문 반환)와는 별개 기능이다.
+
+export interface LessonPlanSections {
+  basicInfo: {
+    subject: string;
+    unitTitle: string;
+    target: string;
+    periods: string;
+    date: string;
+    studentCount: number | null;
+  };
+  objectives: string;
+  activities: {
+    intro: string;
+    development: string;
+    closing: string;
+  };
+  materials: string;
+  assessment: string;
+  standards?: string;
+}
+
+export interface LessonPlanConfig {
+  purpose: 'formal' | 'summary' | 'parent';
+  materialIds: string[];
+  hasEvaluation: boolean;
+  evaluationMethod?: string;
+  includeStandards: boolean;
+}
+
+const PURPOSE_TONE_HINT: Record<LessonPlanConfig['purpose'], string> = {
+  formal: '용도: 학교/기관에 정식 제출하는 지도안입니다. 항목마다 상세하고 격식 있는 문어체로 작성하세요.',
+  summary: '용도: 내부 보관용 간단 요약입니다. 활동 흐름 위주로 간결하게, 평가계획은 1~2문장으로 작성하세요.',
+  parent: '용도: 학부모에게 공유하는 안내문입니다. 전문 교육 용어를 최소화하고 이해하기 쉬운 문장으로 작성하세요.',
+};
+
+const LESSON_PLAN_SECTIONS_SCHEMA_HINT = `반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{
+  "basicInfo": {
+    "subject": "과목명",
+    "unitTitle": "단원/차시 제목",
+    "target": "대상 학년 또는 그룹",
+    "periods": "예: 3주차 (2차시)",
+    "date": "예: 2026년 9월 1주",
+    "studentCount": null
+  },
+  "objectives": "학습목표 (문장 또는 줄바꿈으로 구분된 목록)",
+  "activities": {
+    "intro": "도입 활동 설명",
+    "development": "전개 활동 설명",
+    "closing": "정리 활동 설명"
+  },
+  "materials": "준비물",
+  "assessment": "평가계획",
+  "standards": "성취기준 연계 내용 (요청되지 않았으면 이 필드 자체를 생략)"
+}`;
+
+export async function generateLessonPlanSections(
+  materials: Array<{ title: string; content: string; weekNumber: number }>,
+  config: LessonPlanConfig,
+  classInfo: { subject?: string; className?: string; classId?: string },
+): Promise<LessonPlanSections> {
+  const materialsText = materials
+    .map(m => `[${m.weekNumber}주차: ${m.title}]\n${m.content}`)
+    .join('\n\n---\n\n');
+
+  const prompt = `다음 수업 자료를 바탕으로 수업 계획서 초안을 JSON으로 작성합니다.
+${PURPOSE_TONE_HINT[config.purpose]}
+${config.hasEvaluation ? `평가 방식: ${config.evaluationMethod}` : '평가계획 섹션은 빈 문자열로 둡니다.'}
+${config.includeStandards ? '2022 개정 교육과정 성취기준과 연계해 standards 필드를 작성합니다.' : 'standards 필드는 생략합니다.'}
+원문에 없는 활동을 임의로 추가하지 않습니다. 아래 스키마를 정확히 따릅니다.
+
+${LESSON_PLAN_SECTIONS_SCHEMA_HINT}
+
+[과목/클래스] ${classInfo.subject ?? ''} ${classInfo.className ?? ''}
+[자료 원문 — 마크다운 형식]
+${materialsText}`;
+
+  const result = await lessonPlanSectionsAI.generateContent(
+    prompt,
+    classInfo.classId ? { class_id: classInfo.classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+
+  return {
+    basicInfo: {
+      subject: String(parsed.basicInfo?.subject ?? ''),
+      unitTitle: String(parsed.basicInfo?.unitTitle ?? ''),
+      target: String(parsed.basicInfo?.target ?? ''),
+      periods: String(parsed.basicInfo?.periods ?? ''),
+      date: String(parsed.basicInfo?.date ?? ''),
+      studentCount: typeof parsed.basicInfo?.studentCount === 'number' ? parsed.basicInfo.studentCount : null,
+    },
+    objectives: String(parsed.objectives ?? ''),
+    activities: {
+      intro: String(parsed.activities?.intro ?? ''),
+      development: String(parsed.activities?.development ?? ''),
+      closing: String(parsed.activities?.closing ?? ''),
+    },
+    materials: String(parsed.materials ?? ''),
+    assessment: config.hasEvaluation ? String(parsed.assessment ?? '') : '',
+    standards: config.includeStandards ? String(parsed.standards ?? '') : undefined,
+  };
+}
+
+// ── 강사 포트폴리오: 통계+대표자료 제목 → 소개글 초안 ──────────────────────────
+
+export async function generatePortfolioIntroDraft(
+  stats: { subjects: string[]; classCount: number; totalMaterials: number },
+  showcaseTitles: string[],
+): Promise<string> {
+  const prompt = `아래 정보를 바탕으로 학교 담당자가 읽을 강사 소개글을 3~5문장으로 작성합니다.
+과장된 표현 없이 사실 위주로, 신뢰감 있는 톤으로 씁니다. 문구만 출력하고 마크다운이나 설명은 포함하지 마세요.
+
+지도 과목: ${stats.subjects.join(', ') || '미지정'}
+운영 클래스 수: ${stats.classCount}개
+누적 수업 자료: ${stats.totalMaterials}건
+대표 수업 사례 제목: ${showcaseTitles.join(', ') || '없음'}`;
+
+  const result = await portfolioIntroDraftAI.generateContent(prompt);
+  return result.response.text().trim();
 }
 
 // ── 아이디어 → 질문형 위저드: 단계별 4지선다 질문 → PRD → PRD 기반 초안 ────────

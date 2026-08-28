@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText } from '../../lib/gemini';
+import { LessonPlanModal } from '../../components/LessonPlanModal';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -35,7 +36,7 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
-  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal,
+  Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -1051,6 +1052,7 @@ const MaterialEditor = () => {
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
+  const [showLessonPlan, setShowLessonPlan] = useState(false);
   const [aiVersions, setAiVersions] = useState<AiVersion[]>([]);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   // 목록 화면에서 자료별로 "원본" 또는 AI 정리 버전 중 어떤 걸 보고 있는지 (null = 원본)
@@ -1070,7 +1072,7 @@ const MaterialEditor = () => {
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, class_type, weekly_plan')
+      .select('id, name, subject, class_type, weekly_plan')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
@@ -1612,6 +1614,15 @@ const MaterialEditor = () => {
         onClose={() => setShowAiReorganize(false)}
       />
     )}
+    {showLessonPlan && editingMaterial && (
+      <LessonPlanModal
+        currentMaterial={editingMaterial}
+        classId={selectedClass?.id}
+        classSubject={selectedClass?.subject}
+        className={selectedClass?.name}
+        onClose={() => setShowLessonPlan(false)}
+      />
+    )}
     {linkingMaterial && user && (
       <LinkToClassModal
         material={linkingMaterial}
@@ -1869,6 +1880,15 @@ const MaterialEditor = () => {
                   )}
                 </div>
               )}
+              {/* 계획서 만들기 */}
+              <button
+                onClick={() => setShowLessonPlan(true)}
+                disabled={!content.trim() || !editingMaterial}
+                title={!editingMaterial ? '먼저 저장한 뒤 이용할 수 있습니다' : (content.trim() ? '수업 자료로 제출용 계획서 초안 만들기' : '내용을 먼저 작성해주세요')}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <FileText size={11} /> 계획서 만들기
+              </button>
               {/* 편집 중인 내용을 바로 발표 모드로 */}
               <button
                 onClick={() => {
