@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { generateLessonPlanSections } from '../lib/gemini';
 import type { LessonPlanSections, LessonPlanConfig } from '../lib/gemini';
-import { copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../lib/lessonPlanExport';
+import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../lib/lessonPlanExport';
 import {
-  X, Sparkles, Loader2, RotateCcw, AlertCircle, Check, Copy, FileDown, Save, FileText,
+  X, Sparkles, Loader2, RotateCcw, AlertCircle, Check, Copy, FileDown, Save, FileText, Pencil,
 } from 'lucide-react';
 
 // ── 계획서 만들기 모달 — 미리보기 편집 필드 ─────────────────────────────────
@@ -71,6 +71,9 @@ export const LessonPlanModal = ({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const [editingSaved, setEditingSaved] = useState(false);
+  const [editSnapshot, setEditSnapshot] = useState<LessonPlanSections | null>(null);
+  const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!classId) return;
@@ -111,6 +114,7 @@ export const LessonPlanModal = ({
       });
       setSections(result);
       setSaved(false);
+      setSavedPlanId(null);
       setStep('preview');
     } catch (err: any) {
       setErrorMessage(
@@ -130,15 +134,30 @@ export const LessonPlanModal = ({
     if (!sections || !user) return;
     setSaving(true);
     try {
-      await supabase.from('lesson_plans').insert({
-        teacher_id: user.id,
-        class_id: classId ?? null,
-        material_ids: [currentMaterial.id, ...selectedMaterialIds],
-        purpose,
-        include_standards: includeStandards,
-        sections,
-      });
+      if (savedPlanId) {
+        const { error } = await supabase
+          .from('lesson_plans')
+          .update({ purpose, include_standards: includeStandards, sections })
+          .eq('id', savedPlanId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('lesson_plans')
+          .insert({
+            teacher_id: user.id,
+            class_id: classId ?? null,
+            material_ids: [currentMaterial.id, ...selectedMaterialIds],
+            purpose,
+            include_standards: includeStandards,
+            sections,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        setSavedPlanId(data.id);
+      }
       setSaved(true);
+      setEditingSaved(false);
       onSaved?.();
     } catch {
       setErrorMessage('저장 중 오류가 발생했습니다.');
@@ -155,13 +174,27 @@ export const LessonPlanModal = ({
     setTimeout(() => setCopyDone(false), 2000);
   };
 
+  const startEditingSaved = () => {
+    setEditSnapshot(sections);
+    setEditingSaved(true);
+  };
+
+  const cancelEditingSaved = () => {
+    if (editSnapshot) setSections(editSnapshot);
+    setEditingSaved(false);
+  };
+
   return createPortal(
     <div
       className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4"
       onClick={step === 'loading' ? undefined : onClose}
     >
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+        className={`bg-white shadow-2xl flex flex-col overflow-hidden transition-all ${
+          step === 'preview' && saved
+            ? 'rounded-2xl w-full h-full sm:w-[94vw] sm:h-[92vh] max-w-4xl'
+            : 'rounded-3xl w-full max-w-2xl max-h-[85vh]'
+        }`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
@@ -173,7 +206,9 @@ export const LessonPlanModal = ({
             <p className="text-xs text-on-surface-variant mt-0.5">
               {step === 'configure' && '수업 자료를 바탕으로 제출용 계획서 초안을 만듭니다'}
               {step === 'loading' && 'AI가 계획서 초안을 작성하는 중입니다...'}
-              {step === 'preview' && '내용을 확인하고 필요하면 수정하세요'}
+              {step === 'preview' && !saved && '내용을 확인하고 필요하면 수정하세요'}
+              {step === 'preview' && saved && editingSaved && '내용을 수정하세요'}
+              {step === 'preview' && saved && !editingSaved && '계획서가 저장되었습니다'}
               {step === 'error' && '오류가 발생했습니다'}
             </p>
           </div>
@@ -245,7 +280,7 @@ export const LessonPlanModal = ({
             </div>
           )}
 
-          {step === 'preview' && sections && (
+          {step === 'preview' && sections && (!saved || editingSaved) && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 <LabeledInput label="과목" value={sections.basicInfo.subject} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, subject: v } })} />
@@ -264,11 +299,15 @@ export const LessonPlanModal = ({
               {includeStandards && (
                 <LabeledTextarea label="성취기준 연계" value={sections.standards ?? ''} onChange={v => updateSection({ standards: v })} />
               )}
-              {saved && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-bold">
-                  <Check size={13} /> 저장되었습니다
-                </div>
-              )}
+            </div>
+          )}
+
+          {step === 'preview' && sections && saved && !editingSaved && (
+            <div className="max-w-2xl mx-auto py-2">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs font-bold w-fit mb-5">
+                <Check size={13} /> 저장되었습니다
+              </div>
+              <div className="rounded-2xl border border-surface-container p-6 sm:p-8" dangerouslySetInnerHTML={{ __html: buildLessonPlanHtml(sections) }} />
             </div>
           )}
 
@@ -296,7 +335,7 @@ export const LessonPlanModal = ({
                 </button>
               </>
             )}
-            {step === 'preview' && (
+            {step === 'preview' && !saved && (
               <>
                 <button
                   onClick={() => { setSaved(false); setStep('configure'); }}
@@ -305,22 +344,56 @@ export const LessonPlanModal = ({
                   <RotateCcw size={14} /> 다시 생성
                 </button>
                 <div className="flex-1" />
-                {saved && (
-                  <>
-                    <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-                      <Copy size={14} /> {copyDone ? '복사됨' : '클립보드 복사'}
-                    </button>
-                    <button onClick={() => sections && exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-                      <FileDown size={14} /> PDF
-                    </button>
-                  </>
-                )}
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-60 transition-all"
                 >
-                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {saved ? '다시 저장' : '저장'}
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} 저장
+                </button>
+              </>
+            )}
+            {step === 'preview' && saved && editingSaved && (
+              <>
+                <button
+                  onClick={cancelEditingSaved}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  취소
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-60 transition-all"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} 저장
+                </button>
+              </>
+            )}
+            {step === 'preview' && saved && !editingSaved && (
+              <>
+                <button
+                  onClick={() => { setSaved(false); setStep('configure'); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  <RotateCcw size={14} /> 다시 생성
+                </button>
+                <div className="flex-1" />
+                <button onClick={startEditingSaved} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                  <Pencil size={14} /> 내용 수정
+                </button>
+                <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                  <Copy size={14} /> {copyDone ? '복사됨' : '클립보드 복사'}
+                </button>
+                <button onClick={() => sections && exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                  <FileDown size={14} /> PDF
+                </button>
+                <button
+                  onClick={onClose}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  <Check size={15} /> 완료
                 </button>
               </>
             )}
