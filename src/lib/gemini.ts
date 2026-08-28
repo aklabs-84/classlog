@@ -291,7 +291,8 @@ async function callDirect(body: any, apiKeyOverride?: string): Promise<string> {
         : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 }),
       ...(jsonMode && {
         responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
+        // gemini-2.5-pro는 thinking을 끌 수 없음(budget 0 불가) → pro는 thinkingConfig 생략
+        ...(model !== 'pro' && { thinkingConfig: { thinkingBudget: 0 } }),
       }),
     },
   });
