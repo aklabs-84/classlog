@@ -1,4 +1,3 @@
-import jsPDF from 'jspdf';
 import type { LessonPlanSections, LessonPlanSessionRow } from './gemini';
 
 function escapeHtml(text: string): string {
@@ -102,23 +101,40 @@ export async function copyLessonPlanToClipboard(plan: LessonPlanSections): Promi
   ]);
 }
 
-export async function exportLessonPlanToPdf(plan: LessonPlanSections): Promise<void> {
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;padding:20mm;background:#fff;';
-  container.innerHTML = buildLessonPlanHtml(plan);
-  document.body.appendChild(container);
+// jsPDF의 html2canvas 기반 렌더링이 표(차시별 내용) 포함 레이아웃에서 빈 페이지를 내는
+// 문제가 있어, 브라우저 자체 인쇄 대화상자를 열어 "PDF로 저장"하도록 대체.
+export function exportLessonPlanToPdf(plan: LessonPlanSections): void {
+  const title = plan.basicInfo.unitTitle || '수업계획서';
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
 
-  try {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    await doc.html(container, {
-      html2canvas: { scale: 2 },
-      autoPaging: 'text',
-      margin: [0, 0, 0, 0],
-      width: 210,
-      windowWidth: container.offsetWidth,
-    });
-    doc.save(`${plan.basicInfo.unitTitle || '수업계획서'}.pdf`);
-  } finally {
-    document.body.removeChild(container);
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    return;
   }
+
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  h1, h2 { page-break-after: avoid; }
+</style>
+</head><body>${buildLessonPlanHtml(plan)}</body></html>`);
+  doc.close();
+
+  const cleanup = () => { if (iframe.parentNode) document.body.removeChild(iframe); };
+  const triggerPrint = () => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+  };
+
+  iframe.contentWindow?.addEventListener('afterprint', cleanup);
+  setTimeout(triggerPrint, 200);
+  setTimeout(cleanup, 120000);
 }
