@@ -21,14 +21,14 @@ export const LabeledInput = ({ label, value, onChange }: { label: string; value:
   </div>
 );
 
-export const LabeledTextarea = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+export const LabeledTextarea = ({ label, value, onChange, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) => (
   <div>
     <p className="text-[10px] font-black text-on-surface-variant mb-1">{label}</p>
     <textarea
       value={value}
       onChange={e => onChange(e.target.value)}
-      rows={3}
-      className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-surface-container text-xs focus:outline-none focus:border-primary/40 resize-none"
+      rows={rows}
+      className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-surface-container text-xs focus:outline-none focus:border-primary/40 resize-y"
     />
   </div>
 );
@@ -68,8 +68,8 @@ export const SessionPlansEditor = ({ rows, onChange }: { rows: LessonPlanSession
               value={row.content}
               onChange={e => updateRow(idx, { content: e.target.value })}
               placeholder="이 차시에서 진행할 학습 및 실습 내용"
-              rows={2}
-              className="w-full px-2 py-1.5 bg-surface-container-low rounded-lg text-xs focus:outline-none resize-none"
+              rows={7}
+              className="w-full px-2 py-1.5 bg-surface-container-low rounded-lg text-xs focus:outline-none resize-y"
             />
             <input
               value={row.note}
@@ -341,8 +341,14 @@ export const LessonPlanModal = ({
                 <LabeledInput label="단원/차시" value={sections.basicInfo.unitTitle} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, unitTitle: v } })} />
                 <LabeledInput label="대상" value={sections.basicInfo.target} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, target: v } })} />
                 <LabeledInput label="차시" value={sections.basicInfo.periods} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, periods: v } })} />
+                <LabeledInput label="일자" value={sections.basicInfo.date} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, date: v } })} />
+                <LabeledInput
+                  label="학생 수"
+                  value={sections.basicInfo.studentCount != null ? String(sections.basicInfo.studentCount) : ''}
+                  onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, studentCount: v.trim() === '' ? null : Number(v) || 0 } })}
+                />
               </div>
-              <LabeledTextarea label="학습목표" value={sections.objectives} onChange={v => updateSection({ objectives: v })} />
+              <LabeledTextarea label="학습목표" value={sections.objectives} onChange={v => updateSection({ objectives: v })} rows={6} />
               {sections.sessionPlans ? (
                 <SessionPlansEditor rows={sections.sessionPlans} onChange={rows => updateSection({ sessionPlans: rows })} />
               ) : sections.activities ? (

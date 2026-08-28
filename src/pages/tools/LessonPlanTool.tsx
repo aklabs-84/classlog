@@ -246,8 +246,14 @@ const SavedPlanViewModal = ({
                 <LabeledInput label="단원/차시" value={sections.basicInfo.unitTitle} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, unitTitle: v } })} />
                 <LabeledInput label="대상" value={sections.basicInfo.target} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, target: v } })} />
                 <LabeledInput label="차시" value={sections.basicInfo.periods} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, periods: v } })} />
+                <LabeledInput label="일자" value={sections.basicInfo.date} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, date: v } })} />
+                <LabeledInput
+                  label="학생 수"
+                  value={sections.basicInfo.studentCount != null ? String(sections.basicInfo.studentCount) : ''}
+                  onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, studentCount: v.trim() === '' ? null : Number(v) || 0 } })}
+                />
               </div>
-              <LabeledTextarea label="학습목표" value={sections.objectives} onChange={v => updateSection({ objectives: v })} />
+              <LabeledTextarea label="학습목표" value={sections.objectives} onChange={v => updateSection({ objectives: v })} rows={6} />
               {sections.sessionPlans ? (
                 <SessionPlansEditor rows={sections.sessionPlans} onChange={rows => updateSection({ sessionPlans: rows })} />
               ) : sections.activities ? (
