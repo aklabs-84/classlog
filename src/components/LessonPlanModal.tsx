@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { generateLessonPlanSections } from '../lib/gemini';
-import type { LessonPlanSections, LessonPlanConfig } from '../lib/gemini';
+import type { LessonPlanSections, LessonPlanConfig, LessonPlanSessionRow } from '../lib/gemini';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../lib/lessonPlanExport';
 import {
-  X, Sparkles, Loader2, RotateCcw, AlertCircle, Check, Copy, FileDown, Save, FileText, Pencil,
+  X, Sparkles, Loader2, RotateCcw, AlertCircle, Check, Copy, FileDown, Save, FileText, Pencil, Plus,
 } from 'lucide-react';
 
 // ── 계획서 만들기 모달 — 미리보기 편집 필드 ─────────────────────────────────
-const LabeledInput = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+export const LabeledInput = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
   <div>
     <p className="text-[10px] font-black text-on-surface-variant mb-1">{label}</p>
     <input
@@ -21,7 +21,7 @@ const LabeledInput = ({ label, value, onChange }: { label: string; value: string
   </div>
 );
 
-const LabeledTextarea = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+export const LabeledTextarea = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
   <div>
     <p className="text-[10px] font-black text-on-surface-variant mb-1">{label}</p>
     <textarea
@@ -32,6 +32,60 @@ const LabeledTextarea = ({ label, value, onChange }: { label: string; value: str
     />
   </div>
 );
+
+// 차시별 내용(sessionPlans) 표 편집기 — 행 추가/삭제 가능
+export const SessionPlansEditor = ({ rows, onChange }: { rows: LessonPlanSessionRow[]; onChange: (rows: LessonPlanSessionRow[]) => void }) => {
+  const updateRow = (idx: number, patch: Partial<LessonPlanSessionRow>) => {
+    onChange(rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+  const addRow = () => onChange([...rows, { session: `${rows.length + 1}차시`, title: '', content: '', note: '' }]);
+  const removeRow = (idx: number) => onChange(rows.filter((_, i) => i !== idx));
+
+  return (
+    <div>
+      <p className="text-[10px] font-black text-on-surface-variant mb-1">차시별 내용</p>
+      <div className="space-y-2">
+        {rows.map((row, idx) => (
+          <div key={idx} className="rounded-xl border border-surface-container p-2.5 space-y-1.5 bg-white">
+            <div className="flex items-center gap-2">
+              <input
+                value={row.session}
+                onChange={e => updateRow(idx, { session: e.target.value })}
+                placeholder="차시 (예: 1차시)"
+                className="w-24 px-2 py-1 bg-surface-container-low rounded-lg text-xs font-bold focus:outline-none"
+              />
+              <input
+                value={row.title}
+                onChange={e => updateRow(idx, { title: e.target.value })}
+                placeholder="제목"
+                className="flex-1 px-2 py-1 bg-surface-container-low rounded-lg text-xs font-bold focus:outline-none"
+              />
+              <button onClick={() => removeRow(idx)} className="p-1 rounded-lg text-red-400 hover:bg-red-50 shrink-0">
+                <X size={13} />
+              </button>
+            </div>
+            <textarea
+              value={row.content}
+              onChange={e => updateRow(idx, { content: e.target.value })}
+              placeholder="이 차시에서 진행할 학습 및 실습 내용"
+              rows={2}
+              className="w-full px-2 py-1.5 bg-surface-container-low rounded-lg text-xs focus:outline-none resize-none"
+            />
+            <input
+              value={row.note}
+              onChange={e => updateRow(idx, { note: e.target.value })}
+              placeholder="비고 (선택)"
+              className="w-full px-2 py-1 bg-surface-container-low rounded-lg text-xs focus:outline-none"
+            />
+          </div>
+        ))}
+      </div>
+      <button onClick={addRow} className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary hover:bg-primary/5 transition-colors">
+        <Plus size={13} /> 차시 추가
+      </button>
+    </div>
+  );
+};
 
 type LessonPlanStep = 'configure' | 'loading' | 'preview' | 'error';
 interface ClassMaterialLite { id: string; title: string; week_number: number; content: string; }
@@ -289,9 +343,15 @@ export const LessonPlanModal = ({
                 <LabeledInput label="차시" value={sections.basicInfo.periods} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, periods: v } })} />
               </div>
               <LabeledTextarea label="학습목표" value={sections.objectives} onChange={v => updateSection({ objectives: v })} />
-              <LabeledTextarea label="도입" value={sections.activities.intro} onChange={v => updateSection({ activities: { ...sections.activities, intro: v } })} />
-              <LabeledTextarea label="전개" value={sections.activities.development} onChange={v => updateSection({ activities: { ...sections.activities, development: v } })} />
-              <LabeledTextarea label="정리" value={sections.activities.closing} onChange={v => updateSection({ activities: { ...sections.activities, closing: v } })} />
+              {sections.sessionPlans ? (
+                <SessionPlansEditor rows={sections.sessionPlans} onChange={rows => updateSection({ sessionPlans: rows })} />
+              ) : sections.activities ? (
+                <>
+                  <LabeledTextarea label="도입" value={sections.activities.intro} onChange={v => updateSection({ activities: { ...sections.activities!, intro: v } })} />
+                  <LabeledTextarea label="전개" value={sections.activities.development} onChange={v => updateSection({ activities: { ...sections.activities!, development: v } })} />
+                  <LabeledTextarea label="정리" value={sections.activities.closing} onChange={v => updateSection({ activities: { ...sections.activities!, closing: v } })} />
+                </>
+              ) : null}
               <LabeledTextarea label="준비물" value={sections.materials} onChange={v => updateSection({ materials: v })} />
               {hasEvaluation && (
                 <LabeledTextarea label="평가계획" value={sections.assessment} onChange={v => updateSection({ assessment: v })} />

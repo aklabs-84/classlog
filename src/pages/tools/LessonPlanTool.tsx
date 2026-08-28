@@ -4,9 +4,9 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { LessonPlanSections } from '../../lib/gemini';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../../lib/lessonPlanExport';
-import { LessonPlanModal, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
+import { LessonPlanModal, LabeledInput, LabeledTextarea, SessionPlansEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
-  Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown,
+  Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save,
 } from 'lucide-react';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
@@ -174,16 +174,43 @@ const SavedPlanViewModal = ({
   plan,
   onClose,
   onDeleted,
+  onUpdated,
 }: {
   plan: SavedLessonPlan;
   onClose: () => void;
   onDeleted: () => void;
+  onUpdated: () => void;
 }) => {
   const [copyDone, setCopyDone] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sections, setSections] = useState<LessonPlanSections>(plan.sections);
+  const [editSnapshot, setEditSnapshot] = useState<LessonPlanSections | null>(null);
+
+  const updateSection = (patch: Partial<LessonPlanSections>) => {
+    setSections(prev => ({ ...prev, ...patch }));
+  };
+
+  const startEditing = () => { setEditSnapshot(sections); setEditing(true); };
+  const cancelEditing = () => { if (editSnapshot) setSections(editSnapshot); setEditing(false); };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('lesson_plans').update({ sections }).eq('id', plan.id);
+      if (error) throw error;
+      setEditing(false);
+      onUpdated();
+    } catch {
+      window.alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleCopy = async () => {
-    await copyLessonPlanToClipboard(plan.sections);
+    await copyLessonPlanToClipboard(sections);
     setCopyDone(true);
     setTimeout(() => setCopyDone(false), 2000);
   };
@@ -198,36 +225,87 @@ const SavedPlanViewModal = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4" onClick={editing ? undefined : onClose}>
+      <div className="bg-white shadow-2xl rounded-2xl w-full h-full sm:w-[94vw] sm:h-[92vh] max-w-4xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><FileText size={15} /></div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-on-surface truncate">{plan.sections?.basicInfo?.unitTitle || '수업 계획서'}</p>
+            <p className="font-black text-sm text-on-surface truncate">{sections?.basicInfo?.unitTitle || '수업 계획서'}</p>
             <p className="text-xs text-on-surface-variant mt-0.5">{PURPOSE_LABEL[plan.purpose]} · {formatDate(plan.created_at)}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"><X size={16} /></button>
+          {!editing && (
+            <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"><X size={16} /></button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
-          <div dangerouslySetInnerHTML={{ __html: buildLessonPlanHtml(plan.sections) }} />
+          {editing ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <LabeledInput label="과목" value={sections.basicInfo.subject} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, subject: v } })} />
+                <LabeledInput label="단원/차시" value={sections.basicInfo.unitTitle} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, unitTitle: v } })} />
+                <LabeledInput label="대상" value={sections.basicInfo.target} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, target: v } })} />
+                <LabeledInput label="차시" value={sections.basicInfo.periods} onChange={v => updateSection({ basicInfo: { ...sections.basicInfo, periods: v } })} />
+              </div>
+              <LabeledTextarea label="학습목표" value={sections.objectives} onChange={v => updateSection({ objectives: v })} />
+              {sections.sessionPlans ? (
+                <SessionPlansEditor rows={sections.sessionPlans} onChange={rows => updateSection({ sessionPlans: rows })} />
+              ) : sections.activities ? (
+                <>
+                  <LabeledTextarea label="도입" value={sections.activities.intro} onChange={v => updateSection({ activities: { ...sections.activities!, intro: v } })} />
+                  <LabeledTextarea label="전개" value={sections.activities.development} onChange={v => updateSection({ activities: { ...sections.activities!, development: v } })} />
+                  <LabeledTextarea label="정리" value={sections.activities.closing} onChange={v => updateSection({ activities: { ...sections.activities!, closing: v } })} />
+                </>
+              ) : null}
+              <LabeledTextarea label="준비물" value={sections.materials} onChange={v => updateSection({ materials: v })} />
+              <LabeledTextarea label="평가계획" value={sections.assessment} onChange={v => updateSection({ assessment: v })} />
+              {plan.include_standards && (
+                <LabeledTextarea label="성취기준 연계" value={sections.standards ?? ''} onChange={v => updateSection({ standards: v })} />
+              )}
+            </div>
+          ) : (
+            <div className="max-w-2xl mx-auto py-2">
+              <div className="rounded-2xl border border-surface-container p-6 sm:p-8" dangerouslySetInnerHTML={{ __html: buildLessonPlanHtml(sections) }} />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-          >
-            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제
-          </button>
-          <div className="flex-1" />
-          <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-            <Copy size={14} /> {copyDone ? '복사됨' : '클립보드 복사'}
-          </button>
-          <button onClick={() => exportLessonPlanToPdf(plan.sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-            <FileDown size={14} /> PDF
-          </button>
+          {editing ? (
+            <>
+              <button onClick={cancelEditing} className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                취소
+              </button>
+              <div className="flex-1" />
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-60 transition-all"
+              >
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} 저장
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제
+              </button>
+              <div className="flex-1" />
+              <button onClick={startEditing} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                <Pencil size={14} /> 내용 수정
+              </button>
+              <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                <Copy size={14} /> {copyDone ? '복사됨' : '클립보드 복사'}
+              </button>
+              <button onClick={() => exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                <FileDown size={14} /> PDF
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>,
@@ -330,7 +408,7 @@ const LessonPlanTool = () => {
       )}
 
       {viewingPlan && (
-        <SavedPlanViewModal plan={viewingPlan} onClose={() => setViewingPlan(null)} onDeleted={fetchPlans} />
+        <SavedPlanViewModal plan={viewingPlan} onClose={() => setViewingPlan(null)} onDeleted={fetchPlans} onUpdated={fetchPlans} />
       )}
     </div>
   );

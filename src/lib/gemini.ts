@@ -1605,6 +1605,13 @@ ${RICH_FORMATTING_GUIDE}`;
 // 수업 자료 내용(들)을 바탕으로 제출용 수업 계획서(LessonPlanSections) 초안을 만든다.
 // 위 아이디어 위저드용 generateLessonPlanDraft(마크다운 본문 반환)와는 별개 기능이다.
 
+export interface LessonPlanSessionRow {
+  session: string;
+  title: string;
+  content: string;
+  note: string;
+}
+
 export interface LessonPlanSections {
   basicInfo: {
     subject: string;
@@ -1615,7 +1622,10 @@ export interface LessonPlanSections {
     studentCount: number | null;
   };
   objectives: string;
-  activities: {
+  // 신규 생성 계획서는 차시별 표(sessionPlans)로 저장됩니다.
+  // activities(도입/전개/정리)는 구버전 저장분과의 하위호환을 위해 남겨둔 필드입니다.
+  sessionPlans?: LessonPlanSessionRow[];
+  activities?: {
     intro: string;
     development: string;
     closing: string;
@@ -1650,11 +1660,9 @@ const LESSON_PLAN_SECTIONS_SCHEMA_HINT = `반드시 아래 JSON 형식으로만 
     "studentCount": null
   },
   "objectives": "학습목표 (문장 또는 줄바꿈으로 구분된 목록)",
-  "activities": {
-    "intro": "도입 활동 설명",
-    "development": "전개 활동 설명",
-    "closing": "정리 활동 설명"
-  },
+  "sessionPlans": [
+    { "session": "1차시", "title": "차시 제목", "content": "이 차시에서 진행하는 학습 및 실습 내용을 구체적으로 정리", "note": "참고사항 (없으면 빈 문자열)" }
+  ],
   "materials": "준비물",
   "assessment": "평가계획",
   "standards": "성취기준 연계 내용 (요청되지 않았으면 이 필드 자체를 생략)"
@@ -1673,7 +1681,7 @@ export async function generateLessonPlanSections(
 ${PURPOSE_TONE_HINT[config.purpose]}
 ${config.hasEvaluation ? `평가 방식: ${config.evaluationMethod}` : '평가계획 섹션은 빈 문자열로 둡니다.'}
 ${config.includeStandards ? '2022 개정 교육과정 성취기준과 연계해 standards 필드를 작성합니다.' : 'standards 필드는 생략합니다.'}
-원문에 없는 활동을 임의로 추가하지 않습니다. 아래 스키마를 정확히 따릅니다.
+원문에 없는 활동을 임의로 추가하지 않습니다. sessionPlans는 자료에 표시된 주차/차시 구성을 참고해 차시별로 나누고, 각 행마다 그 차시에서 진행하는 학습 및 실습 내용을 구체적으로 정리합니다. 아래 스키마를 정확히 따릅니다.
 
 ${LESSON_PLAN_SECTIONS_SCHEMA_HINT}
 
@@ -1698,11 +1706,14 @@ ${materialsText}`;
       studentCount: typeof parsed.basicInfo?.studentCount === 'number' ? parsed.basicInfo.studentCount : null,
     },
     objectives: String(parsed.objectives ?? ''),
-    activities: {
-      intro: String(parsed.activities?.intro ?? ''),
-      development: String(parsed.activities?.development ?? ''),
-      closing: String(parsed.activities?.closing ?? ''),
-    },
+    sessionPlans: Array.isArray(parsed.sessionPlans)
+      ? parsed.sessionPlans.map((row: any) => ({
+          session: String(row?.session ?? ''),
+          title: String(row?.title ?? ''),
+          content: String(row?.content ?? ''),
+          note: String(row?.note ?? ''),
+        }))
+      : [],
     materials: String(parsed.materials ?? ''),
     assessment: config.hasEvaluation ? String(parsed.assessment ?? '') : '',
     standards: config.includeStandards ? String(parsed.standards ?? '') : undefined,
