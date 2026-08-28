@@ -16,17 +16,28 @@ interface Props {
   onUpdateObject?: (id: string, changes: Partial<SlideObject>) => void;
   onDeleteObject?: (id: string) => void;
   captureMode?: boolean;  // true면 유튜브 오브젝트를 항상 썸네일로 그림(PDF/PPTX 내보내기·썸네일 캡처용)
+  // true면 부모가 준 실제 박스(가로·세로)에 맞춰 letterbox로 맞추고, 남는 공간은 스크롤 가능하게 둔다(편집 화면 전용).
+  // false(기본)면 기존처럼 폭 기준으로만 계산하고 wrapper 자체가 16:9 비율을 갖는다(썸네일/발표/템플릿 미리보기용).
+  fitContainer?: boolean;
+  zoom?: number | null;  // fitContainer일 때만 사용. null/undefined면 화면에 자동으로 맞춤.
+  onScaleChange?: (scale: number) => void;  // fitContainer일 때 실제 렌더 배율이 바뀔 때마다 호출(줌 UI 표시용)
 }
 
 // 1280x720 디자인 좌표계를 실제 화면 크기에 맞춰 transform: scale() 로 축소/확대해 보여주는 캔버스.
 // 드래그/리사이즈 델타도 이 scale 값으로 나눠 디자인 좌표로 환산한다.
-export default function SlideStage({ slide, editable = false, selectedId = null, onSelect, onUpdateObject, onDeleteObject, captureMode = false }: Props) {
+export default function SlideStage({
+  slide, editable = false, selectedId = null, onSelect, onUpdateObject, onDeleteObject, captureMode = false,
+  fitContainer = false, zoom = null, onScaleChange,
+}: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const scaleRef = useRef(1);
+  const [fitScale, setFitScale] = useState(1);
   const [centerGuide, setCenterGuide] = useState<{ v: boolean; h: boolean }>({ v: false, h: false });
 
+  // 기존(비-fitContainer) 모드 — wrapper가 항상 16:9 비율이므로 폭 기준 계산으로 충분
   useEffect(() => {
+    if (fitContainer) return;
     const el = wrapRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
@@ -37,7 +48,32 @@ export default function SlideStage({ slide, editable = false, selectedId = null,
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitContainer]);
+
+  // fitContainer 모드 — 부모가 준 실제 박스의 폭·높이를 모두 관찰해 더 작은 쪽에 맞춰 축소/확대(레터박스)
+  useEffect(() => {
+    if (!fitContainer) return;
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const { width: w, height: h } = entries[0]?.contentRect ?? { width: DECK_CANVAS_W, height: DECK_CANVAS_H };
+      const s = Math.min(w / DECK_CANVAS_W, h / DECK_CANVAS_H) || 1;
+      setFitScale(s);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitContainer]);
+
+  useEffect(() => {
+    if (!fitContainer) return;
+    const s = zoom ?? fitScale;
+    scaleRef.current = s;
+    setScale(s);
+    onScaleChange?.(s);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitContainer, zoom, fitScale]);
 
   const CENTER_SNAP_THRESHOLD = 10; // 디자인 좌표 기준(px) — 오브젝트 중심이 이 오차 안이면 캔버스 정중앙에 스냅
 
@@ -92,12 +128,21 @@ export default function SlideStage({ slide, editable = false, selectedId = null,
   };
 
   return (
-    <div ref={wrapRef} style={{ width: '100%', aspectRatio: `${DECK_CANVAS_W} / ${DECK_CANVAS_H}`, position: 'relative', overflow: 'hidden' }}>
+    <div
+      ref={wrapRef}
+      style={fitContainer
+        ? { width: '100%', height: '100%', position: 'relative', overflow: zoom != null ? 'auto' : 'hidden' }
+        : { width: '100%', aspectRatio: `${DECK_CANVAS_W} / ${DECK_CANVAS_H}`, position: 'relative', overflow: 'hidden' }}
+    >
+      <div style={fitContainer ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minWidth: '100%', minHeight: '100%', paddingTop: 8 } : undefined}>
       <div
         onPointerDown={editable ? (e) => { if (e.target === e.currentTarget) onSelect?.(null); } : undefined}
         style={{
-          width: DECK_CANVAS_W, height: DECK_CANVAS_H,
-          transform: `scale(${scale})`, transformOrigin: 'top left',
+          width: DECK_CANVAS_W, height: DECK_CANVAS_H, flexShrink: 0,
+          // fitContainer 모드는 'top center'로 고정 — 확대/축소해도 캔버스 상단이 항상 컨테이너 상단에 붙어 있고
+          // (레이아웃 박스 자체는 1280x720 그대로라 transform-origin이 세로 중앙이면 축소할수록 시각적 상단이 아래로 밀려 보임)
+          // 가로는 중앙 기준으로 줄어들어 justifyContent: 'center'와 맞물려 계속 수평 중앙을 유지한다.
+          transform: `scale(${scale})`, transformOrigin: fitContainer ? 'top center' : 'top left',
           background: slide.bg, position: 'relative',
         }}
       >
@@ -128,8 +173,8 @@ export default function SlideStage({ slide, editable = false, selectedId = null,
             <TextBlockObject
               key={obj.id}
               obj={obj}
-              isSelected={editable && selectedId === obj.id}
-              editable={editable}
+              isSelected={editable && !obj.decorative && selectedId === obj.id}
+              editable={editable && !obj.decorative}
               fallbackColor={slide.textColor}
               onSelect={() => onSelect?.(obj.id)}
               onUpdate={changes => onUpdateObject?.(obj.id, changes)}
@@ -212,6 +257,7 @@ export default function SlideStage({ slide, editable = false, selectedId = null,
             background: '#fff', mixBlendMode: 'difference', pointerEvents: 'none', zIndex: 100000,
           }} />
         )}
+      </div>
       </div>
     </div>
   );

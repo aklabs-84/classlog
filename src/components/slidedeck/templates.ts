@@ -21,7 +21,7 @@ const BASE_TEMPLATES: SlideTemplate[] = [
     layouts: {
       title: [
         { type: 'text', x: 600, y: 200, width: 80, height: 6, zIndex: 1,
-          text: '', style: { background: '#FACC15' } },
+          text: '', decorative: true, style: { background: '#FACC15' } },
         { type: 'text', x: 140, y: 190, width: 1000, height: 230, zIndex: 2,
           text: '핵심 메시지를\n입력하세요',
           style: { fontSize: 80, align: 'center', bold: true, fontFamily: MANROPE } },
@@ -88,7 +88,7 @@ const BASE_TEMPLATES: SlideTemplate[] = [
           text: 'GALLERY',
           style: { fontSize: 14, align: 'left', bold: true, color: '#0EA5E9', fontFamily: PUBLIC_SANS } },
         { type: 'text', x: 100, y: 100, width: 80, height: 6, zIndex: 1,
-          text: '', style: { background: '#0EA5E9' } },
+          text: '', decorative: true, style: { background: '#0EA5E9' } },
         { type: 'text', x: 100, y: 130, width: 1080, height: 480, zIndex: 2,
           text: '제목을 입력하세요\n\n이미지에 대한 설명이나 활동 안내를 입력하세요',
           style: { fontSize: 30, align: 'left', fontFamily: PUBLIC_SANS } },
@@ -240,10 +240,10 @@ interface ThemeColors {
 }
 
 const THEME_COLORS: ThemeColors[] = [
-  { id: 'indigo', name: '인디고', bg: '#ffffff', ink: '#1e1b2e', accent: '#4f46e5', accentSoft: '#eef2ff' },
-  { id: 'coral', name: '선셋코랄', bg: '#ffffff', ink: '#2b1a12', accent: '#ea580c', accentSoft: '#fff1e6' },
-  { id: 'teal', name: '포레스트틸', bg: '#ffffff', ink: '#0a2e2b', accent: '#0f766e', accentSoft: '#e6f5f3' },
-  { id: 'midnight', name: '미드나잇', bg: '#14131f', ink: '#f4f2ff', accent: '#a78bfa', accentSoft: 'rgba(167,139,250,0.16)' },
+  { id: 'indigo', name: '인디고', bg: 'linear-gradient(160deg, #eef2ff 0%, #ffffff 60%)', ink: '#1e1b2e', accent: '#4f46e5', accentSoft: '#eef2ff' },
+  { id: 'coral', name: '선셋코랄', bg: 'linear-gradient(160deg, #fff1e6 0%, #ffffff 60%)', ink: '#2b1a12', accent: '#ea580c', accentSoft: '#fff1e6' },
+  { id: 'teal', name: '포레스트틸', bg: 'linear-gradient(160deg, #e6f5f3 0%, #ffffff 60%)', ink: '#0a2e2b', accent: '#0f766e', accentSoft: '#e6f5f3' },
+  { id: 'midnight', name: '미드나잇', bg: 'linear-gradient(160deg, #1c1b2e 0%, #0f0e1a 60%)', ink: '#f4f2ff', accent: '#a78bfa', accentSoft: 'rgba(167,139,250,0.16)' },
 ];
 
 type ThemedLayouts = Record<SlideLayoutKind, Omit<SlideObject, 'id'>[]>;
@@ -253,7 +253,7 @@ function cardsLayouts(t: ThemeColors): ThemedLayouts {
   return {
     title: [
       { type: 'text', x: 600, y: 220, width: 80, height: 6, zIndex: 1,
-        text: '', style: { background: t.accent } },
+        text: '', decorative: true, style: { background: t.accent } },
       { type: 'text', x: 140, y: 250, width: 1000, height: 130, zIndex: 2,
         text: '슬라이드 제목을 입력하세요',
         style: { fontSize: 52, align: 'center', bold: true, color: t.ink, fontFamily: PRETENDARD } },
@@ -318,7 +318,7 @@ function timelineLayouts(t: ThemeColors): ThemedLayouts {
     ],
     textOnly: [
       { type: 'text', x: 122, y: 90, width: 4, height: 500, zIndex: 0,
-        text: '', style: { background: t.accentSoft } },
+        text: '', decorative: true, style: { background: t.accentSoft } },
       { x: 100, y: 90, width: 48, height: 48, zIndex: 1, ...circle('1') },
       { type: 'text', x: 170, y: 92, width: 1010, height: 100, zIndex: 2,
         text: '1단계에서 할 일을 입력하세요',
@@ -360,7 +360,7 @@ function timelineLayouts(t: ThemeColors): ThemedLayouts {
 
 // 듀오톤 와이드형 — 화면을 반으로 나눠 텍스트와 이미지를 대비시킨다
 function duotoneLayouts(t: ThemeColors): ThemedLayouts {
-  const panel: Omit<SlideObject, 'id'> = { type: 'text', x: 640, y: 0, width: 640, height: 720, zIndex: 0, text: '', style: { background: t.accent } };
+  const panel: Omit<SlideObject, 'id'> = { type: 'text', x: 640, y: 0, width: 640, height: 720, zIndex: 0, text: '', decorative: true, style: { background: t.accent } };
   return {
     title: [
       panel,
@@ -411,7 +411,7 @@ function duotoneLayouts(t: ThemeColors): ThemedLayouts {
 // 이미지가 없는 textOnly는 슬라이드 배경 자체가 accent색이라 컬러 블록형 커버가 된다.
 function coverLayouts(): ThemedLayouts {
   const scrim = (y: number, height: number, zIndex: number): Omit<SlideObject, 'id'> => ({
-    type: 'text', x: 0, y, width: 1280, height, zIndex, text: '',
+    type: 'text', x: 0, y, width: 1280, height, zIndex, text: '', decorative: true,
     style: { background: 'linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)' },
   });
   return {

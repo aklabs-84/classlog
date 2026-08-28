@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
@@ -68,6 +68,11 @@ export default function SlideDeckEditor() {
   const [activeTemplateId, setActiveTemplateId] = useState<string>(SLIDE_TEMPLATES[0].id);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  // 편집 캔버스 확대/축소 — null이면 화면에 자동으로 맞춤(기본값), 숫자면 사용자가 지정한 배율
+  const [manualZoom, setManualZoom] = useState<number | null>(null);
+  const [renderedScale, setRenderedScale] = useState(1);
+  const stageRowRef = useRef<HTMLDivElement>(null);
+  const [stageAreaHeight, setStageAreaHeight] = useState(560);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
@@ -85,6 +90,20 @@ export default function SlideDeckEditor() {
   const bgFileRef = useRef<HTMLInputElement>(null);
   const pptxFileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── 되돌리기/다시하기 히스토리 ──────────────────────────────────────────
+  // 짧은 시간(500ms) 안에 연속으로 들어오는 변경(드래그 중 pointermove 연속 호출 등)은 한 단계로 묶는다.
+  const HISTORY_LIMIT = 50;
+  const historyRef = useRef<{ past: DeckSlide[][]; future: DeckSlide[][] }>({ past: [], future: [] });
+  const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const slidesRef = useRef<DeckSlide[]>([]);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  useEffect(() => { slidesRef.current = activeDeck?.slides ?? []; }, [activeDeck]);
+
+  const resetHistory = () => {
+    historyRef.current = { past: [], future: [] };
+    if (historyTimerRef.current) { clearTimeout(historyTimerRef.current); historyTimerRef.current = null; }
+    setHistoryVersion(v => v + 1);
+  };
 
   const loadDecks = useCallback(async () => {
     if (!user) return;
@@ -141,6 +160,30 @@ export default function SlideDeckEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDeck?.title, activeDeck?.slides]);
 
+  // ── 편집 캔버스 영역이 뷰포트 남은 세로 공간에 항상 꽉 차도록 실시간으로 높이를 계산 ──────────
+  useEffect(() => {
+    if (view !== 'editor') return;
+    const el = stageRowRef.current;
+    if (!el) return;
+    const recompute = () => {
+      const top = el.getBoundingClientRect().top;
+      // <main>의 padding-bottom(글자 크기 배율에 따라 rem 기준으로 달라짐)만큼만 하단 여백으로 남겨둔다
+      const mainEl = el.closest('main');
+      const bottomReserve = mainEl ? parseFloat(getComputedStyle(mainEl).paddingBottom) || 24 : 24;
+      setStageAreaHeight(Math.max(360, window.innerHeight - top - bottomReserve));
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    // 공지 배너 등 캔버스 영역 "위쪽" 형제 요소가 늦게 나타나거나 높이가 바뀌면
+    // el 자신의 크기는 그대로여도 el.top 위치가 바뀌어 stageAreaHeight가 어긋난다 —
+    // document.body 전체 크기 변화도 함께 감시해서 그런 경우까지 다시 계산한다.
+    ro.observe(document.body);
+    window.addEventListener('resize', recompute);
+    return () => { ro.disconnect(); window.removeEventListener('resize', recompute); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selectedObjectId, activeDeck?.slides[activeSlideIndex]?.bgImage]);
+
   // ── 덱 생성 ────────────────────────────────────────────────────────────
   const canCreateDeck = () => {
     if (checkIsBasicOrAbove(profile)) return true;
@@ -155,16 +198,17 @@ export default function SlideDeckEditor() {
     if (!user) return;
     if (!canCreateDeck()) return;
     const template = getTemplate(templateId);
-    const firstSlide = instantiateSlide(template, 'title');
+    const starterSlides = ALL_LAYOUT_KINDS.map(kind => instantiateSlide(template, kind));
     const { data, error } = await supabase
       .from('slide_decks')
-      .insert({ teacher_id: user.id, title: '제목 없는 슬라이드', slides: [firstSlide] })
+      .insert({ teacher_id: user.id, title: '제목 없는 슬라이드', slides: starterSlides })
       .select()
       .single();
     if (error || !data) return;
     syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
     setActiveTemplateId(templateId);
     setActiveDeck(data as SlideDeck);
+    resetHistory();
     setActiveSlideIndex(0);
     setSelectedObjectId(null);
     setView('editor');
@@ -216,6 +260,7 @@ export default function SlideDeckEditor() {
       syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
       setActiveTemplateId(templateId);
       setActiveDeck(data as SlideDeck);
+      resetHistory();
       setActiveSlideIndex(0);
       setSelectedObjectId(null);
       setView('editor');
@@ -264,6 +309,7 @@ export default function SlideDeckEditor() {
       if (error || !data) { alert('슬라이드를 저장하는 중 오류가 발생했습니다.'); return; }
       syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
       setActiveDeck(data as SlideDeck);
+      resetHistory();
       setActiveSlideIndex(0);
       setSelectedObjectId(null);
       setView('editor');
@@ -285,6 +331,7 @@ export default function SlideDeckEditor() {
     const { data } = await supabase.from('slide_decks').select('*').eq('id', id).single();
     if (!data) return;
     setActiveDeck(data as SlideDeck);
+    resetHistory();
     setActiveSlideIndex(0);
     setSelectedObjectId(null);
     setView('editor');
@@ -298,14 +345,67 @@ export default function SlideDeckEditor() {
 
   const handleBackToList = () => {
     setActiveDeck(null);
+    resetHistory();
     setView('list');
     loadDecks();
   };
 
   // ── 슬라이드 조작 ──────────────────────────────────────────────────────
   const updateSlides = (updater: (slides: DeckSlide[]) => DeckSlide[]) => {
+    if (!historyTimerRef.current) {
+      historyRef.current.past = [...historyRef.current.past, slidesRef.current].slice(-HISTORY_LIMIT);
+      historyRef.current.future = [];
+    }
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = setTimeout(() => { historyTimerRef.current = null; }, 500);
+    setHistoryVersion(v => v + 1);
     setActiveDeck(prev => prev ? { ...prev, slides: updater(prev.slides) } : prev);
   };
+
+  const handleUndo = () => {
+    const h = historyRef.current;
+    if (h.past.length === 0) return;
+    const previous = h.past[h.past.length - 1];
+    h.past = h.past.slice(0, -1);
+    h.future = [slidesRef.current, ...h.future].slice(0, HISTORY_LIMIT);
+    if (historyTimerRef.current) { clearTimeout(historyTimerRef.current); historyTimerRef.current = null; }
+    setActiveDeck(prev => prev ? { ...prev, slides: previous } : prev);
+    setSelectedObjectId(null);
+    setHistoryVersion(v => v + 1);
+  };
+
+  const handleRedo = () => {
+    const h = historyRef.current;
+    if (h.future.length === 0) return;
+    const next = h.future[0];
+    h.future = h.future.slice(1);
+    h.past = [...h.past, slidesRef.current].slice(-HISTORY_LIMIT);
+    if (historyTimerRef.current) { clearTimeout(historyTimerRef.current); historyTimerRef.current = null; }
+    setActiveDeck(prev => prev ? { ...prev, slides: next } : prev);
+    setSelectedObjectId(null);
+    setHistoryVersion(v => v + 1);
+  };
+
+  const canUndo = useMemo(() => historyRef.current.past.length > 0, [historyVersion]);
+  const canRedo = useMemo(() => historyRef.current.future.length > 0, [historyVersion]);
+
+  // Cmd/Ctrl+Z 되돌리기, Cmd/Ctrl+Shift+Z(또는 Ctrl+Y) 다시하기 — 입력창/텍스트편집 중에는 브라우저 기본 되돌리기에 맡긴다
+  useEffect(() => {
+    if (view !== 'editor') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isUndoKey = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z';
+      const isRedoKey = (e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey));
+      if (!isUndoKey && !isRedoKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      e.preventDefault();
+      if (isRedoKey) handleRedo();
+      else handleUndo();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [view]);
 
   const handleAddSlide = (afterIndex?: number) => {
     const template = getTemplate(activeTemplateId);
@@ -399,7 +499,7 @@ export default function SlideDeckEditor() {
 
   // ── 템플릿 디자인 적용(기존 슬라이드 전체에 배색만 교체) ────────────────────────
   const handleApplyTemplate = (templateId: string) => {
-    setActiveDeck(prev => prev ? applyTemplateToDeck(prev, templateId) : prev);
+    if (activeDeck) updateSlides(slides => applyTemplateToDeck({ ...activeDeck, slides }, templateId).slides);
     setActiveTemplateId(templateId);
     setShowApplyTemplateModal(false);
   };
@@ -605,6 +705,24 @@ export default function SlideDeckEditor() {
             >
               <ArrowLeft size={14} /> 목록
             </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <button
+                onClick={handleUndo}
+                disabled={!canUndo}
+                title="되돌리기 (Cmd/Ctrl+Z)"
+                style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', borderRadius: 6, padding: 6, cursor: canUndo ? 'pointer' : 'default', color: canUndo ? '#475569' : '#d1d5db' }}
+              >
+                <Undo2 size={16} />
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={!canRedo}
+                title="다시하기 (Cmd/Ctrl+Shift+Z)"
+                style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', borderRadius: 6, padding: 6, cursor: canRedo ? 'pointer' : 'default', color: canRedo ? '#475569' : '#d1d5db' }}
+              >
+                <Redo2 size={16} />
+              </button>
+            </div>
             <input
               value={activeDeck.title}
               onChange={e => setActiveDeck(prev => prev ? { ...prev, title: e.target.value } : prev)}
@@ -788,7 +906,7 @@ export default function SlideDeckEditor() {
         )}
         </div>
 
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <div ref={stageRowRef} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', height: stageAreaHeight }}>
           <SlideThumbnailRail
             slides={activeDeck.slides}
             activeIndex={activeSlideIndex}
@@ -798,7 +916,7 @@ export default function SlideDeckEditor() {
             onDelete={handleDeleteSlide}
             onReorder={handleReorderSlides}
           />
-          <div style={{ flex: 1, maxWidth: 960 }}>
+          <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
             <SlideStage
               slide={currentSlide}
               editable
@@ -806,7 +924,42 @@ export default function SlideDeckEditor() {
               onSelect={setSelectedObjectId}
               onUpdateObject={handleUpdateObject}
               onDeleteObject={handleDeleteObject}
+              fitContainer
+              zoom={manualZoom}
+              onScaleChange={setRenderedScale}
             />
+            <div style={{
+              position: 'absolute', right: 12, bottom: 12, display: 'flex', alignItems: 'center', gap: 2,
+              background: '#fff', border: '1px solid #e5e7eb', borderRadius: 999, padding: 4,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            }}>
+              <button
+                onClick={() => setManualZoom(Math.max(0.3, Number((renderedScale - 0.1).toFixed(2))))}
+                title="축소"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 'none', background: 'none', borderRadius: 999, cursor: 'pointer', color: '#374151' }}
+              >
+                <ZoomOut size={15} />
+              </button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', width: 42, textAlign: 'center' }}>
+                {Math.round(renderedScale * 100)}%
+              </span>
+              <button
+                onClick={() => setManualZoom(Math.min(2.5, Number((renderedScale + 0.1).toFixed(2))))}
+                title="확대"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 'none', background: 'none', borderRadius: 999, cursor: 'pointer', color: '#374151' }}
+              >
+                <ZoomIn size={15} />
+              </button>
+              <div style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 2px' }} />
+              <button
+                onClick={() => setManualZoom(null)}
+                disabled={manualZoom === null}
+                title="화면에 맞춤"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 'none', background: 'none', borderRadius: 999, cursor: manualZoom === null ? 'default' : 'pointer', color: manualZoom === null ? '#c7cdd6' : '#374151' }}
+              >
+                <Maximize2 size={14} />
+              </button>
+            </div>
           </div>
         </div>
 

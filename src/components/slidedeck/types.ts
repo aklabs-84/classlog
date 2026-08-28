@@ -31,6 +31,7 @@ export interface SlideObject {
   href?: string;    // type: 'link'(필수) | 'text'/'image'(선택 — 있으면 발표 모드에서 클릭 시 새 탭으로 열림)
   codeLang?: string;  // type: 'code' — 언어 라벨(예: Python, JavaScript)
   style?: SlideObjectStyle;
+  decorative?: boolean;  // true면 템플릿이 깔아둔 배경 장식용 도형(포인트 바/구분선/듀오톤 패널/커버 스크림 등) — 편집 화면에서 선택·드래그·더블클릭 편집 불가
 }
 
 // 유튜브 URL(watch/youtu.be/embed/shorts 등 다양한 형태) → videoId 파싱. 매칭 실패 시 null.
