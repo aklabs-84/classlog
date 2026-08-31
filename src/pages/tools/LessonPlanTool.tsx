@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -395,12 +396,47 @@ const SavedPlanViewModal = ({
 // ── 수업 계획서 만들기 — 수업도구 탭 ──────────────────────────────────────────
 const LessonPlanTool = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const draftHandledRef = useRef(false);
   const [classes, setClasses] = useState<any[]>([]);
   const [plans, setPlans] = useState<SavedLessonPlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [activeMaterial, setActiveMaterial] = useState<{ materials: LessonPlanSourceMaterial[]; classId: string | null; classSubject?: string; className?: string } | null>(null);
   const [viewingPlan, setViewingPlan] = useState<SavedLessonPlan | null>(null);
+
+  // AI 코파일럿(루카스)의 대화 초안을 넘겨받은 경우 — 초안 텍스트를 class_materials에
+  // 실제 자료 레코드로 저장한 뒤 "계획서 만들기" 모달을 바로 연다. id를 빈 문자열로 두면
+  // 계획서 저장 후 "다시 생성" 시 material_ids로 재조회가 안 돼 원본 내용이 사라지므로,
+  // 처음부터 진짜 레코드로 만들어 저장/재생성 흐름 전체에서 동일하게 동작하게 한다.
+  useEffect(() => {
+    if (draftHandledRef.current) return;
+    const draft = (location.state as { draftLessonPlan?: { title: string; content: string; classId: string | null } } | null)?.draftLessonPlan;
+    if (!draft || !user) return;
+    draftHandledRef.current = true;
+    (async () => {
+      const cls = draft.classId ? classes.find(c => c.id === draft.classId) : null;
+      const { data, error } = await supabase
+        .from('class_materials')
+        .insert({
+          class_id: draft.classId,
+          teacher_id: user.id,
+          week_number: 1,
+          title: draft.title,
+          content: draft.content,
+          is_published: false,
+        })
+        .select('id')
+        .single();
+      setActiveMaterial({
+        materials: [{ id: error ? '' : data.id, title: draft.title, content: draft.content, week_number: 1 }],
+        classId: draft.classId,
+        className: cls?.name,
+        classSubject: cls?.subject,
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classes, user]);
 
   const fetchPlans = () => {
     if (!user) return;
@@ -415,7 +451,7 @@ const LessonPlanTool = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('classes').select('id, name').eq('teacher_id', user.id).eq('is_archived', false)
+    supabase.from('classes').select('id, name, subject').eq('teacher_id', user.id).eq('is_archived', false)
       .then(({ data }) => setClasses(data || []));
     fetchPlans();
   }, [user?.id]);

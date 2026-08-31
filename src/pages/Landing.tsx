@@ -99,6 +99,19 @@ const features = [
   },
 ];
 
+const copilotAgents = [
+  { name: '나비', en: 'Navi', role: '친절한 내비게이터', desc: '앱 사용법을 무엇이든 물어보세요', avatar: '/agents/navi.jpg' },
+  { name: '레오', en: 'Leo', role: '학급 경영 캡틴', desc: '대화로 학급·학생·조 만들기', avatar: '/agents/leo.jpg' },
+  { name: '스파크', en: 'Spark', role: '영감 메이커', desc: '막연한 수업 아이디어 정리하기', avatar: '/agents/spark.jpg' },
+  { name: '루카스', en: 'Lucas', role: '수업 설계 마스터', desc: '대화로 수업 계획안 만들기', avatar: '/agents/lucas.jpg' },
+  { name: '밀로', en: 'Milo', role: '학습지 아키텍트', desc: '대화로 학습지·유인물 만들기', avatar: '/agents/milo.jpg' },
+  { name: '루나', en: 'Luna', role: '비주얼 프레젠터', desc: '대화로 슬라이드 만들기', avatar: '/agents/luna.jpg' },
+  { name: '피코', en: 'Pico', role: '퀴즈 챌린저', desc: '대화로 퀴즈 문항 만들기', avatar: '/agents/pico.jpg' },
+  { name: '소피', en: 'Sophie', role: '피드백 컨설턴트', desc: '대화로 설문 만들기', avatar: '/agents/sophie.jpg' },
+  { name: '올리버', en: 'Oliver', role: '관찰 데이터 탐정', desc: '관찰 기록 속 패턴·특이사항 찾기', avatar: '/agents/oliver.jpg' },
+  { name: '클레어', en: 'Claire', role: '생기부 문장가', desc: '요청 한 마디로 세특 초안 작성', avatar: '/agents/claire.jpg' },
+];
+
 const teachingTools = [
   { icon: Shuffle, title: '랜덤 조 뽑기', desc: '애니메이션과 함께 랜덤 조 편성', badge: '무료', image: '/screenshots/tools/group-picker.png' },
   { icon: Timer, title: '수업 타이머', desc: '전체화면 발표 모드 · 플로팅 버튼', badge: '무료', image: '/screenshots/tools/timer.png' },
@@ -780,6 +793,49 @@ const Landing = () => {
               </button>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ── AI 코파일럿 ── */}
+      <section className="py-20 bg-writer-obsidian">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <Eyebrow dark>🤖 AI 코파일럿</Eyebrow>
+            <h2 className="text-3xl font-black mb-3 text-white">10명의 AI 동료가 <span className="text-writer-orchid">함께 일합니다</span></h2>
+            <p className="text-white/60 text-base">각자 전문 분야를 가진 AI 캐릭터와 대화하듯 요청하면, 결과물까지 바로 만들어 드려요</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-10">
+            {copilotAgents.map(({ name, en, role, desc, avatar }, i) => (
+              <motion.div
+                key={name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.05 }}
+                className="bg-white/5 rounded-[14px] p-5 border border-white/10 hover:border-writer-orchid/50 transition-colors text-center"
+              >
+                <img
+                  src={avatar}
+                  alt={`${name} 캐릭터`}
+                  className="w-16 h-16 rounded-full object-cover mx-auto mb-3 ring-2 ring-white/10"
+                  loading="lazy"
+                />
+                <p className="text-white font-black text-sm">{name} <span className="text-white/40 font-medium text-xs">{en}</span></p>
+                <p className="text-writer-orchid text-[11px] font-bold mt-0.5 mb-1.5">{role}</p>
+                <p className="text-white/50 text-[11px] leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+          <div className="text-center">
+            <button
+              onClick={() => navigate('/ai-copilot')}
+              className={`${btnAccent} px-6 py-3 text-sm`}
+            >
+              <MessageCircle size={16} strokeWidth={2.5} />
+              AI 코파일럿과 대화하기
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
       </section>
 

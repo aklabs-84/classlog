@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users, BookOpen } from 'lucide-react';
+import { Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users, BookOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
@@ -29,6 +29,13 @@ const GROUP_CREATE_MARKER = '[[GROUP_CREATE]]';
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
 const FREE_SLIDE_DECK_LIMIT = 1;
 const FREE_SURVEY_LIMIT = 1;
+
+// 페르소나 아바타 이미지 로드 실패 시(파일 누락/CDN 오류 등) 깨진 이미지 아이콘 대신 보여줄 기본 이미지
+const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23E5E7EB'/%3E%3Ccircle cx='20' cy='16' r='6' fill='%239CA3AF'/%3E%3Cpath d='M8 33c1.5-7 6.5-11 12-11s10.5 4 12 11' fill='%239CA3AF'/%3E%3C/svg%3E";
+const handleAvatarError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  e.currentTarget.onerror = null;
+  e.currentTarget.src = FALLBACK_AVATAR;
+};
 
 // 사용법 가이드 탭의 그라운딩 데이터 — TeachingTools.tsx/Pricing.tsx의 실제 화면 데이터를 그대로 재사용해
 // 가이드 답변이 실제 앱 상태와 어긋나지 않도록 한다(직접 설명 문구를 새로 쓰지 않음).
@@ -159,6 +166,11 @@ type CopilotModeId = 'lesson_plan' | 'observation_analyst' | 'seatuk_writer' | '
 
 type CopilotModeConfig = {
   tabLabel: string;
+  personaName: string;
+  personaEnglishName: string;
+  personaRole: string;
+  personaAvatar: string;
+  themeColor: string;
   heroTitle: string;
   heroSubtitle: string;
   chatHeaderTitle: string;
@@ -182,11 +194,87 @@ type CopilotModeConfig = {
 };
 
 const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
+  app_guide: {
+    tabLabel: '사용법 가이드',
+    personaName: '나비',
+    personaEnglishName: 'Navi',
+    personaRole: '친절한 내비게이터',
+    personaAvatar: '/agents/navi.jpg',
+    themeColor: '#0284c7',
+    heroTitle: '나비 · 사용법 가이드',
+    heroSubtitle: '이 앱을 어떻게 쓰는지 무엇이든 물어보세요. 클래스 생성 방법부터 수업 도구 사용법, 요금제, 지금 내 AI 사용량까지 안내해 드려요.',
+    chatHeaderTitle: '나비 · 사용법 가이드',
+    chatHeaderSubtitle: '앱 사용법에 대해 무엇이든 물어보세요',
+    emptyTitle: '무엇이 궁금하신가요?',
+    emptyBody: '예: "클래스는 어떻게 만들어?", "지금 내 AI 사용량이 얼마나 남았어?", "Basic이랑 Pro 뭐가 달라?" 처럼 편하게 물어보세요.',
+    inputPlaceholder: '앱 사용법에 대해 궁금한 점을 물어보세요...',
+    showDraftActions: false,
+    showReferenceSearch: false,
+    quickStarts: [
+      '클래스는 어떻게 만들어?',
+      '지금 내 AI 사용량이 얼마나 남았어?',
+      '수업 도구에는 어떤 기능이 있어?',
+      'Basic이랑 Pro 플랜 차이가 뭐야?',
+    ],
+  },
+  class_manager: {
+    tabLabel: '학급 관리',
+    personaName: '레오',
+    personaEnglishName: 'Leo',
+    personaRole: '학급 경영 캡틴',
+    personaAvatar: '/agents/leo.jpg',
+    themeColor: '#0f766e',
+    heroTitle: '레오 · 학급 관리 비서',
+    heroSubtitle: '대화만으로 학급을 만들고, 학생을 추가하고, 조를 나눠 자동으로 배치할 수 있어요. 세부 설정은 확정 후 기존 화면에서 마무리해요.',
+    chatHeaderTitle: '레오 · 학급 관리 비서',
+    chatHeaderSubtitle: '대화로 학급/학생/조 만들기',
+    emptyTitle: '어떤 학급 작업을 도와드릴까요?',
+    emptyBody: '예: "3학년 2반 담임 학급 만들어줘", "1번 김민준, 2번 이서연 학생 추가해줘", "조 4개 만들고 자동으로 배치해줘" 처럼 편하게 말씀해 주세요.',
+    inputPlaceholder: '학급/학생/조 관련 요청을 편하게 이야기해 보세요...',
+    showDraftActions: false,
+    showReferenceSearch: false,
+    showClassManagerAction: true,
+    quickStarts: [
+      '3학년 2반 담임 학급 만들어줘',
+      '1번 김민준, 2번 이서연, 3번 박지후 학생 추가해줘',
+      '학생 4명씩 6개 모둠으로 자동 편성해줘',
+      '학급 자치 규칙 5가지 추천해줘',
+    ],
+  },
+  idea_brainstorm: {
+    tabLabel: '아이디어 기획',
+    personaName: '스파크',
+    personaEnglishName: 'Spark',
+    personaRole: '영감 메이커',
+    personaAvatar: '/agents/spark.jpg',
+    themeColor: '#9333ea',
+    heroTitle: '스파크 · 아이디어 정리가',
+    heroSubtitle: '막연한 수업 아이디어를 편하게 이야기해 보세요. 정리되면 아이디어 기록으로 보내드려요, 거기서 더 구체적인 질문으로 이어서 수업 기획안까지 발전시킬 수 있어요.',
+    chatHeaderTitle: '스파크 · 아이디어 정리가',
+    chatHeaderSubtitle: '대화로 아이디어 정리하기',
+    emptyTitle: '어떤 아이디어를 떠올리셨나요?',
+    emptyBody: '예: "다음 주에 모둠별로 뭔가 발표하는 활동을 해보고 싶어" 처럼 편하게 말씀해 주세요.',
+    inputPlaceholder: '떠오른 수업 아이디어를 편하게 이야기해 보세요...',
+    showDraftActions: false,
+    showReferenceSearch: false,
+    showIdeaAction: true,
+    quickStarts: [
+      '중2 과학 광합성 모둠 실험 및 참여형 활동 아이디어 3가지',
+      '수학 일차함수 실생활 연계 프로젝트 수업 아이디어',
+      '학생 참여도를 높이는 토론 수업 주제 추천해줘',
+      '학기 초 학생들과 친해지는 10분 아이스브레이킹 게임',
+    ],
+  },
   lesson_plan: {
-    tabLabel: '🧭 수업 기획',
-    heroTitle: '수업 기획 전문가',
+    tabLabel: '수업 기획',
+    personaName: '루카스',
+    personaEnglishName: 'Lucas',
+    personaRole: '수업 설계 마스터',
+    personaAvatar: '/agents/lucas.jpg',
+    themeColor: '#059669',
+    heroTitle: '루카스 · 수업 기획 전문가',
     heroSubtitle: '동료 교사와 대화하듯 편하게 수업 아이디어를 이야기해 보세요. 필요한 것만 되물으며 계획안 초안까지 함께 만들어 드립니다.',
-    chatHeaderTitle: 'AI 코파일럿 · 수업 기획 전문가',
+    chatHeaderTitle: '루카스 · 수업 기획 전문가',
     chatHeaderSubtitle: '대화로 수업 계획안 만들기',
     emptyTitle: '어떤 수업을 준비하고 계신가요?',
     emptyBody: '예: "중학교 2학년 과학, 광합성 수업 하나 짜줘" 처럼 편하게 말씀해 주세요.',
@@ -195,53 +283,23 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showReferenceSearch: true,
     showMaterialImport: true,
     draftMarker: DRAFT_MARKER,
-  },
-  observation_analyst: {
-    tabLabel: '👀 관찰기록 분석',
-    heroTitle: '관찰기록 분석가',
-    heroSubtitle: '쌓아온 관찰 기록을 함께 들여다보며 특이사항과 패턴을 찾아 드립니다. 기록에 근거해서만 답변해요.',
-    chatHeaderTitle: 'AI 코파일럿 · 관찰기록 분석가',
-    chatHeaderSubtitle: '기록 기반으로만 답변해요',
-    emptyTitle: '관찰 기록에 대해 물어보세요',
-    emptyBody: '이번 주 특이사항, 참여도 변화, 기록이 뜸한 학생 등을 물어볼 수 있어요.',
-    inputPlaceholder: '관찰기록에 대해 궁금한 점을 물어보세요...',
-    showDraftActions: false,
-    showReferenceSearch: false,
-    quickStarts: ['이번 주 특이사항 요약해줘', '관찰기록이 뜸한 학생 있어?', '학생별 참여도 변화 비교해줘'],
-    showTranscriptTrigger: true,
-  },
-  seatuk_writer: {
-    tabLabel: '✍️ 세특 작성',
-    heroTitle: '세특 작성가',
-    heroSubtitle: '학생을 고르고 요청하면 초안을 만들어 드려요. 채팅에는 결과 요약만 보여드리고, 실제 문구는 AI 초안 페이지에서 확인·다듬을 수 있어요.',
-    chatHeaderTitle: 'AI 코파일럿 · 세특 작성가',
-    chatHeaderSubtitle: '요청하면 AI 초안 페이지에 저장돼요',
-    emptyTitle: '학생을 선택하고 요청해 보세요',
-    emptyBody: '위에서 학생을 고르고, 참고할 지침이 있다면 적은 뒤 전송해 주세요. 지침은 비워둬도 괜찮아요.',
-    inputPlaceholder: '참고할 지침이 있다면 적어주세요 (선택)',
-    showDraftActions: false,
-    showReferenceSearch: false,
-    showStudentPicker: true,
-  },
-  slide_deck_maker: {
-    tabLabel: '🖼 슬라이드 제작',
-    heroTitle: '슬라이드 제작가',
-    heroSubtitle: '만들고 싶은 슬라이드의 내용을 편하게 이야기해 보세요. 내용이 정리되면 디자인을 골라 바로 슬라이드로 만들어 드립니다.',
-    chatHeaderTitle: 'AI 코파일럿 · 슬라이드 제작가',
-    chatHeaderSubtitle: '대화로 슬라이드 만들기',
-    emptyTitle: '어떤 슬라이드를 만들고 싶으신가요?',
-    emptyBody: '예: "중학교 2학년 과학, 광합성 관련 5장짜리 슬라이드 만들어줘" 처럼 편하게 말씀해 주세요.',
-    inputPlaceholder: '슬라이드에 담고 싶은 내용을 편하게 이야기해 보세요...',
-    showDraftActions: false,
-    showReferenceSearch: true,
-    showTemplatePicker: true,
-    showMaterialImport: true,
+    quickStarts: [
+      '중2 과학 광합성 단원 50분 차시 수업 계획안 짜줘',
+      '고1 통합사회 인권 단원 참여형 교수학습 과정안',
+      '학생 주도적 탐구 활동이 들어간 2차시 블록수업안',
+      '스마트 기기를 활용한 디지털 기반 참여형 수업 지도안',
+    ],
   },
   material_maker: {
-    tabLabel: '📄 자료 제작',
-    heroTitle: '자료 제작가',
+    tabLabel: '자료 제작',
+    personaName: '밀로',
+    personaEnglishName: 'Milo',
+    personaRole: '학습지 아키텍트',
+    personaAvatar: '/agents/milo.jpg',
+    themeColor: '#d97706',
+    heroTitle: '밀로 · 자료 제작가',
     heroSubtitle: '학생에게 나눠줄 학습지·유인물을 편하게 이야기해 보세요. 내용이 정리되면 자료함으로 바로 저장하거나 표지 이미지 아이디어도 받을 수 있어요.',
-    chatHeaderTitle: 'AI 코파일럿 · 자료 제작가',
+    chatHeaderTitle: '밀로 · 자료 제작가',
     chatHeaderSubtitle: '대화로 학습지 만들기',
     emptyTitle: '어떤 자료를 만들고 싶으신가요?',
     emptyBody: '예: "중학교 2학년 과학, 광합성 관련 학습지 만들어줘" 처럼 편하게 말씀해 주세요.',
@@ -251,12 +309,48 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showMaterialImport: true,
     draftMarker: MATERIAL_DRAFT_MARKER,
     showCoverPromptAction: true,
+    quickStarts: [
+      '중2 과학 광합성 모둠 탐구 실험 활동지 만들어줘',
+      '수업 마무리용 빈칸 채우기 핵심 정리 학습지',
+      '초등 5학년 역사 삼국통일 사건 흐름도 유인물',
+      '자기주도 문제 해결을 위한 단계별 가이드 학습지',
+    ],
+  },
+  slide_deck_maker: {
+    tabLabel: '슬라이드 제작',
+    personaName: '루나',
+    personaEnglishName: 'Luna',
+    personaRole: '비주얼 프레젠터',
+    personaAvatar: '/agents/luna.jpg',
+    themeColor: '#ea580c',
+    heroTitle: '루나 · 슬라이드 제작가',
+    heroSubtitle: '만들고 싶은 슬라이드의 내용을 편하게 이야기해 보세요. 내용이 정리되면 디자인을 골라 바로 슬라이드로 만들어 드립니다.',
+    chatHeaderTitle: '루나 · 슬라이드 제작가',
+    chatHeaderSubtitle: '대화로 슬라이드 만들기',
+    emptyTitle: '어떤 슬라이드를 만들고 싶으신가요?',
+    emptyBody: '예: "중학교 2학년 과학, 광합성 관련 5장짜리 슬라이드 만들어줘" 처럼 편하게 말씀해 주세요.',
+    inputPlaceholder: '슬라이드에 담고 싶은 내용을 편하게 이야기해 보세요...',
+    showDraftActions: false,
+    showReferenceSearch: true,
+    showTemplatePicker: true,
+    showMaterialImport: true,
+    quickStarts: [
+      '중2 과학 광합성 핵심 개념 설명 5장 슬라이드',
+      '학기 초 첫 시간 오리엔테이션 및 수업 규칙 4장',
+      '모둠 활동 방법 및 유의사항 안내 3장 슬라이드',
+      '수업 도입용 흥미 유발 질문과 퀴즈 4장 슬라이드',
+    ],
   },
   quiz_maker: {
-    tabLabel: '✅ 퀴즈 제작',
-    heroTitle: '퀴즈 제작가',
+    tabLabel: '퀴즈 제작',
+    personaName: '피코',
+    personaEnglishName: 'Pico',
+    personaRole: '퀴즈 챌린저',
+    personaAvatar: '/agents/pico.jpg',
+    themeColor: '#dc2626',
+    heroTitle: '피코 · 퀴즈 제작가',
     heroSubtitle: '어떤 내용으로, 몇 문항을, 어떤 난이도로 퀴즈를 낼지 편하게 이야기해 보세요. 사양이 정해지면 실제 퀴즈 문항까지 만들어 드립니다.',
-    chatHeaderTitle: 'AI 코파일럿 · 퀴즈 제작가',
+    chatHeaderTitle: '피코 · 퀴즈 제작가',
     chatHeaderSubtitle: '대화로 퀴즈 만들기',
     emptyTitle: '어떤 퀴즈를 만들고 싶으신가요?',
     emptyBody: '예: "중학교 2학년 과학, 광합성 관련 5문항 퀴즈 만들어줘" 처럼 편하게 말씀해 주세요.',
@@ -265,12 +359,23 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showReferenceSearch: true,
     showQuizAction: true,
     showMaterialImport: true,
+    quickStarts: [
+      '중2 과학 광합성 단원 4지선다 객관식 5문항',
+      '수업 직후 3분 형성평가용 O/X 퀴즈 5문항',
+      '상/중/하 난이도별 서술형 및 단답형 퀴즈 3문항',
+      '모둠 대항전 골든벨용 재미있는 퀴즈 5문항',
+    ],
   },
   survey_maker: {
-    tabLabel: '📊 설문 제작',
-    heroTitle: '설문 제작가',
+    tabLabel: '설문 제작',
+    personaName: '소피',
+    personaEnglishName: 'Sophie',
+    personaRole: '피드백 컨설턴트',
+    personaAvatar: '/agents/sophie.jpg',
+    themeColor: '#4338ca',
+    heroTitle: '소피 · 설문 제작가',
     heroSubtitle: '어떤 목적으로, 몇 문항짜리 설문을 만들지 편하게 이야기해 보세요. 사양이 정해지면 다양한 유형의 문항으로 실제 설문까지 만들어 드립니다.',
-    chatHeaderTitle: 'AI 코파일럿 · 설문 제작가',
+    chatHeaderTitle: '소피 · 설문 제작가',
     chatHeaderSubtitle: '대화로 설문 만들기',
     emptyTitle: '어떤 설문을 만들고 싶으신가요?',
     emptyBody: '예: "이번 학기 수업 만족도 조사 5문항 만들어줘" 처럼 편하게 말씀해 주세요.',
@@ -279,52 +384,85 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     showReferenceSearch: true,
     showSurveyAction: true,
     showMaterialImport: true,
+    quickStarts: [
+      '이번 학기 수업 만족도 및 개선점 조사 5문항',
+      '모둠 협동 활동 동료 평가 및 자기성찰 설문 4문항',
+      '학기 초 학생 학습 성향 및 진로 희망 사전 설문',
+      '현장체험학습 사후 만족도 및 소감 조사 5문항',
+    ],
   },
-  idea_brainstorm: {
-    tabLabel: '💡 아이디어 기획',
-    heroTitle: '아이디어 정리가',
-    heroSubtitle: '막연한 수업 아이디어를 편하게 이야기해 보세요. 정리되면 아이디어 기록으로 보내드려요, 거기서 더 구체적인 질문으로 이어서 수업 기획안까지 발전시킬 수 있어요.',
-    chatHeaderTitle: 'AI 코파일럿 · 아이디어 정리가',
-    chatHeaderSubtitle: '대화로 아이디어 정리하기',
-    emptyTitle: '어떤 아이디어를 떠올리셨나요?',
-    emptyBody: '예: "다음 주에 모둠별로 뭔가 발표하는 활동을 해보고 싶어" 처럼 편하게 말씀해 주세요.',
-    inputPlaceholder: '떠오른 수업 아이디어를 편하게 이야기해 보세요...',
+  observation_analyst: {
+    tabLabel: '관찰기록 분석',
+    personaName: '올리버',
+    personaEnglishName: 'Oliver',
+    personaRole: '관찰 데이터 탐정',
+    personaAvatar: '/agents/oliver.jpg',
+    themeColor: '#2563eb',
+    heroTitle: '올리버 · 관찰기록 분석가',
+    heroSubtitle: '쌓아온 관찰 기록을 함께 들여다보며 특이사항과 패턴을 찾아 드립니다. 기록에 근거해서만 답변해요.',
+    chatHeaderTitle: '올리버 · 관찰기록 분석가',
+    chatHeaderSubtitle: '기록 기반으로만 답변해요',
+    emptyTitle: '관찰 기록에 대해 물어보세요',
+    emptyBody: '이번 주 특이사항, 참여도 변화, 기록이 뜸한 학생 등을 물어볼 수 있어요.',
+    inputPlaceholder: '관찰기록에 대해 궁금한 점을 물어보세요...',
     showDraftActions: false,
     showReferenceSearch: false,
-    showIdeaAction: true,
+    showTranscriptTrigger: true,
+    quickStarts: [
+      '이번 주 우리 반 관찰기록 핵심 요약해줘',
+      '최근 한 달간 관찰기록이 뜸한 학생 누구야?',
+      '학생별 수업 참여도 및 발표 태도 변화 비교해줘',
+      '칭찬이나 상담이 필요한 학생 추천해줘',
+    ],
   },
-  class_manager: {
-    tabLabel: '🏫 학급 관리',
-    heroTitle: '학급 관리 비서',
-    heroSubtitle: '대화만으로 학급을 만들고, 학생을 추가하고, 조를 나눠 자동으로 배치할 수 있어요. 세부 설정은 확정 후 기존 화면에서 마무리해요.',
-    chatHeaderTitle: 'AI 코파일럿 · 학급 관리 비서',
-    chatHeaderSubtitle: '대화로 학급/학생/조 만들기',
-    emptyTitle: '무엇을 만들어 드릴까요?',
-    emptyBody: '예: "3학년 2반 담임 학급 만들어줘", "1번 김민준, 2번 이서연 학생 추가해줘", "조 4개 만들고 자동으로 배치해줘" 처럼 편하게 말씀해 주세요.',
-    inputPlaceholder: '학급/학생/조 관련 요청을 편하게 이야기해 보세요...',
+  seatuk_writer: {
+    tabLabel: '세특 작성',
+    personaName: '클레어',
+    personaEnglishName: 'Claire',
+    personaRole: '생기부 문장가',
+    personaAvatar: '/agents/claire.jpg',
+    themeColor: '#7c3aed',
+    heroTitle: '클레어 · 세특 작성가',
+    heroSubtitle: '학생을 고르고 요청하면 초안을 만들어 드려요. 채팅에는 결과 요약만 보여드리고, 실제 문구는 AI 초안 페이지에서 확인·다듬을 수 있어요.',
+    chatHeaderTitle: '클레어 · 세특 작성가',
+    chatHeaderSubtitle: '요청하면 AI 초안 페이지에 저장돼요',
+    emptyTitle: '학생을 선택하고 요청해 보세요',
+    emptyBody: '위에서 학생을 고르고, 참고할 지침이 있다면 적은 뒤 전송해 주세요. 지침은 비워둬도 괜찮아요.',
+    inputPlaceholder: '참고할 지침이 있다면 적어주세요 (선택)',
     showDraftActions: false,
     showReferenceSearch: false,
-    showClassManagerAction: true,
-  },
-  app_guide: {
-    tabLabel: '❓ 사용법 가이드',
-    heroTitle: '사용법 가이드',
-    heroSubtitle: '이 앱을 어떻게 쓰는지 무엇이든 물어보세요. 클래스 생성 방법부터 수업 도구 사용법, 요금제, 지금 내 AI 사용량까지 안내해 드려요.',
-    chatHeaderTitle: 'AI 코파일럿 · 사용법 가이드',
-    chatHeaderSubtitle: '앱 사용법에 대해 무엇이든 물어보세요',
-    emptyTitle: '무엇이 궁금하신가요?',
-    emptyBody: '예: "클래스는 어떻게 만들어?", "지금 내 AI 사용량이 얼마나 남았어?", "Basic이랑 Pro 뭐가 달라?" 처럼 편하게 물어보세요.',
-    inputPlaceholder: '앱 사용법에 대해 궁금한 점을 물어보세요...',
-    showDraftActions: false,
-    showReferenceSearch: false,
-    quickStarts: ['클래스는 어떻게 만들어?', '지금 내 AI 사용량이 얼마나 남았어?', 'Basic이랑 Pro 플랜 차이가 뭐야?', '수업 도구에는 뭐가 있어?'],
+    showStudentPicker: true,
+    quickStarts: [
+      '선택한 학생들의 관찰기록 기반 세특 초안 작성해줘',
+      '학생의 주도성과 협동심을 돋보이게 하는 문장으로 다듬어줘',
+    ],
   },
 };
 
-const COPILOT_MODE_IDS = Object.keys(COPILOT_MODES) as CopilotModeId[];
+// 교사의 실제 업무 사이클 기준 10개 탭 순서
+const COPILOT_MODE_IDS: CopilotModeId[] = [
+  'app_guide',
+  'class_manager',
+  'idea_brainstorm',
+  'lesson_plan',
+  'material_maker',
+  'slide_deck_maker',
+  'quiz_maker',
+  'survey_maker',
+  'observation_analyst',
+  'seatuk_writer',
+];
+
+type AgentCategory = 'all' | 'start' | 'plan_material' | 'eval_activity';
+
+const AGENT_CATEGORIES: { key: AgentCategory; label: string; icon: string; modeIds: CopilotModeId[] }[] = [
+  { key: 'all', label: '전체 보기 (10)', icon: '🌟', modeIds: COPILOT_MODE_IDS },
+  { key: 'start', label: '🚀 시작 & 학급 (2)', icon: '🚀', modeIds: ['app_guide', 'class_manager'] },
+  { key: 'plan_material', label: '🧭 기획 & 자료 (4)', icon: '🧭', modeIds: ['idea_brainstorm', 'lesson_plan', 'material_maker', 'slide_deck_maker'] },
+  { key: 'eval_activity', label: '🎯 참여 & 평가 (4)', icon: '🎯', modeIds: ['quiz_maker', 'survey_maker', 'observation_analyst', 'seatuk_writer'] },
+];
 
 // 탭 간 "이어가기" — 한 탭에서 확정된 초안을 다음 탭의 참고자료로 넘길 수 있는 자연스러운 조합만 선별.
-// 관찰기록 분석·세특 작성·학급 관리는 구조가 달라 체인에서 제외.
 const HANDOFF_TARGETS: Partial<Record<CopilotModeId, CopilotModeId[]>> = {
   idea_brainstorm: ['lesson_plan', 'material_maker', 'slide_deck_maker', 'quiz_maker', 'survey_maker'],
   lesson_plan: ['slide_deck_maker', 'material_maker', 'quiz_maker', 'survey_maker'],
@@ -336,18 +474,20 @@ const AiCopilot = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
-  const [activeMode, setActiveMode] = useState<CopilotModeId>('lesson_plan');
+  const [activeMode, setActiveMode] = useState<CopilotModeId>('app_guide');
+  const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('all');
+  const [guideModalOpen, setGuideModalOpen] = useState(false);
   const [messagesByMode, setMessagesByMode] = useState<Record<CopilotModeId, CopilotMessage[]>>({
+    app_guide: [],
+    class_manager: [],
+    idea_brainstorm: [],
     lesson_plan: [],
-    observation_analyst: [],
-    seatuk_writer: [],
-    slide_deck_maker: [],
     material_maker: [],
+    slide_deck_maker: [],
     quiz_maker: [],
     survey_maker: [],
-    idea_brainstorm: [],
-    class_manager: [],
-    app_guide: [],
+    observation_analyst: [],
+    seatuk_writer: [],
   });
   const messages = messagesByMode[activeMode];
 
@@ -1676,25 +1816,42 @@ ${session.transcript_text}
   const modeConfig = COPILOT_MODES[activeMode];
 
   const chatPanel = (
-      <div className={isFullscreen ? 'fixed inset-0 z-[9999] flex flex-col bg-white' : 'flex flex-col rounded-[2rem] border border-surface-container bg-white shadow-ambient overflow-hidden h-[70vh]'}>
-        <div className="px-6 py-4 border-b border-surface-container flex items-center justify-between gap-4 bg-surface/50 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 text-primary rounded-2xl flex items-center justify-center">
-              <Bot size={20} />
+      <div className={isFullscreen
+        ? 'fixed inset-0 z-[9999] flex flex-col bg-white h-[100dvh] w-full overflow-hidden'
+        : 'flex flex-col rounded-[1.75rem] sm:rounded-[2rem] border border-surface-container bg-white shadow-ambient overflow-hidden h-[74vh] sm:h-[72vh]'
+      }>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-container flex items-center justify-between gap-2 sm:gap-4 bg-surface/50 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="relative shrink-0">
+              <img
+                src={modeConfig.personaAvatar}
+                onError={handleAvatarError}
+                alt={modeConfig.personaName}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl object-cover border-2 border-white shadow-md shadow-primary/10"
+              />
+              <span
+                className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-white"
+                style={{ backgroundColor: modeConfig.themeColor }}
+              />
             </div>
-            <div>
-              <p className="text-sm font-black text-on-surface">{modeConfig.chatHeaderTitle}</p>
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{modeConfig.chatHeaderSubtitle}</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-xs sm:text-sm font-black text-on-surface truncate">{modeConfig.personaName} · {modeConfig.tabLabel}</p>
+                <span className="hidden sm:inline-block px-2 py-0.5 text-[9px] font-black rounded-full text-white shrink-0" style={{ backgroundColor: modeConfig.themeColor }}>
+                  {modeConfig.personaRole}
+                </span>
+              </div>
+              <p className="text-[9px] sm:text-[10px] font-bold text-on-surface-variant uppercase tracking-wider truncate">{modeConfig.chatHeaderSubtitle}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {classes.length > 0 && (
               <select
                 value={selectedClassId}
                 onChange={e => setSelectedClassId(e.target.value)}
-                className="text-xs font-bold bg-surface-container-low border border-surface-container rounded-xl px-3 py-2 text-on-surface focus:outline-none"
+                className="text-[11px] sm:text-xs font-bold bg-surface-container-low border border-surface-container rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-on-surface focus:outline-none max-w-[95px] sm:max-w-[160px] truncate"
               >
-                <option value="">클래스 선택 안 함</option>
+                <option value="">(전체 학급)</option>
                 {classes.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -1703,7 +1860,7 @@ ${session.transcript_text}
             <button
               type="button"
               onClick={() => setIsFullscreen(v => !v)}
-              className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors"
+              className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors shrink-0"
               aria-label={isFullscreen ? '전체화면 닫기' : '전체화면으로 보기'}
               title={isFullscreen ? '전체화면 닫기' : '전체화면으로 보기'}
             >
@@ -1713,38 +1870,38 @@ ${session.transcript_text}
         </div>
 
         {modeConfig.showStudentPicker && (
-          <div className="px-5 py-3 border-b border-surface-container bg-surface/40 shrink-0 space-y-2">
+          <div className="px-4 sm:px-5 py-2.5 sm:py-3 border-b border-surface-container bg-surface/40 shrink-0 space-y-2">
             {!selectedClassId ? (
               <p className="text-[11px] font-bold text-primary/70">먼저 클래스를 선택해 주세요</p>
             ) : seatukStudents.length === 0 ? (
               <p className="text-[11px] font-bold text-on-surface-variant">이 클래스에 등록된 학생이 없어요</p>
             ) : (
               <>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => setSeatukSelectedIds(seatukStudents.map(s => s.id))}
-                    className="px-3 py-1.5 bg-white border border-surface-container rounded-lg text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-surface-container rounded-lg text-[10px] sm:text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
                   >
                     전체선택
                   </button>
                   <button
                     type="button"
                     onClick={() => setSeatukSelectedIds(seatukStudents.filter(s => s.hasObservation).map(s => s.id))}
-                    className="px-3 py-1.5 bg-white border border-surface-container rounded-lg text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-surface-container rounded-lg text-[10px] sm:text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
                   >
-                    관찰기록 있는 학생만
+                    기록있는 학생만
                   </button>
                   <button
                     type="button"
                     onClick={() => setSeatukSelectedIds(seatukStudents.filter(s => s.hasObservation && !s.alreadyDraft).map(s => s.id))}
-                    className="px-3 py-1.5 bg-white border border-surface-container rounded-lg text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white border border-surface-container rounded-lg text-[10px] sm:text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
                   >
                     미작성만
                   </button>
-                  <span className="ml-auto text-[11px] font-bold text-on-surface-variant">{seatukSelectedIds.length}명 선택됨</span>
+                  <span className="ml-auto text-[10px] sm:text-[11px] font-bold text-on-surface-variant">{seatukSelectedIds.length}명 선택됨</span>
                 </div>
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                <div className="flex flex-wrap gap-1.5 max-h-20 sm:max-h-24 overflow-y-auto custom-scrollbar">
                   {seatukStudents.map(s => {
                     const checked = seatukSelectedIds.includes(s.id);
                     return (
@@ -1752,11 +1909,11 @@ ${session.transcript_text}
                         key={s.id}
                         type="button"
                         onClick={() => toggleSeatukStudent(s.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black border transition-colors ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-[10px] sm:text-[11px] font-black border transition-colors ${
                           checked ? 'bg-primary text-white border-primary' : 'bg-white text-on-surface-variant border-surface-container hover:border-primary/40'
                         } ${!s.hasObservation ? 'opacity-40' : ''}`}
                       >
-                        {checked && <Check size={12} />}
+                        {checked && <Check size={11} />}
                         {s.full_name}
                         {s.alreadyDraft && <span className="opacity-70">·초안</span>}
                       </button>
@@ -1768,33 +1925,84 @@ ${session.transcript_text}
           </div>
         )}
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 bg-surface/30">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar space-y-4 sm:space-y-6 bg-surface/30">
           {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center space-y-4 text-center">
-              <div className="w-16 h-16 bg-primary/10 text-primary rounded-3xl flex items-center justify-center">
-                <Bot size={32} />
+            <div className="h-full flex flex-col items-center justify-center space-y-3.5 sm:space-y-4 text-center py-4">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="relative"
+              >
+                <img
+                  src={modeConfig.personaAvatar}
+                  onError={handleAvatarError}
+                  alt={modeConfig.personaName}
+                  className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-3xl object-cover shadow-2xl border-4 border-white mx-auto ring-4 ring-primary/10"
+                />
+                <span
+                  className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black text-white shadow-md whitespace-nowrap"
+                  style={{ backgroundColor: modeConfig.themeColor }}
+                >
+                  {modeConfig.personaName} · {modeConfig.personaRole}
+                </span>
+              </motion.div>
+              <div className="space-y-1 pt-1">
+                <p className="text-base sm:text-lg font-black text-on-surface">{modeConfig.emptyTitle}</p>
+                <p className="text-xs font-bold text-on-surface-variant max-w-sm leading-relaxed mx-auto px-2">
+                  {modeConfig.emptyBody}
+                </p>
               </div>
-              <p className="text-lg font-black text-on-surface">{modeConfig.emptyTitle}</p>
-              <p className="text-xs font-bold text-on-surface-variant max-w-sm leading-relaxed">
-                {modeConfig.emptyBody}
-              </p>
+
+              {/* Zero-Class State Onboarding Banner for class-dependent tabs */}
+              {classes.length === 0 && (activeMode === 'observation_analyst' || activeMode === 'seatuk_writer') && (
+                <div className="max-w-md w-full mx-auto p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-white shrink-0 flex items-center justify-center font-black text-sm">
+                    🏫
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <p className="text-xs font-black text-amber-900">등록된 학급이 아직 없으신가요?</p>
+                    <p className="text-[11px] font-bold text-amber-800/80 leading-relaxed">
+                      관찰기록 분석이나 세특 작성은 학급과 학생이 등록되어 있어야 해요. <strong>학급 관리 비서 레오</strong>에게 말 한마디로 30초 만에 학급을 만들어 보세요!
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('class_manager')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-xl text-[11px] font-black hover:bg-amber-700 transition-colors shadow-sm mt-1"
+                    >
+                      <ArrowRight size={12} />
+                      레오에게 학급 만들러 가기
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Zero-Class Hint for general creation tabs */}
+              {classes.length === 0 && (activeMode === 'lesson_plan' || activeMode === 'material_maker' || activeMode === 'slide_deck_maker' || activeMode === 'quiz_maker' || activeMode === 'survey_maker') && (
+                <div className="px-3.5 py-1.5 rounded-xl bg-primary/5 border border-primary/10 text-[11px] font-bold text-primary max-w-md mx-auto">
+                  💡 학급을 선택하지 않아도 자유롭게 질문하고 계획안·자료를 만드실 수 있어요!
+                </div>
+              )}
+
+              {/* Recommended Prompts (QuickStarts) */}
               {modeConfig.quickStarts && (
-                selectedClassId ? (
-                  <div className="flex flex-wrap justify-center gap-2 pt-2 max-w-md">
+                <div className="space-y-2 pt-1 max-w-lg w-full">
+                  <p className="text-[10px] sm:text-[11px] font-black text-on-surface-variant/70 uppercase tracking-wider">
+                    💡 추천 질문을 눌러 바로 시작해 보세요
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
                     {modeConfig.quickStarts.map(q => (
                       <button
                         key={q}
                         type="button"
                         onClick={() => setInput(q)}
-                        className="px-4 py-2 bg-white border border-surface-container rounded-xl text-xs font-bold text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors"
+                        className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white border border-surface-container rounded-2xl text-[11px] sm:text-xs font-bold text-on-surface hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all shadow-sm active:scale-95 text-left"
                       >
-                        {q}
+                        💬 {q}
                       </button>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-[11px] font-bold text-primary/70">먼저 클래스를 선택해 주세요</p>
-                )
+                </div>
               )}
             </div>
           )}
@@ -1834,39 +2042,48 @@ ${session.transcript_text}
                   key={m.id}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
+                  className={`flex gap-2.5 sm:gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
                 >
-                  <div className={`w-10 h-10 rounded-2xl shrink-0 flex items-center justify-center border-2 ${m.role === 'user' ? 'bg-surface-container-high border-white text-on-surface' : 'bg-primary text-white border-primary/20 shadow-lg shadow-primary/20'}`}>
-                    {m.role === 'user' ? <User size={18} /> : <Bot size={18} />}
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-2xl shrink-0 overflow-hidden border-2 flex items-center justify-center ${m.role === 'user' ? 'bg-surface-container-high border-white text-on-surface' : 'border-white shadow-md'}`}>
+                    {m.role === 'user' ? (
+                      <User size={16} />
+                    ) : (
+                      <img
+                        src={modeConfig.personaAvatar}
+                        onError={handleAvatarError}
+                        alt={modeConfig.personaName}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                   </div>
-                  <div className={`max-w-[85%] p-5 rounded-[1.75rem] text-sm font-bold leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-white rounded-tr-none text-on-surface' : 'bg-white border border-surface-container rounded-tl-none'}`}>
+                  <div className={`max-w-[90%] sm:max-w-[85%] p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[1.75rem] text-xs sm:text-sm font-bold leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-white rounded-tr-none text-on-surface' : 'bg-white border border-surface-container rounded-tl-none'}`}>
                     <div className="prose prose-sm prose-stone max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatMdComponents}>{normalizeMarkdown(displayText)}</ReactMarkdown>
                     </div>
                     {isDraft && (
-                      <div className="mt-4 pt-4 border-t border-surface-container flex flex-wrap gap-2">
+                      <div className="mt-4 pt-3 border-t border-surface-container flex flex-wrap gap-2">
                         <button
                           onClick={() => handleSaveDraft('material-editor', stripDraftPreamble(displayText))}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
                         >
-                          <FolderPlus size={16} />
+                          <FolderPlus size={14} />
                           자료함에 저장
                         </button>
                         <button
                           onClick={() => handleSaveDraft('slide-deck', stripDraftPreamble(displayText))}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-surface-container-high text-on-surface rounded-xl text-xs font-black hover:bg-surface-container transition-all active:scale-95"
                         >
-                          <Presentation size={16} />
+                          <Presentation size={14} />
                           슬라이드로 만들기
                         </button>
                         {modeConfig.showCoverPromptAction && (
                           <button
                             onClick={() => handleGenerateCoverPrompts(extractDraftTitle(displayText))}
                             disabled={loading}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-surface-container-high text-on-surface rounded-xl text-xs font-black hover:bg-surface-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <ImageIcon size={16} />
-                            표지 이미지 아이디어 받기
+                            <ImageIcon size={14} />
+                            표지 아이디어
                           </button>
                         )}
                       </div>
@@ -1874,18 +2091,18 @@ ${session.transcript_text}
                     {isSlideDraft && (() => {
                       const { flatTemplates, groups } = getSlideTemplateGroups();
                       return (
-                        <div className="mt-4 pt-4 border-t border-surface-container">
-                          <p className="text-[11px] font-bold text-on-surface-variant mb-3">디자인을 골라주세요</p>
-                          <div className="grid grid-cols-2 gap-2">
+                        <div className="mt-4 pt-3 border-t border-surface-container">
+                          <p className="text-[11px] font-bold text-on-surface-variant mb-2.5">디자인을 골라주세요</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {flatTemplates.map(t => (
                               <button
                                 key={t.id}
                                 type="button"
                                 disabled={loading}
                                 onClick={() => handleGenerateSlideDeck(t.id, stripDraftPreamble(displayText), extractDraftTitle(displayText))}
-                                className="flex items-center gap-2 px-3 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                                className="flex items-center gap-2 px-3 py-2 bg-surface-container-high text-on-surface rounded-xl text-xs font-black hover:bg-surface-container transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
                               >
-                                <span className="w-5 h-5 rounded-full shrink-0 border border-surface-container" style={{ background: t.swatch }} />
+                                <span className="w-4 h-4 rounded-full shrink-0 border border-surface-container" style={{ background: t.swatch }} />
                                 <span className="truncate">{t.name}</span>
                               </button>
                             ))}
@@ -1931,73 +2148,73 @@ ${session.transcript_text}
                       );
                     })()}
                     {isQuizDraft && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => handleGenerateQuiz(extractDraftTitle(displayText), displayText)}
                           disabled={loading}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ListChecks size={16} />
+                          <ListChecks size={14} />
                           퀴즈 만들기
                         </button>
                       </div>
                     )}
                     {isSurveyDraft && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => handleGenerateSurvey(extractDraftTitle(displayText), displayText)}
                           disabled={loading}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ListChecks size={16} />
+                          <ListChecks size={14} />
                           설문 만들기
                         </button>
                       </div>
                     )}
                     {isIdeaDraft && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => handleGenerateIdeaHandoff(extractDraftTitle(displayText), stripDraftPreamble(displayText))}
                           disabled={loading}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Lightbulb size={16} />
+                          <Lightbulb size={14} />
                           아이디어 기록하기
                         </button>
                       </div>
                     )}
                     {isClassCreateDraft && classCreatePayload?.payload && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => handleCreateClassAction(classCreatePayload.payload!)}
                           disabled={loading}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <FolderPlus size={16} />
+                          <FolderPlus size={14} />
                           이대로 학급 만들기
                         </button>
                       </div>
                     )}
                     {isStudentAddDraft && studentAddPayload?.payload && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => handleAddStudentsAction(studentAddPayload.payload!)}
                           disabled={loading}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <User size={16} />
+                          <User size={14} />
                           이대로 학생 추가하기
                         </button>
                       </div>
                     )}
                     {isGroupCreateDraft && groupCreatePayload?.payload && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => handleCreateGroupsAction(groupCreatePayload.payload!)}
                           disabled={loading}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Users size={16} />
+                          <Users size={14} />
                           이대로 조 만들기
                         </button>
                       </div>
@@ -2009,29 +2226,31 @@ ${session.transcript_text}
                       const handoffTitle = extractDraftTitle(displayText);
                       const handoffContent = stripDraftPreamble(displayText);
                       return (
-                        <div className="mt-4 pt-4 border-t border-surface-container flex flex-wrap gap-2 items-center">
-                          <span className="w-full text-[11px] font-bold text-on-surface-variant">이 내용으로 이어서 만들기</span>
-                          {targets.map(t => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => handleContinueInTab(t, handoffTitle, handoffContent)}
-                              className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-high text-on-surface rounded-2xl text-xs font-black hover:bg-surface-container transition-all active:scale-95"
-                            >
-                              <ArrowRight size={16} />
-                              {COPILOT_MODES[t].tabLabel}
-                            </button>
-                          ))}
+                        <div className="mt-4 pt-3 border-t border-surface-container flex flex-wrap gap-1.5 sm:gap-2 items-center">
+                          <span className="w-full text-[10px] sm:text-[11px] font-bold text-on-surface-variant">이 내용으로 이어서 만들기</span>
+                          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto custom-scrollbar pb-1 w-full">
+                            {targets.map(t => (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => handleContinueInTab(t, handoffTitle, handoffContent)}
+                                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-surface-container-high text-on-surface rounded-xl text-[11px] sm:text-xs font-black hover:bg-surface-container transition-all active:scale-95"
+                              >
+                                <ArrowRight size={13} />
+                                {COPILOT_MODES[t].tabLabel}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       );
                     })()}
                     {m.meta?.navigateTo && (
-                      <div className="mt-4 pt-4 border-t border-surface-container">
+                      <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
                           onClick={() => navigate(m.meta!.navigateTo, m.meta!.state ? { state: m.meta!.state } : undefined)}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-2xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
                         >
-                          <ArrowRight size={16} />
+                          <ArrowRight size={14} />
                           {activeMode === 'slide_deck_maker' ? '슬라이드 보러 가기' : activeMode === 'quiz_maker' ? '퀴즈 보러 가기' : activeMode === 'survey_maker' ? '설문 보러 가기' : activeMode === 'observation_analyst' ? '분석 결과 보러 가기' : activeMode === 'idea_brainstorm' ? '아이디어 보러 가기' : activeMode === 'class_manager' ? (m.meta?.state?.openClassSettingsId ? '학급 설정 마무리하기' : '학급으로 가기') : 'AI 초안 페이지로 이동'}
                         </button>
                       </div>
@@ -2043,9 +2262,19 @@ ${session.transcript_text}
           </AnimatePresence>
 
           {loading && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20"><Loader2 size={18} className="animate-spin" /></div>
-              <div className="p-5 rounded-[1.75rem] rounded-tl-none bg-white shadow-sm border border-surface-container flex items-center gap-3">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-2.5 sm:gap-3">
+              <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-2xl shrink-0 overflow-hidden border-2 border-white shadow-md">
+                <img
+                  src={modeConfig.personaAvatar}
+                  onError={handleAvatarError}
+                  alt={modeConfig.personaName}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <Loader2 size={14} className="animate-spin text-white" />
+                </div>
+              </div>
+              <div className="p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[1.75rem] rounded-tl-none bg-white shadow-sm border border-surface-container flex items-center gap-3">
                 {activeMode === 'seatuk_writer' && seatukProgress.total > 0 ? (
                   <span className="text-xs font-bold text-on-surface-variant">{seatukProgress.current}/{seatukProgress.total}명 생성 중...</span>
                 ) : (
@@ -2061,69 +2290,61 @@ ${session.transcript_text}
         </div>
 
         {modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0 || modeConfig.showMaterialImport) && (
-        <div className="px-5 pt-4 border-t border-surface-container-high bg-neutral-50 shrink-0 space-y-2">
-          {modeConfig.showMaterialImport && (
-            <div className="flex flex-wrap gap-2">
+        <div className="px-4 sm:px-5 py-2.5 border-t border-surface-container-high bg-neutral-50 shrink-0 space-y-1.5">
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5">
+            {modeConfig.showMaterialImport && (
               <button
                 type="button"
                 onClick={() => setShowMaterialImportModal(true)}
-                className="flex items-center gap-1.5 pl-3 pr-3 py-1.5 bg-white border border-dashed border-primary/40 rounded-xl text-[11px] font-black text-primary hover:bg-primary/5 transition-colors"
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-dashed border-primary/40 rounded-xl text-[11px] font-black text-primary hover:bg-primary/5 transition-colors"
               >
                 <BookOpen size={12} />
-                학급 자료에서 불러오기
+                학급 자료 불러오기
               </button>
-            </div>
-          )}
-          {loadedReferences.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {loadedReferences.map(r => (
-                <span key={r.id} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-primary/10 text-primary rounded-xl text-[11px] font-black">
-                  <Paperclip size={12} />
-                  {r.title}
-                  <button
-                    type="button"
-                    onClick={() => setLoadedReferences(prev => prev.filter(x => x.id !== r.id))}
-                    className="p-0.5 hover:bg-primary/20 rounded-full transition-colors"
-                    aria-label="참고자료 해제"
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          {referenceSuggestions.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {referenceSuggestions.map(r => (
+            )}
+            {loadedReferences.map(r => (
+              <span key={r.id} className="shrink-0 flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 bg-primary/10 text-primary rounded-xl text-[11px] font-black">
+                <Paperclip size={12} />
+                <span className="max-w-[120px] truncate">{r.title}</span>
                 <button
-                  key={r.id}
                   type="button"
-                  onClick={() => handleLoadReference(r)}
-                  disabled={loadingReferenceId === r.id}
-                  className="flex items-center gap-1.5 pl-3 pr-3 py-1.5 bg-white border border-surface-container rounded-xl text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
+                  onClick={() => setLoadedReferences(prev => prev.filter(x => x.id !== r.id))}
+                  className="p-0.5 hover:bg-primary/20 rounded-full transition-colors"
+                  aria-label="참고자료 해제"
                 >
-                  {loadingReferenceId === r.id ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
-                  <span className="text-primary/70">[{SOURCE_TYPE_LABEL[r.source_type]}]</span> {r.title}
+                  <X size={11} />
                 </button>
-              ))}
-            </div>
-          )}
+              </span>
+            ))}
+            {referenceSuggestions.map(r => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => handleLoadReference(r)}
+                disabled={loadingReferenceId === r.id}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-container rounded-xl text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {loadingReferenceId === r.id ? <Loader2 size={11} className="animate-spin" /> : <Paperclip size={11} />}
+                <span className="text-primary/70">[{SOURCE_TYPE_LABEL[r.source_type]}]</span> <span className="max-w-[100px] truncate">{r.title}</span>
+              </button>
+            ))}
+          </div>
         </div>
         )}
 
         {modeConfig.showTranscriptTrigger && pendingTranscripts.length > 0 && (
-        <div className="px-5 pt-4 border-t border-surface-container-high bg-neutral-50 shrink-0 space-y-2">
-          <p className="text-[11px] font-black text-on-surface-variant/60">분석 대기 중인 전사록</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="px-4 sm:px-5 py-2.5 border-t border-surface-container-high bg-neutral-50 shrink-0 space-y-1.5">
+          <p className="text-[10px] sm:text-[11px] font-black text-on-surface-variant/60">분석 대기 중인 전사록</p>
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5">
             {pendingTranscripts.map(t => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => handleAnalyzeTranscript(t)}
                 disabled={loading}
-                className="flex items-center gap-1.5 pl-3 pr-3 py-1.5 bg-white border border-surface-container rounded-xl text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-container rounded-xl text-[11px] font-black text-on-surface-variant hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
               >
-                {analyzingTranscriptId === t.id ? <Loader2 size={12} className="animate-spin" /> : <Paperclip size={12} />}
+                {analyzingTranscriptId === t.id ? <Loader2 size={11} className="animate-spin" /> : <Paperclip size={11} />}
                 {formatTranscriptChipLabel(t.recorded_at, t.duration_seconds)} 분석하기
               </button>
             ))}
@@ -2131,11 +2352,11 @@ ${session.transcript_text}
         </div>
         )}
 
-        <div className={`p-5 shrink-0 bg-neutral-50 ${modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0) ? 'pt-3' : 'border-t border-surface-container-high'}`}>
+        <div className={`p-3.5 sm:p-5 shrink-0 bg-neutral-50 ${modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0) ? 'pt-2' : 'border-t border-surface-container-high'}`}>
           <form
             ref={formRef}
             onSubmit={activeMode === 'seatuk_writer' ? handleSeatukGenerate : handleSend}
-            className="flex items-end gap-3 bg-white rounded-[1.75rem] border-2 border-transparent focus-within:border-primary/20 shadow-md pl-5 pr-2 py-2"
+            className="flex items-end gap-2 sm:gap-3 bg-white rounded-[1.5rem] sm:rounded-[1.75rem] border-2 border-transparent focus-within:border-primary/20 shadow-md pl-4 sm:pl-5 pr-1.5 sm:pr-2 py-1.5 sm:py-2"
           >
             <textarea
               ref={inputRef}
@@ -2149,48 +2370,231 @@ ${session.transcript_text}
               }}
               placeholder={modeConfig.inputPlaceholder}
               rows={1}
-              className="flex-1 py-3 bg-transparent text-sm font-black focus:outline-none placeholder:text-neutral-400 resize-none max-h-[200px] overflow-y-auto custom-scrollbar leading-relaxed"
+              className="flex-1 py-2.5 sm:py-3 bg-transparent text-xs sm:text-sm font-black focus:outline-none placeholder:text-neutral-400 resize-none max-h-[160px] sm:max-h-[200px] overflow-y-auto custom-scrollbar leading-relaxed"
             />
             <button
               type="submit"
               disabled={activeMode === 'seatuk_writer' ? (seatukSelectedIds.length === 0 || loading) : (!input.trim() || loading)}
-              className="p-3.5 bg-primary text-white rounded-2xl shadow hover:shadow-primary/40 transition-all disabled:opacity-20 disabled:pointer-events-none active:scale-95 shrink-0"
+              className="p-2.5 sm:p-3.5 bg-primary text-white rounded-xl sm:rounded-2xl shadow hover:shadow-primary/40 transition-all disabled:opacity-20 disabled:pointer-events-none active:scale-90 shrink-0"
             >
-              <Send size={18} />
+              <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </form>
         </div>
       </div>
     );
 
+  const displayedModeIds = selectedCategory === 'all'
+    ? COPILOT_MODE_IDS
+    : (AGENT_CATEGORIES.find(c => c.key === selectedCategory)?.modeIds || COPILOT_MODE_IDS);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="px-2">
-        <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">AI 코파일럿 · 파일럿</p>
-        <h1 className="text-xl md:text-4xl font-extrabold font-manrope mb-4">{modeConfig.heroTitle}</h1>
-        <p className="text-on-surface-variant text-base max-w-2xl leading-relaxed">
-          {modeConfig.heroSubtitle}
-        </p>
+      {/* 2026 Modern Bento Hero Profile Card */}
+      <div className="relative overflow-hidden rounded-[2rem] border border-surface-container bg-gradient-to-br from-white via-surface/40 to-surface-container-low p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative z-10">
+          <div className="flex items-center gap-4 md:gap-6 flex-1 min-w-0">
+            <motion.div
+              key={activeMode}
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+              className="relative shrink-0"
+            >
+              <img
+                src={modeConfig.personaAvatar}
+                onError={handleAvatarError}
+                alt={modeConfig.personaName}
+                className="w-16 h-16 md:w-24 md:h-24 rounded-3xl object-cover shadow-xl border-4 border-white ring-4 ring-primary/10"
+              />
+              <span
+                className="absolute -bottom-2 -right-2 px-2.5 py-0.5 rounded-full text-[10px] font-black text-white shadow-md border-2 border-white"
+                style={{ backgroundColor: modeConfig.themeColor }}
+              >
+                {modeConfig.personaEnglishName}
+              </span>
+            </motion.div>
+
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-primary font-black text-xs uppercase tracking-widest">
+                  AI 전문 에이전트 10인 라인업
+                </span>
+                <span
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-black text-white shadow-sm"
+                  style={{ backgroundColor: modeConfig.themeColor }}
+                >
+                  {modeConfig.personaRole}
+                </span>
+              </div>
+              <h1 className="text-xl md:text-3xl font-extrabold text-on-surface font-manrope flex flex-wrap items-center gap-2">
+                <span>{modeConfig.personaName}</span>
+                <span className="text-sm font-bold text-on-surface-variant/70">· {modeConfig.heroTitle}</span>
+              </h1>
+              <p className="text-on-surface-variant text-xs md:text-sm max-w-2xl leading-relaxed font-bold">
+                {modeConfig.heroSubtitle}
+              </p>
+            </div>
+          </div>
+
+          {/* Guide Modal Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setGuideModalOpen(true)}
+            className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-primary/30 text-primary hover:bg-primary hover:text-white rounded-2xl text-xs font-black transition-all shadow-sm active:scale-95"
+          >
+            <Lightbulb size={16} />
+            <span>어떤 에이전트를 써야 할까요?</span>
+          </button>
+        </div>
+
+        {/* Subtle decorative background glow */}
+        <div
+          className="absolute -top-12 -right-12 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none"
+          style={{ backgroundColor: modeConfig.themeColor }}
+        />
       </div>
 
-      <div className="flex items-center gap-2 px-2 overflow-x-auto custom-scrollbar">
-        {COPILOT_MODE_IDS.map(id => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveMode(id)}
-            className={`shrink-0 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[11px] md:text-xs font-black transition-all ${
-              activeMode === id
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
-            }`}
-          >
-            {COPILOT_MODES[id].tabLabel}
-          </button>
-        ))}
+      {/* Category Filter & Agent Tab Bar */}
+      <div className="space-y-3 px-1">
+        {/* Category Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
+          {AGENT_CATEGORIES.map(cat => {
+            const isCatActive = selectedCategory === cat.key;
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setSelectedCategory(cat.key)}
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                  isCatActive
+                    ? 'bg-neutral-900 text-white shadow-sm'
+                    : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Agent Selector Tab Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar py-1">
+          {displayedModeIds.map(id => {
+            const mode = COPILOT_MODES[id];
+            const isActive = activeMode === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveMode(id)}
+                className={`shrink-0 flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-2xl text-[11px] md:text-xs font-black transition-all ${
+                  isActive
+                    ? 'bg-primary text-white shadow-md shadow-primary/20 scale-[1.02]'
+                    : 'bg-white border border-surface-container text-on-surface-variant hover:border-primary/40 hover:text-primary shadow-sm'
+                }`}
+              >
+                <img
+                  src={mode.personaAvatar}
+                  onError={handleAvatarError}
+                  alt={mode.personaName}
+                  className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/60"
+                />
+                <span>{mode.tabLabel}</span>
+                <span className={`text-[10px] font-bold ${isActive ? 'opacity-80' : 'text-on-surface-variant/50'}`}>
+                  {mode.personaName}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {isFullscreen ? createPortal(chatPanel, document.body) : chatPanel}
+
+      {/* 10 Agent Guide Tour Modal */}
+      {guideModalOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2rem] max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-surface-container"
+          >
+            <div className="p-6 border-b border-surface-container flex items-center justify-between bg-surface/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black">
+                  🧭
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-on-surface">10인 AI 코파일럿 에이전트 가이드</h2>
+                  <p className="text-xs font-bold text-on-surface-variant">선생님의 상황에 딱 맞는 전담 에이전트를 선택해 보세요</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGuideModalOpen(false)}
+                className="p-2 text-on-surface-variant hover:text-on-surface rounded-xl hover:bg-surface-container"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+              {AGENT_CATEGORIES.filter(c => c.key !== 'all').map(cat => (
+                <div key={cat.key} className="space-y-3">
+                  <h3 className="text-xs font-black text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <span>{cat.icon}</span> {cat.label}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {cat.modeIds.map(id => {
+                      const agent = COPILOT_MODES[id];
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => {
+                            setActiveMode(id);
+                            setGuideModalOpen(false);
+                          }}
+                          className="flex items-start gap-3.5 p-4 rounded-2xl border border-surface-container hover:border-primary/50 hover:bg-primary/5 text-left transition-all group"
+                        >
+                          <img
+                            src={agent.personaAvatar}
+                            onError={handleAvatarError}
+                            alt={agent.personaName}
+                            className="w-12 h-12 rounded-2xl object-cover shrink-0 border-2 border-white shadow-md group-hover:scale-105 transition-transform"
+                          />
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-on-surface">{agent.personaName} · {agent.tabLabel}</span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: agent.themeColor }}>
+                                {agent.personaRole}
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-bold text-on-surface-variant line-clamp-2 leading-relaxed">
+                              {agent.heroSubtitle}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-surface-container bg-neutral-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setGuideModalOpen(false)}
+                className="px-5 py-2.5 bg-neutral-900 text-white rounded-xl text-xs font-black hover:bg-neutral-800 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} reason={upgradeReason} />
       {showMaterialImportModal && user?.id && (

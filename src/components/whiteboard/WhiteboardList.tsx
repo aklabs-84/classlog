@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil } from 'lucide-react';
+import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil, Archive, ArchiveRestore } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -24,6 +24,7 @@ interface BoardMeta {
   class_id?: string;
   class_name?: string;
   is_public: boolean;
+  archived_at?: string | null;
 }
 
 interface ClassInfo {
@@ -42,6 +43,7 @@ const NO_CLASS_TAB = '__noclass__';
 
 const BASIC_BOARD_LIMIT = 3;
 const FREE_BOARD_LIMIT = 1;
+const STALE_DAYS = 90;
 
 export default function WhiteboardList() {
   const { user, profile } = useAuth();
@@ -67,6 +69,8 @@ export default function WhiteboardList() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingGroupSizeClassId, setEditingGroupSizeClassId] = useState<string | null>(null);
   const [groupSizeInput, setGroupSizeInput] = useState<string>('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   const loadBoards = useCallback(async () => {
     if (!user) return;
@@ -74,7 +78,7 @@ export default function WhiteboardList() {
 
     const { data } = await supabase
       .from('whiteboards')
-      .select('id, title, template, group_name, updated_at, snapshot_url, class_id, is_public')
+      .select('id, title, template, group_name, updated_at, snapshot_url, class_id, is_public, archived_at')
       .eq('created_by', user.id)
       .order('updated_at', { ascending: false });
 
@@ -163,10 +167,36 @@ export default function WhiteboardList() {
 
   const handleDeleteConfirm = async (id: string) => {
     setDeletingId(id);
+
+    // 보드에 포함된 이미지가 Storage에 고아 파일로 남지 않도록 함께 삭제
+    const { data: imageObjects } = await supabase
+      .from('board_objects')
+      .select('content')
+      .eq('board_id', id)
+      .eq('type', 'image');
+    const imagePaths = (imageObjects ?? [])
+      .map(o => (o.content as { url?: string } | null)?.url)
+      .filter((url): url is string => !!url)
+      .map(url => url.split('/').pop())
+      .filter((name): name is string => !!name);
+    if (imagePaths.length > 0) {
+      await supabase.storage.from('whiteboard-images').remove(imagePaths);
+    }
+
     await supabase.from('whiteboards').delete().eq('id', id);
     setBoards(prev => prev.filter(b => b.id !== id));
     setConfirmId(null);
     setDeletingId(null);
+    setHoveredId(null);
+  };
+
+  // 오래된 보드 보관/복원 — archived_at 설정 시 기본 목록에서 숨기고 보관함 탭에서만 노출
+  const handleArchiveToggle = async (id: string, archive: boolean) => {
+    setArchivingId(id);
+    const archived_at = archive ? new Date().toISOString() : null;
+    await supabase.from('whiteboards').update({ archived_at }).eq('id', id);
+    setBoards(prev => prev.map(b => b.id === id ? { ...b, archived_at } : b));
+    setArchivingId(null);
     setHoveredId(null);
   };
 
@@ -332,11 +362,15 @@ export default function WhiteboardList() {
   const classesWithBoards = classInfos.filter(c => boards.some(b => b.class_id === c.id));
   const hasNoClassBoards = boards.some(b => !b.class_id);
 
-  const filteredBoards = selectedClassId === ALL_TAB
+  const archivedCount = boards.filter(b => !!b.archived_at).length;
+
+  const classScopedBoards = selectedClassId === ALL_TAB
     ? boards
     : selectedClassId === NO_CLASS_TAB
       ? boards.filter(b => !b.class_id)
       : boards.filter(b => b.class_id === selectedClassId);
+
+  const filteredBoards = classScopedBoards.filter(b => showArchived ? !!b.archived_at : !b.archived_at);
 
   const selectedClass = selectedClassId !== ALL_TAB && selectedClassId !== NO_CLASS_TAB
     ? classInfos.find(c => c.id === selectedClassId)
@@ -636,6 +670,24 @@ export default function WhiteboardList() {
         </div>
       )}
 
+      {/* 보관함 토글 */}
+      {(showArchived || archivedCount > 0) && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <button
+            onClick={() => setShowArchived(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8,
+              border: `1px solid ${showArchived ? '#93C5FD' : '#E5E7EB'}`,
+              background: showArchived ? '#EFF6FF' : '#fff',
+              color: showArchived ? '#1D4ED8' : '#6B7280',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            {showArchived ? <><ArchiveRestore size={12} /> 보관함 닫기</> : <><Archive size={12} /> 보관함 ({archivedCount})</>}
+          </button>
+        </div>
+      )}
+
       {/* 보드 그리드 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
 
@@ -665,6 +717,7 @@ export default function WhiteboardList() {
             const isDisconnectingThis = disconnecting === board.id;
             const isConnected = !!board.class_id;
             const isSharing = board.is_public && !!board.class_id && !!classSessions[board.class_id];
+            const isStale = (Date.now() - new Date(board.updated_at).getTime()) / 86_400_000 > STALE_DAYS;
 
             return (
               <motion.div
@@ -718,6 +771,16 @@ export default function WhiteboardList() {
                   {/* 날짜 + 태그 */}
                   <div style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                     <Clock size={10} /> {formatDate(board.updated_at)}
+                    {isStale && !showArchived && (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleArchiveToggle(board.id, true); }}
+                        disabled={archivingId === board.id}
+                        title={`${STALE_DAYS}일 이상 수정되지 않았어요 — 클릭하면 보관함으로 이동합니다`}
+                        style={{ background: '#FEF2F2', color: '#DC2626', border: 'none', borderRadius: 4, padding: '1px 5px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer', opacity: archivingId === board.id ? 0.6 : 1 }}
+                      >
+                        <AlertTriangle size={8} /> {archivingId === board.id ? '보관 중...' : '오래된 보드 · 보관하기'}
+                      </button>
+                    )}
                     {board.group_name && (
                       <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 4, padding: '1px 5px', fontSize: 10 }}>
                         {board.group_name}
@@ -778,6 +841,17 @@ export default function WhiteboardList() {
                       </button>
                     )}
 
+                    {/* 보관된 보드 복원 */}
+                    {board.archived_at && (
+                      <button
+                        onClick={() => handleArchiveToggle(board.id, false)}
+                        disabled={archivingId === board.id}
+                        style={{ background: '#1E3A5F', border: 'none', borderRadius: 5, padding: '3px 7px', color: '#93C5FD', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2, opacity: archivingId === board.id ? 0.6 : 1 }}
+                      >
+                        <ArchiveRestore size={9} /> {archivingId === board.id ? '...' : '복원'}
+                      </button>
+                    )}
+
                     {/* 삭제 */}
                     <button
                       onClick={() => setConfirmId(board.id)}
@@ -820,11 +894,13 @@ export default function WhiteboardList() {
       {/* 빈 상태 */}
       {filteredBoards.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '32px 0', color: '#9CA3AF', fontSize: 13 }}>
-          {selectedClassId === NO_CLASS_TAB
-            ? '클래스에 연결되지 않은 보드가 없습니다.'
-            : selectedClass
-              ? `${selectedClass.name} 클래스에 보드가 없습니다. '조별 보드 만들기'로 생성해보세요.`
-              : '아직 만든 보드가 없습니다.'}
+          {showArchived
+            ? '보관된 보드가 없습니다.'
+            : selectedClassId === NO_CLASS_TAB
+              ? '클래스에 연결되지 않은 보드가 없습니다.'
+              : selectedClass
+                ? `${selectedClass.name} 클래스에 보드가 없습니다. '조별 보드 만들기'로 생성해보세요.`
+                : '아직 만든 보드가 없습니다.'}
         </div>
       )}
 
