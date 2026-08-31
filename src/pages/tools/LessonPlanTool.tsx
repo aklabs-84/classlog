@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import type { LessonPlanSections } from '../../lib/gemini';
+import type { LessonPlanConfig, LessonPlanSections } from '../../lib/gemini';
+import { generateLessonPlanSections } from '../../lib/gemini';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../../lib/lessonPlanExport';
 import { LessonPlanModal, LessonPlanSectionsEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
-  Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save,
+  Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save, RotateCcw,
 } from 'lucide-react';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
@@ -29,14 +30,14 @@ const formatDate = (iso: string) => {
 
 interface PickerMaterial { id: string; title: string; content: string; week_number: number; is_published: boolean; }
 
-// ── 새 계획서 만들기 — 클래스/자료 선택 모달 ─────────────────────────────────
+// ── 새 계획서 만들기 — 클래스/자료 선택 모달 (여러 자료를 묶어서 선택 가능) ──────
 const MaterialPickerModal = ({
   userId,
   onPick,
   onClose,
 }: {
   userId: string;
-  onPick: (material: LessonPlanSourceMaterial, classId: string | null, classSubject?: string, className?: string) => void;
+  onPick: (materials: LessonPlanSourceMaterial[], classId: string | null, classSubject?: string, className?: string) => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<'class' | 'material'>('class');
@@ -45,6 +46,7 @@ const MaterialPickerModal = ({
   const [isLibrary, setIsLibrary] = useState(false);
   const [materials, setMaterials] = useState<PickerMaterial[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     supabase
@@ -63,6 +65,7 @@ const MaterialPickerModal = ({
       : supabase.from('class_materials').select('id, title, content, week_number, is_published').is('class_id', null).eq('teacher_id', userId).order('created_at', { ascending: false });
     const { data } = await query;
     setMaterials((data || []) as PickerMaterial[]);
+    setSelectedIds([]);
     setLoading(false);
     setStep('material');
   };
@@ -70,13 +73,14 @@ const MaterialPickerModal = ({
   const handleSelectClass = (cls: any) => { setSelectedClass(cls); setIsLibrary(false); loadMaterials(cls.id); };
   const handleSelectLibrary = () => { setSelectedClass(null); setIsLibrary(true); loadMaterials(null); };
 
-  const handleSelectMaterial = (m: PickerMaterial) => {
-    onPick(
-      { id: m.id, title: m.title, content: m.content ?? '', week_number: m.week_number ?? 1 },
-      selectedClass?.id ?? null,
-      selectedClass?.subject,
-      selectedClass?.name,
-    );
+  const toggleId = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const handleConfirm = () => {
+    const picked = materials
+      .filter(m => selectedIds.includes(m.id))
+      .map(m => ({ id: m.id, title: m.title, content: m.content ?? '', week_number: m.week_number ?? 1 }));
+    if (picked.length === 0) return;
+    onPick(picked, selectedClass?.id ?? null, selectedClass?.subject, selectedClass?.name);
     onClose();
   };
 
@@ -86,7 +90,7 @@ const MaterialPickerModal = ({
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           {step === 'material' && (
             <button
-              onClick={() => { setStep('class'); setSelectedClass(null); setIsLibrary(false); setMaterials([]); }}
+              onClick={() => { setStep('class'); setSelectedClass(null); setIsLibrary(false); setMaterials([]); setSelectedIds([]); }}
               className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
             >
               <ArrowLeft size={16} />
@@ -97,7 +101,7 @@ const MaterialPickerModal = ({
               {step === 'class' ? '계획서를 만들 자료 선택' : isLibrary ? '공통 자료함' : selectedClass?.name}
             </p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {step === 'class' ? '자료가 저장된 클래스나 공통 자료함을 선택하세요' : '계획서로 만들 자료를 선택하세요'}
+              {step === 'class' ? '자료가 저장된 클래스나 공통 자료함을 선택하세요' : '계획서로 묶을 자료를 하나 이상 선택하세요'}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
@@ -144,25 +148,42 @@ const MaterialPickerModal = ({
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              {materials.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => handleSelectMaterial(m)}
-                  className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl hover:bg-primary/5 border border-transparent hover:border-primary/20 transition-all group"
-                >
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${m.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container text-on-surface-variant'}`}>
-                    <BookOpen size={15} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-on-surface truncate">{m.week_number}주차 · {m.title}</p>
-                    {m.content && <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-1 opacity-60">{m.content.slice(0, 60)}…</p>}
-                  </div>
-                  <ChevronRight size={14} className="text-on-surface-variant group-hover:text-primary transition-colors shrink-0" />
-                </button>
-              ))}
+              {materials.map(m => {
+                const checked = selectedIds.includes(m.id);
+                return (
+                  <label
+                    key={m.id}
+                    className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border transition-all cursor-pointer ${
+                      checked ? 'bg-primary/5 border-primary/30' : 'border-transparent hover:bg-surface-container-low hover:border-primary/10'
+                    }`}
+                  >
+                    <input type="checkbox" checked={checked} onChange={() => toggleId(m.id)} className="accent-primary shrink-0" />
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${m.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container text-on-surface-variant'}`}>
+                      <BookOpen size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-on-surface truncate">{m.week_number}주차 · {m.title}</p>
+                      {m.content && <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-1 opacity-60">{m.content.slice(0, 60)}…</p>}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>
+
+        {step === 'material' && materials.length > 0 && (
+          <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
+            <p className="text-xs font-bold text-on-surface-variant flex-1">{selectedIds.length}개 선택됨</p>
+            <button
+              onClick={handleConfirm}
+              disabled={selectedIds.length === 0}
+              className="flex items-center gap-2 px-5 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              선택 완료
+            </button>
+          </div>
+        )}
       </div>
     </div>,
     document.body
@@ -187,9 +208,52 @@ const SavedPlanViewModal = ({
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<LessonPlanSections>(plan.sections);
   const [editSnapshot, setEditSnapshot] = useState<LessonPlanSections | null>(null);
+  const [showRegenerateInput, setShowRegenerateInput] = useState(false);
+  const [regenerateInstruction, setRegenerateInstruction] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
 
   const startEditing = () => { setEditSnapshot(sections); setEditing(true); };
   const cancelEditing = () => { if (editSnapshot) setSections(editSnapshot); setEditing(false); };
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      const [{ data: materialsData, error: materialsError }, classRow] = await Promise.all([
+        supabase
+          .from('class_materials')
+          .select('title, content, week_number')
+          .in('id', plan.material_ids),
+        plan.class_id
+          ? supabase.from('classes').select('name, subject').eq('id', plan.class_id).single().then(r => r.data)
+          : Promise.resolve(null),
+      ]);
+      if (materialsError) throw materialsError;
+      const materials = (materialsData || []).map(m => ({ title: m.title, content: m.content, weekNumber: m.week_number }));
+      const config: LessonPlanConfig = {
+        purpose: plan.purpose,
+        materialIds: plan.material_ids,
+        hasEvaluation: Boolean(sections.assessment?.trim()),
+        evaluationMethod: sections.assessment?.trim() || undefined,
+        includeStandards: plan.include_standards,
+        customInstruction: regenerateInstruction.trim() || undefined,
+      };
+      const result = await generateLessonPlanSections(materials, config, {
+        subject: classRow?.subject,
+        className: classRow?.name,
+        classId: plan.class_id ?? undefined,
+      });
+      const { error } = await supabase.from('lesson_plans').update({ sections: result }).eq('id', plan.id);
+      if (error) throw error;
+      setSections(result);
+      setShowRegenerateInput(false);
+      setRegenerateInstruction('');
+      onUpdated();
+    } catch (err: any) {
+      window.alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : '재생성 중 오류가 발생했습니다.');
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleSaveEdit = async () => {
     setSaving(true);
@@ -249,6 +313,36 @@ const SavedPlanViewModal = ({
           )}
         </div>
 
+        {!editing && showRegenerateInput && (
+          <div className="px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0 space-y-2">
+            <textarea
+              value={regenerateInstruction}
+              onChange={e => setRegenerateInstruction(e.target.value)}
+              placeholder="원하는 방향을 알려주세요 (예: 좀 더 실습 위주로 / 저학년 눈높이에 맞게 / 협동학습 요소를 강조해줘)"
+              rows={2}
+              autoFocus
+              disabled={regenerating}
+              className="w-full px-3 py-2 bg-white rounded-xl border border-surface-container text-xs resize-none focus:outline-none focus:border-primary/40 disabled:opacity-60"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => { setShowRegenerateInput(false); setRegenerateInstruction(''); }}
+                disabled={regenerating}
+                className="px-3 py-1.5 text-xs font-black text-on-surface-variant hover:bg-surface-container rounded-lg transition-all disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="flex items-center gap-1.5 px-4 py-1.5 btn-gradient rounded-lg font-black text-xs shadow-lg shadow-primary/20 disabled:opacity-60"
+              >
+                {regenerating ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} 지침 반영해서 재생성
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
           {editing ? (
             <>
@@ -274,6 +368,12 @@ const SavedPlanViewModal = ({
                 {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제
               </button>
               <div className="flex-1" />
+              <button
+                onClick={() => setShowRegenerateInput(v => !v)}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                <RotateCcw size={14} /> 다시 생성
+              </button>
               <button onClick={startEditing} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                 <Pencil size={14} /> 내용 수정
               </button>
@@ -299,7 +399,7 @@ const LessonPlanTool = () => {
   const [plans, setPlans] = useState<SavedLessonPlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
-  const [activeMaterial, setActiveMaterial] = useState<{ material: LessonPlanSourceMaterial; classId: string | null; classSubject?: string; className?: string } | null>(null);
+  const [activeMaterial, setActiveMaterial] = useState<{ materials: LessonPlanSourceMaterial[]; classId: string | null; classSubject?: string; className?: string } | null>(null);
   const [viewingPlan, setViewingPlan] = useState<SavedLessonPlan | null>(null);
 
   const fetchPlans = () => {
@@ -370,14 +470,14 @@ const LessonPlanTool = () => {
       {showPicker && (
         <MaterialPickerModal
           userId={user.id}
-          onPick={(material, classId, classSubject, className) => setActiveMaterial({ material, classId, classSubject, className })}
+          onPick={(materials, classId, classSubject, className) => setActiveMaterial({ materials, classId, classSubject, className })}
           onClose={() => setShowPicker(false)}
         />
       )}
 
       {activeMaterial && (
         <LessonPlanModal
-          currentMaterial={activeMaterial.material}
+          materials={activeMaterial.materials}
           classId={activeMaterial.classId}
           classSubject={activeMaterial.classSubject}
           className={activeMaterial.className}

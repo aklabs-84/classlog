@@ -1616,7 +1616,7 @@ const MaterialEditor = () => {
     )}
     {showLessonPlan && editingMaterial && (
       <LessonPlanModal
-        currentMaterial={editingMaterial}
+        materials={[editingMaterial]}
         classId={selectedClass?.id}
         classSubject={selectedClass?.subject}
         className={selectedClass?.name}

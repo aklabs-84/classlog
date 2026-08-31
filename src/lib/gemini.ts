@@ -1509,16 +1509,20 @@ function buildRelatedMaterialsBlock(relatedMaterials: RelatedMaterialRef[]): str
 export async function analyzeIdea(
   content: string,
   classId?: string,
-  relatedMaterials: RelatedMaterialRef[] = []
+  relatedMaterials: RelatedMaterialRef[] = [],
+  customInstruction?: string
 ): Promise<IdeaAnalysisResult> {
   const relatedBlock = buildRelatedMaterialsBlock(relatedMaterials);
+  const instructionBlock = customInstruction?.trim()
+    ? `\n[선생님의 추가 요청사항 — 반드시 최우선으로 반영]\n${customInstruction.trim()}\n`
+    : '';
 
   const prompt = `당신은 선생님이 짧게 적어둔 수업 아이디어 메모를 실제 수업으로 발전시킬 수 있도록 돕는 AI입니다.
 
 [선생님이 기록한 아이디어]
 ${content}
 ${relatedBlock}
-
+${instructionBlock}
 [할 일]
 1. 아이디어의 핵심을 1~2문장으로 요약하세요 (summary).
 2. 이 아이디어를 발전시키기에 가장 적합한 형태를 판단하세요 (suggestedFormat): 순서가 있는 절차/활동 설명이면 "guide", 학생에게 나눠줄 읽기 자료·설명 위주 콘텐츠면 "material", 발표·요약 전달이 목적이면 "slide" 중 하나만 선택.
@@ -1674,6 +1678,7 @@ export interface LessonPlanConfig {
   hasEvaluation: boolean;
   evaluationMethod?: string;
   includeStandards: boolean;
+  customInstruction?: string;
 }
 
 const PURPOSE_TONE_HINT: Record<LessonPlanConfig['purpose'], string> = {
@@ -1714,6 +1719,7 @@ export async function generateLessonPlanSections(
 ${PURPOSE_TONE_HINT[config.purpose]}
 ${config.hasEvaluation ? `평가 방식: ${config.evaluationMethod}` : '평가계획 섹션은 빈 문자열로 둡니다.'}
 ${config.includeStandards ? '2022 개정 교육과정 성취기준과 연계해 standards 필드를 작성합니다.' : 'standards 필드는 생략합니다.'}
+${config.customInstruction ? `[선생님의 추가 요청사항]\n${config.customInstruction}\n위 요청사항을 최대한 반영하되, 아래 스키마 형식과 "원문에 없는 활동을 임의로 추가하지 않는다"는 원칙은 그대로 지킵니다.` : ''}
 원문에 없는 활동을 임의로 추가하지 않습니다. sessionPlans는 자료에 표시된 주차/차시 구성을 참고해 차시별로 나누고, 각 행마다 그 차시에서 진행하는 학습 및 실습 내용을 구체적으로 정리합니다. 아래 스키마를 정확히 따릅니다.
 
 ${LESSON_PLAN_SECTIONS_SCHEMA_HINT}

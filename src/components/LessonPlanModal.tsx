@@ -319,14 +319,14 @@ export interface LessonPlanSourceMaterial {
 }
 
 export const LessonPlanModal = ({
-  currentMaterial,
+  materials: initialMaterials,
   classId,
   classSubject,
   className,
   onClose,
   onSaved,
 }: {
-  currentMaterial: LessonPlanSourceMaterial;
+  materials: LessonPlanSourceMaterial[];
   classId?: string | null;
   classSubject?: string;
   className?: string;
@@ -339,8 +339,9 @@ export const LessonPlanModal = ({
   const [hasEvaluation, setHasEvaluation] = useState(false);
   const [evaluationMethod, setEvaluationMethod] = useState('');
   const [includeStandards, setIncludeStandards] = useState(false);
+  const [customInstruction, setCustomInstruction] = useState('');
   const [otherMaterials, setOtherMaterials] = useState<ClassMaterialLite[]>([]);
-  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>(() => initialMaterials.map(m => m.id));
   const [sections, setSections] = useState<LessonPlanSections | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -350,37 +351,43 @@ export const LessonPlanModal = ({
   const [editSnapshot, setEditSnapshot] = useState<LessonPlanSections | null>(null);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
 
+  const initialIds = initialMaterials.map(m => m.id);
+
   useEffect(() => {
     if (!classId) return;
     supabase
       .from('class_materials')
       .select('id, title, week_number, content')
       .eq('class_id', classId)
-      .neq('id', currentMaterial.id)
       .order('week_number', { ascending: true })
-      .then(({ data }) => { if (data) setOtherMaterials(data as ClassMaterialLite[]); });
-  }, [classId, currentMaterial.id]);
+      .then(({ data }) => { if (data) setOtherMaterials((data as ClassMaterialLite[]).filter(m => !initialIds.includes(m.id))); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classId]);
 
   const toggleMaterial = (id: string) => {
     setSelectedMaterialIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  // 처음 고른 자료(initialMaterials) + 같은 클래스의 다른 자료(otherMaterials)를 합쳐 하나의 후보 목록으로 다룬다.
+  const combinedMaterials: ClassMaterialLite[] = [
+    ...initialMaterials.map(m => ({ id: m.id, title: m.title, week_number: m.week_number, content: m.content })),
+    ...otherMaterials,
+  ];
+
   const runGenerate = async () => {
     setStep('loading');
     setErrorMessage('');
     try {
-      const picked = [
-        { title: currentMaterial.title, content: currentMaterial.content, weekNumber: currentMaterial.week_number },
-        ...otherMaterials
-          .filter(m => selectedMaterialIds.includes(m.id))
-          .map(m => ({ title: m.title, content: m.content, weekNumber: m.week_number })),
-      ];
+      const picked = combinedMaterials
+        .filter(m => selectedMaterialIds.includes(m.id))
+        .map(m => ({ title: m.title, content: m.content, weekNumber: m.week_number }));
       const config: LessonPlanConfig = {
         purpose,
-        materialIds: [currentMaterial.id, ...selectedMaterialIds],
+        materialIds: selectedMaterialIds,
         hasEvaluation,
         evaluationMethod: hasEvaluation ? evaluationMethod : undefined,
         includeStandards,
+        customInstruction: customInstruction.trim() || undefined,
       };
       const result = await generateLessonPlanSections(picked, config, {
         subject: classSubject,
@@ -417,7 +424,7 @@ export const LessonPlanModal = ({
           .insert({
             teacher_id: user.id,
             class_id: classId ?? null,
-            material_ids: [currentMaterial.id, ...selectedMaterialIds],
+            material_ids: selectedMaterialIds,
             purpose,
             include_standards: includeStandards,
             sections,
@@ -508,11 +515,13 @@ export const LessonPlanModal = ({
                 </div>
               </div>
 
-              {otherMaterials.length > 0 && (
+              {combinedMaterials.length > 0 && (
                 <div>
-                  <p className="text-xs font-black text-on-surface-variant mb-1.5">포함할 다른 주차 자료 (선택)</p>
-                  <div className="max-h-32 overflow-y-auto space-y-1 rounded-xl border border-surface-container p-2">
-                    {otherMaterials.map(m => (
+                  <p className="text-xs font-black text-on-surface-variant mb-1.5">
+                    포함할 자료 ({selectedMaterialIds.length}개 선택됨)
+                  </p>
+                  <div className="max-h-40 overflow-y-auto space-y-1 rounded-xl border border-surface-container p-2">
+                    {combinedMaterials.map(m => (
                       <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-container-low cursor-pointer">
                         <input type="checkbox" checked={selectedMaterialIds.includes(m.id)} onChange={() => toggleMaterial(m.id)} className="accent-primary" />
                         <span className="text-xs font-bold text-on-surface truncate">{m.week_number}주차 · {m.title}</span>
@@ -541,6 +550,17 @@ export const LessonPlanModal = ({
                 <input type="checkbox" checked={includeStandards} onChange={e => setIncludeStandards(e.target.checked)} className="accent-primary" />
                 <span className="text-xs font-black text-on-surface-variant">2022 개정 교육과정 성취기준 연계</span>
               </label>
+
+              <div>
+                <p className="text-xs font-black text-on-surface-variant mb-1.5">추가 요청사항 (선택)</p>
+                <textarea
+                  value={customInstruction}
+                  onChange={e => setCustomInstruction(e.target.value)}
+                  placeholder="예: 실습 활동 위주로 작성해줘 / 차시별 내용을 더 구체적으로 / 협동학습 요소를 강조해줘"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-surface-container text-sm resize-none focus:outline-none focus:border-primary/40"
+                />
+              </div>
             </div>
           )}
 
@@ -587,7 +607,8 @@ export const LessonPlanModal = ({
                 <div className="flex-1" />
                 <button
                   onClick={runGenerate}
-                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                  disabled={selectedMaterialIds.length === 0}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   <Sparkles size={15} /> 초안 생성
                 </button>

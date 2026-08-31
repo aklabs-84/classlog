@@ -222,6 +222,9 @@ export default function IdeaRecord() {
   const [analysisRelatedMaterials, setAnalysisRelatedMaterials] = useState<RelatedMaterialRef[]>([]);
   const [creatingMaterialLength, setCreatingMaterialLength] = useState<'simple' | 'detailed' | null>(null);
   const [wizardFormat, setWizardFormat] = useState<'material' | 'slide' | null>(null);
+  // "다시 생성" 시 원하는 방향을 지정할 수 있는 추가 지침 입력용
+  const [showRegenerateInput, setShowRegenerateInput] = useState(false);
+  const [regenerateInstruction, setRegenerateInstruction] = useState('');
 
   // 5단계: 태그 매칭용 — 카드에 "비슷한 자료 있음" 힌트를 보여주기 위해 한 번만 가져와둠
   const [libraryMaterials, setLibraryMaterials] = useState<{ id: string; title: string; content: string }[]>([]);
@@ -549,13 +552,13 @@ export default function IdeaRecord() {
     }
   };
 
-  const runAnalysis = async (note: TeacherNote) => {
+  const runAnalysis = async (note: TeacherNote, customInstruction?: string) => {
     setAnalysisLoading(true);
     setAnalysisError(null);
     try {
       const relatedMaterials = await fetchRelatedMaterials(note);
       setAnalysisRelatedMaterials(relatedMaterials);
-      const result = await analyzeIdea(note.content, note.class_id ?? undefined, relatedMaterials);
+      const result = await analyzeIdea(note.content, note.class_id ?? undefined, relatedMaterials, customInstruction);
       setAnalysisResult(result);
     } catch (err: any) {
       setAnalysisError(err?.message === 'AI_LIMIT_EXCEEDED'
@@ -584,6 +587,8 @@ export default function IdeaRecord() {
     setAnalysisNote(null);
     setAnalysisResult(null);
     setAnalysisError(null);
+    setShowRegenerateInput(false);
+    setRegenerateInstruction('');
   };
 
   // AI 초안(수업 진행 순서)을 노트 본문 뒤에 이어붙여 에디터로 넘길 초안 콘텐츠 생성
@@ -1470,20 +1475,52 @@ export default function IdeaRecord() {
 
                 {analysisResult && !analysisLoading && !analysisError && (
                   <div className="px-6 md:px-10 py-4 border-t border-on-surface/[0.06] shrink-0">
-                    <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => runAnalysis(analysisNote)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-black text-on-surface-variant hover:bg-surface-container rounded-lg transition-all"
-                      >
-                        <RefreshCw size={12} /> 다시 생성
-                      </button>
-                      <button
-                        onClick={handleSaveAnalysis}
-                        disabled={analysisSaving}
-                        className="flex items-center gap-1.5 px-5 py-2.5 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20 disabled:opacity-50"
-                      >
-                        {analysisSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
-                      </button>
+                    <div className="max-w-3xl mx-auto w-full">
+                      {showRegenerateInput && (
+                        <div className="mb-3 space-y-2">
+                          <textarea
+                            value={regenerateInstruction}
+                            onChange={e => setRegenerateInstruction(e.target.value)}
+                            placeholder="원하는 방향을 알려주세요 (예: 좀 더 실습 위주로 / 저학년 눈높이에 맞게 / 협동학습 요소를 강조해줘)"
+                            rows={2}
+                            autoFocus
+                            className="w-full px-3 py-2 bg-surface-container/60 rounded-xl border border-on-surface/10 text-xs resize-none focus:outline-none focus:border-primary/40"
+                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => { setShowRegenerateInput(false); setRegenerateInstruction(''); }}
+                              className="px-3 py-1.5 text-xs font-black text-on-surface-variant hover:bg-surface-container rounded-lg transition-all"
+                            >
+                              취소
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!analysisNote) return;
+                                runAnalysis(analysisNote, regenerateInstruction);
+                                setShowRegenerateInput(false);
+                              }}
+                              className="flex items-center gap-1.5 px-4 py-1.5 btn-gradient rounded-lg font-black text-xs shadow-lg shadow-primary/20"
+                            >
+                              <RefreshCw size={12} /> 지침 반영해서 재생성
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => setShowRegenerateInput(v => !v)}
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-black text-on-surface-variant hover:bg-surface-container rounded-lg transition-all"
+                        >
+                          <RefreshCw size={12} /> 다시 생성
+                        </button>
+                        <button
+                          onClick={handleSaveAnalysis}
+                          disabled={analysisSaving}
+                          className="flex items-center gap-1.5 px-5 py-2.5 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20 disabled:opacity-50"
+                        >
+                          {analysisSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
