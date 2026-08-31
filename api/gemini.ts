@@ -14,6 +14,10 @@ const PLAN_MONTHLY_BUDGET_USD: Record<string, number> = {
 };
 const HARD_STOP_MULTIPLIER = 3;
 
+// Google Search 그라운딩(useWebSearch)은 토큰 요금과 별개로 건당 정액 요금이 붙음
+// (2026-08 기준 $35 / 1,000 grounded prompt) → 실제 호출됐을 때만 정액 비용을 더해준다.
+const GROUNDING_COST_USD_PER_CALL = 0.035;
+
 // 2026-06 Gemini 단가 (USD per 1M tokens)
 const PRICING: Record<string, { input: number; output: number; thinking: number }> = {
   'gemini-2.5-flash': { input: 0.30, output: 2.50, thinking: 3.50 },
@@ -51,6 +55,34 @@ function getDemoCachedResponse(feature: string): string {
   return DEMO_CACHED_RESPONSES[feature] ?? DEMO_DEFAULT_RESPONSE;
 }
 
+// Gemini 그라운딩 메타데이터의 web.title은 실제 문서 제목이 아니라 사이트 도메인만 오는 경우가 많음
+// (예: "tistory.com") → 리다이렉트 링크를 직접 열어 <title> 태그를 읽어 진짜 제목으로 대체한다.
+async function fetchPageTitle(url: string, timeoutMs = 2500): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+    clearTimeout(timer);
+    if (!res.ok || !res.body) return null;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let html = '';
+    while (html.length < 8000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      if (/<\/head>/i.test(html)) break;
+    }
+    reader.cancel().catch(() => {});
+    const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    if (!match) return null;
+    const title = match[1].replace(/\s+/g, ' ').trim();
+    return title ? title.slice(0, 200) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -67,6 +99,7 @@ export default async function handler(req: any, res: any) {
     jsonMode = false,
     class_id = null,
     text = '',
+    useWebSearch = false,
   } = req.body;
 
   if (!mode) {
@@ -240,14 +273,32 @@ export default async function handler(req: any, res: any) {
 
     let result: string;
     let usageMeta: any = null;
+    let sources: { title: string; uri: string }[] | undefined;
 
     if (mode === 'generate') {
       const parts: any[] = [{ text: prompt ?? '' }];
       if (files && files.length > 0) parts.push(...files);
       const contentParts = systemInstruction ? [{ text: systemInstruction }, ...parts] : parts;
-      const { response } = await generativeModel.generateContent(contentParts);
+      const { response } = await generativeModel.generateContent({
+        contents: [{ role: 'user', parts: contentParts }],
+        // gemini-2.5는 googleSearch 툴(REST 필드명)로 그라운딩 — SDK 타입에는 아직 googleSearchRetrieval(구버전)만 있어 any로 우회
+        ...(useWebSearch && { tools: [{ googleSearch: {} }] as any }),
+      });
       result = response.text();
       usageMeta = response.usageMetadata ?? null;
+      if (useWebSearch) {
+        const chunks = (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks ?? [];
+        const rawSources = chunks
+          .map((c: any) => ({ title: c.web?.title ?? '', uri: c.web?.uri ?? '' }))
+          .filter((s: { uri: string }) => s.uri);
+        // 실제 문서 제목을 가져오되, 개별 요청이 느려도 전체 응답이 오래 걸리지 않도록 짧은 타임아웃으로 병렬 조회
+        sources = await Promise.all(
+          rawSources.map(async (s: { title: string; uri: string }) => ({
+            title: (await fetchPageTitle(s.uri)) || s.title || s.uri,
+            uri: s.uri,
+          }))
+        );
+      }
 
     } else if (mode === 'chat') {
       // startChat()에 systemInstruction을 그대로 넘기면 문자열이 포맷 변환 없이 API로 전달되어
@@ -276,7 +327,8 @@ export default async function handler(req: any, res: any) {
       const inputTokens    = usageMeta.promptTokenCount       ?? 0;
       const outputTokens   = usageMeta.candidatesTokenCount   ?? 0;
       const thinkingTokens = usageMeta.thoughtsTokenCount     ?? 0;
-      const costUsd = calcCostUsd(modelId, inputTokens, outputTokens, thinkingTokens);
+      const costUsd = calcCostUsd(modelId, inputTokens, outputTokens, thinkingTokens)
+        + (useWebSearch ? GROUNDING_COST_USD_PER_CALL : 0);
 
       const supabase = createClient(supabaseUrl, serviceKey);
       const { error: logError } = await supabase.from('ai_usage_logs').insert({
@@ -300,7 +352,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    return res.status(200).json({ result });
+    return res.status(200).json({ result, ...(sources && { sources }) });
 
   } catch (error: any) {
     console.error('[api/gemini] error:', error?.message);

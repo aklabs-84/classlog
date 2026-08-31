@@ -382,6 +382,67 @@ async function callProxy(body: object): Promise<string> {
   return data.result as string;
 }
 
+export interface WebSearchResult {
+  summary: string;
+  sources: { title: string; uri: string }[];
+}
+
+// 아이디어 본문과 관련된 외부 자료를 Google Search 그라운딩으로 찾는다.
+// 내 자료 임베딩 검색(참고할 만한 자료)과 달리 사용자가 버튼을 눌렀을 때만 호출되며,
+// 그라운딩은 토큰 요금과 별도의 건당 정액 요금이 붙으므로 자동 호출하지 않는다.
+export async function webSearchForIdea(query: string, classId?: string): Promise<WebSearchResult> {
+  const trimmed = query.trim();
+  if (!trimmed) return { summary: '', sources: [] };
+  const prompt = `다음은 한 선생님이 구상 중인 수업 아이디어입니다. 이 아이디어와 관련해 참고할 만한 최신 자료, 활동 사례, 교육 콘텐츠를 웹에서 찾아 2~3문장으로 간단히 요약해 주세요.\n\n[아이디어]\n${trimmed.slice(0, 2000)}`;
+
+  const userKey = getUserGeminiKey();
+  const isDev = (import.meta as any).env?.DEV;
+
+  if (userKey || isDev) {
+    const apiKey = userKey || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    if (!apiKey) throw new Error('VITE_GEMINI_API_KEY가 .env에 없습니다.');
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const generativeModel = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 2048 },
+      });
+      const { response } = await generativeModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        tools: [{ googleSearch: {} }] as any,
+      });
+      const summary = response.text();
+      const chunks = (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks ?? [];
+      const sources = chunks
+        .map((c: any) => ({ title: c.web?.title ?? '', uri: c.web?.uri ?? '' }))
+        .filter((s: { uri: string }) => s.uri);
+      return { summary, sources };
+    } catch (error: any) {
+      throw new Error(userKey ? classifyByokError(error) : (error?.message ?? '웹 검색 중 오류가 발생했습니다.'));
+    }
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      mode: 'generate', model: 'flash', prompt,
+      feature: 'idea_web_search', useWebSearch: true,
+      ...(classId && { class_id: classId }),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    if (data.error === 'AI_LIMIT_EXCEEDED') throw new Error('AI_LIMIT_EXCEEDED');
+    throw new Error(data.error ?? 'AI API 오류');
+  }
+  return { summary: data.result as string, sources: (data.sources ?? []) as { title: string; uri: string }[] };
+}
+
 // 텍스트를 768차원 벡터로 변환 — 저장 시(임베딩 캐싱)와 검색 시(쿼리 벡터 계산) 공용으로 사용.
 // 사용자 본인 API 키 등록 여부와 무관하게 항상 서버 GEMINI_API_KEY(또는 개발환경 VITE 키)로 계산한다.
 export async function embedText(text: string): Promise<number[]> {
