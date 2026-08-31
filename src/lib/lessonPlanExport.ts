@@ -1,4 +1,4 @@
-import type { LessonPlanSections, LessonPlanSessionRow } from './gemini';
+import { resolveLessonPlanSectionOrder, type LessonPlanSections, type LessonPlanSessionRow } from './gemini';
 
 function escapeHtml(text: string): string {
   return text
@@ -61,11 +61,11 @@ function basicInfoPairRow(label1: string, value1: string, label2: string, value2
     </tr>`;
 }
 
-export function buildLessonPlanHtml(plan: LessonPlanSections): string {
-  const { basicInfo } = plan;
-  const studentCountText = basicInfo.studentCount != null ? String(basicInfo.studentCount) : '-';
-
-  const basicInfoTable = `
+function renderSectionHtml(key: string, plan: LessonPlanSections): string {
+  if (key === 'basicInfo') {
+    const { basicInfo } = plan;
+    const studentCountText = basicInfo.studentCount != null ? String(basicInfo.studentCount) : '-';
+    return `<h2 style="${SECTION_TITLE_STYLE}">기본정보</h2>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
       <tbody>
         ${basicInfoFullRow('과목', basicInfo.subject)}
@@ -75,25 +75,48 @@ export function buildLessonPlanHtml(plan: LessonPlanSections): string {
         ${basicInfoFullRow('일자', basicInfo.date)}
       </tbody>
     </table>`;
-
-  const sections: string[] = [];
-  sections.push(`<h1 style="font-size:20px;font-weight:800;margin:0 0 16px;">${escapeHtml(basicInfo.unitTitle || '수업 계획서')}</h1>`);
-  sections.push(basicInfoTable);
-  sections.push(`<h2 style="${SECTION_TITLE_STYLE}">학습목표</h2>${paragraphsHtml(plan.objectives)}`);
-  if (plan.sessionPlans) {
-    sections.push(`<h2 style="${SECTION_TITLE_STYLE}">차시별 내용</h2>${sessionPlansTableHtml(plan.sessionPlans)}`);
-  } else if (plan.activities) {
-    sections.push(`<h2 style="${SECTION_TITLE_STYLE}">활동 흐름</h2>
+  }
+  if (key === 'objectives') {
+    return `<h2 style="${SECTION_TITLE_STYLE}">학습목표</h2>${paragraphsHtml(plan.objectives)}`;
+  }
+  if (key === 'sessionPlans') {
+    if (plan.sessionPlans) {
+      return `<h2 style="${SECTION_TITLE_STYLE}">차시별 내용</h2>${sessionPlansTableHtml(plan.sessionPlans)}`;
+    }
+    if (plan.activities) {
+      return `<h2 style="${SECTION_TITLE_STYLE}">활동 흐름</h2>
       <h3 style="font-size:13px;font-weight:700;margin:10px 0 4px;">도입</h3>${paragraphsHtml(plan.activities.intro)}
       <h3 style="font-size:13px;font-weight:700;margin:10px 0 4px;">전개</h3>${paragraphsHtml(plan.activities.development)}
-      <h3 style="font-size:13px;font-weight:700;margin:10px 0 4px;">정리</h3>${paragraphsHtml(plan.activities.closing)}`);
+      <h3 style="font-size:13px;font-weight:700;margin:10px 0 4px;">정리</h3>${paragraphsHtml(plan.activities.closing)}`;
+    }
+    return '';
   }
-  sections.push(`<h2 style="${SECTION_TITLE_STYLE}">준비물</h2>${paragraphsHtml(plan.materials)}`);
-  if (plan.assessment) {
-    sections.push(`<h2 style="${SECTION_TITLE_STYLE}">평가계획</h2>${paragraphsHtml(plan.assessment)}`);
+  if (key === 'materials') {
+    return `<h2 style="${SECTION_TITLE_STYLE}">준비물</h2>${paragraphsHtml(plan.materials)}`;
   }
-  if (plan.standards) {
-    sections.push(`<h2 style="${SECTION_TITLE_STYLE}">성취기준 연계</h2>${paragraphsHtml(plan.standards)}`);
+  if (key === 'assessment') {
+    return plan.assessment ? `<h2 style="${SECTION_TITLE_STYLE}">평가계획</h2>${paragraphsHtml(plan.assessment)}` : '';
+  }
+  if (key === 'standards') {
+    return plan.standards ? `<h2 style="${SECTION_TITLE_STYLE}">성취기준 연계</h2>${paragraphsHtml(plan.standards)}` : '';
+  }
+  if (key.startsWith('custom:')) {
+    const id = key.slice('custom:'.length);
+    const custom = plan.customSections?.find(s => s.id === id);
+    if (!custom) return '';
+    return `<h2 style="${SECTION_TITLE_STYLE}">${escapeHtml(custom.title || '섹션')}</h2>${paragraphsHtml(custom.content)}`;
+  }
+  return '';
+}
+
+export function buildLessonPlanHtml(plan: LessonPlanSections): string {
+  const { basicInfo } = plan;
+  const order = resolveLessonPlanSectionOrder(plan);
+  const sections: string[] = [];
+  sections.push(`<h1 style="font-size:20px;font-weight:800;margin:0 0 16px;">${escapeHtml(basicInfo.unitTitle || '수업 계획서')}</h1>`);
+  for (const key of order) {
+    const html = renderSectionHtml(key, plan);
+    if (html) sections.push(html);
   }
 
   return `<div style="font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#111827;line-height:1.6;">${sections.join('\n')}</div>`;

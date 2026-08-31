@@ -1612,6 +1612,12 @@ export interface LessonPlanSessionRow {
   note: string;
 }
 
+export interface LessonPlanCustomSection {
+  id: string;
+  title: string;
+  content: string;
+}
+
 export interface LessonPlanSections {
   basicInfo: {
     subject: string;
@@ -1633,6 +1639,33 @@ export interface LessonPlanSections {
   materials: string;
   assessment: string;
   standards?: string;
+  // 사용자가 자유롭게 추가한 섹션(제목+내용)
+  customSections?: LessonPlanCustomSection[];
+  // 큰 섹션들의 표시 순서 — 고정 섹션 키('basicInfo' 등)와 커스텀 섹션 키(`custom:${id}`)를 섞어서 저장.
+  // 없으면 DEFAULT_LESSON_PLAN_SECTION_ORDER를 기본값으로 사용(구버전 저장분과의 하위호환).
+  sectionOrder?: string[];
+}
+
+export const DEFAULT_LESSON_PLAN_SECTION_ORDER = ['basicInfo', 'objectives', 'sessionPlans', 'materials', 'assessment', 'standards'];
+
+// 저장된 sectionOrder에 없는 고정/커스텀 섹션(구버전 저장분, 방금 추가된 커스텀 섹션)을 뒤에 보충해서
+// 항상 완전한 순서 배열을 돌려준다.
+export function resolveLessonPlanSectionOrder(plan: LessonPlanSections): string[] {
+  const customKeys = (plan.customSections ?? []).map(s => `custom:${s.id}`);
+  const knownKeys = new Set([...DEFAULT_LESSON_PLAN_SECTION_ORDER, ...customKeys]);
+  const base = plan.sectionOrder && plan.sectionOrder.length > 0 ? plan.sectionOrder : DEFAULT_LESSON_PLAN_SECTION_ORDER;
+
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  for (const key of base) {
+    if (seen.has(key) || !knownKeys.has(key)) continue;
+    ordered.push(key);
+    seen.add(key);
+  }
+  for (const key of [...DEFAULT_LESSON_PLAN_SECTION_ORDER, ...customKeys]) {
+    if (!seen.has(key)) { ordered.push(key); seen.add(key); }
+  }
+  return ordered;
 }
 
 export interface LessonPlanConfig {

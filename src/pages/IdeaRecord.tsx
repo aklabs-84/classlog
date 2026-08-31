@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight } from 'lucide-react';
+import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
@@ -13,6 +13,9 @@ import CodeBlock from '../components/CodeBlock';
 import { analyzeIdea, generateLessonPlanDraft, embedText, type IdeaAnalysisResult, type RelatedMaterialRef, type LessonPRD } from '../lib/gemini';
 import type { DeckSlide } from '../components/slidedeck/types';
 import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
+import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
+
+const GUIDE_SEEN_KEY = 'idea_record_guide_seen';
 
 // DeckSlide.objects[]의 텍스트류 값만 이어붙여 미리보기용 텍스트로 사용 (SlideDeckEditor.tsx의 extractSlideDeckText와 동일 로직)
 const extractSlideDeckPreviewText = (slides: DeckSlide[]): string =>
@@ -160,7 +163,7 @@ const CARD_ACCENTS = [
   { banner: 'bg-gradient-to-r from-secondary to-secondary/60', iconBg: 'bg-secondary/10', iconText: 'text-secondary' },
   { banner: 'bg-gradient-to-r from-accent to-accent/60', iconBg: 'bg-accent/10', iconText: 'text-accent' },
 ];
-const NO_CLASS_ACCENT = { banner: 'bg-gradient-to-r from-on-surface/20 to-on-surface/5', iconBg: 'bg-surface-container', iconText: 'text-on-surface-variant/50' };
+const NO_CLASS_ACCENT = { banner: 'bg-gradient-to-r from-slate-600 to-slate-500', iconBg: 'bg-surface-container', iconText: 'text-on-surface-variant/50' };
 const getCardAccent = (classId: string | null) => {
   if (!classId) return NO_CLASS_ACCENT;
   let hash = 0;
@@ -188,6 +191,16 @@ export default function IdeaRecord() {
 
   const [filterClassId, setFilterClassId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'write' | 'list'>('write');
+
+  // 첫 방문 시 자동 오픈 + 상시 버튼으로 재오픈 가능한 사용법 가이드 모달
+  const [guideOpen, setGuideOpen] = useState(false);
+  useEffect(() => {
+    if (!localStorage.getItem(GUIDE_SEEN_KEY)) setGuideOpen(true);
+  }, []);
+  const closeGuide = () => {
+    localStorage.setItem(GUIDE_SEEN_KEY, '1');
+    setGuideOpen(false);
+  };
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', content: '' });
@@ -736,6 +749,12 @@ export default function IdeaRecord() {
             <p className="text-sm text-on-surface-variant mt-2 max-w-md">
               떠오른 생각을 가볍게 적어두면, AI가 기존 자료를 살펴보고 수업으로 발전시킬 방법을 함께 찾아드려요.
             </p>
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-lg text-[11px] font-black text-primary bg-primary/10 hover:bg-primary/15 transition-colors"
+            >
+              <HelpCircle size={13} /> 가이드 보기
+            </button>
           </div>
           <div className="text-right shrink-0 pr-3">
             <p className="text-3xl font-black text-primary leading-none tabular-nums">{thisMonthCount}</p>
@@ -1075,6 +1094,12 @@ export default function IdeaRecord() {
             >
               <div className={`relative px-6 md:px-10 py-6 shrink-0 ${accent.banner}`}>
                 <div className="max-w-3xl mx-auto w-full">
+                  <button
+                    onClick={() => setViewingNote(null)}
+                    className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-black text-white transition-all"
+                  >
+                    <ArrowLeft size={14} /> 목록으로
+                  </button>
                   <button
                     onClick={() => setViewingNote(null)}
                     className="absolute top-4 right-4 md:right-8 w-9 h-9 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all"
@@ -1536,6 +1561,8 @@ export default function IdeaRecord() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {guideOpen && <IdeaRecordGuideModal onClose={closeGuide} />}
     </div>
   );
 }
