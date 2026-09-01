@@ -225,7 +225,7 @@ const FEATURE_LABELS: Record<string, string> = {
   lesson_plan_copilot:        '수업 기획 분석',
   observation_analyst_copilot: '관찰기록 분석',
   slide_deck_copilot:         '슬라이드 제작 코파일럿',
-  material_copilot:           '자료 제작 코파일럿',
+  material_copilot:           '수업 가이드 제작 코파일럿',
   quiz_copilot:               '퀴즈 제작 코파일럿',
   survey_copilot:             '설문 제작 코파일럿',
   idea_handoff_copilot:       '아이디어 기획 코파일럿',

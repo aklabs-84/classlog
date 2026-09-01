@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users, BookOpen } from 'lucide-react';
+import { Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, ArrowRight, Image as ImageIcon, ListChecks, Lightbulb, Maximize2, Minimize2, Users, BookOpen, History, MessageSquarePlus, Trash2, FileText, Sparkles, Link2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
@@ -64,6 +64,9 @@ const extractSlideDeckPreviewText = (slides: DeckSlide[]): string =>
 
 // match_my_content RPC 반환 행 — 내 노트/자료/슬라이드 중 임베딩 유사도가 높은 것들 (IdeaRecord.tsx와 동일 shape)
 type MatchedContent = { source_type: 'note' | 'material' | 'slide'; id: string; title: string; snippet: string; similarity: number };
+// source: 'manual' = 사용자가 직접 불러오거나 선택한 자료, 'auto' = AI가 유사도 기준으로 스스로 찾아 붙인 자료,
+// 'handoff' = 다른 에이전트 탭에서 "이어서 만들기"로 넘어온 초안 — 칩 UI에서 구분 표시용
+type LoadedReference = { id: string; title: string; content: string; source: 'manual' | 'auto' | 'handoff' };
 
 const SOURCE_TYPE_LABEL: Record<MatchedContent['source_type'], string> = {
   note: '아이디어 기록',
@@ -159,6 +162,9 @@ const chatMdComponents: any = {
 // seatuk_writer 탭의 결과 요약 버블에 "이동하기" 버튼을 달기 위한 필드 — 우리가 직접 구성하는 메시지라
 // LESSON_PLAN_DRAFT처럼 텍스트 마커를 파싱하지 않고 타입으로 구분한다.
 type CopilotMessage = { id: string; role: 'user' | 'ai'; text: string; meta?: { navigateTo: string; state?: Record<string, any> } };
+
+// 대화 기록 저장/불러오기 — 목록에서는 messages 본문 없이 요약만 조회
+type ConversationSummary = { id: string; title: string; updated_at: string };
 
 // 페르소나(탭)별 순수 카피/UI 플래그. 쿼리·호출 함수 같은 로직은 컴포넌트 안에서 모드별로 직접 분기한다
 // (페르소나마다 실제 로직이 다르므로 여기 억지로 파라미터화하지 않음 — 프로젝트 관행상 성급한 공용 추상화 지양).
@@ -291,15 +297,15 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     ],
   },
   material_maker: {
-    tabLabel: '자료 제작',
+    tabLabel: '수업 가이드 제작',
     personaName: '밀로',
     personaEnglishName: 'Milo',
     personaRole: '학습지 아키텍트',
     personaAvatar: '/agents/milo.jpg',
     themeColor: '#d97706',
-    heroTitle: '밀로 · 자료 제작가',
+    heroTitle: '밀로 · 수업 가이드 제작가',
     heroSubtitle: '학생에게 나눠줄 학습지·유인물을 편하게 이야기해 보세요. 내용이 정리되면 자료함으로 바로 저장하거나 표지 이미지 아이디어도 받을 수 있어요.',
-    chatHeaderTitle: '밀로 · 자료 제작가',
+    chatHeaderTitle: '밀로 · 수업 가이드 제작가',
     chatHeaderSubtitle: '대화로 학습지 만들기',
     emptyTitle: '어떤 자료를 만들고 싶으신가요?',
     emptyBody: '예: "중학교 2학년 과학, 광합성 관련 학습지 만들어줘" 처럼 편하게 말씀해 주세요.',
@@ -503,7 +509,9 @@ const AiCopilot = () => {
   const [lessonPlanObservations, setLessonPlanObservations] = useState<any[]>([]);
   const [analystObservations, setAnalystObservations] = useState<any[]>([]);
   const [referenceSuggestions, setReferenceSuggestions] = useState<MatchedContent[]>([]);
-  const [loadedReferences, setLoadedReferences] = useState<{ id: string; title: string; content: string }[]>([]);
+  const [loadedReferences, setLoadedReferences] = useState<LoadedReference[]>([]);
+  // "이어서 만들기"로 다른 탭에서 넘어온 직후를 표시하는 배너용 — 사용자가 탭을 직접 클릭하면 해제된다
+  const [handoffOrigin, setHandoffOrigin] = useState<{ fromMode: CopilotModeId; title: string } | null>(null);
   const [libraryIndex, setLibraryIndex] = useState<{ title: string; snippet: string }[]>([]);
   const [loadingReferenceId, setLoadingReferenceId] = useState<string | null>(null);
   const [showMaterialImportModal, setShowMaterialImportModal] = useState(false);
@@ -516,6 +524,21 @@ const AiCopilot = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // 대화 기록 저장/불러오기 — 모드별로 현재 이어쓰고 있는 conversation row id를 추적(없으면 다음 저장 시 새로 생성)
+  const [conversationIdByMode, setConversationIdByMode] = useState<Record<CopilotModeId, string | null>>({
+    app_guide: null, class_manager: null, idea_brainstorm: null, lesson_plan: null,
+    material_maker: null, slide_deck_maker: null, quiz_maker: null, survey_maker: null,
+    observation_analyst: null, seatuk_writer: null,
+  });
+  const conversationIdByModeRef = useRef(conversationIdByMode);
+  useEffect(() => { conversationIdByModeRef.current = conversationIdByMode; }, [conversationIdByMode]);
+  const saveTimersRef = useRef<Partial<Record<CopilotModeId, ReturnType<typeof setTimeout>>>>({});
+
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [conversationList, setConversationList] = useState<ConversationSummary[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -665,6 +688,72 @@ const AiCopilot = () => {
     }
   }, [messages, loading]);
 
+  // 대화 기록 자동 저장 — 메시지가 바뀔 때마다(주고받을 때마다) 600ms 디바운스로 upsert.
+  // 모드별로 이어쓰는 row가 있으면 update, 없으면 새로 insert 후 id를 기억해둔다.
+  useEffect(() => {
+    if (!user?.id || messages.length === 0) return;
+    const mode = activeMode;
+    const msgsSnapshot = messages;
+    if (saveTimersRef.current[mode]) clearTimeout(saveTimersRef.current[mode]);
+    saveTimersRef.current[mode] = setTimeout(async () => {
+      const existingId = conversationIdByModeRef.current[mode];
+      const firstUserMsg = msgsSnapshot.find(m => m.role === 'user')?.text.trim() || COPILOT_MODES[mode].tabLabel;
+      const title = firstUserMsg.length > 60 ? `${firstUserMsg.slice(0, 60)}…` : firstUserMsg;
+      if (existingId) {
+        await supabase.from('ai_copilot_conversations')
+          .update({ messages: msgsSnapshot, title, updated_at: new Date().toISOString() })
+          .eq('id', existingId);
+      } else {
+        const { data } = await supabase.from('ai_copilot_conversations')
+          .insert({ teacher_id: user.id, mode, title, messages: msgsSnapshot })
+          .select('id')
+          .single();
+        if (data) setConversationIdByMode(prev => ({ ...prev, [mode]: data.id }));
+      }
+    }, 600);
+  }, [messages, activeMode, user?.id]);
+
+  const openHistoryModal = async () => {
+    setHistoryModalOpen(true);
+    if (!user?.id) return;
+    setLoadingHistory(true);
+    const { data } = await supabase
+      .from('ai_copilot_conversations')
+      .select('id, title, updated_at')
+      .eq('teacher_id', user.id)
+      .eq('mode', activeMode)
+      .order('updated_at', { ascending: false })
+      .limit(50);
+    setConversationList(data || []);
+    setLoadingHistory(false);
+  };
+
+  const handleLoadConversation = async (id: string) => {
+    const { data } = await supabase.from('ai_copilot_conversations').select('messages').eq('id', id).single();
+    if (data?.messages) {
+      setMessagesByMode(prev => ({ ...prev, [activeMode]: data.messages }));
+      setConversationIdByMode(prev => ({ ...prev, [activeMode]: id }));
+    }
+    setHistoryModalOpen(false);
+  };
+
+  const handleDeleteConversation = async (id: string) => {
+    setDeletingConversationId(id);
+    await supabase.from('ai_copilot_conversations').delete().eq('id', id);
+    setConversationList(prev => prev.filter(c => c.id !== id));
+    if (conversationIdByModeRef.current[activeMode] === id) {
+      setConversationIdByMode(prev => ({ ...prev, [activeMode]: null }));
+      setMessagesByMode(prev => ({ ...prev, [activeMode]: [] }));
+    }
+    setDeletingConversationId(null);
+  };
+
+  const handleStartNewConversation = () => {
+    setMessagesByMode(prev => ({ ...prev, [activeMode]: [] }));
+    setConversationIdByMode(prev => ({ ...prev, [activeMode]: null }));
+    setHistoryModalOpen(false);
+  };
+
   // 입력창 높이를 내용에 맞춰 자동으로 늘림(최대 8줄 정도까지, 그 이상은 스크롤)
   useEffect(() => {
     const el = inputRef.current;
@@ -696,8 +785,8 @@ const AiCopilot = () => {
   // AI 호출 직전에 await로 실행되어야 이번 턴 응답에 반영되므로, 화면에 보여줄 참고자료 목록을 그대로 반환한다.
   const resolveAutoReferences = async (
     query: string,
-    currentLoaded: { id: string; title: string; content: string }[],
-  ): Promise<{ id: string; title: string; content: string }[]> => {
+    currentLoaded: LoadedReference[],
+  ): Promise<LoadedReference[]> => {
     try {
       const vector = await embedText(query);
       if (vector.length === 0) return currentLoaded;
@@ -721,6 +810,7 @@ const AiCopilot = () => {
         id: item.id,
         title: item.title,
         content: await fetchReferenceContent(item),
+        source: 'auto' as const,
       })));
       return [...currentLoaded, ...fetched];
     } catch (err) {
@@ -734,7 +824,7 @@ const AiCopilot = () => {
     setLoadingReferenceId(item.id);
     try {
       const content = await fetchReferenceContent(item);
-      setLoadedReferences(prev => [...prev, { id: item.id, title: item.title, content }]);
+      setLoadedReferences(prev => [...prev, { id: item.id, title: item.title, content, source: 'manual' }]);
       setReferenceSuggestions(prev => prev.filter(r => r.id !== item.id));
     } catch (err) {
       console.error('[AiCopilot] 참고자료 로드 오류:', err);
@@ -748,7 +838,7 @@ const AiCopilot = () => {
   const handleImportMaterialAsReference = (material: ImportableMaterial) => {
     if (loadedReferences.some(r => r.id === material.id)) return;
     const content = resolveSourceContent(material);
-    setLoadedReferences(prev => [...prev, { id: material.id, title: material.title, content }]);
+    setLoadedReferences(prev => [...prev, { id: material.id, title: material.title, content, source: 'manual' }]);
     if (material.class_id && material.class_id !== selectedClassId) {
       setSelectedClassId(material.class_id);
     }
@@ -1020,16 +1110,20 @@ const AiCopilot = () => {
     }
   };
 
-  const handleSaveDraft = (target: 'material-editor' | 'slide-deck', draftContent: string) => {
+  const handleSaveDraft = (target: 'material-editor' | 'slide-deck' | 'lesson-plan', draftContent: string) => {
     const title = extractDraftTitle(draftContent);
     const classId = selectedClassId || null;
     if (target === 'material-editor') {
       navigate('/teaching-tools', {
         state: { activeToolId: 'material-editor', draftMaterial: { noteId: '', title, content: draftContent, classId } },
       });
-    } else {
+    } else if (target === 'slide-deck') {
       navigate('/teaching-tools', {
         state: { activeToolId: 'slide-deck', draftSlide: { noteId: '', title, content: draftContent, classId } },
+      });
+    } else {
+      navigate('/teaching-tools', {
+        state: { activeToolId: 'lesson-plan', draftLessonPlan: { title, content: draftContent, classId } },
       });
     }
   };
@@ -1037,13 +1131,15 @@ const AiCopilot = () => {
   // 탭 간 "이어가기" — 현재 탭의 확정 초안(제목/본문)을 대상 탭의 참고자료로 걸어두고 전환만 한다.
   // 자동으로 메시지를 보내지 않고, 사용자가 직접 다음 요청을 입력하게 한다.
   const handleContinueInTab = (targetMode: CopilotModeId, title: string, content: string) => {
-    const sourceLabel = COPILOT_MODES[activeMode].tabLabel.replace(/^\S+\s*/, '');
-    setLoadedReferences(prev => [...prev, { id: crypto.randomUUID(), title: `[${sourceLabel}] ${title}`, content }]);
+    const sourceMode = activeMode;
+    const sourceLabel = COPILOT_MODES[sourceMode].tabLabel.replace(/^\S+\s*/, '');
+    setLoadedReferences(prev => [...prev, { id: crypto.randomUUID(), title: `[${sourceLabel}] ${title}`, content, source: 'handoff' }]);
+    setHandoffOrigin({ fromMode: sourceMode, title });
     setActiveMode(targetMode);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  // 자료 제작가 탭 전용 — 기존 MaterialEditor.tsx의 표지 이미지 프롬프트 제안 기능(generateCoverPromptSuggestions)을
+  // 수업 가이드 제작가(밀로) 탭 전용 — 기존 MaterialEditor.tsx의 표지 이미지 프롬프트 제안 기능(generateCoverPromptSuggestions)을
   // 그대로 재사용해 영어 프롬프트 3개만 채팅에 나열한다. DB 쓰기 없는 단발 호출이라 chat 프록시를 거치지 않으므로
   // 사용량 집계도 다른 트리거 함수들과 동일하게 수동으로 체크·증가한다.
   const handleGenerateCoverPrompts = async (title: string) => {
@@ -1859,6 +1955,24 @@ ${session.transcript_text}
             )}
             <button
               type="button"
+              onClick={handleStartNewConversation}
+              className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors shrink-0"
+              aria-label="새 대화 시작"
+              title="새 대화 시작"
+            >
+              <MessageSquarePlus size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={openHistoryModal}
+              className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors shrink-0"
+              aria-label="대화 기록"
+              title="대화 기록"
+            >
+              <History size={16} />
+            </button>
+            <button
+              type="button"
               onClick={() => setIsFullscreen(v => !v)}
               className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors shrink-0"
               aria-label={isFullscreen ? '전체화면 닫기' : '전체화면으로 보기'}
@@ -1868,6 +1982,28 @@ ${session.transcript_text}
             </button>
           </div>
         </div>
+
+        {handoffOrigin && (
+          <div className="px-4 sm:px-5 py-2 border-b border-primary/15 bg-primary/5 shrink-0 flex items-center gap-2">
+            <img
+              src={COPILOT_MODES[handoffOrigin.fromMode].personaAvatar}
+              onError={handleAvatarError}
+              alt={COPILOT_MODES[handoffOrigin.fromMode].personaName}
+              className="w-5 h-5 rounded-full object-cover shrink-0 border border-white shadow-sm"
+            />
+            <p className="flex-1 min-w-0 text-[11px] font-bold text-primary truncate">
+              🔗 {COPILOT_MODES[handoffOrigin.fromMode].personaName}에서 이어진 대화 · '{handoffOrigin.title}' 참고 중
+            </p>
+            <button
+              type="button"
+              onClick={() => setHandoffOrigin(null)}
+              className="p-1 rounded-full text-primary/60 hover:bg-primary/10 hover:text-primary transition-colors shrink-0"
+              aria-label="이어받기 표시 닫기"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
 
         {modeConfig.showStudentPicker && (
           <div className="px-4 sm:px-5 py-2.5 sm:py-3 border-b border-surface-container bg-surface/40 shrink-0 space-y-2">
@@ -1967,7 +2103,7 @@ ${session.transcript_text}
                     </p>
                     <button
                       type="button"
-                      onClick={() => setActiveMode('class_manager')}
+                      onClick={() => { setHandoffOrigin(null); setActiveMode('class_manager'); }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-xl text-[11px] font-black hover:bg-amber-700 transition-colors shadow-sm mt-1"
                     >
                       <ArrowRight size={12} />
@@ -2062,20 +2198,32 @@ ${session.transcript_text}
                     </div>
                     {isDraft && (
                       <div className="mt-4 pt-3 border-t border-surface-container flex flex-wrap gap-2">
-                        <button
-                          onClick={() => handleSaveDraft('material-editor', stripDraftPreamble(displayText))}
-                          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
-                        >
-                          <FolderPlus size={14} />
-                          자료함에 저장
-                        </button>
-                        <button
-                          onClick={() => handleSaveDraft('slide-deck', stripDraftPreamble(displayText))}
-                          className="flex items-center gap-1.5 px-3.5 py-2 bg-surface-container-high text-on-surface rounded-xl text-xs font-black hover:bg-surface-container transition-all active:scale-95"
-                        >
-                          <Presentation size={14} />
-                          슬라이드로 만들기
-                        </button>
+                        {activeMode === 'lesson_plan' ? (
+                          <button
+                            onClick={() => handleSaveDraft('lesson-plan', stripDraftPreamble(displayText))}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
+                          >
+                            <FileText size={14} />
+                            계획서로 만들기
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleSaveDraft('material-editor', stripDraftPreamble(displayText))}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
+                            >
+                              <FolderPlus size={14} />
+                              자료함에 저장
+                            </button>
+                            <button
+                              onClick={() => handleSaveDraft('slide-deck', stripDraftPreamble(displayText))}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-surface-container-high text-on-surface rounded-xl text-xs font-black hover:bg-surface-container transition-all active:scale-95"
+                            >
+                              <Presentation size={14} />
+                              슬라이드로 만들기
+                            </button>
+                          </>
+                        )}
                         {modeConfig.showCoverPromptAction && (
                           <button
                             onClick={() => handleGenerateCoverPrompts(extractDraftTitle(displayText))}
@@ -2291,6 +2439,11 @@ ${session.transcript_text}
 
         {modeConfig.showReferenceSearch && (loadedReferences.length > 0 || referenceSuggestions.length > 0 || modeConfig.showMaterialImport) && (
         <div className="px-4 sm:px-5 py-2.5 border-t border-surface-container-high bg-neutral-50 shrink-0 space-y-1.5">
+          {(loadedReferences.length > 0 || referenceSuggestions.length > 0) && (
+            <p className="text-[10px] font-bold text-on-surface-variant/70">
+              아래 자료들은 답변 생성 시 참고됩니다
+            </p>
+          )}
           <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5">
             {modeConfig.showMaterialImport && (
               <button
@@ -2303,13 +2456,33 @@ ${session.transcript_text}
               </button>
             )}
             {loadedReferences.map(r => (
-              <span key={r.id} className="shrink-0 flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 bg-primary/10 text-primary rounded-xl text-[11px] font-black">
-                <Paperclip size={12} />
+              <span
+                key={r.id}
+                title={
+                  r.source === 'auto'
+                    ? 'AI가 대화 내용과 관련성이 높다고 판단해 자동으로 참고한 자료입니다. 필요 없으면 ×로 제외하세요.'
+                    : r.source === 'handoff'
+                    ? '다른 에이전트 탭에서 "이어서 만들기"로 넘어온 초안입니다.'
+                    : '직접 불러온 참고자료입니다.'
+                }
+                className={`shrink-0 flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl text-[11px] font-black ${
+                  r.source === 'auto'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : r.source === 'handoff'
+                    ? 'bg-violet-50 text-violet-700 border border-violet-200'
+                    : 'bg-primary/10 text-primary'
+                }`}
+              >
+                {r.source === 'auto' ? <Sparkles size={12} /> : r.source === 'handoff' ? <Link2 size={12} /> : <Paperclip size={12} />}
                 <span className="max-w-[120px] truncate">{r.title}</span>
+                {r.source === 'auto' && <span className="shrink-0 text-[9px] font-black text-amber-600/80">AI 추천 참고</span>}
+                {r.source === 'handoff' && <span className="shrink-0 text-[9px] font-black text-violet-600/80">이어받음</span>}
                 <button
                   type="button"
                   onClick={() => setLoadedReferences(prev => prev.filter(x => x.id !== r.id))}
-                  className="p-0.5 hover:bg-primary/20 rounded-full transition-colors"
+                  className={`p-0.5 rounded-full transition-colors ${
+                    r.source === 'auto' ? 'hover:bg-amber-200/60' : r.source === 'handoff' ? 'hover:bg-violet-200/60' : 'hover:bg-primary/20'
+                  }`}
                   aria-label="참고자료 해제"
                 >
                   <X size={11} />
@@ -2487,7 +2660,7 @@ ${session.transcript_text}
               <button
                 key={id}
                 type="button"
-                onClick={() => setActiveMode(id)}
+                onClick={() => { setHandoffOrigin(null); setActiveMode(id); }}
                 className={`shrink-0 flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-2xl text-[11px] md:text-xs font-black transition-all ${
                   isActive
                     ? 'bg-primary text-white shadow-md shadow-primary/20 scale-[1.02]'
@@ -2553,6 +2726,7 @@ ${session.transcript_text}
                           key={id}
                           type="button"
                           onClick={() => {
+                            setHandoffOrigin(null);
                             setActiveMode(id);
                             setGuideModalOpen(false);
                           }}
@@ -2591,6 +2765,85 @@ ${session.transcript_text}
               >
                 닫기
               </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* 대화 기록 불러오기 모달 */}
+      {historyModalOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl sm:rounded-[2rem] max-w-md w-full max-h-[80vh] flex flex-col shadow-2xl overflow-hidden border border-surface-container"
+          >
+            <div className="p-4 sm:p-6 border-b border-surface-container flex items-center justify-between bg-surface/50 shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-sm sm:text-base font-black text-on-surface truncate">{modeConfig.tabLabel} 대화 기록</h2>
+                <p className="text-[10px] sm:text-xs font-bold text-on-surface-variant mt-0.5">지난 대화를 이어서 보거나 새로 시작해 보세요</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                className="p-2 text-on-surface-variant hover:text-on-surface rounded-xl hover:bg-surface-container shrink-0"
+                aria-label="닫기"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-3 sm:p-4 border-b border-surface-container shrink-0">
+              <button
+                type="button"
+                onClick={handleStartNewConversation}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 bg-neutral-900 text-white rounded-xl text-xs sm:text-sm font-black hover:bg-neutral-800 transition-colors"
+              >
+                <MessageSquarePlus size={16} />
+                새 대화 시작
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-2">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-10 text-on-surface-variant">
+                  <Loader2 size={20} className="animate-spin" />
+                </div>
+              ) : conversationList.length === 0 ? (
+                <p className="text-center text-xs font-bold text-on-surface-variant py-10">
+                  아직 저장된 대화가 없어요.<br />대화를 시작하면 자동으로 기록됩니다.
+                </p>
+              ) : (
+                conversationList.map(conv => (
+                  <div
+                    key={conv.id}
+                    className={`flex items-center gap-2 rounded-xl border p-2.5 sm:p-3 transition-colors ${
+                      conversationIdByMode[activeMode] === conv.id ? 'border-primary/50 bg-primary/5' : 'border-surface-container hover:border-primary/30 hover:bg-surface-container-low'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleLoadConversation(conv.id)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <p className="text-xs sm:text-sm font-black text-on-surface truncate">{conv.title}</p>
+                      <p className="text-[10px] sm:text-[11px] font-bold text-on-surface-variant mt-0.5">
+                        {new Date(conv.updated_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteConversation(conv.id)}
+                      disabled={deletingConversationId === conv.id}
+                      className="p-1.5 sm:p-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-500 transition-colors shrink-0 disabled:opacity-40"
+                      aria-label="삭제"
+                      title="삭제"
+                    >
+                      {deletingConversationId === conv.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </motion.div>
         </div>
