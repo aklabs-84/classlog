@@ -546,6 +546,7 @@ const AiCopilot = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const isComposingRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 대화 기록 저장/불러오기 — 모드별로 현재 이어쓰고 있는 conversation row id를 추적(없으면 다음 저장 시 새로 생성)
@@ -2580,8 +2581,11 @@ ${session.transcript_text}
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
+              onCompositionStart={() => { isComposingRef.current = true; }}
+              onCompositionEnd={() => { isComposingRef.current = false; }}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
+                  if (isComposingRef.current || e.nativeEvent.isComposing) return;
                   e.preventDefault();
                   formRef.current?.requestSubmit();
                 }
