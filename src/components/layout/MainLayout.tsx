@@ -8,6 +8,7 @@ import WaitlistBanner from './WaitlistBanner';
 import FloatingTimer from '../FloatingTimer';
 import FloatingAIProgress from '../FloatingAIProgress';
 import ScrollToTopButton from './ScrollToTopButton';
+import CopilotReturnBadge from '../CopilotReturnBadge';
 
 const MainLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -33,6 +34,7 @@ const MainLayout = () => {
       <FloatingTimer />
       <FloatingAIProgress />
       <ScrollToTopButton />
+      <CopilotReturnBadge />
     </div>
   );
 };

@@ -16,6 +16,7 @@ import { getTemplate, getLayoutSlotSpec, buildDraftDeckSlides, getSlideTemplateG
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../components/slidedeck/ImportMaterialModal';
 import { tools as TEACHING_TOOLS } from './TeachingTools';
 import { PLANS, FEATURE_ROWS } from './Pricing';
+import { stashCopilotReturn } from '../lib/copilotReturnState';
 
 const DRAFT_MARKER = '[[LESSON_PLAN_DRAFT]]';
 const SLIDE_DECK_DRAFT_MARKER = '[[SLIDE_DECK_DRAFT]]';
@@ -169,6 +170,24 @@ type ConversationSummary = { id: string; title: string; updated_at: string };
 // 페르소나(탭)별 순수 카피/UI 플래그. 쿼리·호출 함수 같은 로직은 컴포넌트 안에서 모드별로 직접 분기한다
 // (페르소나마다 실제 로직이 다르므로 여기 억지로 파라미터화하지 않음 — 프로젝트 관행상 성급한 공용 추상화 지양).
 type CopilotModeId = 'lesson_plan' | 'observation_analyst' | 'seatuk_writer' | 'slide_deck_maker' | 'material_maker' | 'quiz_maker' | 'survey_maker' | 'idea_brainstorm' | 'class_manager' | 'app_guide';
+
+// 대화 상태(메시지/선택 학급 등)를 sessionStorage에 보존 — 딥링크로 다른 화면(클래스룸 등)에 다녀와도
+// 컴포넌트가 언마운트-리마운트되면서 대화가 초기화되지 않도록 한다.
+const COPILOT_SESSION_KEY = 'copilot_session_state_v1';
+type PersistedCopilotState = {
+  messagesByMode?: Partial<Record<CopilotModeId, CopilotMessage[]>>;
+  activeMode?: CopilotModeId;
+  selectedClassId?: string;
+  loadedReferences?: LoadedReference[];
+};
+const readPersistedCopilotState = (): PersistedCopilotState => {
+  try {
+    const raw = sessionStorage.getItem(COPILOT_SESSION_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
 
 type CopilotModeConfig = {
   tabLabel: string;
@@ -480,7 +499,10 @@ const AiCopilot = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
-  const [activeMode, setActiveMode] = useState<CopilotModeId>('app_guide');
+  // 딥링크로 다른 화면에 다녀와도 대화가 끊기지 않도록, 최초 마운트 시 sessionStorage에서 이전 세션을 복원한다.
+  const [persistedState] = useState<PersistedCopilotState>(() => readPersistedCopilotState());
+
+  const [activeMode, setActiveMode] = useState<CopilotModeId>(persistedState.activeMode || 'app_guide');
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('all');
   const [guideModalOpen, setGuideModalOpen] = useState(false);
   const [messagesByMode, setMessagesByMode] = useState<Record<CopilotModeId, CopilotMessage[]>>({
@@ -494,6 +516,7 @@ const AiCopilot = () => {
     survey_maker: [],
     observation_analyst: [],
     seatuk_writer: [],
+    ...persistedState.messagesByMode,
   });
   const messages = messagesByMode[activeMode];
 
@@ -502,14 +525,14 @@ const AiCopilot = () => {
   // 채팅 내 슬라이드 템플릿 픽커 — 레이아웃 그룹별로 고른 색상 테마 인덱스(TemplateGallery와 동일한 방식)
   const [slideThemeIdxByGroup, setSlideThemeIdxByGroup] = useState<Record<string, number>>({});
   const [classes, setClasses] = useState<{ id: string; name: string; subject?: string; class_type?: string; weekly_plan?: { week: number; topic: string }[] }[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState(persistedState.selectedClassId || '');
   const [monthAiCount, setMonthAiCount] = useState(0);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'ai_limit' | 'ai_bulk' | 'class_limit'>('ai_limit');
   const [lessonPlanObservations, setLessonPlanObservations] = useState<any[]>([]);
   const [analystObservations, setAnalystObservations] = useState<any[]>([]);
   const [referenceSuggestions, setReferenceSuggestions] = useState<MatchedContent[]>([]);
-  const [loadedReferences, setLoadedReferences] = useState<LoadedReference[]>([]);
+  const [loadedReferences, setLoadedReferences] = useState<LoadedReference[]>(persistedState.loadedReferences || []);
   // "이어서 만들기"로 다른 탭에서 넘어온 직후를 표시하는 배너용 — 사용자가 탭을 직접 클릭하면 해제된다
   const [handoffOrigin, setHandoffOrigin] = useState<{ fromMode: CopilotModeId; title: string } | null>(null);
   const [libraryIndex, setLibraryIndex] = useState<{ title: string; snippet: string }[]>([]);
@@ -539,6 +562,16 @@ const AiCopilot = () => {
   const [conversationList, setConversationList] = useState<ConversationSummary[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+
+  // 딥링크로 다른 화면에 다녀오는 짧은 왕복 동안 대화/선택 학급을 잃지 않도록 sessionStorage에 계속 동기화.
+  // DB에 저장되는 "대화 기록"(conversationIdByMode)과는 별개로, 새로고침 없이 페이지를 오갈 때만 쓰는 임시 캐시.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(COPILOT_SESSION_KEY, JSON.stringify({ messagesByMode, activeMode, selectedClassId, loadedReferences }));
+    } catch {
+      // sessionStorage 가득 참/비활성화 시에도 대화 자체는 계속 진행 가능하므로 조용히 무시
+    }
+  }, [messagesByMode, activeMode, selectedClassId, loadedReferences]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1110,9 +1143,21 @@ const AiCopilot = () => {
     }
   };
 
+  // 대화 도중 다른 화면으로 이동하기 직전 호출 — CopilotReturnBadge가 어느 에이전트로 돌아갈지 표시할 수 있게 남겨둔다.
+  const markCopilotDeparture = () => {
+    stashCopilotReturn({
+      mode: activeMode,
+      personaName: COPILOT_MODES[activeMode].personaName,
+      personaAvatar: COPILOT_MODES[activeMode].personaAvatar,
+      themeColor: COPILOT_MODES[activeMode].themeColor,
+      ts: Date.now(),
+    });
+  };
+
   const handleSaveDraft = (target: 'material-editor' | 'slide-deck' | 'lesson-plan', draftContent: string) => {
     const title = extractDraftTitle(draftContent);
     const classId = selectedClassId || null;
+    markCopilotDeparture();
     if (target === 'material-editor') {
       navigate('/teaching-tools', {
         state: { activeToolId: 'material-editor', draftMaterial: { noteId: '', title, content: draftContent, classId } },
@@ -2395,7 +2440,7 @@ ${session.transcript_text}
                     {m.meta?.navigateTo && (
                       <div className="mt-4 pt-3 border-t border-surface-container">
                         <button
-                          onClick={() => navigate(m.meta!.navigateTo, m.meta!.state ? { state: m.meta!.state } : undefined)}
+                          onClick={() => { markCopilotDeparture(); navigate(m.meta!.navigateTo, m.meta!.state ? { state: m.meta!.state } : undefined); }}
                           className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary-dim transition-all active:scale-95"
                         >
                           <ArrowRight size={14} />
