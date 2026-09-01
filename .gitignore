@@ -43,3 +43,6 @@ supabase/.branches/
 
 # bkit 플러그인 로컬 진행 상태 파일
 .bkit-memory.json
+
+# Claude Code 로컬 설정 (권한/dev서버 실행설정/세션 락 — 개인 환경 전용)
+.claude/
