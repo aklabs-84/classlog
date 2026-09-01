@@ -2084,13 +2084,108 @@ ${sectionBlock}
   );
   const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
   const parsed = JSON.parse(raw);
-  const slides = Array.isArray(parsed.slides)
-    ? parsed.slides.map((s: any) => ({
+  const slides = parseOutlineSlides(parsed.slides);
+  return { title: typeof parsed.title === 'string' ? parsed.title : '', slides };
+}
+
+// AI JSON 응답의 slides 배열을 { subtitle, content } 형태로 안전하게 파싱 (generateSlideOutline/reviseSlideOutline* 공용)
+function parseOutlineSlides(rawSlides: any): SlideOutlinePlan['slides'] {
+  return Array.isArray(rawSlides)
+    ? rawSlides.map((s: any) => ({
         subtitle: typeof s?.subtitle === 'string' ? s.subtitle : '',
         content: Array.isArray(s?.content) ? s.content.filter((c: any) => typeof c === 'string') : [],
       }))
     : [];
-  return { title: typeof parsed.title === 'string' ? parsed.title : '', slides };
+}
+
+// 계획(개요) 화면에서 슬라이드 "한 장"의 내용을 선생님의 요청 문구에 맞춰 AI가 다시 씀.
+// 원문(rawContent)을 근거로 삼아 지어내지 않고, subtitle/content만 교체한다.
+export async function reviseSlideOutlineSlide(
+  rawContent: string,
+  slide: SlideOutlinePlan['slides'][number],
+  instruction: string,
+  classId?: string
+): Promise<SlideOutlinePlan['slides'][number]> {
+  const prompt = `발표용 슬라이드 구성안 중 슬라이드 한 장의 내용을 선생님의 요청에 맞게 다시 씁니다.
+
+[원문 수업 자료 — 이 안에 있는 내용만 근거로 사용하세요]
+${rawContent}
+
+[현재 이 슬라이드의 내용]
+소제목: ${slide.subtitle}
+내용:
+${slide.content.map(c => `- ${c}`).join('\n')}
+
+[선생님의 요청]
+${instruction}
+
+[작성 규칙]
+- 위 요청을 반영해서 이 슬라이드의 subtitle과 content를 다시 작성하세요.
+- content는 슬라이드에 들어갈 핵심 문장이나 짧은 불릿 2~4개 정도의 문자열 배열로 작성하세요.
+- 원문 수업 자료에 없는 사실을 지어내지 마세요. 단, 표현 방식·설명 순서·문체를 바꾸는 것은 괜찮습니다.
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{"subtitle":"...","content":["...","..."]}`;
+
+  const result = await slideDeckDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  return {
+    subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle : slide.subtitle,
+    content: Array.isArray(parsed.content) ? parsed.content.filter((c: any) => typeof c === 'string') : slide.content,
+  };
+}
+
+// 계획(개요) 화면에서 "전체" 슬라이드 내용을 선생님의 요청 문구에 맞춰 한 번에 다시 씀.
+// 슬라이드 장 수와 순서는 그대로 유지한 채, 각 슬라이드의 subtitle/content만 다시 작성한다.
+export async function reviseSlideOutlinePlan(
+  rawContent: string,
+  plan: SlideOutlinePlan,
+  instruction: string,
+  classId?: string
+): Promise<SlideOutlinePlan> {
+  const slideList = plan.slides
+    .map((s, i) => `${i + 1}. 소제목: ${s.subtitle}\n   내용: ${s.content.join(' / ')}`)
+    .join('\n');
+
+  const prompt = `발표용 슬라이드 구성안 전체의 내용을 선생님의 요청에 맞게 다시 씁니다.
+
+[원문 수업 자료 — 이 안에 있는 내용만 근거로 사용하세요]
+${rawContent}
+
+[현재 슬라이드 구성 — 총 ${plan.slides.length}장]
+전체 제목: ${plan.title}
+${slideList}
+
+[선생님의 요청]
+${instruction}
+
+[작성 규칙]
+- 반드시 지금과 똑같이 총 ${plan.slides.length}장을 같은 순서로 유지하면서, 각 슬라이드의 subtitle과 content만 요청에 맞게 다시 작성하세요. 슬라이드를 추가/삭제/순서 변경하지 마세요.
+- content는 슬라이드에 들어갈 핵심 문장이나 짧은 불릿 2~4개 정도의 문자열 배열로 작성하세요.
+- 원문 수업 자료에 없는 사실을 지어내지 마세요. 단, 표현 방식·설명 순서·문체를 바꾸는 것은 괜찮습니다.
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이, slides는 정확히 ${plan.slides.length}개):
+{"slides":[{"subtitle":"...","content":["...","..."]},...]}`;
+
+  const result = await slideDeckDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  const slides = parseOutlineSlides(parsed.slides);
+  // AI가 장 수를 어기면(드물지만) 안전하게 기존 구성 길이에 맞춰 보정
+  if (slides.length !== plan.slides.length) {
+    return {
+      ...plan,
+      slides: plan.slides.map((s, i) => slides[i] ?? s),
+    };
+  }
+  return { ...plan, slides };
 }
 
 // 선택한 템플릿의 레이아웃 스펙에 맞춰 원문을 슬라이드 초안(JSON)으로 재구성.

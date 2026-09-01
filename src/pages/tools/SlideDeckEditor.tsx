@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical, Wand2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
@@ -12,7 +12,7 @@ import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../../components/slidedeck/ImportMaterialModal';
-import { generateSlideDeckDraft, generateSlideOutline, embedText, type SlideOutlinePlan } from '../../lib/gemini';
+import { generateSlideDeckDraft, generateSlideOutline, reviseSlideOutlineSlide, reviseSlideOutlinePlan, embedText, type SlideOutlinePlan } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
@@ -92,6 +92,13 @@ export default function SlideDeckEditor() {
   const [planLoading, setPlanLoading] = useState(false);
   const dragSlideIndexRef = useRef<number | null>(null);
   const [dragOverSlideIndex, setDragOverSlideIndex] = useState<number | null>(null);
+  // 계획(개요) 화면 — 슬라이드별/전체 "AI로 수정" 요청
+  const [openReviseIndex, setOpenReviseIndex] = useState<number | null>(null);
+  const [slideRevisePrompt, setSlideRevisePrompt] = useState('');
+  const [revisingSlideIndex, setRevisingSlideIndex] = useState<number | null>(null);
+  const [showGlobalRevise, setShowGlobalRevise] = useState(false);
+  const [globalRevisePrompt, setGlobalRevisePrompt] = useState('');
+  const [revisingAllSlides, setRevisingAllSlides] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
   const [exporting, setExporting] = useState<'pptx' | 'pdf' | null>(null);
   const [importingPptx, setImportingPptx] = useState(false);
@@ -283,6 +290,58 @@ export default function SlideDeckEditor() {
     setDragOverSlideIndex(null);
     if (fromIndex === null || fromIndex === dropIndex) return;
     movePlanSlide(fromIndex, dropIndex);
+  };
+
+  // ── 계획(개요) 화면 — 슬라이드 한 장을 AI로 다시 쓰기 ──────────────────────────
+  const toggleSlideReviseInput = (index: number) => {
+    setOpenReviseIndex(prev => (prev === index ? null : index));
+    setSlideRevisePrompt('');
+  };
+  const handleReviseSlide = async (index: number) => {
+    if (!planOutline || !importedMaterial || !slideRevisePrompt.trim()) return;
+    setRevisingSlideIndex(index);
+    try {
+      const sourceContent = resolveSourceContent(importedMaterial);
+      const revised = await reviseSlideOutlineSlide(
+        sourceContent,
+        planOutline.slides[index],
+        slideRevisePrompt.trim(),
+        importedMaterial.class_id ?? undefined
+      );
+      setPlanOutline(prev => {
+        if (!prev) return prev;
+        const slides = prev.slides.map((s, i) => (i === index ? revised : s));
+        return { ...prev, slides };
+      });
+      setOpenReviseIndex(null);
+      setSlideRevisePrompt('');
+    } catch (err: any) {
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || '슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
+    } finally {
+      setRevisingSlideIndex(null);
+    }
+  };
+
+  // ── 계획(개요) 화면 — 전체 슬라이드를 AI로 한 번에 다시 쓰기 ────────────────────
+  const handleReviseAllSlides = async () => {
+    if (!planOutline || !importedMaterial || !globalRevisePrompt.trim()) return;
+    setRevisingAllSlides(true);
+    try {
+      const sourceContent = resolveSourceContent(importedMaterial);
+      const revised = await reviseSlideOutlinePlan(
+        sourceContent,
+        planOutline,
+        globalRevisePrompt.trim(),
+        importedMaterial.class_id ?? undefined
+      );
+      setPlanOutline(revised);
+      setShowGlobalRevise(false);
+      setGlobalRevisePrompt('');
+    } catch (err: any) {
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || '전체 슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
+    } finally {
+      setRevisingAllSlides(false);
+    }
   };
 
   // ── AI 초안 생성 (자료 에디터에서 가져오기, 계획 승인 후 실행) ────────────────────
@@ -742,7 +801,7 @@ export default function SlideDeckEditor() {
         ) : planOutline && (
           <>
             <div style={{ maxWidth: 640 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <input
                   value={planOutline.title}
                   onChange={e => updatePlanTitle(e.target.value)}
@@ -753,6 +812,32 @@ export default function SlideDeckEditor() {
                   총 {planOutline.slides.length}장
                 </span>
               </div>
+              <button
+                onClick={() => { setShowGlobalRevise(v => !v); setGlobalRevisePrompt(''); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: showGlobalRevise ? '#EFF6FF' : '#fff', color: '#3B82F6', border: '1px solid #93C5FD', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, marginBottom: 14 }}
+              >
+                <Wand2 size={13} /> 전체 슬라이드 AI로 다시쓰기
+              </button>
+              {showGlobalRevise && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14, marginTop: -6 }}>
+                  <input
+                    value={globalRevisePrompt}
+                    onChange={e => setGlobalRevisePrompt(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !revisingAllSlides) handleReviseAllSlides(); }}
+                    placeholder="예: 더 쉬운 말로 풀어써줘 / 문장을 짧게 줄여줘 / 예시를 추가해줘"
+                    autoFocus
+                    disabled={revisingAllSlides}
+                    style={{ flex: 1, fontSize: 13, border: '1px solid #93C5FD', borderRadius: 8, padding: '8px 12px', color: '#111827' }}
+                  />
+                  <button
+                    onClick={handleReviseAllSlides}
+                    disabled={revisingAllSlides || !globalRevisePrompt.trim()}
+                    style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: revisingAllSlides || !globalRevisePrompt.trim() ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: revisingAllSlides || !globalRevisePrompt.trim() ? 0.6 : 1 }}
+                  >
+                    {revisingAllSlides ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 적용
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {planOutline.slides.map((slide, i) => (
                   <div
@@ -787,6 +872,32 @@ export default function SlideDeckEditor() {
                         rows={Math.max(2, slide.content.length)}
                         style={{ width: '100%', fontSize: 13, color: '#374151', border: '1px solid #e5e7eb', borderRadius: 6, padding: '7px 10px', resize: 'vertical', lineHeight: 1.6 }}
                       />
+                      <button
+                        onClick={() => toggleSlideReviseInput(i)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6, background: 'none', border: 'none', color: '#3B82F6', cursor: 'pointer', padding: '2px 0', fontSize: 12, fontWeight: 600 }}
+                      >
+                        <Wand2 size={12} /> AI로 수정
+                      </button>
+                      {openReviseIndex === i && (
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <input
+                            value={slideRevisePrompt}
+                            onChange={e => setSlideRevisePrompt(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && revisingSlideIndex === null) handleReviseSlide(i); }}
+                            placeholder="예: 실험 순서를 단계별로 나눠줘"
+                            autoFocus
+                            disabled={revisingSlideIndex === i}
+                            style={{ flex: 1, fontSize: 12.5, border: '1px solid #93C5FD', borderRadius: 6, padding: '6px 10px', color: '#111827' }}
+                          />
+                          <button
+                            onClick={() => handleReviseSlide(i)}
+                            disabled={revisingSlideIndex === i || !slideRevisePrompt.trim()}
+                            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: revisingSlideIndex === i || !slideRevisePrompt.trim() ? 'default' : 'pointer', fontSize: 12, fontWeight: 600, opacity: revisingSlideIndex === i || !slideRevisePrompt.trim() ? 0.6 : 1 }}
+                          >
+                            {revisingSlideIndex === i ? <Loader2 size={12} className="animate-spin" /> : '적용'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => removePlanSlide(i)}
