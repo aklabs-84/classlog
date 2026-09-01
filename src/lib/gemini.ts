@@ -274,8 +274,8 @@ export const SYSTEM_INSTRUCTIONS = {
   `,
 };
 
-function getModelId(model: 'pro' | 'flash') {
-  return model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+function getModelId(model: 'pro' | 'flash' | 'lite') {
+  return model === 'pro' ? 'gemini-3.1-pro-preview' : model === 'lite' ? 'gemini-3.1-flash-lite' : 'gemini-3.6-flash';
 }
 
 // 사용자가 설정 페이지에서 직접 등록한 본인 Gemini API 키 (무료 플랜 한도 우회용)
@@ -297,8 +297,10 @@ async function callDirect(body: any, apiKeyOverride?: string): Promise<string> {
         : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 }),
       ...(jsonMode && {
         responseMimeType: 'application/json',
-        // gemini-2.5-pro는 thinking을 끌 수 없음(budget 0 불가) → pro는 thinkingConfig 생략
-        ...(model !== 'pro' && { thinkingConfig: { thinkingBudget: 0 } }),
+        // gemini-3.1-pro-preview는 thinking을 끌 수 없음(budget 0 불가) → pro는 thinkingConfig 생략
+        // gemini-3.6-flash는 thinkingBudget 0을 거부하므로(400) 최소값 128 사용, lite는 0 허용
+        ...(model === 'lite' && { thinkingConfig: { thinkingBudget: 0 } }),
+        ...(model === 'flash' && { thinkingConfig: { thinkingBudget: 128 } }),
       }),
     },
   });
@@ -410,7 +412,7 @@ export async function webSearchForIdea(query: string, classId?: string): Promise
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const generativeModel = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.6-flash',
         generationConfig: { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 2048 },
       });
       const { response } = await generativeModel.generateContent({
@@ -483,7 +485,7 @@ export async function embedText(text: string): Promise<number[]> {
 }
 
 // Compatible wrappers matching the @google/generative-ai interface used in the codebase
-function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown', jsonMode = false) {
+function makeModelWrapper(model: 'pro' | 'flash' | 'lite', feature = 'unknown', jsonMode = false) {
   return {
     generateContent: async (input: string | any[], options?: { class_id?: string }) => {
       const parts = typeof input === 'string' ? [{ text: input }] : input;
@@ -508,7 +510,7 @@ export const geminiFlash = makeModelWrapper('flash');
 export const geminiPro   = makeModelWrapper('pro');
 
 // 기능별 named wrapper (비용 추적용)
-export const promptValidatorAI    = makeModelWrapper('flash', 'prompt_validate', true);
+export const promptValidatorAI    = makeModelWrapper('lite',  'prompt_validate', true);
 export const seatukDraftAI        = makeModelWrapper('pro',   'seatuk_draft');
 export const seatukRefineAI       = makeModelWrapper('pro',   'seatuk_refine');
 export const seatukCompressAI     = makeModelWrapper('pro',   'seatuk_compress');
@@ -522,15 +524,15 @@ export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis'
 export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade', true);
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
 export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
-export const coverPromptAI         = makeModelWrapper('flash', 'cover_prompt_suggest', true);
+export const coverPromptAI         = makeModelWrapper('lite',  'cover_prompt_suggest', true);
 export const ideaAnalysisAI        = makeModelWrapper('flash', 'idea_analysis', true);
 export const lessonPlanDraftAI     = makeModelWrapper('flash', 'lesson_plan_draft');
-export const ideaQuestionAI        = makeModelWrapper('flash', 'idea_clarify_question', true);
+export const ideaQuestionAI        = makeModelWrapper('lite',  'idea_clarify_question', true);
 export const ideaPRDAI             = makeModelWrapper('flash', 'idea_prd_generate', true);
 export const ideaPRDDraftAI        = makeModelWrapper('flash', 'idea_prd_draft');
 // 수업 계획서 자동생성(MaterialEditor) 전용 — 위 lessonPlanDraftAI(아이디어→마크다운)와는 별개 기능
 export const lessonPlanSectionsAI  = makeModelWrapper('pro', 'lesson_plan_sections', true);
-export const portfolioIntroDraftAI = makeModelWrapper('flash', 'portfolio_intro');
+export const portfolioIntroDraftAI = makeModelWrapper('lite',  'portfolio_intro');
 
 /**
  * 세특/행특 초안 프롬프트 조립 + 생성 (AIAssistant.tsx, AI 코파일럿 세특 작성가 탭 공용)

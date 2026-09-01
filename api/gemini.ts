@@ -18,10 +18,13 @@ const HARD_STOP_MULTIPLIER = 3;
 // (2026-08 기준 $35 / 1,000 grounded prompt) → 실제 호출됐을 때만 정액 비용을 더해준다.
 const GROUNDING_COST_USD_PER_CALL = 0.035;
 
-// 2026-06 Gemini 단가 (USD per 1M tokens)
+// 2026-09 Gemini 단가 (USD per 1M tokens) — 2.5 계열이 2026-10-16 폐기 예정이라 3세대로 이전.
+// gemini-3.6-flash 단가는 2026-12-31까지의 도입가(introductory price)이며 2027-01-01부터 input $1.50 / output $7.50로 인상 예정.
+// 신모델은 thinking 토큰을 output과 동일 단가로 과금(별도 단가 없음).
 const PRICING: Record<string, { input: number; output: number; thinking: number }> = {
-  'gemini-2.5-flash': { input: 0.30, output: 2.50, thinking: 3.50 },
-  'gemini-2.5-pro':   { input: 1.25, output: 10.00, thinking: 3.50 },
+  'gemini-3.6-flash':       { input: 0.75, output: 3.75,  thinking: 3.75 },
+  'gemini-3.1-pro-preview': { input: 2.00, output: 12.00, thinking: 12.00 },
+  'gemini-3.1-flash-lite':  { input: 0.25, output: 1.50,  thinking: 1.50 },
 };
 
 function calcCostUsd(
@@ -256,7 +259,11 @@ export default async function handler(req: any, res: any) {
   // ── AI 호출 ────────────────────────────────────────────────────────────────
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = effectiveModel === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+    const modelId = effectiveModel === 'pro'
+      ? 'gemini-3.1-pro-preview'
+      : effectiveModel === 'lite'
+        ? 'gemini-3.1-flash-lite'
+        : 'gemini-3.6-flash';
     const generativeModel = genAI.getGenerativeModel({
       model: modelId,
       generationConfig: {
@@ -265,8 +272,10 @@ export default async function handler(req: any, res: any) {
           : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 }),
         ...(jsonMode && {
           responseMimeType: 'application/json',
-          // gemini-2.5-pro는 thinking을 끌 수 없음(budget 0 불가) → pro는 thinkingConfig 생략
-          ...(effectiveModel !== 'pro' && { thinkingConfig: { thinkingBudget: 0 } }),
+          // gemini-3.1-pro-preview는 thinking을 끌 수 없음(budget 0 불가) → pro는 thinkingConfig 생략
+          // gemini-3.6-flash는 thinkingBudget 0을 거부하므로(400) 최소값 128 사용, lite는 0 허용
+          ...(effectiveModel === 'lite' && { thinkingConfig: { thinkingBudget: 0 } }),
+          ...(effectiveModel === 'flash' && { thinkingConfig: { thinkingBudget: 128 } }),
         }),
       },
     });
