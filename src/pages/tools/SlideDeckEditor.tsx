@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
@@ -14,7 +12,7 @@ import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../../components/slidedeck/ImportMaterialModal';
-import { generateSlideDeckDraft, generateSlideOutline, embedText } from '../../lib/gemini';
+import { generateSlideDeckDraft, generateSlideOutline, embedText, type SlideOutlinePlan } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
@@ -90,8 +88,10 @@ export default function SlideDeckEditor() {
   const [aiGenerating, setAiGenerating] = useState(false);
   // 자료 가져오기 → 템플릿 선택 후, 실제 생성 전에 보여주는 "계획(개요) 확인" 단계
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
-  const [planOutline, setPlanOutline] = useState<string | null>(null);
+  const [planOutline, setPlanOutline] = useState<SlideOutlinePlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const dragSlideIndexRef = useRef<number | null>(null);
+  const [dragOverSlideIndex, setDragOverSlideIndex] = useState<number | null>(null);
   const [bgUploading, setBgUploading] = useState(false);
   const [exporting, setExporting] = useState<'pptx' | 'pdf' | null>(null);
   const [importingPptx, setImportingPptx] = useState(false);
@@ -244,8 +244,49 @@ export default function SlideDeckEditor() {
     }
   };
 
+  // ── 계획(개요) 화면에서 직접 수정 — 제목/소제목/내용/순서/개수를 승인 전에 편집 ──────────
+  const updatePlanTitle = (title: string) => {
+    setPlanOutline(prev => (prev ? { ...prev, title } : prev));
+  };
+  const updatePlanSlideSubtitle = (index: number, subtitle: string) => {
+    setPlanOutline(prev => {
+      if (!prev) return prev;
+      const slides = prev.slides.map((s, i) => (i === index ? { ...s, subtitle } : s));
+      return { ...prev, slides };
+    });
+  };
+  const updatePlanSlideContent = (index: number, contentText: string) => {
+    setPlanOutline(prev => {
+      if (!prev) return prev;
+      const slides = prev.slides.map((s, i) => (i === index ? { ...s, content: contentText.split('\n') } : s));
+      return { ...prev, slides };
+    });
+  };
+  const removePlanSlide = (index: number) => {
+    setPlanOutline(prev => (prev ? { ...prev, slides: prev.slides.filter((_, i) => i !== index) } : prev));
+  };
+  const addPlanSlide = () => {
+    setPlanOutline(prev => (prev ? { ...prev, slides: [...prev.slides, { subtitle: '새 슬라이드', content: [] }] } : prev));
+  };
+  const movePlanSlide = (fromIndex: number, toIndex: number) => {
+    setPlanOutline(prev => {
+      if (!prev || fromIndex === toIndex) return prev;
+      const slides = [...prev.slides];
+      const [moved] = slides.splice(fromIndex, 1);
+      slides.splice(toIndex, 0, moved);
+      return { ...prev, slides };
+    });
+  };
+  const handlePlanSlideDrop = (dropIndex: number) => {
+    const fromIndex = dragSlideIndexRef.current;
+    dragSlideIndexRef.current = null;
+    setDragOverSlideIndex(null);
+    if (fromIndex === null || fromIndex === dropIndex) return;
+    movePlanSlide(fromIndex, dropIndex);
+  };
+
   // ── AI 초안 생성 (자료 에디터에서 가져오기, 계획 승인 후 실행) ────────────────────
-  const handleCreateDraftFromMaterial = async (templateId: string, approvedOutline?: string) => {
+  const handleCreateDraftFromMaterial = async (templateId: string, approvedOutline?: SlideOutlinePlan) => {
     if (!user || !importedMaterial) return;
     if (!canCreateDeck()) return;
     setAiGenerating(true);
@@ -691,7 +732,7 @@ export default function SlideDeckEditor() {
         </button>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>슬라이드 구성을 확인하세요</h2>
         <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-          AI가 만든 구성안을 승인하면 이 순서대로 실제 슬라이드가 만들어집니다.
+          AI가 만든 구성안을 자유롭게 수정한 뒤 승인하면, 이 순서대로 실제 슬라이드가 만들어집니다. 카드를 드래그해서 순서를 바꿀 수 있어요.
         </p>
         {planLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 0', color: '#6b7280' }}>
@@ -700,15 +741,75 @@ export default function SlideDeckEditor() {
           </div>
         ) : planOutline && (
           <>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', padding: '20px 24px', maxWidth: 720 }}>
-              <div className="prose prose-sm" style={{ maxWidth: 'none' }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{planOutline}</ReactMarkdown>
+            <div style={{ maxWidth: 640 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <input
+                  value={planOutline.title}
+                  onChange={e => updatePlanTitle(e.target.value)}
+                  placeholder="슬라이드 전체 제목"
+                  style={{ flex: 1, fontSize: 16, fontWeight: 700, border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', color: '#111827' }}
+                />
+                <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: '#3B82F6', background: '#EFF6FF', borderRadius: 999, padding: '6px 12px' }}>
+                  총 {planOutline.slides.length}장
+                </span>
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {planOutline.slides.map((slide, i) => (
+                  <div
+                    key={i}
+                    draggable
+                    onDragStart={() => { dragSlideIndexRef.current = i; }}
+                    onDragOver={e => { e.preventDefault(); if (dragOverSlideIndex !== i) setDragOverSlideIndex(i); }}
+                    onDragLeave={() => setDragOverSlideIndex(prev => (prev === i ? null : prev))}
+                    onDrop={e => { e.preventDefault(); handlePlanSlideDrop(i); }}
+                    onDragEnd={() => { dragSlideIndexRef.current = null; setDragOverSlideIndex(null); }}
+                    style={{
+                      display: 'flex', gap: 10, border: dragOverSlideIndex === i ? '1.5px dashed #3B82F6' : '1px solid #e5e7eb',
+                      borderRadius: 12, background: '#fff', padding: '14px 14px 14px 8px',
+                      opacity: dragSlideIndexRef.current === i ? 0.5 : 1,
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingTop: 2, cursor: 'grab', color: '#cbd5e1', flexShrink: 0 }}>
+                      <GripVertical size={16} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF' }}>{i + 1}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <input
+                        value={slide.subtitle}
+                        onChange={e => updatePlanSlideSubtitle(i, e.target.value)}
+                        placeholder="소제목"
+                        style={{ width: '100%', fontSize: 14, fontWeight: 600, border: '1px solid #e5e7eb', borderRadius: 6, padding: '7px 10px', marginBottom: 6, color: '#111827' }}
+                      />
+                      <textarea
+                        value={slide.content.join('\n')}
+                        onChange={e => updatePlanSlideContent(i, e.target.value)}
+                        placeholder="이 슬라이드에 들어갈 핵심 내용을 한 줄에 하나씩 적으세요"
+                        rows={Math.max(2, slide.content.length)}
+                        style={{ width: '100%', fontSize: 13, color: '#374151', border: '1px solid #e5e7eb', borderRadius: 6, padding: '7px 10px', resize: 'vertical', lineHeight: 1.6 }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => removePlanSlide(i)}
+                      title="이 슬라이드 삭제"
+                      style={{ flexShrink: 0, alignSelf: 'flex-start', background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: 4 }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={addPlanSlide}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, background: '#fff', color: '#3B82F6', border: '1px dashed #93C5FD', borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, width: '100%', justifyContent: 'center' }}
+              >
+                <Plus size={15} /> 슬라이드 추가
+              </button>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
               <button
                 onClick={() => pendingTemplateId && handleCreateDraftFromMaterial(pendingTemplateId, planOutline)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                disabled={planOutline.slides.length === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: planOutline.slides.length === 0 ? '#93C5FD' : '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', cursor: planOutline.slides.length === 0 ? 'default' : 'pointer', fontSize: 14, fontWeight: 600 }}
               >
                 <Check size={16} /> 이 구성대로 만들기
               </button>
