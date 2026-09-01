@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft } from '../lib/auth';
 import { isDemoTeacher } from '../lib/demo';
-import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, chatWithClassManagerCopilot, chatWithAppGuideCopilot, embedText, generateSeatukDraft, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
+import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, chatWithClassManagerCopilot, chatWithAppGuideCopilot, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 import CodeBlock from '../components/CodeBlock';
 import type { DeckSlide, SlideLayoutKind } from '../components/slidedeck/types';
@@ -529,6 +529,8 @@ const AiCopilot = () => {
   const [monthAiCount, setMonthAiCount] = useState(0);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'ai_limit' | 'ai_bulk' | 'class_limit'>('ai_limit');
+  const [seatukCostConfirmOpen, setSeatukCostConfirmOpen] = useState(false);
+  const [seatukPendingCount, setSeatukPendingCount] = useState(0);
   const [lessonPlanObservations, setLessonPlanObservations] = useState<any[]>([]);
   const [analystObservations, setAnalystObservations] = useState<any[]>([]);
   const [referenceSuggestions, setReferenceSuggestions] = useState<MatchedContent[]>([]);
@@ -1020,6 +1022,10 @@ const AiCopilot = () => {
     setSeatukSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  // 세특 대량 생성은 AI 호출이 다수 발생하는 작업이라, 임계치 이상 선택 시 실행 전에
+  // 한 번 더 확인받는다(사용량이 많은 상태에서 실수로 대량 재생성을 누르는 것을 방지).
+  const SEATUK_COST_CONFIRM_THRESHOLD = 5;
+
   // seatuk_writer 탭 전용 — 일반 채팅(chatWith*) 호출이 아니라 기존 AIAssistant.tsx의 세특 생성 파이프라인을
   // 그대로 재사용해 학생별로 순차 생성하고, 결과는 문구 자체가 아니라 결정론적 요약만 채팅에 남긴다.
   const handleSeatukGenerate = async (e: React.FormEvent) => {
@@ -1040,6 +1046,16 @@ const AiCopilot = () => {
       }
     }
 
+    if (seatukSelectedIds.length >= SEATUK_COST_CONFIRM_THRESHOLD) {
+      setSeatukPendingCount(seatukSelectedIds.length);
+      setSeatukCostConfirmOpen(true);
+      return;
+    }
+
+    await runSeatukGenerate();
+  };
+
+  const runSeatukGenerate = async () => {
     const selectedClass = classes.find(c => c.id === selectedClassId);
     const isHomeroom = selectedClass?.class_type === 'homeroom';
     const docType = isHomeroom ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
@@ -1074,31 +1090,49 @@ const AiCopilot = () => {
 
       setSeatukProgress({ current: 0, total: withObs.length });
       let localAiCount = monthAiCount;
+      let doneCount = 0;
 
-      for (let i = 0; i < withObs.length; i++) {
-        const student = withObs[i];
-        setSeatukProgress({ current: i + 1, total: withObs.length });
+      // 학생별로 매번 시스템 프롬프트를 반복 전송하는 비용을 줄이기 위해 SEATUK_BATCH_SIZE명씩 묶어서 호출한다.
+      // 배치 응답 파싱에 실패한 학생(모델이 형식을 지키지 않은 경우)은 개별 호출로 폴백해 결과 누락을 방지한다.
+      const SEATUK_BATCH_SIZE = 3;
+      for (let i = 0; i < withObs.length; i += SEATUK_BATCH_SIZE) {
+        const batch = withObs.slice(i, i + SEATUK_BATCH_SIZE);
 
-        const content = await generateSeatukDraft(obsByStudent[student.id], docType, teacherPrompt);
-        const originEntry = { label: '원본', content, createdAt: new Date().toISOString() };
-
-        await supabase.from('student_evaluations').upsert({
-          student_id: student.id,
-          class_id: selectedClassId,
-          teacher_id: user?.id,
-          academic_year: new Date().getFullYear(),
-          setech_content: content,
-          refine_history: [originEntry],
-          status: 'draft',
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'student_id,class_id,academic_year' });
-
-        if (isHomeroom) {
-          await supabase.from('students').update({ behavior_insight: content }).eq('id', student.id);
+        let batchResults: Record<string, string> = {};
+        try {
+          batchResults = await generateSeatukDraftBatch(
+            batch.map(s => ({ id: s.id, observations: obsByStudent[s.id] })),
+            docType,
+            teacherPrompt,
+          );
+        } catch (batchErr) {
+          console.error('[AiCopilot] 세특 배치 생성 오류, 개별 생성으로 폴백:', batchErr);
         }
 
-        localAiCount += 1;
-        setMonthAiCount(localAiCount);
+        for (const student of batch) {
+          const content = batchResults[student.id] ?? await generateSeatukDraft(obsByStudent[student.id], docType, teacherPrompt);
+          const originEntry = { label: '원본', content, createdAt: new Date().toISOString() };
+
+          await supabase.from('student_evaluations').upsert({
+            student_id: student.id,
+            class_id: selectedClassId,
+            teacher_id: user?.id,
+            academic_year: new Date().getFullYear(),
+            setech_content: content,
+            refine_history: [originEntry],
+            status: 'draft',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'student_id,class_id,academic_year' });
+
+          if (isHomeroom) {
+            await supabase.from('students').update({ behavior_insight: content }).eq('id', student.id);
+          }
+
+          localAiCount += 1;
+          setMonthAiCount(localAiCount);
+          doneCount += 1;
+          setSeatukProgress({ current: doneCount, total: withObs.length });
+        }
       }
 
       const summaryLines: string[] = [
@@ -2166,6 +2200,29 @@ ${session.transcript_text}
                 </div>
               )}
 
+              {/* Seatuk Writer Nudge: guide away from per-student chat toward the bulk single-shot generator */}
+              {activeMode === 'observation_analyst' && classes.length > 0 && (
+                <div className="max-w-md w-full mx-auto p-3.5 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-left flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-violet-600 text-white shrink-0 flex items-center justify-center font-black text-sm">
+                    ✍️
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <p className="text-xs font-black text-violet-900">세특 초안이 필요하신가요?</p>
+                    <p className="text-[11px] font-bold text-violet-800/80 leading-relaxed">
+                      올리버는 관찰기록을 함께 들여다보는 대화용이에요. 여러 학생 세특을 한 번에 만들려면 <strong>클레어(세특 작성)</strong> 탭이 더 빠르고 저렴해요.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('seatuk_writer')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-xl text-[11px] font-black hover:bg-violet-700 transition-colors shadow-sm mt-1"
+                    >
+                      <ArrowRight size={12} />
+                      클레어에게 세특 작성하러 가기
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Recommended Prompts (QuickStarts) */}
               {modeConfig.quickStarts && (
                 <div className="space-y-2 pt-1 max-w-lg w-full">
@@ -2899,6 +2956,53 @@ ${session.transcript_text}
       )}
 
       <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} reason={upgradeReason} />
+      {seatukCostConfirmOpen && (() => {
+        const usage = getAiUsageStatus(profile);
+        return (
+          <div
+            className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4"
+            onClick={() => setSeatukCostConfirmOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 shrink-0 flex items-center justify-center">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <p className="font-black text-sm text-slate-900">학생 {seatukPendingCount}명 세특을 한 번에 생성할까요?</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">한 번에 여러 명을 생성하면 AI 호출이 그만큼 여러 번 발생해요.</p>
+                </div>
+              </div>
+              {usage && (
+                <div className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                  {usage.kind === 'count'
+                    ? `이번 달 AI 사용량 ${usage.used}/${usage.limit}회 (${usage.percent}%)`
+                    : `이번 달 AI 사용률 ${usage.percent}%${usage.state !== 'normal' ? ' — 사용량이 많은 편이에요' : ''}`}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSeatukCostConfirmOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-black text-sm hover:bg-slate-50 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSeatukCostConfirmOpen(false); runSeatukGenerate(); }}
+                  className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white font-black text-sm hover:bg-violet-700 transition-colors"
+                >
+                  계속 생성
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showMaterialImportModal && user?.id && (
         <ImportMaterialModal
           userId={user.id}

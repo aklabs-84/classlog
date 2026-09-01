@@ -564,6 +564,57 @@ ${obsText}
 }
 
 /**
+ * 세특/행특 대량 생성 시 학생별로 매번 시스템 프롬프트를 반복 전송하는 비용을 줄이기 위해,
+ * 여러 학생을 한 번의 호출로 묶어서 처리한다. 응답 파싱에 실패한 학생은 호출부에서
+ * generateSeatukDraft로 개별 폴백 처리해야 하므로, 이 함수는 파싱된 결과만 반환한다
+ * (누락된 학생 id는 결과 객체에 아예 없음).
+ */
+export async function generateSeatukDraftBatch(
+  students: { id: string; observations: { activity_name: string; content: string }[] }[],
+  docType: string,
+  teacherPrompt: string,
+): Promise<Record<string, string>> {
+  const studentsBlock = students.map(s => {
+    const obsText = s.observations.length > 0
+      ? s.observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n')
+      : '제출된 관찰 기록이 없습니다.';
+    return `===학생ID:${s.id}===\n${obsText}`;
+  }).join('\n\n');
+
+  const prompt = `
+${SYSTEM_INSTRUCTIONS.BASE}
+${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}
+${SYSTEM_INSTRUCTIONS.PRIVACY}
+
+${teacherPrompt ? `[선생님 추가 지침]\n${teacherPrompt}\n` : ''}
+
+아래는 여러 학생의 관찰 기록입니다. 학생별로 ${docType} 초안을 각각 작성해주세요.
+반드시 학생 수만큼, 아래 형식을 정확히 지켜서 출력하세요. 형식 밖의 다른 설명, 학생 이름, 마크다운은 포함하지 마세요.
+
+출력 형식 (학생마다 반복):
+===학생ID:{id}===
+(해당 학생의 초안 문구만)
+===끝===
+
+[학생별 관찰 기록]
+${studentsBlock}
+`;
+
+  const result = await seatukDraftAI.generateContent(prompt);
+  const text = result.response.text();
+
+  const parsed: Record<string, string> = {};
+  const re = /===학생ID:(.*?)===\s*([\s\S]*?)\s*===끝===/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const id = m[1].trim();
+    const content = m[2].trim();
+    if (id && content) parsed[id] = content;
+  }
+  return parsed;
+}
+
+/**
  * 파일을 Gemini API 파트로 변환 (Base64) - 브라우저에서 실행, 결과를 서버로 전달
  */
 export async function fileToGenerativePart(file: File): Promise<{ inlineData: { data: string; mimeType: string } }> {
@@ -999,6 +1050,18 @@ ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습�
   });
 }
 
+// 코파일럿 대화가 길어질수록 매턴 전체 히스토리를 재전송해 비용이 누적되는 것을 막기 위한
+// 슬라이딩 윈도우. 대화 시작 맥락(첫 메시지들)은 유지하고, 오래된 중간 turn만 잘라낸다.
+const HISTORY_MAX_MESSAGES = 20;
+const HISTORY_HEAD_KEEP = 2;
+
+function trimCopilotHistory(history: { role: string; text: string }[]) {
+  if (history.length <= HISTORY_MAX_MESSAGES) return history;
+  const head = history.slice(0, HISTORY_HEAD_KEEP);
+  const tail = history.slice(-(HISTORY_MAX_MESSAGES - HISTORY_HEAD_KEEP));
+  return [...head, ...tail];
+}
+
 // AI 코파일럿 — 수업 기획 전문가: 자유 대화로 수업을 구체화하고, 합의되면
 // [[LESSON_PLAN_DRAFT]] 마커가 붙은 계획안 초안을 응답에 포함해 반환한다.
 export async function chatWithLessonPlanCopilot(
@@ -1024,7 +1087,7 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'lesson_plan_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1053,7 +1116,7 @@ ${observations && observations.length > 0
     model: 'pro',
     feature: 'observation_analyst_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1085,7 +1148,7 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'slide_deck_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1118,7 +1181,7 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'material_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1148,7 +1211,7 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'quiz_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1176,7 +1239,7 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'survey_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1202,7 +1265,7 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'idea_handoff_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
@@ -1229,7 +1292,7 @@ ${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 주간 수업 계�
     model: 'pro',
     feature: 'class_manager_copilot',
     systemInstruction,
-    history: history.map(h => ({
+    history: trimCopilotHistory(history).map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
