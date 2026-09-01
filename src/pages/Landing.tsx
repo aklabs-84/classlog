@@ -139,6 +139,9 @@ const steps = [
   { num: '04', title: '나이스 제출', desc: '500자 맞춤 편집 후 나이스 엑셀로 바로 내보냅니다.' },
 ];
 
+// 유료 고객 확보 전까지 선결제 할인 노출을 잠시 끔 — 켤 때는 true로.
+const SHOW_PREPAY_DISCOUNT = false;
+
 const pricingPlans = [
   {
     name: '무료',
@@ -150,15 +153,15 @@ const pricingPlans = [
       { text: '클래스 최대 1개', ok: true },
       { text: '학생 최대 20명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
-      { text: 'AI 세특 월 20회 체험', ok: true },
-      { text: '수업 자료 에디터 (2개까지)', ok: true },
       { text: '퀴즈 (최대 5문항)', ok: true },
       { text: '설문 (1개까지)', ok: true },
       { text: '화이트보드 (1개까지)', ok: true },
-      { text: '수업 전사 (Groq 키 필요, AI 분석 월 20회)', ok: true },
       { text: '일괄 AI 생성', ok: false },
       { text: 'NAISS 내보내기', ok: false },
       { text: '학교 프로젝트', ok: false },
+      { text: '수업 자료 에디터 (2개까지)', ok: true },
+      { text: 'AI 세특 월 20회 체험', ok: true },
+      { text: '수업 전사 (Groq 키 필요, AI 분석 월 20회)', ok: true },
     ],
   },
   {
@@ -173,14 +176,14 @@ const pricingPlans = [
       { text: '클래스 최대 5개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
-      { text: 'AI 사용 넉넉하게', ok: true },
-      { text: '수업 자료 에디터', ok: true },
       { text: '퀴즈 · 설문 무제한', ok: true },
       { text: '화이트보드 (3개)', ok: true },
-      { text: '수업 전사 (Groq API 필요)', ok: true },
       { text: '일괄 AI 생성', ok: false },
       { text: 'NAISS 내보내기', ok: false },
       { text: '학교 프로젝트 참여', ok: true },
+      { text: '수업 자료 에디터', ok: true },
+      { text: '수업 전사 (Groq API 필요)', ok: true },
+      { text: 'AI 사용 넉넉하게', ok: true },
     ],
   },
   {
@@ -196,13 +199,13 @@ const pricingPlans = [
       { text: '클래스 최대 10개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
-      { text: 'AI 사용 가장 넉넉하게', ok: true },
-      { text: '수업 자료 에디터', ok: true },
       { text: '퀴즈 · 설문 · 화이트보드 무제한', ok: true },
-      { text: '수업 전사 & AI 분석 (Groq 키 필요)', ok: true },
       { text: '일괄 AI 생성', ok: true },
       { text: 'NAISS 내보내기', ok: true },
       { text: '학교 프로젝트 생성 · 관리', ok: true },
+      { text: '수업 자료 에디터', ok: true },
+      { text: '수업 전사 & AI 분석 (Groq 키 필요)', ok: true },
+      { text: 'AI 사용 가장 넉넉하게', ok: true },
     ],
   },
   {
@@ -804,25 +807,29 @@ const Landing = () => {
             <h2 className="text-3xl font-black mb-3 text-white">10명의 AI 동료가 <span className="text-writer-orchid">함께 일합니다</span></h2>
             <p className="text-white/60 text-base">각자 전문 분야를 가진 AI 캐릭터와 대화하듯 요청하면, 결과물까지 바로 만들어 드려요</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 mb-10">
             {copilotAgents.map(({ name, en, role, desc, avatar }, i) => (
               <motion.div
                 key={name}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className="bg-white/5 rounded-[14px] p-5 border border-white/10 hover:border-writer-orchid/50 transition-colors text-center"
+                transition={{ delay: i * 0.04 }}
+                className="group bg-white/[0.06] rounded-[18px] p-6 border border-white/10 hover:border-writer-orchid/60 hover:bg-white/[0.1] transition-all text-center"
               >
                 <img
                   src={avatar}
                   alt={`${name} 캐릭터`}
-                  className="w-16 h-16 rounded-full object-cover mx-auto mb-3 ring-2 ring-white/10"
+                  className="w-20 h-20 rounded-full object-cover mx-auto mb-4 ring-2 ring-white/15 group-hover:ring-writer-orchid/60 transition-all"
                   loading="lazy"
                 />
-                <p className="text-white font-black text-sm">{name} <span className="text-white/40 font-medium text-xs">{en}</span></p>
-                <p className="text-writer-orchid text-[11px] font-bold mt-0.5 mb-1.5">{role}</p>
-                <p className="text-white/50 text-[11px] leading-relaxed">{desc}</p>
+                <p className="text-white font-black text-base mb-2">
+                  {name} <span className="text-white/45 font-bold text-xs">{en}</span>
+                </p>
+                <span className="inline-block bg-writer-orchid/20 text-writer-orchid text-[11px] font-black px-2.5 py-1 rounded-full mb-2.5">
+                  {role}
+                </span>
+                <p className="text-white/70 text-xs leading-relaxed">{desc}</p>
               </motion.div>
             ))}
           </div>
@@ -1020,13 +1027,30 @@ const Landing = () => {
           </motion.div>
 
           {/* 공유 링크 안내 */}
-          <div className="mb-8 bg-white border border-writer-mist rounded-[12px] px-6 py-4 flex items-start gap-3">
+          <div className="mb-4 bg-white border border-writer-mist rounded-[12px] px-6 py-4 flex items-start gap-3">
             <span className="text-xl mt-0.5">🔗</span>
             <div>
               <p className="text-sm font-bold mb-0.5">클래스 결과 공유 링크</p>
               <p className="text-xs text-writer-slate leading-relaxed">
                 선생님은 별도 계정 없이도 <strong>공유 입장 링크</strong>를 통해 클래스별 학생 기록과 갤러리를 열람할 수 있습니다. 담임 선생님이 교과 교사에게 링크를 공유하면 해당 클래스의 결과를 바로 확인할 수 있습니다.
               </p>
+            </div>
+          </div>
+
+          {/* 직접 API 키 등록 체험 안내 */}
+          <div className="mb-8 bg-white border border-writer-mist rounded-[12px] px-6 py-4 flex items-start gap-3">
+            <span className="text-xl mt-0.5">🔑</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold mb-0.5">이미 API 키가 있다면, 지금 바로 전체 기능을 체험하세요</p>
+              <p className="text-xs text-writer-slate leading-relaxed">
+                Gemini API 키를 갖고 계신가요? 설정에서 직접 API 키를 등록하면 무료 플랜에서도 AI 코파일럿, 세특 생성, 수업 자료까지 제한 없이 써볼 수 있어요. 결제 없이 먼저 확인해보고 싶은 분께 추천합니다.
+              </p>
+              <button
+                onClick={() => navigate('/settings')}
+                className="mt-2 text-xs font-bold text-writer-obsidian underline decoration-writer-mist underline-offset-2 hover:decoration-writer-obsidian"
+              >
+                API 키 등록하고 체험하기 →
+              </button>
             </div>
           </div>
 
@@ -1097,7 +1121,7 @@ const Landing = () => {
                           <span className="text-xl font-semibold">{plan.price}원</span>
                           <span className={`text-xs ${isDark ? 'text-white/40' : 'text-writer-slate'}`}>/월</span>
                         </div>
-                        {(plan as any).periodNote && (
+                        {SHOW_PREPAY_DISCOUNT && (plan as any).periodNote && (
                           <p className={`text-[10px] font-medium mt-0.5 ${isDark ? 'text-white/40' : 'text-writer-slate'}`}>{(plan as any).periodNote}</p>
                         )}
                       </div>

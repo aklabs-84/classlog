@@ -66,7 +66,7 @@ export default function TextBlockObject({
           onBlur={() => { setEditing(false); onUpdate({ text: draft }); }}
           style={{
             width: '100%', height: '100%', resize: 'none', border: 'none', outline: 'none',
-            ...textStyle, background: style.background ?? 'rgba(255,255,255,0.9)', color: style.color ?? '#111',
+            ...textStyle, background: style.background ?? 'transparent', color: style.color ?? fallbackColor,
           }}
         />
       ) : (

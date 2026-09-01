@@ -135,14 +135,15 @@ export default function SlideStage({
         : { width: '100%', aspectRatio: `${DECK_CANVAS_W} / ${DECK_CANVAS_H}`, position: 'relative', overflow: 'hidden' }}
     >
       <div style={fitContainer ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minWidth: '100%', minHeight: '100%', paddingTop: 8 } : undefined}>
+      {/* fitContainer 모드에서 transform: scale()은 화면에 그려지는 모양만 바꿀 뿐 레이아웃 박스 크기(1280x720)는 그대로라,
+          이 sizer가 없으면 브라우저가 중앙 정렬·overflow 계산을 원본 크기 기준으로 해서 축소된 캔버스가 잘려 보인다.
+          sizer를 실제 보이는 크기(scale 적용값)로 잡아 레이아웃 계산이 시각적 크기와 일치하게 만든다. */}
+      <div style={fitContainer ? { width: DECK_CANVAS_W * scale, height: DECK_CANVAS_H * scale, flexShrink: 0 } : undefined}>
       <div
         onPointerDown={editable ? (e) => { if (e.target === e.currentTarget) onSelect?.(null); } : undefined}
         style={{
           width: DECK_CANVAS_W, height: DECK_CANVAS_H, flexShrink: 0,
-          // fitContainer 모드는 'top center'로 고정 — 확대/축소해도 캔버스 상단이 항상 컨테이너 상단에 붙어 있고
-          // (레이아웃 박스 자체는 1280x720 그대로라 transform-origin이 세로 중앙이면 축소할수록 시각적 상단이 아래로 밀려 보임)
-          // 가로는 중앙 기준으로 줄어들어 justifyContent: 'center'와 맞물려 계속 수평 중앙을 유지한다.
-          transform: `scale(${scale})`, transformOrigin: fitContainer ? 'top center' : 'top left',
+          transform: `scale(${scale})`, transformOrigin: 'top left',
           background: slide.bg, position: 'relative',
         }}
       >
@@ -257,6 +258,7 @@ export default function SlideStage({
             background: '#fff', mixBlendMode: 'difference', pointerEvents: 'none', zIndex: 100000,
           }} />
         )}
+      </div>
       </div>
       </div>
     </div>

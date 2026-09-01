@@ -131,6 +131,7 @@ interface SuggestionRow {
 }
 interface AnnouncementRow {
   id: string; title: string; content: string; created_at: string;
+  is_active: boolean; starts_at: string | null; ends_at: string | null;
 }
 interface CouponRow {
   id: string; code: string; duration_days: number;
@@ -407,6 +408,8 @@ const Admin = () => {
   const [annLoading, setAnnLoading]       = useState(false);
   const [annTitle, setAnnTitle]           = useState('');
   const [annContent, setAnnContent]       = useState('');
+  const [annStartsAt, setAnnStartsAt]     = useState('');
+  const [annEndsAt, setAnnEndsAt]         = useState('');
   const [annSaving, setAnnSaving]         = useState(false);
 
   // ── 사용자 삭제 ─────────────────────────────────────────────────────────────
@@ -855,7 +858,7 @@ const Admin = () => {
   const fetchAnnouncements = async () => {
     setAnnLoading(true);
     const { data } = await supabase.from('announcements')
-      .select('id, title, content, created_at')
+      .select('id, title, content, created_at, is_active, starts_at, ends_at')
       .order('created_at', { ascending: false });
     if (data) setAnnouncements(data);
     setAnnLoading(false);
@@ -1339,14 +1342,16 @@ const Admin = () => {
     setAnnSaving(true);
     const title   = annTitle.trim();
     const content = annContent.trim();
+    const starts_at = annStartsAt ? new Date(annStartsAt).toISOString() : null;
+    const ends_at   = annEndsAt ? new Date(annEndsAt).toISOString() : null;
 
     const { data, error } = await supabase.from('announcements')
-      .insert({ title, content })
+      .insert({ title, content, starts_at, ends_at })
       .select().single();
 
     if (!error && data) {
       setAnnouncements(prev => [data, ...prev]);
-      setAnnTitle(''); setAnnContent('');
+      setAnnTitle(''); setAnnContent(''); setAnnStartsAt(''); setAnnEndsAt('');
 
       // Slack 알림 발송 (실패해도 공지 저장은 성공으로 처리)
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1363,6 +1368,15 @@ const Admin = () => {
       alert('공지사항 저장 실패. announcements 테이블이 생성되어 있는지 확인해주세요.');
     }
     setAnnSaving(false);
+  };
+
+  const toggleAnnouncementActive = async (id: string, next: boolean) => {
+    setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, is_active: next } : a));
+    const { error } = await supabase.from('announcements').update({ is_active: next }).eq('id', id);
+    if (error) {
+      setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, is_active: !next } : a));
+      alert('상태 변경 실패');
+    }
   };
 
   const copyEmail = (id: string, email: string) => {
@@ -2299,6 +2313,18 @@ const Admin = () => {
                   placeholder="공지 내용을 입력하세요..."
                   rows={4}
                   className="w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm resize-none focus:outline-none focus:border-amber-400" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-500 mb-1">노출 시작일시 (비우면 즉시)</label>
+                    <input type="datetime-local" value={annStartsAt} onChange={e => setAnnStartsAt(e.target.value)}
+                      className="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm focus:outline-none focus:border-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-500 mb-1">노출 종료일시 (비우면 무기한)</label>
+                    <input type="datetime-local" value={annEndsAt} onChange={e => setAnnEndsAt(e.target.value)}
+                      className="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm focus:outline-none focus:border-amber-400" />
+                  </div>
+                </div>
                 <button onClick={createAnnouncement} disabled={annSaving || !annTitle.trim() || !annContent.trim()}
                   className="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
                   {annSaving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 공지 발송
@@ -2313,15 +2339,36 @@ const Admin = () => {
             : <div className="space-y-3">
               {announcements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((ann, i) => (
                 <motion.div key={ann.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                  className="bg-white rounded-2xl border border-amber-100 p-5">
+                  className={`bg-white rounded-2xl border p-5 ${ann.is_active ? 'border-amber-100' : 'border-gray-200 opacity-60'}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0 space-y-1.5">
-                      <p className="font-black text-amber-900">{ann.title}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-amber-900">{ann.title}</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ann.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {ann.is_active ? '노출중' : '비활성'}
+                        </span>
+                      </div>
                       <p className="text-sm text-amber-700 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
-                      <p className="text-[11px] text-amber-400">{new Date(ann.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-[11px] text-amber-400">
+                        작성 {new Date(ann.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {(ann.starts_at || ann.ends_at) && (
+                          <span className="ml-2 text-amber-500">
+                            · 노출기간 {ann.starts_at ? new Date(ann.starts_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '즉시'}
+                            {' ~ '}
+                            {ann.ends_at ? new Date(ann.ends_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '무기한'}
+                          </span>
+                        )}
+                      </p>
                     </div>
-                    <button onClick={() => setDeleteTarget({ table: 'announcements', id: ann.id, label: `공지: ${ann.title}` })}
-                      className="shrink-0 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => toggleAnnouncementActive(ann.id, !ann.is_active)}
+                        title={ann.is_active ? '비활성화' : '활성화'}
+                        className={`p-2 rounded-xl transition-colors ${ann.is_active ? 'text-emerald-500 hover:bg-emerald-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+                        {ann.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                      </button>
+                      <button onClick={() => setDeleteTarget({ table: 'announcements', id: ann.id, label: `공지: ${ann.title}` })}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
+                    </div>
                   </div>
                 </motion.div>
               ))}

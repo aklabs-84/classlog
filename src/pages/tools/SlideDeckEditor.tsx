@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2 } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
-import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
+import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
 import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, getLayoutSlotSpec, buildDraftDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
 import TemplateGallery from '../../components/slidedeck/TemplateGallery';
 import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
+import SlideSnippetLibrary from '../../components/slidedeck/SlideSnippetLibrary';
 import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
@@ -53,6 +54,13 @@ const FREE_SLIDE_DECK_LIMIT = 1;
 export default function SlideDeckEditor() {
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
+  const [snippetToast, setSnippetToast] = useState<{ text: string; ok: boolean } | null>(null);
+  const snippetToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showSnippetToast = useCallback((text: string, ok: boolean) => {
+    if (snippetToastTimerRef.current) clearTimeout(snippetToastTimerRef.current);
+    setSnippetToast({ text, ok });
+    snippetToastTimerRef.current = setTimeout(() => setSnippetToast(null), 2500);
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
   // 아이디어 기록(나의 노트)에서 "슬라이드로 만들기"로 넘어온 초안 — 덱 생성 완료 시 원본 노트에 연결 기록
@@ -77,6 +85,7 @@ export default function SlideDeckEditor() {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSnippetLibrary, setShowSnippetLibrary] = useState(false);
   const [importedMaterial, setImportedMaterial] = useState<ImportableMaterial | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   // 자료 가져오기 → 템플릿 선택 후, 실제 생성 전에 보여주는 "계획(개요) 확인" 단계
@@ -456,6 +465,38 @@ export default function SlideDeckEditor() {
     setSelectedObjectId(null);
   };
 
+  // 슬라이드 1장을 개인 저장함(slide_snippets)에 담는다 — 다른 덱을 만들 때 재사용하기 위함.
+  const handleSaveSnippet = async (index: number) => {
+    if (!user) return;
+    const slide = activeDeck?.slides[index];
+    if (!slide) return;
+    const firstText = slide.objects.find(o => o.type === 'text' && o.text)?.text;
+    const title = (firstText ?? '저장된 슬라이드').slice(0, 24);
+    const { error } = await supabase.from('slide_snippets').insert({ teacher_id: user.id, title, slide });
+    if (error) {
+      console.error('[SlideDeckEditor] 저장함 담기 오류:', error);
+      showSnippetToast('보관함에 담지 못했습니다. 다시 시도해주세요.', false);
+    } else {
+      showSnippetToast('보관함에 담았습니다', true);
+    }
+  };
+
+  // 저장함에서 고른 슬라이드를 현재 활성 슬라이드 뒤에 삽입(id는 새로 발급).
+  const handleInsertSnippet = (snippet: SlideSnippet) => {
+    updateSlides(slides => {
+      const clone: DeckSlide = {
+        ...snippet.slide,
+        id: crypto.randomUUID(),
+        objects: snippet.slide.objects.map(o => ({ ...o, id: crypto.randomUUID() })),
+      };
+      const next = [...slides];
+      next.splice(activeSlideIndex + 1, 0, clone);
+      return next;
+    });
+    setActiveSlideIndex(prev => prev + 1);
+    setSelectedObjectId(null);
+  };
+
   const currentSlide = activeDeck?.slides[activeSlideIndex];
 
   const handleUpdateObject = (id: string, changes: Partial<SlideObject>) => {
@@ -695,7 +736,18 @@ export default function SlideDeckEditor() {
 
   if (view === 'editor' && activeDeck && currentSlide) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="@container" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
+        {snippetToast && (
+          <div style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            background: snippetToast.ok ? '#1E293B' : '#B91C1C', color: '#fff', borderRadius: 12, padding: '12px 20px',
+            fontSize: 13, fontWeight: 600, zIndex: 9999, display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.25)', maxWidth: '90vw', textAlign: 'center',
+          }}>
+            <span>{snippetToast.ok ? '✅' : '⚠️'}</span>
+            {snippetToast.text}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
             <button
@@ -703,7 +755,7 @@ export default function SlideDeckEditor() {
               title="슬라이드 목록으로"
               style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: 999, cursor: 'pointer', color: '#475569', padding: '6px 10px', fontSize: 12, fontWeight: 600 }}
             >
-              <ArrowLeft size={14} /> 목록
+              <ArrowLeft size={14} /> <span className="hidden @[1180px]:inline">목록</span>
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
               <button
@@ -736,38 +788,49 @@ export default function SlideDeckEditor() {
             <button
               onClick={() => navigate('/dashboard')}
               title="아이디어 기록 페이지로 돌아갑니다"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#ede9fe', color: '#6d28d9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#ede9fe', color: '#6d28d9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
             >
-              <Lightbulb size={14} /> 아이디어 기록으로
+              <Lightbulb size={14} /> <span className="hidden @[1180px]:inline">아이디어 기록으로</span>
             </button>
           )}
           <button
-            onClick={() => setShowApplyTemplateModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+            onClick={() => setShowSnippetLibrary(true)}
+            title="슬라이드 보관함"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
           >
-            <Palette size={14} /> 템플릿 디자인 적용
+            <Bookmark size={14} /> <span className="hidden @[1180px]:inline">슬라이드 보관함</span>
+          </button>
+          <button
+            onClick={() => setShowApplyTemplateModal(true)}
+            title="템플릿 디자인 적용"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+          >
+            <Palette size={14} /> <span className="hidden @[1180px]:inline">템플릿 디자인 적용</span>
           </button>
           <button
             onClick={handleExportPptx}
             disabled={!!exporting}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: exporting ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: exporting && exporting !== 'pptx' ? 0.5 : 1 }}
+            title="PPT 다운로드"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: exporting ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: exporting && exporting !== 'pptx' ? 0.5 : 1 }}
           >
             {exporting === 'pptx' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileDown size={14} />}
-            PPT 다운로드
+            <span className="hidden @[1180px]:inline">PPT 다운로드</span>
           </button>
           <button
             onClick={handleExportPdf}
             disabled={!!exporting}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: exporting ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: exporting && exporting !== 'pdf' ? 0.5 : 1 }}
+            title="PDF 다운로드"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: exporting ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: exporting && exporting !== 'pdf' ? 0.5 : 1 }}
           >
             {exporting === 'pdf' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />}
-            PDF 다운로드
+            <span className="hidden @[1180px]:inline">PDF 다운로드</span>
           </button>
           <button
             onClick={() => setPresenting(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+            title="발표 시작"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
           >
-            <Play size={14} /> 발표 시작
+            <Play size={14} /> <span className="hidden @[1180px]:inline">발표 시작</span>
           </button>
         </div>
 
@@ -915,6 +978,7 @@ export default function SlideDeckEditor() {
             onDuplicate={handleDuplicateSlide}
             onDelete={handleDeleteSlide}
             onReorder={handleReorderSlides}
+            onSaveToLibrary={handleSaveSnippet}
           />
           <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
             <SlideStage
@@ -991,6 +1055,14 @@ export default function SlideDeckEditor() {
               <TemplateGallery onSelect={handleApplyTemplate} />
             </div>
           </div>
+        )}
+
+        {showSnippetLibrary && (
+          <SlideSnippetLibrary
+            userId={user?.id ?? ''}
+            onInsert={handleInsertSnippet}
+            onClose={() => setShowSnippetLibrary(false)}
+          />
         )}
       </div>
     );

@@ -61,6 +61,15 @@ export interface SlideDeck {
   updated_at: string;
 }
 
+// 교사 개인 저장함 — 슬라이드 1장을 통째로 담아뒀다가 다른 덱을 만들 때 재사용.
+export interface SlideSnippet {
+  id: string;
+  teacher_id: string;
+  title: string;
+  slide: DeckSlide;
+  created_at: string;
+}
+
 // 슬라이드 성격별 초기 배치 타입 — 템플릿마다 이 4가지를 정의해두고
 // "직접 만들기" 시작 슬라이드나 "AI 가져오기" 자동배치의 기준으로 쓴다.
 export type SlideLayoutKind = 'title' | 'textOnly' | 'textImage1' | 'textImagesMany';

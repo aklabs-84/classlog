@@ -2,6 +2,9 @@ import { Link } from 'react-router-dom';
 import { Check, X, Crown, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
 
+// 유료 고객 확보 전까지 선결제 할인 노출을 잠시 끔 — 켤 때는 true로.
+const SHOW_PREPAY_DISCOUNT = false;
+
 type FeatureValue = boolean | string;
 
 interface PricePeriod {
@@ -116,16 +119,16 @@ export const PLANS: Plan[] = [
 export const FEATURE_ROWS: { label: string; key: string }[] = [
   { label: '클래스 생성', key: 'classes' },
   { label: '반당 학생 수', key: 'students' },
-  { label: 'AI 사용량 (월)', key: 'ai' },
-  { label: '수업 자료 에디터', key: 'editor' },
   { label: '퀴즈', key: 'quiz' },
   { label: '설문', key: 'survey' },
   { label: '화이트보드', key: 'whiteboard' },
-  { label: '수업 전사', key: 'transcription' },
   { label: '일괄 AI 생성', key: 'bulkAi' },
   { label: 'NAISS 내보내기', key: 'naiss' },
   { label: '교사 초대 연동', key: 'teacherInvite' },
   { label: '학교 프로젝트', key: 'schoolProject' },
+  { label: '수업 자료 에디터', key: 'editor' },
+  { label: '수업 전사', key: 'transcription' },
+  { label: 'AI 사용량 (월)', key: 'ai' },
 ];
 
 const SCHOOL_TIERS = [
@@ -236,7 +239,7 @@ export default function Pricing() {
                 {plan.priceAnnual && (
                   <p className="text-[11px] text-on-surface-variant mt-1">{plan.priceAnnual}</p>
                 )}
-                {plan.periods && (
+                {SHOW_PREPAY_DISCOUNT && plan.periods && (
                   <div className="mt-3 pt-3 border-t border-on-surface/10 space-y-1.5">
                     <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-wide mb-1">
                       선결제 할인
@@ -350,9 +353,30 @@ export default function Pricing() {
             </tbody>
           </table>
         </div>
-        <p className="px-6 py-3 text-[11px] text-on-surface-variant border-t border-on-surface/5">
-          ＊ 내 키: 본인 Gemini API 키(Google AI Studio에서 무료 발급)를 설정 페이지에 등록하면 Free 플랜에서도 이용할 수 있습니다.
-        </p>
+        <div className="px-6 py-5 border-t border-on-surface/5 bg-surface-container-low/60">
+          <p className="text-xs font-black text-on-surface mb-3">직접 API 키 등록 vs 결제, 뭐가 다를까요?</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl p-3.5 border border-on-surface/10">
+              <p className="text-[11px] font-black text-on-surface-variant mb-1.5">직접 API 키 등록 (무료)</p>
+              <ul className="text-[11px] text-on-surface-variant space-y-1 leading-relaxed">
+                <li>· Google AI Studio 가입 → 키 발급 → 등록 필요</li>
+                <li>· 기기마다 다시 등록해야 함</li>
+                <li>· 사용량이 많아지면 Google 요금이 별도로 청구될 수 있음</li>
+              </ul>
+            </div>
+            <div className="bg-white rounded-2xl p-3.5 border border-amber-200">
+              <p className="text-[11px] font-black text-amber-700 mb-1.5">Basic/Pro 결제</p>
+              <ul className="text-[11px] text-on-surface-variant space-y-1 leading-relaxed">
+                <li>· 가입 즉시, 설정 없이 모든 기기에서 바로 사용</li>
+                <li>· 사용량 걱정 없이 넉넉하게</li>
+                <li>· 학급 관리 · 무제한 콘텐츠 · 학교 기능까지 포함</li>
+              </ul>
+            </div>
+          </div>
+          <p className="text-[11px] text-on-surface-variant mt-3">
+            ＊ 먼저 가볍게 써보고 싶다면, 설정 페이지에서 본인 Gemini 키를 직접 등록해 Free 플랜에서도 AI 기능을 체험할 수 있어요.
+          </p>
+        </div>
       </div>
 
       {/* School Plan Section */}

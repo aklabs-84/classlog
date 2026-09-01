@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Copy } from 'lucide-react';
+import { Plus, Trash2, Copy, BookmarkPlus } from 'lucide-react';
 import type { DeckSlide } from './types';
 import SlideStage from './SlideStage';
 
@@ -11,9 +11,10 @@ interface Props {
   onDuplicate: (index: number) => void;
   onDelete: (index: number) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  onSaveToLibrary?: (index: number) => void;
 }
 
-export default function SlideThumbnailRail({ slides, activeIndex, onSelect, onAdd, onDuplicate, onDelete, onReorder }: Props) {
+export default function SlideThumbnailRail({ slides, activeIndex, onSelect, onAdd, onDuplicate, onDelete, onReorder, onSaveToLibrary }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
@@ -52,6 +53,11 @@ export default function SlideThumbnailRail({ slides, activeIndex, onSelect, onAd
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
               <span style={{ fontSize: 11, color: '#9ca3af' }}>{i + 1}</span>
               <div style={{ display: 'flex', gap: 4 }}>
+                {onSaveToLibrary && (
+                  <button onClick={() => onSaveToLibrary(i)} title="보관함에 담기" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}>
+                    <BookmarkPlus size={13} />
+                  </button>
+                )}
                 <button onClick={() => onDuplicate(i)} title="복제" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}>
                   <Copy size={13} />
                 </button>
