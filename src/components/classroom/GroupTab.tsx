@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Shuffle, X, Check, Loader2,
-  Users, UserPlus, Bell,
+  Users, UserPlus, Bell, Dices,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -45,6 +45,12 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifSuccess, setNotifSuccess] = useState(false);
+
+  const [randomOpen, setRandomOpen] = useState(false);
+  const [randomSplitMode, setRandomSplitMode] = useState<'groups' | 'members'>('groups');
+  const [randomGroupCount, setRandomGroupCount] = useState(4);
+  const [randomMemberCount, setRandomMemberCount] = useState(4);
+  const [randomLoading, setRandomLoading] = useState(false);
 
   useEffect(() => {
     if (classId) load();
@@ -178,6 +184,50 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
     onGroupsChanged?.();
   };
 
+  const randomPickGroups = async () => {
+    if (students.length < 2) return;
+    if (groups.length > 0 && !confirm('기존 조 편성을 삭제하고 새로운 조로 랜덤 배정할까요?')) return;
+
+    setRandomLoading(true);
+
+    if (groups.length > 0) {
+      await supabase.from('class_group_members').delete().in('group_id', groups.map(g => g.id));
+      await supabase.from('class_groups').delete().eq('class_id', classId);
+    }
+
+    const numGroups = randomSplitMode === 'groups'
+      ? randomGroupCount
+      : Math.max(1, Math.ceil(students.length / randomMemberCount));
+
+    const { data: newGroups } = await supabase
+      .from('class_groups')
+      .insert(
+        Array.from({ length: numGroups }, (_, i) => ({
+          class_id: classId,
+          name: `${i + 1}조`,
+          color: GROUP_COLORS[i % GROUP_COLORS.length],
+          sort_order: i,
+        }))
+      )
+      .select();
+
+    if (newGroups) {
+      const shuffled = [...students].sort(() => Math.random() - 0.5);
+      const inserts = shuffled.map((student, idx) => ({
+        group_id: newGroups[idx % numGroups].id,
+        student_id: student.id,
+      }));
+      if (inserts.length > 0) {
+        await supabase.from('class_group_members').insert(inserts);
+      }
+    }
+
+    setRandomLoading(false);
+    setRandomOpen(false);
+    await load();
+    onGroupsChanged?.();
+  };
+
   const clearAll = async () => {
     if (!confirm('모든 조 배정을 초기화하시겠습니까?')) return;
     await supabase
@@ -273,6 +323,13 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
             </>
           )}
           <button
+            onClick={() => setRandomOpen(v => !v)}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition-colors"
+          >
+            <Dices size={13} />
+            랜덤 조 뽑기
+          </button>
+          <button
             onClick={() => setAdding(true)}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors"
           >
@@ -281,6 +338,91 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
           </button>
         </div>
       </div>
+
+      {/* 랜덤 조 뽑기 설정 패널 */}
+      <AnimatePresence>
+        {randomOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-4 bg-violet-50 border border-violet-200 rounded-2xl space-y-3 overflow-hidden"
+          >
+            {students.length < 2 ? (
+              <p className="text-xs font-bold text-violet-700">학생이 2명 이상이어야 랜덤 조 뽑기를 사용할 수 있어요.</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  {(['groups', 'members'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setRandomSplitMode(mode)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border ${
+                        randomSplitMode === mode
+                          ? 'bg-violet-500 text-white border-violet-500'
+                          : 'bg-white border-violet-200 text-violet-600'
+                      }`}
+                    >
+                      {mode === 'groups' ? '조 개수로 나누기' : '조원 수로 나누기'}
+                    </button>
+                  ))}
+                </div>
+
+                {randomSplitMode === 'groups' ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs font-bold text-violet-700">
+                      <span>조 개수</span>
+                      <span className="text-base font-black text-violet-600">{randomGroupCount}조</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={Math.max(2, students.length)}
+                      value={randomGroupCount}
+                      onChange={e => setRandomGroupCount(Number(e.target.value))}
+                      className="w-full accent-violet-500"
+                    />
+                    <p className="text-[11px] text-violet-600">조당 약 {Math.ceil(students.length / randomGroupCount)}명</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs font-bold text-violet-700">
+                      <span>조원 수</span>
+                      <span className="text-base font-black text-violet-600">{randomMemberCount}명</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={Math.max(2, students.length)}
+                      value={randomMemberCount}
+                      onChange={e => setRandomMemberCount(Number(e.target.value))}
+                      className="w-full accent-violet-500"
+                    />
+                    <p className="text-[11px] text-violet-600">총 {Math.max(1, Math.ceil(students.length / randomMemberCount))}개 조 구성</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={randomPickGroups}
+                    disabled={randomLoading}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {randomLoading ? <Loader2 size={13} className="animate-spin" /> : <Shuffle size={13} />}
+                    뽑기 실행
+                  </button>
+                  <button
+                    onClick={() => setRandomOpen(false)}
+                    className="px-3 py-2 text-xs font-bold text-violet-500 hover:text-violet-700 transition-colors"
+                  >
+                    취소
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 새 조 추가 인라인 폼 */}
       <AnimatePresence>
