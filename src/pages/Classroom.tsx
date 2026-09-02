@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
+import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -50,6 +51,7 @@ import {
   Settings2,
   Pencil,
   Wand2,
+  Cpu,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
@@ -162,6 +164,11 @@ const announcementMdComponents: any = {
   td: ({ children }: any) => <td className="border border-surface-container px-2 py-1.5">{children}</td>,
 };
 
+// TeachingTools.tsx의 category: 'learning' 도구와 동일하게 유지 (전체 모듈을 import하면 번들이 무거워져 메타데이터만 복제)
+const LEARNING_TOOLS: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: 'microbit-python-lab', label: '마이크로비트 파이썬 실습', icon: <Cpu size={14} /> },
+];
+
 const Classroom = () => {
   const { user, profile } = useAuth();
   const location = useLocation();
@@ -175,6 +182,7 @@ const Classroom = () => {
     searchParams.get('id') || localStorage.getItem('teacher_last_class_id')
   );
   const [classInfo, setClassInfo] = useState<any>(null);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
@@ -279,6 +287,9 @@ const Classroom = () => {
   // 수업 자료 관리 상태
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  // 학생 페이지에 공개된 학습 도구 (class_enabled_tools) - key: tool_id
+  const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>({});
+  const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number } | null>(null);
@@ -1550,14 +1561,36 @@ const Classroom = () => {
     try {
       // 서브클래스인 경우 부모 클래스의 자료를 사용
       const sourceId = classInfo?.parent_class_id || classId;
-      const [matsRes, generalRes] = await Promise.all([
+      const [matsRes, generalRes, toolsRes] = await Promise.all([
         supabase.from('class_materials').select('id, title, content, week_number, is_published').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
+        supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
       ]);
       setClassMaterials(matsRes.data || []);
       setGeneralMaterials(generalRes.data || []);
+      const toolMap: Record<string, boolean> = {};
+      (toolsRes.data || []).forEach((t: any) => { toolMap[t.tool_id] = t.is_published; });
+      setEnabledTools(toolMap);
     } catch (err) {
       console.error('Error fetching resources:', err);
+    }
+  };
+
+  const handleToggleTool = async (toolId: string) => {
+    if (!activeClassId) return;
+    const next = !enabledTools[toolId];
+    setTogglingToolId(toolId);
+    try {
+      const { error } = await supabase
+        .from('class_enabled_tools')
+        .upsert({ class_id: activeClassId, tool_id: toolId, is_published: next, updated_at: new Date().toISOString() }, { onConflict: 'class_id,tool_id' });
+      if (error) throw error;
+      setEnabledTools(prev => ({ ...prev, [toolId]: next }));
+    } catch (err) {
+      console.error('handleToggleTool error:', err);
+      showToast('학습 도구 공개 설정 변경 중 오류가 발생했습니다.');
+    } finally {
+      setTogglingToolId(null);
     }
   };
 
@@ -4584,14 +4617,26 @@ const Classroom = () => {
                           </a>
                         ))}
                         {sub.file_url && (
-                          <button
-                            onClick={() => openFile(sub.file_url, sub.display_name || '첨부파일')}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group text-left"
-                          >
+                          <div className="w-full flex items-center gap-2 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl">
                             <File size={16} className="text-amber-500 shrink-0" />
                             <span className="text-sm font-black text-amber-700 truncate flex-1">{sub.display_name || '첨부 파일'}</span>
-                            <Download size={14} className="text-amber-400 shrink-0 group-hover:text-amber-600 transition-colors" />
-                          </button>
+                            {getViewerKind(sub.display_name || '') !== 'unsupported' && (
+                              <button
+                                onClick={() => setViewerFile({ url: sub.file_url, name: sub.display_name || '첨부파일' })}
+                                title="미리보기"
+                                className="w-8 h-8 rounded-lg hover:bg-amber-100 flex items-center justify-center text-amber-500 hover:text-amber-700 transition-colors shrink-0"
+                              >
+                                <ExternalLink size={15} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openFile(sub.file_url, sub.display_name || '첨부파일')}
+                              title="다운로드"
+                              className="w-8 h-8 rounded-lg hover:bg-amber-100 flex items-center justify-center text-amber-400 hover:text-amber-600 transition-colors shrink-0"
+                            >
+                              <Download size={14} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -4809,6 +4854,48 @@ const Classroom = () => {
                         );
                       })()}
                     </div>
+
+                    {/* ── 학습 도구 섹션 ── */}
+                    {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
+                      <div className="pt-2">
+                        <div className="flex items-center justify-between mb-2 px-1">
+                          <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">학습 도구</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          {LEARNING_TOOLS.map(tool => {
+                            const isPublished = !!enabledTools[tool.id];
+                            return (
+                              <div key={tool.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                                    {tool.icon}
+                                  </div>
+                                  <p className="text-sm font-black truncate">{tool.label}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleToggleTool(tool.id)}
+                                  disabled={togglingToolId === tool.id}
+                                  title={isPublished ? '비공개로 전환' : '학생에게 공개'}
+                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                    isPublished
+                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                      : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                                  }`}
+                                >
+                                  {togglingToolId === tool.id ? (
+                                    <Loader2 size={13} className="animate-spin" />
+                                  ) : isPublished ? (
+                                    <><Unlock size={13} /> 공개 중</>
+                                  ) : (
+                                    <><Lock size={13} /> 비공개</>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* ── 일반 자료 섹션 ── */}
                     <div className="pt-2">
@@ -5241,6 +5328,12 @@ const Classroom = () => {
         )}
       </AnimatePresence>
     </div>
+    <SubmissionViewerModal
+      isOpen={!!viewerFile}
+      onClose={() => setViewerFile(null)}
+      fileUrl={viewerFile?.url || ''}
+      fileName={viewerFile?.name || ''}
+    />
     </>
   );
 };

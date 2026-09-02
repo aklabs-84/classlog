@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
+import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import AvatarPicker from '../components/AvatarPicker';
+import MicrobitPythonLab from './tools/MicrobitPythonLab';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -55,6 +57,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Plus,
+  Cpu,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
@@ -205,7 +208,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   // 데스크탑 사이드바 접기/펼치기 (기본 펼침, localStorage에 저장)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -277,6 +280,7 @@ const StudentLog = () => {
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
+  const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
 
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
@@ -310,6 +314,7 @@ const StudentLog = () => {
     if (activeWeekTopic && !title) setTitle(activeWeekTopic);
   }, [activeWeekTopic]);
   const [detailItem, setDetailItem] = useState<any>(null);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
 
   // 가이드 투어 State
   const [showGuideModal, setShowGuideModal] = useState(false);
@@ -452,6 +457,8 @@ const StudentLog = () => {
         fetchMyGroup(parsed.student_id, parsed.class_id);
         fetchStudentNotifs(parsed.student_id);
         fetchQuizHistory(parsed.class_id, parsed.student_name);
+        supabase.from('class_enabled_tools').select('tool_id').eq('class_id', parsed.class_id).eq('is_published', true)
+          .then(({ data }) => setEnabledToolIds((data || []).map((t: any) => t.tool_id)));
 
         // 가이드 모달 표시 여부 확인
         // PIN 재입장 여부와 무관하게 '오늘 하루 보지 않기' localStorage 값만으로 판단
@@ -1002,17 +1009,19 @@ const StudentLog = () => {
       const plan = classResources as any[];
       const materialIds = plan.map(p => p.material_id).filter(Boolean);
 
-      const [matsResult, generalResult, editorResult] = await Promise.all([
+      const [matsResult, generalResult, editorResult, toolsResult] = await Promise.all([
         materialIds.length > 0
           ? supabase.from('class_materials').select('*').in('id', materialIds)
           : Promise.resolve({ data: [] }),
         supabase.from('class_general_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('created_at', { ascending: false }),
         supabase.from('class_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('week_number', { ascending: true }).order('created_at', { ascending: false }),
+        supabase.from('class_enabled_tools').select('tool_id').eq('class_id', session.class_id).eq('is_published', true),
       ]);
 
       setClassMaterials(matsResult.data || []);
       setGeneralMaterials(generalResult.data || []);
       setEditorMaterials(editorResult.data || []);
+      setEnabledToolIds((toolsResult.data || []).map((t: any) => t.tool_id));
     } catch (err) {
       console.error('Error fetching resources:', err);
     } finally {
@@ -2122,11 +2131,12 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting') => {
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting') => {
     setActiveTab(tab);
     setIsMoreSheetOpen(false);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
     if (tab === 'materials') fetchResources();
+    if (tab === 'tools') fetchResources();
     if (tab === 'results') fetchResults();
     if (tab === 'unit') fetchPendingUnits();
     if (tab === 'suggestions') fetchSuggestions();
@@ -3622,6 +3632,27 @@ ${guidePrompt}
                 )}
               </motion.div>
             )}
+
+            {/* ─── 학습 도구 탭 ─── */}
+            {activeTab === 'tools' && (
+              <motion.div
+                key="tools"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="min-h-[400px]"
+              >
+                {enabledToolIds.includes('microbit-python-lab') ? (
+                  <MicrobitPythonLab />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                    <Cpu size={64} />
+                    <p className="font-black text-lg">아직 공개된 학습 도구가 없습니다.</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* ─── 결과 제출 탭 ─── */}
             {activeTab === 'results' && (
               <motion.div
@@ -5424,6 +5455,7 @@ ${guidePrompt}
             { key: 'results' as const,     icon: FolderOpen,      label: '결과',      activeColor: 'text-emerald-400' },
             { key: 'board' as const,       icon: Users2,          label: '보드',      activeColor: 'text-indigo-400' },
             { key: 'materials' as const,   icon: BookOpen,        label: '수업 자료',  activeColor: 'text-cyan-400' },
+            ...(enabledToolIds.length > 0 ? [{ key: 'tools' as const, icon: Cpu, label: '학습 도구', activeColor: 'text-fuchsia-400' }] : []),
             { key: 'history' as const,     icon: History,         label: '나의 기록',  activeColor: 'text-blue-400' },
             { key: 'notes' as const,       icon: NotebookPen,     label: '나의 노트',  activeColor: 'text-emerald-400' },
             { key: 'quiz' as const,        icon: Gamepad2,        label: '퀴즈',      activeColor: 'text-purple-400' },
@@ -5562,6 +5594,7 @@ ${guidePrompt}
               <div className="px-4 pt-1 pb-6 grid grid-cols-5 gap-1">
                 {[
                   { key: 'materials' as const, icon: BookOpen,    label: '수업 자료', color: 'text-cyan-600',   activeBg: 'bg-cyan-50'   },
+                  ...(enabledToolIds.length > 0 ? [{ key: 'tools' as const, icon: Cpu, label: '학습 도구', color: 'text-fuchsia-600', activeBg: 'bg-fuchsia-50' }] : []),
                   { key: 'history' as const,   icon: History,     label: '나의 기록', color: 'text-blue-600',   activeBg: 'bg-blue-50'   },
                   { key: 'notes' as const,     icon: NotebookPen, label: '나의 노트', color: 'text-emerald-600', activeBg: 'bg-emerald-50' },
                   { key: 'quiz' as const,      icon: Gamepad2,    label: '퀴즈',      color: 'text-purple-600', activeBg: 'bg-purple-50' },
@@ -6153,14 +6186,26 @@ ${guidePrompt}
                           </a>
                         ))}
                         {sub.file_url && (
-                          <button
-                            onClick={() => openFile(sub.file_url, sub.display_name || '첨부파일')}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group text-left"
-                          >
+                          <div className="w-full flex items-center gap-2 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl">
                             <File size={15} className="text-amber-500 shrink-0" />
                             <span className="text-sm font-black text-amber-700 truncate flex-1">{sub.display_name || '첨부 파일'}</span>
-                            <Download size={14} className="text-amber-400 shrink-0 group-hover:text-amber-600 transition-colors" />
-                          </button>
+                            {getViewerKind(sub.display_name || '') !== 'unsupported' && (
+                              <button
+                                onClick={() => setViewerFile({ url: sub.file_url, name: sub.display_name || '첨부파일' })}
+                                title="미리보기"
+                                className="w-8 h-8 rounded-lg hover:bg-amber-100 flex items-center justify-center text-amber-500 hover:text-amber-700 transition-colors shrink-0"
+                              >
+                                <ExternalLink size={15} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openFile(sub.file_url, sub.display_name || '첨부파일')}
+                              title="다운로드"
+                              className="w-8 h-8 rounded-lg hover:bg-amber-100 flex items-center justify-center text-amber-400 hover:text-amber-600 transition-colors shrink-0"
+                            >
+                              <Download size={14} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -6446,6 +6491,12 @@ ${guidePrompt}
         )}
       </AnimatePresence>
     </div>
+    <SubmissionViewerModal
+      isOpen={!!viewerFile}
+      onClose={() => setViewerFile(null)}
+      fileUrl={viewerFile?.url || ''}
+      fileName={viewerFile?.name || ''}
+    />
     </>
   );
 };

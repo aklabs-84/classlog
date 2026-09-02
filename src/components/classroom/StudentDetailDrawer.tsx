@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { downloadFile } from '../../lib/fileUtils';
 import { ImageCarousel, getResultImagePublicUrls } from '../common/ImageCarousel';
+import SubmissionViewerModal, { getViewerKind } from './SubmissionViewerModal';
 
 interface StudentDetailDrawerProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
   const [obsCategory, setObsCategory] = useState('과제물');
   const [obsContent, setObsContent] = useState('');
   const [savingObs, setSavingObs] = useState(false);
+  const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const navigate = useNavigate();
 
   const handleSaveReply = async (suggestionId: string) => {
@@ -270,7 +272,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
 
   if (!isOpen) return null;
 
-  return createPortal(
+  return (<>
+    {createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[2000]">
         {/* Backdrop */}
@@ -660,13 +663,27 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                         <File size={10} />{fileItem.display_name}
                                         {fileItem.file_size ? ` (${formatFileSize(fileItem.file_size)})` : ''}
                                       </p>
-                                      <button
-                                        onClick={() => handleDownloadResult(fileItem)}
-                                        title="다운로드"
-                                        className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                                      >
-                                        <Upload size={12} className="rotate-180" />
-                                      </button>
+                                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
+                                        {getViewerKind(fileItem.display_name || '') !== 'unsupported' && (
+                                          <button
+                                            onClick={() => {
+                                              const { data } = supabase.storage.from('student-attachments').getPublicUrl(fileItem.storage_path);
+                                              setViewerFile({ url: data.publicUrl, name: fileItem.display_name || 'file' });
+                                            }}
+                                            title="미리보기"
+                                            className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-colors"
+                                          >
+                                            <ExternalLink size={12} />
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => handleDownloadResult(fileItem)}
+                                          title="다운로드"
+                                          className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-colors"
+                                        >
+                                          <Upload size={12} className="rotate-180" />
+                                        </button>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -836,7 +853,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
       </div>
     </AnimatePresence>,
     document.body
-  );
+    )}
+    <SubmissionViewerModal
+      isOpen={!!viewerFile}
+      onClose={() => setViewerFile(null)}
+      fileUrl={viewerFile?.url || ''}
+      fileName={viewerFile?.name || ''}
+    />
+  </>);
 };
 
 export default StudentDetailDrawer;

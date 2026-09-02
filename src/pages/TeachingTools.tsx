@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import GroupPicker from './tools/GroupPicker';
@@ -16,6 +16,8 @@ import OnlineMeeting from './tools/OnlineMeeting';
 import MyNotes from './tools/MyNotes';
 import LessonPlanTool from './tools/LessonPlanTool';
 import PortfolioManager from './tools/PortfolioManager';
+import SubmissionViewer from './tools/SubmissionViewer';
+import MicrobitPythonLab from './tools/MicrobitPythonLab';
 
 const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -49,6 +51,8 @@ interface Tool {
   limits?: ToolLimits;
   component?: React.ReactNode;
   quickGuide?: QuickGuide;
+  /** 'learning' = 학생 페이지에 공개해 학생이 직접 사용할 수 있는 도구, 'teaching' = 교사 전용 도구 */
+  category: 'learning' | 'teaching';
 }
 
 export const tools: Tool[] = [
@@ -58,6 +62,7 @@ export const tools: Tool[] = [
     label: '랜덤 조 뽑기',
     description: '학생들을 랜덤으로 조를 나누고 애니메이션과 함께 발표합니다',
     available: true,
+    category: 'teaching',
     planRequired: 'free',
     limits: { freeDesc: '무제한', proDesc: '무제한' },
     component: <GroupPicker />,
@@ -77,6 +82,7 @@ export const tools: Tool[] = [
     label: '수업 타이머',
     description: '발표 시간 제한, 쉬는 시간 등 다양한 타이머를 설정합니다',
     available: true,
+    category: 'teaching',
     planRequired: 'free',
     limits: { freeDesc: '무제한', proDesc: '무제한' },
     component: <ClassTimer />,
@@ -96,6 +102,7 @@ export const tools: Tool[] = [
     description: '학생 선택 없이 수업 준비나 간단한 생각을 자유롭게 기록하는 개인 메모장입니다',
     newSince: '2026-07-23',
     available: true,
+    category: 'teaching',
     planRequired: 'free',
     limits: { freeDesc: '무제한', proDesc: '무제한' },
     component: <MyNotes />,
@@ -115,6 +122,7 @@ export const tools: Tool[] = [
     description: '클래스별 문제를 만들고 Kahoot 스타일의 실시간 퀴즈를 진행합니다',
     newSince: '2026-05-26',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     limits: {
       freeDesc: '세트당 최대 5문항',
@@ -140,6 +148,7 @@ export const tools: Tool[] = [
     description: '마크다운으로 수업 자료를 작성하고 클래스 주차별로 학생에게 공개합니다',
     newSince: '2026-05-28',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     byokEligible: true,
     limits: { freeDesc: '자료 2개까지', basicDesc: '자료 수 무제한', proDesc: '자료 수 무제한' },
@@ -161,6 +170,7 @@ export const tools: Tool[] = [
     description: '저장된 수업 자료로 제출용 계획서 초안을 AI가 만들고, 워드·한글용으로 복사하거나 PDF로 내보냅니다',
     newSince: '2026-08-28',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     byokEligible: true,
     limits: {
@@ -187,6 +197,7 @@ export const tools: Tool[] = [
     description: '누적된 클래스·수업 자료 통계를 자동 집계해 외부에 공유할 수 있는 포트폴리오 페이지를 만듭니다',
     newSince: '2026-08-28',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     byokEligible: true,
     limits: {
@@ -207,12 +218,53 @@ export const tools: Tool[] = [
     },
   },
   {
+    id: 'submission-viewer',
+    icon: <Inbox size={28} />,
+    label: '제출물 뷰어',
+    description: '학생이 제출한 웹·파이썬·PDF·문서·표 결과물을 다운로드 없이 화면에서 바로 열어봅니다',
+    newSince: '2026-09-02',
+    available: true,
+    category: 'teaching',
+    planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
+    component: <SubmissionViewer />,
+    quickGuide: {
+      steps: [
+        { title: '클래스 선택', desc: '제출물을 확인할 클래스를 상단에서 선택합니다.' },
+        { title: '목록 확인', desc: '학생별로 제출된 파일 목록이 최신순으로 나타납니다.' },
+        { title: '미리보기 실행', desc: '웹(html/zip)·Python·PDF·문서(docx)·표(csv/xlsx) 파일은 "미리보기" 버튼으로 다운로드 없이 바로 확인할 수 있습니다.' },
+      ],
+      tip: '지원하지 않는 형식(마이크로비트 hex, 엔트리 등)은 다운로드 버튼만 표시됩니다.',
+    },
+  },
+  {
+    id: 'microbit-python-lab',
+    icon: <Cpu size={28} />,
+    label: '마이크로비트 파이썬 실습',
+    description: 'MicroPython 코드를 작성해 화면에서 바로 시뮬레이션하고, 실제 보드에 넣을 수 있는 .hex로 다운로드합니다',
+    newSince: '2026-09-02',
+    available: true,
+    category: 'learning',
+    planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
+    component: <MicrobitPythonLab />,
+    quickGuide: {
+      steps: [
+        { title: '코드 작성', desc: '왼쪽 편집창에 MicroPython 코드를 작성합니다. 기본 예제 코드가 준비되어 있습니다.' },
+        { title: '실행 확인', desc: '"실행" 버튼을 누르면 오른쪽 시뮬레이터에서 LED·버튼 동작을 바로 확인할 수 있습니다.' },
+        { title: 'hex 다운로드', desc: '".hex 다운로드" 버튼으로 실제 마이크로비트 보드에 옮겨 그대로 실행할 수 있는 파일을 받습니다.' },
+      ],
+      tip: '블록 코딩(MakeCode)으로 만든 결과물은 이 도구가 아닌 "제출물 뷰어"의 다운로드 기능을 이용해주세요.',
+    },
+  },
+  {
     id: 'slide-deck',
     icon: <Layers size={28} />,
     label: '슬라이드 만들기',
     description: 'PPT처럼 텍스트·이미지를 원하는 위치에 자유롭게 배치해 발표 자료를 만듭니다',
     newSince: '2026-07-04',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     byokEligible: true,
     limits: { freeDesc: '슬라이드덱 1개까지', basicDesc: '슬라이드 수 무제한', proDesc: '슬라이드 수 무제한' },
@@ -234,6 +286,7 @@ export const tools: Tool[] = [
     description: '수업을 실시간 전사하고 AI가 학생별 관찰 기록과 수업 품질을 자동 분석합니다',
     newSince: '2026-06-04',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     byokEligible: true,
     limits: {
@@ -260,6 +313,7 @@ export const tools: Tool[] = [
     description: '조별 협업 보드를 만들고 포스트잇, 도형, 이미지로 수업 활동을 진행합니다',
     newSince: '2026-06-08',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     limits: { freeDesc: '보드 1개까지', basicDesc: '클래스당 보드 3개', proDesc: '보드 수 무제한' },
     component: <WhiteboardList />,
@@ -280,6 +334,7 @@ export const tools: Tool[] = [
     description: '객관식, 예/아니오, 별점, 순위 매기기, AI 분석까지 다양한 실시간 설문을 진행합니다',
     newSince: '2026-06-09',
     available: true,
+    category: 'teaching',
     planRequired: 'limited',
     byokEligible: true,
     limits: {
@@ -306,6 +361,7 @@ export const tools: Tool[] = [
     description: 'Google Meet/Zoom 회의 링크를 등록하고 학생들에게 바로 전달합니다',
     newSince: '2026-07-04',
     available: true,
+    category: 'teaching',
     planRequired: 'free',
     limits: { freeDesc: '무제한', proDesc: '무제한' },
     component: <OnlineMeeting />,
@@ -326,6 +382,7 @@ export const tools: Tool[] = [
     description: '발표자, 청소 당번 등 랜덤으로 학생 1명을 뽑습니다',
     badge: '준비 중',
     available: false,
+    category: 'teaching',
     planRequired: 'free',
   },
 ];
@@ -370,6 +427,7 @@ const TeachingTools = () => {
   const [contactSubmitted, setContactSubmitted] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
   const [guideTool, setGuideTool] = useState<Tool | null>(null);
+  const [activeCategory, setActiveCategory] = useState<'learning' | 'teaching'>('teaching');
 
   const isPro = checkIsPro(profile);
   const isBasicOrAbove = checkIsBasicOrAbove(profile);
@@ -695,6 +753,27 @@ const TeachingTools = () => {
         )}
       </AnimatePresence>
 
+      {!activeTool && (
+        <div className="flex items-center gap-1.5 p-1 bg-surface-container rounded-2xl w-fit">
+          <button
+            onClick={() => setActiveCategory('teaching')}
+            className={`px-4 py-2 rounded-xl text-sm font-black transition-colors ${
+              activeCategory === 'teaching' ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            수업 도구
+          </button>
+          <button
+            onClick={() => setActiveCategory('learning')}
+            className={`px-4 py-2 rounded-xl text-sm font-black transition-colors ${
+              activeCategory === 'learning' ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            학습 도구
+          </button>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {activeTool ? (
           <motion.div
@@ -737,7 +816,7 @@ const TeachingTools = () => {
             exit={{ opacity: 0, x: 20 }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
           >
-            {tools.map((tool, i) => {
+            {tools.filter(tool => tool.category === activeCategory).map((tool, i) => {
               const byokUnlocked = hasByokKey && !!tool.byokEligible;
               const isBasicLocked = !isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro') && !byokUnlocked;
               const isProLocked = isBasicOrAbove && !isPro && tool.planRequired === 'pro' && !byokUnlocked;
