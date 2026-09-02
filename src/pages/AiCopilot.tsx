@@ -1357,14 +1357,27 @@ const AiCopilot = () => {
       const count = countMatch ? Math.max(1, Math.min(20, parseInt(countMatch[1], 10))) : 5;
       const diffMatch = draftSummary.match(/난이도[:：]\s*(쉬움|보통|어려움)/);
       const diffLabel = diffMatch ? diffMatch[1] : '보통';
-      const contentSource = loadedReferences.length > 0
+      // draftSummary(피코의 확정 요약)에는 실제 문항이 담기지 않으므로, 사용자가 채팅에 직접
+      // 붙여넣은 원문(문제/보기/정답 등)을 재료로 써야 그대로 반영된다. 대화 중 자동으로 붙는
+      // "참고 자료"(학급 자료 추천)는 원문이 없을 때의 보조 재료일 뿐 — 원문이 있으면 그것을
+      // 최우선으로 쓰고, 참고 자료는 부족한 배경 설명 정도로만 덧붙인다.
+      const rawUserContent = messagesByMode.quiz_maker
+        .filter(m => m.role === 'user')
+        .map(m => m.text)
+        .join('\n\n');
+      const referenceContent = loadedReferences.length > 0
         ? loadedReferences.map(r => `### ${r.title}\n${r.content}`).join('\n\n')
-        : `(참고 자료 없음 — 아래 요청 내용을 바탕으로 출제)\n${draftSummary}`;
+        : '';
+      const contentSource = rawUserContent
+        ? (referenceContent ? `[선생님이 직접 제시한 내용 — 최우선]\n${rawUserContent}\n\n[참고 자료 — 보조 자료]\n${referenceContent}` : rawUserContent)
+        : (referenceContent || `(참고 자료 없음 — 아래 요청 내용을 바탕으로 출제)\n${draftSummary}`);
 
-      const prompt = `다음 내용을 바탕으로 4지선다형 퀴즈 문제를 ${count}개 만들어주세요.
+      const prompt = `다음 자료를 바탕으로 4지선다형 퀴즈 문제를 ${count}개 준비해주세요.
 난이도: ${diffLabel}
 수업 자료:
 ${contentSource}
+
+중요: "선생님이 직접 제시한 내용"에 이미 완성된 문제·보기·정답이 포함돼 있다면, 내용을 바꾸거나 새로 만들지 말고 그 문제·보기·정답을 그대로 정확히 옮기세요(문항 수가 다르면 그 안에 있는 문항 수를 우선하세요). "참고 자료"는 절대 우선하지 마세요 — 직접 제시된 완성 문제가 없을 때 배경지식 보충용으로만 참고하세요. 완성된 문제가 전혀 없고 주제/설명만 있을 때만 자료 내용을 바탕으로 새로 출제하세요.
 
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요:
 {
@@ -1469,14 +1482,27 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     try {
       const countMatch = draftSummary.match(/문항\s*수[:：]\s*(\d+)/);
       const count = countMatch ? Math.max(1, Math.min(15, parseInt(countMatch[1], 10))) : 5;
-      const contentSource = loadedReferences.length > 0
+      // draftSummary(피코의 확정 요약)에는 실제 문항이 담기지 않으므로, 사용자가 채팅에 직접
+      // 붙여넣은 원문(문항 목록 등)을 재료로 써야 그대로 반영된다. 대화 중 자동으로 붙는
+      // "참고 자료"(학급 자료 추천)는 원문이 없을 때의 보조 재료일 뿐 — 원문이 있으면 그것을
+      // 최우선으로 쓰고, 참고 자료는 부족한 배경 설명 정도로만 덧붙인다.
+      const rawUserContent = messagesByMode.survey_maker
+        .filter(m => m.role === 'user')
+        .map(m => m.text)
+        .join('\n\n');
+      const referenceContent = loadedReferences.length > 0
         ? loadedReferences.map(r => `### ${r.title}\n${r.content}`).join('\n\n')
-        : `(참고 자료 없음 — 아래 요청 내용을 바탕으로 출제)\n${draftSummary}`;
+        : '';
+      const contentSource = rawUserContent
+        ? (referenceContent ? `[선생님이 직접 제시한 내용 — 최우선]\n${rawUserContent}\n\n[참고 자료 — 보조 자료]\n${referenceContent}` : rawUserContent)
+        : (referenceContent || `(참고 자료 없음 — 아래 요청 내용을 바탕으로 출제)\n${draftSummary}`);
 
-      const prompt = `다음 내용을 바탕으로 설문 문항을 ${count}개 만들어주세요.
+      const prompt = `다음 자료를 바탕으로 설문 문항을 ${count}개 준비해주세요.
 아래 6가지 유형(multiple_choice/yes_no/star_rating/short_text/opinion_scale/ranking)을 설문 목적에 맞게 자연스럽게 섞어 구성하세요. 모든 유형을 억지로 다 쓸 필요는 없습니다.
 설문 목적:
 ${contentSource}
+
+중요: "선생님이 직접 제시한 내용"에 이미 완성된 문항(질문 문구, 선택지 등)이 포함돼 있다면, 내용을 바꾸거나 새로 만들지 말고 그대로 정확히 옮기세요(문항 수가 다르면 그 안에 있는 문항 수를 우선하세요). "참고 자료"는 절대 우선하지 마세요 — 직접 제시된 완성 문항이 없을 때 배경지식 보충용으로만 참고하세요. 완성된 문항이 전혀 없고 목적/설명만 있을 때만 자료 내용을 바탕으로 새로 구성하세요.
 
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요:
 {
