@@ -164,28 +164,29 @@ const pricingPlans = [
       { text: '수업 전사 (Groq 키 필요, AI 분석 월 20회)', ok: true },
     ],
   },
-  {
-    name: 'Basic',
-    badge: 'BASIC',
-    category: 'individual',
-    desc: '꾸준히 활용하는 선생님',
-    price: '9,900',
-    periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
-    waitlistPlan: 'basic',
-    features: [
-      { text: '클래스 최대 5개', ok: true },
-      { text: '학생 최대 35명/클래스', ok: true },
-      { text: '학생 관찰 기록 · 교사 메모', ok: true },
-      { text: '퀴즈 · 설문 무제한', ok: true },
-      { text: '화이트보드 (3개)', ok: true },
-      { text: '일괄 AI 생성', ok: false },
-      { text: 'NAISS 내보내기', ok: false },
-      { text: '학교 프로젝트 참여', ok: true },
-      { text: '수업 자료 에디터', ok: true },
-      { text: '수업 전사 (Groq API 필요)', ok: true },
-      { text: 'AI 사용 넉넉하게', ok: true },
-    ],
-  },
+  // Basic 플랜은 화면 노출만 잠시 끔(코드는 남겨둠 — 얼리버드 설문 결과 보고 재노출 여부 결정).
+  // {
+  //   name: 'Basic',
+  //   badge: 'BASIC',
+  //   category: 'individual',
+  //   desc: '꾸준히 활용하는 선생님',
+  //   price: '9,900',
+  //   periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
+  //   waitlistPlan: 'basic',
+  //   features: [
+  //     { text: '클래스 최대 5개', ok: true },
+  //     { text: '학생 최대 35명/클래스', ok: true },
+  //     { text: '학생 관찰 기록 · 교사 메모', ok: true },
+  //     { text: '퀴즈 · 설문 무제한', ok: true },
+  //     { text: '화이트보드 (3개)', ok: true },
+  //     { text: '일괄 AI 생성', ok: false },
+  //     { text: 'NAISS 내보내기', ok: false },
+  //     { text: '학교 프로젝트 참여', ok: true },
+  //     { text: '수업 자료 에디터', ok: true },
+  //     { text: '수업 전사 (Groq API 필요)', ok: true },
+  //     { text: 'AI 사용 넉넉하게', ok: true },
+  //   ],
+  // },
   {
     name: 'Pro',
     badge: 'PRO',
@@ -196,6 +197,7 @@ const pricingPlans = [
     highlight: true,
     waitlistPlan: 'pro',
     features: [
+      { text: '무료 플랜 기능 전체 포함, 아래 내용까지 추가로', ok: true },
       { text: '클래스 최대 10개', ok: true },
       { text: '학생 최대 35명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
@@ -304,9 +306,6 @@ const Landing = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // 플랜 안내 탭 (개인 / 단체)
-  const [planTab, setPlanTab] = useState<'individual' | 'group'>('individual');
-
   // 수업 도구 미리보기 탭
   const [activeTool, setActiveTool] = useState(0);
 
@@ -414,7 +413,7 @@ const Landing = () => {
                 <h2 className="text-xl font-black text-writer-obsidian mb-2 leading-snug">
                   유료 플랜 오픈 전,
                   <br />
-                  지금 신청하면 <span className="text-amber-600">첫 달 50% 할인</span>
+                  지금 신청하면 <span className="text-amber-600">첫 달 30% 할인</span>
                 </h2>
                 <p className="text-sm text-writer-obsidian/60 leading-relaxed">
                   이메일만 남겨두시면 오픈 즉시 가장 먼저 안내드려요.
@@ -454,7 +453,7 @@ const Landing = () => {
             </span>
             <p className="text-xs sm:text-sm font-medium">
               유료 플랜 곧 오픈! 지금 얼리버드 신청하면{' '}
-              <span className="text-amber-300 font-bold">첫 달 50% 할인</span>
+              <span className="text-amber-300 font-bold">첫 달 30% 할인</span>
             </p>
             <Link
               to="/waitlist"
@@ -1023,7 +1022,7 @@ const Landing = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
             <Eyebrow>💳 플랜 안내</Eyebrow>
             <h2 className="text-3xl font-black mb-3">역할에 맞는 플랜을 선택하세요</h2>
-            <p className="text-writer-slate text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 오픈 예정입니다. 지금 얼리버드로 신청하면 첫 달 50% 할인!</p>
+            <p className="text-writer-slate text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 오픈 예정입니다. 지금 얼리버드로 신청하면 첫 달 30% 할인!</p>
           </motion.div>
 
           {/* 공유 링크 안내 */}
@@ -1054,36 +1053,8 @@ const Landing = () => {
             </div>
           </div>
 
-          {/* 개인 / 단체 탭 */}
-          <div className="flex justify-center mb-8">
-            <div className="inline-flex bg-white border border-writer-mist rounded-full p-1 gap-1">
-              {([
-                { key: 'individual', label: '개인' },
-                { key: 'group', label: '단체' },
-              ] as const).map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setPlanTab(key)}
-                  className={`px-6 py-2 text-sm font-bold rounded-full transition-colors ${
-                    planTab === key
-                      ? 'bg-writer-obsidian text-white'
-                      : 'text-writer-slate hover:text-writer-obsidian'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div
-            className={
-              planTab === 'individual'
-                ? 'grid grid-cols-1 md:grid-cols-3 gap-4'
-                : 'grid grid-cols-1 gap-4 max-w-sm mx-auto'
-            }
-          >
-            {pricingPlans.filter((plan) => plan.category === planTab).map((plan, i) => {
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+            {pricingPlans.map((plan, i) => {
               const isDark = !!(plan as any).highlight;
               return (
                 <motion.div
@@ -1155,7 +1126,7 @@ const Landing = () => {
                             : `${btnGhost}`
                         }`}
                       >
-                        얼리버드 신청 (첫 달 50%↓)
+                        얼리버드 신청 (첫 달 30%↓)
                       </Link>
                     )}
                   </div>
@@ -1168,7 +1139,7 @@ const Landing = () => {
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-writer-slate mt-2"
           >
-            유료 플랜 결제는 준비 중이며, 얼리버드 신청자에게는 첫 달 50% 할인이 제공됩니다 · 플랜 문의: aklabs84@naver.com
+            유료 플랜 결제는 준비 중이며, 얼리버드 신청자에게는 첫 달 30% 할인이 제공됩니다 · 플랜 문의: aklabs84@naver.com
           </motion.p>
         </div>
       </section>
@@ -1333,7 +1304,11 @@ const Landing = () => {
       </section>
 
       {/* ── Access Request Form ── */}
-      <section id="request-section" className="py-24 bg-writer-lavender/30">
+      {/* Pro·학교/학원 도입 문의 섹션은 화면 노출만 잠시 끔(코드는 남겨둠 — 얼리버드 설문 결과 보고 재노출 여부 결정).
+          같은 id="request-section"를 아래 얼리버드 이벤트 섹션이 이어받아, 이 섹션으로 스크롤하던
+          기존 버튼("학원으로 신청하기" 등)이 그대로 작동하도록 유지함. */}
+      {false && (
+      <section className="py-24 bg-writer-lavender/30">
         <div className="max-w-2xl mx-auto px-6">
           <div className="text-center mb-12">
             <Eyebrow><CheckCircle2 size={12} /> Pro · 학교/학원 도입 문의</Eyebrow>
@@ -1501,6 +1476,51 @@ const Landing = () => {
               )}
             </form>
           )}
+        </div>
+      </section>
+      )}
+
+      {/* 얼리버드 유료 가입자 파악용 이벤트 섹션 — 위 도입 문의 섹션을 대신해 노출 */}
+      <section id="request-section" className="py-24 bg-writer-lavender/30">
+        <div className="max-w-4xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-white rounded-[16px] border border-writer-mist overflow-hidden text-center"
+          >
+            <div className="bg-writer-obsidian px-8 pt-12 pb-10">
+              <Eyebrow><Sparkles size={12} /> 얼리버드 이벤트</Eyebrow>
+              <h2 className="text-2xl md:text-3xl font-black text-white mt-4 mb-3">
+                유료 플랜, 오픈 전에 가장 먼저 알려드려요
+              </h2>
+              <p className="text-white/60 text-sm leading-relaxed max-w-md mx-auto">
+                Pro·학교/학원 플랜은 준비 중입니다.<br />
+                얼리버드로 신청해 주시면 정식 오픈 소식과 함께<br />
+                <strong className="text-white">첫 달 30% 할인</strong>을 가장 먼저 안내해 드립니다.
+              </p>
+            </div>
+
+            <div className="px-8 py-8 space-y-5">
+              <Link
+                to="/waitlist?plan=pro"
+                className={`${btnAccent} w-full py-4 text-base justify-center`}
+              >
+                <Send size={18} strokeWidth={2.5} />
+                얼리버드 신청하기 (첫 달 30%↓)
+              </Link>
+              <p className="text-xs text-writer-slate">
+                여러 선생님이 함께 쓰는 학교·학원 단위 도입 문의는{' '}
+                <a
+                  href="mailto:aklabs84@naver.com?subject=클래스로그 AI 학교/학원 도입 문의"
+                  className="text-writer-iris font-bold hover:underline"
+                >
+                  aklabs84@naver.com
+                </a>
+                으로 보내주세요.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </section>
 

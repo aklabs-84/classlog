@@ -154,7 +154,7 @@ export default function WhiteboardList() {
   const handleCreate = () => {
     const isBasicOrAbove = checkIsBasicOrAbove(profile);
     if (!isBasicOrAbove && boards.length >= FREE_BOARD_LIMIT) {
-      showLimitToast(`무료 플랜은 보드를 최대 ${FREE_BOARD_LIMIT}개까지 만들 수 있습니다. Basic 이상으로 업그레이드하면 더 만들 수 있어요.`);
+      showLimitToast(`무료 플랜은 보드를 최대 ${FREE_BOARD_LIMIT}개까지 만들 수 있습니다. Pro로 업그레이드하면 더 만들 수 있어요.`);
       return;
     }
     const isBasicOnly = isBasicOrAbove && !checkIsPro(profile);
@@ -401,7 +401,7 @@ export default function WhiteboardList() {
         }}>
           <span>📋</span>
           무료 보드 사용: <strong>{boards.length} / {FREE_BOARD_LIMIT}개</strong>
-          {boards.length >= FREE_BOARD_LIMIT && <span style={{ color: '#DC2626', marginLeft: 4 }}>— 한도 도달 (Basic 업그레이드 시 클래스당 3개, Pro는 무제한)</span>}
+          {boards.length >= FREE_BOARD_LIMIT && <span style={{ color: '#DC2626', marginLeft: 4 }}>— 한도 도달 (Pro 업그레이드 시 무제한)</span>}
         </div>
       )}
       {/* Basic 보드 잔여 안내 */}

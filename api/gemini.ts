@@ -8,11 +8,16 @@ const PLAN_MONTHLY_LIMIT: Record<string, number> = {
 };
 
 // basic/pro: 크레딧(금액) 버짓 — 소진 시 pro→flash 소프트다운그레이드, HARD_STOP_MULTIPLIER배 도달 시 하드블록
+// 하드스톱을 요금제 가격보다 낮게 잡아 헤비유저 1인당 손실이 나지 않도록 함(1.2배: basic $2.4, pro $7.2 — 각각 9,900원/19,900원보다 낮음)
 const PLAN_MONTHLY_BUDGET_USD: Record<string, number> = {
   basic: 2,
   pro:   6,
 };
-const HARD_STOP_MULTIPLIER = 3;
+const HARD_STOP_MULTIPLIER = 1.2;
+
+// 베타(무료체험) 유저는 매출이 0원이라 위 플랜 버짓을 그대로 쓰면 손실 상한이 없음 → 별도의 낮은 고정 캡을 둔다.
+const BETA_TRIAL_BUDGET_USD = 1.5;
+const BETA_TRIAL_HARD_STOP_USD = 3;
 
 // Google Search 그라운딩(useWebSearch)은 토큰 요금과 별개로 건당 정액 요금이 붙음
 // (2026-08 기준 $35 / 1,000 grounded prompt) → 실제 호출됐을 때만 정액 비용을 더해준다.
@@ -195,58 +200,77 @@ export default async function handler(req: any, res: any) {
           const isBetaActive = profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date();
           const isAdmin = plan === 'admin';
 
-          // admin과 유효한 beta는 한도 체크 제외
-          if (!isAdmin && !isBetaActive) {
+          // admin만 한도 체크 제외. 베타(무료체험)는 매출이 없으므로 낮은 고정 캡을 별도 적용한다.
+          if (!isAdmin) {
             const thisMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
             const isNewMonth = profile.ai_monthly_reset !== thisMonth;
-            const budget = PLAN_MONTHLY_BUDGET_USD[plan];
 
-            if (budget) {
-              // basic/pro: 크레딧(금액) 버짓
+            if (isBetaActive) {
               const monthlyCostBefore = isNewMonth ? 0 : (profile.ai_monthly_cost_usd ?? 0);
-              const hardStop = budget * HARD_STOP_MULTIPLIER;
 
-              if (monthlyCostBefore >= hardStop) {
+              if (monthlyCostBefore >= BETA_TRIAL_HARD_STOP_USD) {
                 return res.status(402).json({
                   error: 'AI_LIMIT_EXCEEDED',
-                  message: '이번 달 AI 사용량이 많아 일시적으로 제한됩니다. 다음 달 1일에 자동으로 초기화됩니다.',
+                  message: '무료체험 AI 사용량이 많아 일시적으로 제한됩니다. 요금제 결제 후 계속 이용하실 수 있습니다.',
                 });
               }
 
               // 소프트 다운그레이드: 예산 소진 시 pro 요청을 flash로 조용히 전환 (완전 차단 아님)
-              if (monthlyCostBefore >= budget && effectiveModel === 'pro') {
+              if (monthlyCostBefore >= BETA_TRIAL_BUDGET_USD && effectiveModel === 'pro') {
                 effectiveModel = 'flash';
               }
 
               pendingCreditUpdate = { monthlyCostBefore, month: thisMonth };
             } else {
-              // free/school: 기존 횟수제
-              const monthlyUsed = isNewMonth ? 0 : (profile.ai_monthly_count ?? 0);
-              const monthlyLimit = PLAN_MONTHLY_LIMIT[plan] ?? 20;
+              const budget = PLAN_MONTHLY_BUDGET_USD[plan];
 
-              if (monthlyUsed >= monthlyLimit) {
-                return res.status(402).json({
-                  error: 'AI_LIMIT_EXCEEDED',
-                  message: `이번 달 AI 사용 한도(${monthlyLimit}회)에 도달했습니다. 다음 달 1일에 자동으로 초기화됩니다.`,
-                  used: monthlyUsed,
-                  limit: monthlyLimit,
-                });
+              if (budget) {
+                // basic/pro: 크레딧(금액) 버짓
+                const monthlyCostBefore = isNewMonth ? 0 : (profile.ai_monthly_cost_usd ?? 0);
+                const hardStop = budget * HARD_STOP_MULTIPLIER;
+
+                if (monthlyCostBefore >= hardStop) {
+                  return res.status(402).json({
+                    error: 'AI_LIMIT_EXCEEDED',
+                    message: '이번 달 AI 사용량이 많아 일시적으로 제한됩니다. 다음 달 1일에 자동으로 초기화됩니다.',
+                  });
+                }
+
+                // 소프트 다운그레이드: 예산 소진 시 pro 요청을 flash로 조용히 전환 (완전 차단 아님)
+                if (monthlyCostBefore >= budget && effectiveModel === 'pro') {
+                  effectiveModel = 'flash';
+                }
+
+                pendingCreditUpdate = { monthlyCostBefore, month: thisMonth };
+              } else {
+                // free/school: 기존 횟수제
+                const monthlyUsed = isNewMonth ? 0 : (profile.ai_monthly_count ?? 0);
+                const monthlyLimit = PLAN_MONTHLY_LIMIT[plan] ?? 20;
+
+                if (monthlyUsed >= monthlyLimit) {
+                  return res.status(402).json({
+                    error: 'AI_LIMIT_EXCEEDED',
+                    message: `이번 달 AI 사용 한도(${monthlyLimit}회)에 도달했습니다. 다음 달 1일에 자동으로 초기화됩니다.`,
+                    used: monthlyUsed,
+                    limit: monthlyLimit,
+                  });
+                }
+
+                // 사용량 카운트 업데이트 (비동기, 응답 블로킹 없음)
+                supabase.from('profiles').update({
+                  ai_monthly_count: monthlyUsed + 1,
+                  ai_monthly_reset: thisMonth,
+                  // free 플랜은 일별 카운트도 병행 유지
+                  ...(plan === 'free' ? {
+                    ai_daily_count: (() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      const isNewDay = profile.ai_daily_date !== today;
+                      return isNewDay ? 1 : (profile.ai_daily_count ?? 0) + 1;
+                    })(),
+                    ai_daily_date: new Date().toISOString().split('T')[0],
+                  } : {}),
+                }).eq('id', user.id).then(() => {});
               }
-
-              // 사용량 카운트 업데이트 (비동기, 응답 블로킹 없음)
-              supabase.from('profiles').update({
-                ai_monthly_count: monthlyUsed + 1,
-                ai_monthly_reset: thisMonth,
-                // free 플랜은 일별 카운트도 병행 유지
-                ...(plan === 'free' ? {
-                  ai_daily_count: (() => {
-                    const today = new Date().toISOString().split('T')[0];
-                    const isNewDay = profile.ai_daily_date !== today;
-                    return isNewDay ? 1 : (profile.ai_daily_count ?? 0) + 1;
-                  })(),
-                  ai_daily_date: new Date().toISOString().split('T')[0],
-                } : {}),
-              }).eq('id', user.id).then(() => {});
             }
           }
         }

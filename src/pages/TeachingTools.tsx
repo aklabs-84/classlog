@@ -483,7 +483,8 @@ const TeachingTools = () => {
     setContactSubmitting(true);
     setContactError(null);
 
-    const requestedPlan = isBasicOrAbove ? 'Pro' : 'Basic';
+    // Basic 요금제는 화면 노출만 잠시 끔(가입 경로 없음) — 문의 라벨은 항상 Pro로 안내.
+    const requestedPlan = 'Pro';
     const contactPayload = {
       name: contactName,
       email: contactEmail,
@@ -574,12 +575,12 @@ const TeachingTools = () => {
                 <Crown size={32} className="text-amber-500" />
               </div>
               <h3 className="text-xl font-black text-gray-900 mb-2">
-                {isBasicOrAbove ? 'PRO 전용 도구입니다' : 'Basic 이상 전용 도구입니다'}
+                PRO 전용 도구입니다
               </h3>
               <p className="text-sm text-gray-500 mb-6 leading-relaxed">
                 {isBasicOrAbove
                   ? <>이 도구는 Pro 플랜에서 사용할 수 있습니다.<br />아래에 문의를 남겨주시면 곧 연락드릴게요.</>
-                  : <>이 도구는 Basic 플랜 이상에서 사용할 수 있습니다.<br />베타 테스터 또는 플랜 업그레이드는 아래에 문의를 남겨주세요.</>
+                  : <>이 도구는 Pro 플랜에서 사용할 수 있습니다.<br />베타 테스터 또는 플랜 업그레이드는 아래에 문의를 남겨주세요.</>
                 }
               </p>
 
@@ -672,7 +673,7 @@ const TeachingTools = () => {
                     onClick={openContactForm}
                     className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-sm transition-colors"
                   >
-                    {isBasicOrAbove ? 'Pro 업그레이드 문의하기' : 'Basic 플랜 문의하기'}
+                    Pro 업그레이드 문의하기
                   </button>
                   <button
                     onClick={closeUpgradeModal}
@@ -844,8 +845,8 @@ const TeachingTools = () => {
                     </span>
                   )}
                   {isBasicLocked && (
-                    <span className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 text-white">
-                      <Crown size={9} /> BASIC
+                    <span className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-white">
+                      <Crown size={9} /> PRO
                     </span>
                   )}
                   {/* 준비중 등 정적 배지 (잠금 아닐 때만) */}
@@ -888,7 +889,7 @@ const TeachingTools = () => {
                       {isLocked ? (
                         <>
                           <Lock size={10} />
-                          <span>{isBasicLocked ? 'Basic' : 'Pro'} 플랜부터 사용 가능</span>
+                          <span>Pro 플랜부터 사용 가능</span>
                         </>
                       ) : (
                         <>

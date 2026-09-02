@@ -231,7 +231,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
     chatHeaderTitle: '나비 · 사용법 가이드',
     chatHeaderSubtitle: '앱 사용법에 대해 무엇이든 물어보세요',
     emptyTitle: '무엇이 궁금하신가요?',
-    emptyBody: '예: "클래스는 어떻게 만들어?", "지금 내 AI 사용량이 얼마나 남았어?", "Basic이랑 Pro 뭐가 달라?" 처럼 편하게 물어보세요.',
+    emptyBody: '예: "클래스는 어떻게 만들어?", "지금 내 AI 사용량이 얼마나 남았어?", "무료랑 Pro 뭐가 달라?" 처럼 편하게 물어보세요.',
     inputPlaceholder: '앱 사용법에 대해 궁금한 점을 물어보세요...',
     showDraftActions: false,
     showReferenceSearch: false,
@@ -239,7 +239,7 @@ const COPILOT_MODES: Record<CopilotModeId, CopilotModeConfig> = {
       '클래스는 어떻게 만들어?',
       '지금 내 AI 사용량이 얼마나 남았어?',
       '수업 도구에는 어떤 기능이 있어?',
-      'Basic이랑 Pro 플랜 차이가 뭐야?',
+      '무료랑 Pro 플랜 차이가 뭐야?',
     ],
   },
   class_manager: {

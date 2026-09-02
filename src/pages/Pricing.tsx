@@ -54,36 +54,37 @@ export const PLANS: Plan[] = [
       schoolProject: false,
     },
   },
-  {
-    key: 'basic',
-    name: 'Basic',
-    price: '9,900원',
-    priceAnnual: '연 107,000원 (2개월 무료)',
-    periods: [
-      { label: '3개월', total: '28,200원', perMonth: '월 9,400원', note: '5%↓' },
-      { label: '6개월', total: '53,400원', perMonth: '월 8,900원', note: '10%↓' },
-      { label: '12개월', total: '107,000원', perMonth: '월 8,917원', note: '2개월 무료' },
-    ],
-    highlight: false,
-    badge: null,
-    colorClass: 'border-blue-200 bg-white',
-    badgeClass: '',
-    ctaLabel: 'Basic 시작하기',
-    features: {
-      classes: '클래스 5개',
-      students: '학생 35명/반',
-      ai: '넉넉하게',
-      editor: true,
-      quiz: '무제한',
-      survey: '무제한',
-      whiteboard: '최대 3개',
-      transcription: true,
-      bulkAi: false,
-      naiss: false,
-      teacherInvite: false,
-      schoolProject: '참여만 가능',
-    },
-  },
+  // Basic 플랜은 화면 노출만 잠시 끔(코드는 남겨둠 — 얼리버드 설문 결과 보고 재노출 여부 결정).
+  // {
+  //   key: 'basic',
+  //   name: 'Basic',
+  //   price: '9,900원',
+  //   priceAnnual: '연 107,000원 (2개월 무료)',
+  //   periods: [
+  //     { label: '3개월', total: '28,200원', perMonth: '월 9,400원', note: '5%↓' },
+  //     { label: '6개월', total: '53,400원', perMonth: '월 8,900원', note: '10%↓' },
+  //     { label: '12개월', total: '107,000원', perMonth: '월 8,917원', note: '2개월 무료' },
+  //   ],
+  //   highlight: false,
+  //   badge: null,
+  //   colorClass: 'border-blue-200 bg-white',
+  //   badgeClass: '',
+  //   ctaLabel: 'Basic 시작하기',
+  //   features: {
+  //     classes: '클래스 5개',
+  //     students: '학생 35명/반',
+  //     ai: '넉넉하게',
+  //     editor: true,
+  //     quiz: '무제한',
+  //     survey: '무제한',
+  //     whiteboard: '최대 3개',
+  //     transcription: true,
+  //     bulkAi: false,
+  //     naiss: false,
+  //     teacherInvite: false,
+  //     schoolProject: '참여만 가능',
+  //   },
+  // },
   {
     key: 'pro',
     name: 'Pro',
@@ -155,11 +156,6 @@ export default function Pricing() {
     if (planKey === 'free') {
       return { label: '현재 이용 중', disabled: true, href: null };
     }
-    if (planKey === 'basic') {
-      if (isBasic) return { label: '현재 이용 중', disabled: true, href: null };
-      if (isPro) return { label: '다운그레이드', disabled: true, href: null };
-      return { label: '얼리버드 신청 (첫 달 50% 할인)', disabled: false, href: '/waitlist?plan=basic' };
-    }
     if (planKey === 'pro') {
       if (isPro && currentPlan !== 'school') return { label: '현재 이용 중', disabled: true, href: null };
       return { label: '얼리버드 신청 (첫 달 50% 할인)', disabled: false, href: '/waitlist?plan=pro' };
@@ -195,12 +191,11 @@ export default function Pricing() {
       </div>
 
       {/* Plan Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12 max-w-2xl mx-auto">
         {PLANS.map((plan) => {
           const cta = getPlanCtaState(plan.key);
           const isCurrent =
             (plan.key === 'free' && !isBasic && !isPro) ||
-            (plan.key === 'basic' && isBasic) ||
             (plan.key === 'pro' && isPro && currentPlan !== 'school');
 
           return (
@@ -224,7 +219,7 @@ export default function Pricing() {
               <div className="mb-5">
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-lg font-black text-on-surface">{plan.name}</h2>
-                  {(plan.key === 'basic' || plan.key === 'pro') && !isCurrent && (
+                  {plan.key === 'pro' && !isCurrent && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">
                       오픈 예정
                     </span>
@@ -365,7 +360,7 @@ export default function Pricing() {
               </ul>
             </div>
             <div className="bg-white rounded-2xl p-3.5 border border-amber-200">
-              <p className="text-[11px] font-black text-amber-700 mb-1.5">Basic/Pro 결제</p>
+              <p className="text-[11px] font-black text-amber-700 mb-1.5">Pro 결제</p>
               <ul className="text-[11px] text-on-surface-variant space-y-1 leading-relaxed">
                 <li>· 가입 즉시, 설정 없이 모든 기기에서 바로 사용</li>
                 <li>· 사용량 걱정 없이 넉넉하게</li>

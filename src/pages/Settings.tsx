@@ -493,11 +493,11 @@ const Settings = () => {
             </div>
             {!isEffectivelyPro && (
               <div>
-                <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
+                <p className="text-xs font-bold text-amber-600 mb-2">Pro 플랜에서 가능한 것</p>
                 <div className="space-y-1">
                   {(isBasicOnly
                     ? ['AI 더 넉넉하게 (Pro)', '클래스 최대 10개 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', 'NAISS 내보내기 (Pro)', '학교 프로젝트 생성 (Pro)']
-                    : ['AI 넉넉하게 사용 (Basic/Pro)', '클래스 최대 5개 (Basic)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Basic 이상)']
+                    : ['AI 넉넉하게 사용 (Pro)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Pro)']
                   ).map(item => (
                     <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                       <Sparkles size={10} className="text-amber-400" /> {item}
@@ -509,9 +509,9 @@ const Settings = () => {
           </div>
         ) : (
           <div className="mt-4 pt-4 border-t border-amber-200">
-            <p className="text-xs font-bold text-amber-600 mb-2">Basic / Pro 플랜에서 가능한 것</p>
+            <p className="text-xs font-bold text-amber-600 mb-2">Pro 플랜에서 가능한 것</p>
             <div className="space-y-1">
-              {['AI 넉넉하게 사용 (Basic/Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)'].map(item => (
+              {['AI 넉넉하게 사용 (Pro)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Pro)'].map(item => (
                 <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                   <Sparkles size={10} className="text-amber-400" /> {item}
                 </div>
@@ -930,7 +930,7 @@ const Settings = () => {
           <div>
             <h3 className="text-lg font-bold">내 Gemini API 키</h3>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              내 API 키를 등록하면 플랜 월 사용 한도와 무관하게 AI 기능(및 AI가 포함된 Basic 전용 수업 도구)을 사용할 수 있습니다
+              내 API 키를 등록하면 플랜 월 사용 한도와 무관하게 AI 기능(및 AI가 포함된 Pro 전용 수업 도구)을 사용할 수 있습니다
             </p>
           </div>
         </div>

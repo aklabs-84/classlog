@@ -709,7 +709,7 @@ export default function SurveyTool() {
         .select('id', { count: 'exact', head: true })
         .eq('teacher_id', user.id);
       if ((count ?? 0) >= FREE_SURVEY_LIMIT) {
-        showLimitToast(`무료 플랜은 설문을 최대 ${FREE_SURVEY_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        showLimitToast(`무료 플랜은 설문을 최대 ${FREE_SURVEY_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
         return;
       }
     }
@@ -898,7 +898,7 @@ export default function SurveyTool() {
         .select('id', { count: 'exact', head: true })
         .eq('teacher_id', user.id);
       if ((count ?? 0) >= FREE_SURVEY_LIMIT) {
-        showLimitToast(`무료 플랜은 설문을 최대 ${FREE_SURVEY_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        showLimitToast(`무료 플랜은 설문을 최대 ${FREE_SURVEY_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
         return;
       }
     }

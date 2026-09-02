@@ -186,14 +186,7 @@
 
     /* ══ 8. 요금 ══ */
     .pricing { background: #fff; }
-    .pricing-tabs { display: inline-flex; gap: 4px; background: var(--gray-100); padding: 4px; border-radius: 100px; margin-bottom: 32px; }
-    .pricing-tab-btn { padding: 9px 20px; border: none; background: transparent; border-radius: 100px; font-size: 13px; font-weight: 700; color: var(--gray-500); cursor: pointer; transition: all .15s; }
-    .pricing-tab-btn.active { background: #fff; color: var(--gray-900); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-    .pricing-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .pricing-cards[data-tab="group"] { grid-template-columns: minmax(280px, 380px); justify-content: center; }
-    .pricing-card[data-category="group"] { display: none; }
-    .pricing-cards[data-tab="group"] .pricing-card[data-category="individual"] { display: none; }
-    .pricing-cards[data-tab="group"] .pricing-card[data-category="group"] { display: block; }
+    .pricing-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
     .pricing-card .price-won { font-size: 30px; }
     .pricing-note { margin-top: 20px; font-size: 12px; color: var(--gray-500); text-align: center; }
     .pricing-card { border: 1.5px solid var(--gray-200); border-radius: 16px; padding: 32px 24px; text-align: center; position: relative; transition: all .2s; background: #fff; }
@@ -321,7 +314,6 @@
       .slide .flow-step p { font-size: 17px; line-height: 1.4; }
       .slide .flow-steps::before { top: 34px; }
 
-      .slide .pricing-tabs { margin-bottom: 23px; }
       .slide .pricing-card { padding: 20px 17.5px; border-radius: 14.5px; }
       .slide .pricing-card .badge { font-size: 12.5px; padding: 4.5px 14.5px; top: -13px; }
       .slide .pricing-card .tier { font-size: 13px; margin-bottom: 6px; }
@@ -357,8 +349,7 @@
         page-break-after: always; break-after: page;
       }
       section.slide:last-of-type { page-break-after: auto; break-after: auto; }
-      .pricing-tabs { display: none; }
-      .pricing-cards { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; }
+      .pricing-cards { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; }
       .pricing-card { display: block !important; }
       @page { size: A4 landscape; margin: 0; }
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -828,12 +819,7 @@
       <h2 class="section-title">학교 · 학원 규모에 맞게 도입하세요</h2>
       <p class="section-sub">개인 선생님부터 학교 전체 도입까지, 유연하게 운영합니다</p>
 
-      <div class="pricing-tabs">
-        <button class="pricing-tab-btn active" onclick="switchPricingTab(this,'individual')">👤 개인 (무료 · Basic · Pro)</button>
-        <button class="pricing-tab-btn" onclick="switchPricingTab(this,'group')">🏫 단체 (School)</button>
-      </div>
-
-      <div class="pricing-cards" data-tab="individual">
+      <div class="pricing-cards">
         <div class="pricing-card" data-category="individual">
           <div class="tier">Free</div>
           <div class="price">무료</div>
@@ -851,29 +837,13 @@
           </ul>
           <a href="/" class="cta outline">Google로 무료 시작하기</a>
         </div>
-        <div class="pricing-card" data-category="individual" style="border-color:var(--amber);background:var(--amber-light);">
-          <div class="badge" style="background:var(--amber);">Basic</div>
-          <div class="tier" style="color:var(--amber-dark);">Basic</div>
-          <div class="price price-won" style="color:var(--amber-deep);">9,900원<span style="font-size:13px;font-weight:600;">/월</span></div>
-          <div style="font-size:10px;font-weight:700;color:#9ca3af;margin-top:2px;">3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료</div>
-          <div class="price-sub">본격적으로 활용하는 선생님</div>
-          <ul>
-            <li>클래스 최대 5개 · 학생 최대 35명</li>
-            <li>AI 사용 넉넉하게</li>
-            <li>수업 자료 에디터 · 슬라이드 만들기</li>
-            <li>실시간 퀴즈 · 설문 무제한, 화이트보드 (3개)</li>
-            <li>수업 전사 (본인 Groq API 키 등록)</li>
-            <li>학교 프로젝트 참여</li>
-          </ul>
-          <a href="mailto:aklabs84@naver.com?subject=클래스로그 Basic 플랜 문의" class="cta main" style="background:var(--amber);">Basic 플랜 문의하기</a>
-        </div>
         <div class="pricing-card highlight" data-category="individual">
           <div class="badge">⚡ Pro</div>
           <div class="tier">Pro</div>
           <div class="price price-won">19,900원<span style="font-size:13px;font-weight:600;">/월</span></div>
-          <div style="font-size:10px;font-weight:700;color:#9ca3af;margin-top:2px;">3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료</div>
           <div class="price-sub">적극적으로 활용하는 선생님</div>
           <ul>
+            <li><strong>무료 플랜 기능 전체 포함</strong>, 아래 내용까지 추가로</li>
             <li>클래스 최대 10개 · 학생 최대 35명</li>
             <li>AI 사용 가장 넉넉하게</li>
             <li>수업 도구 전체 무제한</li>
@@ -897,7 +867,7 @@
           <a href="mailto:aklabs84@naver.com?subject=클래스로그 School 플랜 도입 문의" class="cta main" style="background:var(--violet);">School 도입 문의하기</a>
         </div>
       </div>
-      <p class="pricing-note">* 현재 유료 플랜 업그레이드는 이메일 문의 후 관리자가 직접 처리합니다. 온라인 결제 기능은 준비 중입니다.<br>플랜 변경 및 문의: aklabs84@naver.com · 3/6/12개월 선결제 시 할인, 결제 후 7일 이내 전액 환불 (이후 잔여 기간 일할 계산 환불) · <a href="/terms" style="color:inherit;text-decoration:underline;">이용약관 보기</a></p>
+      <p class="pricing-note">* 현재 유료 플랜 업그레이드는 이메일 문의 후 관리자가 직접 처리합니다. 온라인 결제 기능은 준비 중입니다.<br>플랜 변경 및 문의: aklabs84@naver.com · 결제 후 7일 이내 전액 환불 (이후 잔여 기간 일할 계산 환불) · <a href="/terms" style="color:inherit;text-decoration:underline;">이용약관 보기</a></p>
     </div>
   </section>
 
@@ -958,13 +928,6 @@
 
 </div><!-- .catalog -->
 
-<script>
-  function switchPricingTab(btn, tab) {
-    document.querySelectorAll('.pricing-tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelector('.pricing-cards').setAttribute('data-tab', tab);
-  }
-</script>
 
 </body>
 </html>

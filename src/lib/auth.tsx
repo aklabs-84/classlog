@@ -346,9 +346,11 @@ export function checkCanUseAi(profile: any): boolean {
   return getAiMonthlyLimit(profile) > 0;
 }
 
-// api/gemini.ts의 PLAN_MONTHLY_BUDGET_USD/HARD_STOP_MULTIPLIER와 동일하게 유지할 것(서버가 실제 과금 판단 주체).
+// api/gemini.ts의 PLAN_MONTHLY_BUDGET_USD/HARD_STOP_MULTIPLIER/BETA_TRIAL_*와 동일하게 유지할 것(서버가 실제 과금 판단 주체).
 const AI_CREDIT_BUDGET_USD: Record<string, number> = { basic: 2, pro: 6 };
-const AI_HARD_STOP_MULTIPLIER = 3;
+const AI_HARD_STOP_MULTIPLIER = 1.2;
+const BETA_TRIAL_BUDGET_USD = 1.5;
+const BETA_TRIAL_HARD_STOP_USD = 3;
 
 export type AiUsageStatus =
   | { kind: 'count'; used: number; limit: number; percent: number }
@@ -357,23 +359,31 @@ export type AiUsageStatus =
 // 사이드바 등에서 "지금 AI 사용량이 얼마나 남았는지"를 보여주기 위한 공용 계산.
 // null = 위젯을 숨겨도 되는 무제한 상태(admin/베타/학교 프로젝트 Pro 기간).
 // free/school은 실제 호출 횟수 대비 한도(%), basic/pro는 달러 금액은 노출하지 않고 크레딧 예산 대비 소진율(%)만 반환.
+function creditUsageStatus(usedCost: number, budget: number, hardStopMultiplier: number): AiUsageStatus {
+  const percent = Math.round((usedCost / budget) * 100);
+  const hardStopPercent = hardStopMultiplier * 100;
+  const state: 'normal' | 'saving' | 'critical' =
+    percent < 100 ? 'normal' : percent >= hardStopPercent * 0.9 ? 'critical' : 'saving';
+  return { kind: 'credit', percent, state };
+}
+
 export function getAiUsageStatus(profile: any): AiUsageStatus | null {
   if (!profile) return null;
   if (profile.plan === 'admin') return null;
-  if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return null;
   if (profile.project_pro_until && new Date(profile.project_pro_until) > new Date()) return null;
 
   const thisMonth = new Date().toISOString().slice(0, 7);
   const isCurrentMonth = profile.ai_monthly_reset === thisMonth;
+  const usedCost = isCurrentMonth ? (profile.ai_monthly_cost_usd ?? 0) : 0;
+
+  const isBetaActive = profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date();
+  if (isBetaActive) {
+    return creditUsageStatus(usedCost, BETA_TRIAL_BUDGET_USD, BETA_TRIAL_HARD_STOP_USD / BETA_TRIAL_BUDGET_USD);
+  }
 
   const budget = AI_CREDIT_BUDGET_USD[profile.plan];
   if (budget) {
-    const usedCost = isCurrentMonth ? (profile.ai_monthly_cost_usd ?? 0) : 0;
-    const percent = Math.round((usedCost / budget) * 100);
-    const hardStopPercent = AI_HARD_STOP_MULTIPLIER * 100;
-    const state: 'normal' | 'saving' | 'critical' =
-      percent < 100 ? 'normal' : percent >= hardStopPercent * 0.9 ? 'critical' : 'saving';
-    return { kind: 'credit', percent, state };
+    return creditUsageStatus(usedCost, budget, AI_HARD_STOP_MULTIPLIER);
   }
 
   const limit = getAiMonthlyLimit(profile);

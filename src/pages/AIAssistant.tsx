@@ -726,7 +726,7 @@ ${obsText}
                   : `이번 달 AI 한도가 얼마 남지 않았어요 (${remaining}회 남음)`}
               </p>
               <p className={`text-xs mt-0.5 ${isUrgent ? 'text-red-600' : 'text-orange-600'}`}>
-                Basic·Pro로 업그레이드하면 AI를 훨씬 넉넉하게 사용할 수 있어요
+                Pro로 업그레이드하면 AI를 훨씬 넉넉하게 사용할 수 있어요
               </p>
             </div>
             <NavLink

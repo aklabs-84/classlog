@@ -328,7 +328,7 @@ const LinkToClassModal = ({
         .select('id', { count: 'exact', head: true })
         .eq('teacher_id', userId);
       if ((count ?? 0) + selected.size > FREE_MATERIAL_LIMIT) {
-        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
         return;
       }
     }
@@ -1155,7 +1155,7 @@ const MaterialEditor = () => {
         .select('id', { count: 'exact', head: true })
         .eq('teacher_id', user!.id);
       if ((count ?? 0) >= FREE_MATERIAL_LIMIT) {
-        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
         return;
       }
     }
@@ -1180,7 +1180,7 @@ const MaterialEditor = () => {
         .select('id', { count: 'exact', head: true })
         .eq('teacher_id', user!.id);
       if ((count ?? 0) >= FREE_MATERIAL_LIMIT) {
-        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
         return;
       }
     }
@@ -1428,7 +1428,7 @@ const MaterialEditor = () => {
         .select('id', { count: 'exact', head: true })
         .eq('teacher_id', user!.id);
       if ((count ?? 0) >= FREE_MATERIAL_LIMIT) {
-        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
         return;
       }
     }

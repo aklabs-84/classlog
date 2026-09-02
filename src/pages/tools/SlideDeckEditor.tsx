@@ -204,7 +204,7 @@ export default function SlideDeckEditor() {
   const canCreateDeck = () => {
     if (checkIsBasicOrAbove(profile)) return true;
     if (decks.length >= FREE_SLIDE_DECK_LIMIT) {
-      showLimitToast(`무료 플랜은 슬라이드덱을 최대 ${FREE_SLIDE_DECK_LIMIT}개까지 만들 수 있습니다. Basic 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+      showLimitToast(`무료 플랜은 슬라이드덱을 최대 ${FREE_SLIDE_DECK_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
       return false;
     }
     return true;
