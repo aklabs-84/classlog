@@ -516,9 +516,9 @@ export const seatukRefineAI       = makeModelWrapper('pro',   'seatuk_refine');
 export const seatukCompressAI     = makeModelWrapper('pro',   'seatuk_compress');
 export const achievementSuggestAI = makeModelWrapper('pro',   'achievement_suggest');
 export const transcriptionAI      = makeModelWrapper('flash', 'transcription_analysis');
-export const quizGeneratorAI      = makeModelWrapper('flash', 'quiz_generator', true);
-export const surveyGeneratorAI    = makeModelWrapper('flash', 'survey_generator', true);
-export const surveyAnalysisAI     = makeModelWrapper('flash', 'survey_analysis');
+export const quizGeneratorAI      = makeModelWrapper('lite', 'quiz_generator', true);
+export const surveyGeneratorAI    = makeModelWrapper('lite', 'survey_generator', true);
+export const surveyAnalysisAI     = makeModelWrapper('lite', 'survey_analysis');
 export const observationReviewAI  = makeModelWrapper('flash', 'observation_review', true);
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
 export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade', true);
@@ -528,7 +528,7 @@ export const coverPromptAI         = makeModelWrapper('lite',  'cover_prompt_sug
 export const ideaAnalysisAI        = makeModelWrapper('flash', 'idea_analysis', true);
 export const lessonPlanDraftAI     = makeModelWrapper('flash', 'lesson_plan_draft');
 export const ideaQuestionAI        = makeModelWrapper('lite',  'idea_clarify_question', true);
-export const ideaPRDAI             = makeModelWrapper('flash', 'idea_prd_generate', true);
+export const ideaPRDAI             = makeModelWrapper('lite', 'idea_prd_generate', true);
 export const ideaPRDDraftAI        = makeModelWrapper('flash', 'idea_prd_draft');
 // 수업 계획서 자동생성(MaterialEditor) 전용 — 위 lessonPlanDraftAI(아이디어→마크다운)와는 별개 기능
 export const lessonPlanSectionsAI  = makeModelWrapper('pro', 'lesson_plan_sections', true);
@@ -889,7 +889,7 @@ export async function generateFeedbackDraft(
 
   return callProxy({
     mode: 'generate',
-    model: 'flash',
+    model: 'lite',
     feature: 'feedback_draft',
     systemInstruction: SYSTEM_INSTRUCTIONS.BASE + SYSTEM_INSTRUCTIONS.PRIVACY,
     prompt,
@@ -936,7 +936,7 @@ export async function generateClassInsight(className: string, observations: any[
   `;
   return callProxy({
     mode: 'generate',
-    model: 'flash',
+    model: 'lite',
     feature: 'class_insight',
     systemInstruction: SYSTEM_INSTRUCTIONS.BASE + SYSTEM_INSTRUCTIONS.PRIVACY,
     prompt,
