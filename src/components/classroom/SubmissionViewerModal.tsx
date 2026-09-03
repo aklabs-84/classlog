@@ -336,7 +336,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                   <p className="text-sm font-bold">{error}</p>
                 </div>
               ) : (
-                <div className="h-full overflow-auto p-6 bg-white">
+                <div className="h-full overflow-auto p-6 bg-white [&_table]:border-collapse [&_td]:border [&_td]:border-neutral-300 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-neutral-300 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-neutral-100">
                   <div className="prose prose-sm max-w-2xl mx-auto" dangerouslySetInnerHTML={{ __html: hwpxHtml }} />
                 </div>
               )}
