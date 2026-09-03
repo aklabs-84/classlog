@@ -38,11 +38,14 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   const [pyOutput, setPyOutput] = useState<string>('');
   const [pyRunning, setPyRunning] = useState(false);
   const [pyImages, setPyImages] = useState<string[]>([]);
+  const [pyStdinInput, setPyStdinInput] = useState('');
   const [docxHtml, setDocxHtml] = useState<string>('');
   const [hwpxHtml, setHwpxHtml] = useState<string>('');
   const [sheets, setSheets] = useState<{ name: string; html: string }[]>([]);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const pyodideRef = useRef<any>(null);
+  const stdinQueueRef = useRef<string[]>([]);
+  const stdinIndexRef = useRef(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
 
@@ -183,6 +186,8 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     setPyRunning(true);
     setPyOutput('');
     setPyImages([]);
+    stdinQueueRef.current = pyStdinInput.split('\n');
+    stdinIndexRef.current = 0;
     try {
       if (!pyodideRef.current) {
         if (!(window as any).loadPyodide) {
@@ -202,8 +207,10 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
         pyodideRef.current.setStderr({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
         pyodideRef.current.setStdin({
           stdin: () => {
-            const value = window.prompt('프로그램 입력 대기 중 (input)');
-            return value === null ? undefined : value;
+            if (stdinIndexRef.current < stdinQueueRef.current.length) {
+              return stdinQueueRef.current[stdinIndexRef.current++];
+            }
+            return undefined;
           },
         });
         // matplotlib이 화면 캔버스 대신 정적 이미지를 그리도록 강제 (import 여부와 무관하게 안전)
@@ -328,6 +335,18 @@ else:
 
           {kind === 'python' && (
             <div className="h-full flex flex-col p-4 gap-3">
+              <div className="shrink-0">
+                <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">
+                  입력값 (코드가 input()을 호출하는 순서대로 한 줄에 하나씩 입력, 필요 없으면 비워두세요)
+                </label>
+                <textarea
+                  value={pyStdinInput}
+                  onChange={e => setPyStdinInput(e.target.value)}
+                  placeholder={'예)\n1\n3\n2'}
+                  rows={3}
+                  className="w-full text-xs font-mono px-2.5 py-2 rounded-lg border border-neutral-200 focus:outline-none focus:border-primary resize-none"
+                />
+              </div>
               <button
                 onClick={runPython}
                 disabled={pyRunning}
