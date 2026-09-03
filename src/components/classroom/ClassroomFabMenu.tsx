@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, QrCode, BookOpen, Link as LinkIcon, Share2, Download, Check } from 'lucide-react';
+import { Plus, QrCode, BookOpen, Link as LinkIcon, Share2, Download, Check, Smartphone } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ClassroomFabMenuProps {
@@ -12,6 +12,7 @@ interface ClassroomFabMenuProps {
   shareTeacherSuccess?: boolean;
   onOpenTeacherShareQR?: () => void;
   onExport?: () => void;
+  onOpenStudentPreview?: () => void;
 }
 
 interface FabAction {
@@ -30,6 +31,7 @@ const ClassroomFabMenu = ({
   shareTeacherSuccess,
   onOpenTeacherShareQR,
   onExport,
+  onOpenStudentPreview,
 }: ClassroomFabMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -43,6 +45,7 @@ const ClassroomFabMenu = ({
   }, [isOpen]);
 
   const actions: FabAction[] = [
+    onOpenStudentPreview && { key: 'studentPreview', label: '학생 화면 미리보기', icon: Smartphone, onClick: onOpenStudentPreview },
     onOpenQR && { key: 'qr', label: '학생 입장 QR', icon: QrCode, onClick: onOpenQR },
     onOpenResources && { key: 'resources', label: '수업 자료실', icon: BookOpen, onClick: onOpenResources },
     onCopyLink && {

@@ -70,6 +70,7 @@ import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import ClassroomFabMenu from '../components/classroom/ClassroomFabMenu';
+import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
 import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
@@ -274,6 +275,7 @@ const Classroom = () => {
   // QR 코드 모달 상태
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isTeacherShareQRModalOpen, setIsTeacherShareQRModalOpen] = useState(false);
+  const [isStudentPreviewOpen, setIsStudentPreviewOpen] = useState(false);
 
   // AI 인사이트 모달 상태
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
@@ -4312,6 +4314,7 @@ const Classroom = () => {
 
         {classInfo && (
           <ClassroomFabMenu
+            onOpenStudentPreview={students.length > 0 ? () => setIsStudentPreviewOpen(true) : undefined}
             onOpenQR={classInfo.class_type !== 'homeroom' ? () => setIsQRModalOpen(true) : undefined}
             onOpenResources={() => {
               if (activeClassId) fetchResources(activeClassId);
@@ -4323,6 +4326,14 @@ const Classroom = () => {
             shareTeacherSuccess={shareTeacherSuccess}
             onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
             onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
+          />
+        )}
+
+        {isStudentPreviewOpen && activeClassId && students.length > 0 && (
+          <StudentPreviewModal
+            classId={activeClassId}
+            students={students.map(s => ({ id: s.id, name: s.name, number: s.number }))}
+            onClose={() => setIsStudentPreviewOpen(false)}
           />
         )}
 
