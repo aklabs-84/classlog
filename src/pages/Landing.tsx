@@ -78,7 +78,7 @@ const features = [
   },
   {
     icon: FileDown,
-    title: '나이스 바로 제출',
+    title: '나이스 엑셀 바로 내보내기',
     desc: '500자 편집 후 나이스 엑셀로 내보내기. 행동특성·종합의견도 AI가 초안을 씁니다.',
     image: '/illustrations/icon-nice-submit.webp',
   },
@@ -124,7 +124,7 @@ const teachingTools = [
 ];
 
 const useCases = [
-  { emoji: '🏫', title: '고등학교', desc: '세특·행동특성·종합의견 AI 초안 생성, 나이스 엑셀 일괄 제출', tag: '세특 자동화' },
+  { emoji: '🏫', title: '고등학교', desc: '세특·행동특성·종합의견 AI 초안 생성, 나이스 엑셀 일괄 내보내기', tag: '세특 자동화' },
   { emoji: '🏫', title: '중학교', desc: '학교생활기록부 기재용 활동 기록 수집·관리', tag: '생기부 기록' },
   { emoji: '🏢', title: '학원·교습소', desc: '수강생 관찰 기록 → AI 학부모 성장 보고서 자동 생성', tag: '학부모 보고서' },
   { emoji: '🎸', title: '음악·예체능 레슨', desc: '레슨별 성취도·관찰 기록, 수강생 포트폴리오 구축', tag: '레슨 기록' },
@@ -136,7 +136,7 @@ const steps = [
   { num: '01', title: '학급 생성', desc: '교과반·담임반 구분해서 학급을 만들면 학생들이 코드로 바로 참여합니다.' },
   { num: '02', title: '틈틈이 기록', desc: '학생이 직접 제출하거나, 선생님이 수업 중 메모를 남깁니다. 기록이 쌓일수록 세특이 정확해집니다.' },
   { num: '03', title: 'AI 세특 생성', desc: 'AI가 기록을 분석해 학생별 세특 초안을 자동 완성. 수정 후 저장합니다.' },
-  { num: '04', title: '나이스 제출', desc: '500자 맞춤 편집 후 나이스 엑셀로 바로 내보냅니다.' },
+  { num: '04', title: '나이스 엑셀 내보내기', desc: '500자 맞춤 편집 후 나이스 엑셀로 바로 내보냅니다.' },
 ];
 
 // 유료 고객 확보 전까지 선결제 할인 노출을 잠시 끔 — 켤 때는 true로.
@@ -688,7 +688,7 @@ const Landing = () => {
           <div className="text-center mb-14">
             <Eyebrow>✨ 기록하고, 만들고, 관리하고</Eyebrow>
             <h2 className="text-3xl font-black mb-3">기록하면, AI가 <span className="text-writer-orchid">만들고 관리</span>합니다</h2>
-            <p className="text-writer-slate text-base">활동 기록부터 나이스 제출까지 — 선생님의 모든 반복 업무를 대신합니다</p>
+            <p className="text-writer-slate text-base">활동 기록부터 나이스 내보내기까지 — 선생님의 모든 반복 업무를 대신합니다</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {features.map(({ icon: Icon, title, desc, accent, image }, i) => (
