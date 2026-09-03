@@ -33,6 +33,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zipEntryUrl, setZipEntryUrl] = useState<string | null>(null);
+  const [htmlBlobUrl, setHtmlBlobUrl] = useState<string | null>(null);
   const [pyOutput, setPyOutput] = useState<string>('');
   const [pyRunning, setPyRunning] = useState(false);
   const [docxHtml, setDocxHtml] = useState<string>('');
@@ -48,10 +49,26 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     setPyOutput('');
     setDocxHtml('');
     setSheetHtml('');
+    setHtmlBlobUrl(null);
     objectUrlsRef.current.forEach(u => URL.revokeObjectURL(u));
     objectUrlsRef.current = [];
 
-    if (kind === 'web-zip') {
+    if (kind === 'web-html') {
+      (async () => {
+        try {
+          const res = await fetch(fileUrl);
+          const text = await res.text();
+          const htmlBlob = new Blob([text], { type: 'text/html' });
+          const htmlUrl = URL.createObjectURL(htmlBlob);
+          objectUrlsRef.current.push(htmlUrl);
+          setHtmlBlobUrl(htmlUrl);
+          setLoading(false);
+        } catch (e: any) {
+          setError('파일을 여는 중 오류가 발생했습니다: ' + (e?.message || e));
+          setLoading(false);
+        }
+      })();
+    } else if (kind === 'web-zip') {
       (async () => {
         try {
           const res = await fetch(fileUrl);
@@ -210,14 +227,22 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
           )}
 
           {kind === 'web-html' && (
-            <iframe
-              ref={iframeRef}
-              src={fileUrl}
-              sandbox="allow-scripts allow-forms allow-popups allow-modals"
-              className="w-full h-full border-0"
-              onLoad={() => setLoading(false)}
-              title={fileName}
-            />
+            <>
+              {error ? (
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-red-500 p-6 text-center">
+                  <AlertTriangle size={28} />
+                  <p className="text-sm font-bold">{error}</p>
+                </div>
+              ) : htmlBlobUrl && (
+                <iframe
+                  ref={iframeRef}
+                  src={htmlBlobUrl}
+                  sandbox="allow-scripts allow-forms allow-popups allow-modals"
+                  className="w-full h-full border-0"
+                  title={fileName}
+                />
+              )}
+            </>
           )}
 
           {kind === 'web-zip' && (
