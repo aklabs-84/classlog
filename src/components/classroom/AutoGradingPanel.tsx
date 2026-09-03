@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles, Loader2, AlignLeft, Link2, Image as ImageIcon, File, ExternalLink,
   Check, X, AlertTriangle, Wand2
@@ -80,6 +80,8 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
   const [confirmState, setConfirmState] = useState<{ n: number; m: number; targets: GroupEntry[] } | null>(null);
   const [singleGradingKey, setSingleGradingKey] = useState<string | null>(null);
   const { limitToastMessage, showLimitToast } = useLimitToast();
+  // 주차 선택 가로 스크롤 칩을 화면 진입 시 1회만 현재 선택 주차 위치로 스크롤하기 위한 플래그
+  const weekScrolledRef = useRef(false);
 
   const studentMap = useMemo(() => new Map(students.map(s => [s.id, s])), [students]);
 
@@ -270,14 +272,20 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
       <LimitToastView message={limitToastMessage} />
 
       {/* 주차 선택 */}
-      <div className="flex items-center gap-2.5 flex-wrap">
+      <div className="flex items-center gap-2.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
         {sortedWeeks.length === 0 ? (
           <p className="text-sm font-bold text-on-surface-variant/60">주차별 계획이 없습니다. 클래스 설정에서 먼저 주차별 계획을 등록해주세요.</p>
         ) : sortedWeeks.map(w => (
           <button
             key={w.week}
+            ref={(el) => {
+              if (selectedWeek === w.week && el && !weekScrolledRef.current) {
+                weekScrolledRef.current = true;
+                el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+              }
+            }}
             onClick={() => setSelectedWeek(w.week)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${selectedWeek === w.week ? 'bg-on-surface text-surface' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container/70'}`}
+            className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-xl text-sm font-black transition-all ${selectedWeek === w.week ? 'bg-on-surface text-surface' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container/70'}`}
           >
             {w.week}주차 · {w.topic}
           </button>
