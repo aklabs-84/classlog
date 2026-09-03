@@ -198,6 +198,12 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
         });
         pyodideRef.current.setStdout({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
         pyodideRef.current.setStderr({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
+        pyodideRef.current.setStdin({
+          stdin: () => {
+            const value = window.prompt('프로그램 입력 대기 중 (input)');
+            return value === null ? undefined : value;
+          },
+        });
       } else {
         setPyOutput('');
       }
