@@ -467,7 +467,7 @@ const HomeroomDashboard = ({
                  ) : (
                    <div className="space-y-4">
                      {/* 주차 칩 */}
-                     <div className="flex items-center gap-2 flex-wrap">
+                     <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                        {statsWeeks.map(week => {
                          const topic = weeklyPlan.find(p => p.week === week)?.topic;
                          const weekResultCount = getObsOnWeek(week).size;
@@ -476,7 +476,7 @@ const HomeroomDashboard = ({
                            <button
                              key={week}
                              onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
-                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
+                             className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
                                isSelected
                                  ? 'bg-primary text-white border-primary shadow-sm'
                                  : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'

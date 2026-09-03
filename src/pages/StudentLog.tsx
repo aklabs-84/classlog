@@ -199,6 +199,17 @@ interface NoteItem {
 const notePreview = (content: string) =>
   content.replace(/[#*_`>\[\]()\-!]/g, '').replace(/\n+/g, ' ').trim().slice(0, 65);
 
+// Classroom.tsx의 LEARNING_TOOLS와 동일한 id 체계 유지 (교사가 공개 처리하는 도구 카탈로그)
+const STUDENT_LEARNING_TOOLS: { id: string; label: string; description: string; icon: React.ReactNode; render: () => React.ReactNode }[] = [
+  {
+    id: 'microbit-python-lab',
+    label: '마이크로비트 파이썬 실습',
+    description: 'MicroPython 코드를 작성해 화면에서 바로 시뮬레이션하고, 실제 보드에 넣을 수 있는 .hex로 다운로드합니다',
+    icon: <Cpu size={24} />,
+    render: () => <MicrobitPythonLab />,
+  },
+];
+
 const StudentLog = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -281,6 +292,7 @@ const StudentLog = () => {
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
 
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
@@ -3642,14 +3654,53 @@ ${guidePrompt}
                 exit={{ opacity: 0 }}
                 className="min-h-[400px]"
               >
-                {enabledToolIds.includes('microbit-python-lab') ? (
-                  <MicrobitPythonLab />
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
-                    <Cpu size={64} />
-                    <p className="font-black text-lg">아직 공개된 학습 도구가 없습니다.</p>
-                  </div>
-                )}
+                {(() => {
+                  const availableTools = STUDENT_LEARNING_TOOLS.filter(t => enabledToolIds.includes(t.id));
+                  const selectedTool = availableTools.find(t => t.id === selectedToolId);
+
+                  if (availableTools.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                        <Cpu size={64} />
+                        <p className="font-black text-lg">아직 공개된 학습 도구가 없습니다.</p>
+                      </div>
+                    );
+                  }
+
+                  if (selectedTool) {
+                    return (
+                      <div className="space-y-3">
+                        <button
+                          onClick={() => setSelectedToolId(null)}
+                          className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant/60 hover:text-primary transition-colors"
+                        >
+                          <ArrowLeft size={14} /> 학습 도구 목록으로
+                        </button>
+                        {selectedTool.render()}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {availableTools.map(tool => (
+                        <button
+                          key={tool.id}
+                          onClick={() => setSelectedToolId(tool.id)}
+                          className="flex flex-col items-start gap-3 p-5 bg-white rounded-2xl border-2 border-surface-container-high hover:border-fuchsia-300 hover:shadow-md transition-all text-left"
+                        >
+                          <div className="w-11 h-11 rounded-xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
+                            {tool.icon}
+                          </div>
+                          <div>
+                            <p className="font-black text-sm">{tool.label}</p>
+                            <p className="text-xs font-bold text-on-surface-variant/60 mt-1 line-clamp-2">{tool.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
 

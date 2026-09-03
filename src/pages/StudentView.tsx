@@ -1098,13 +1098,13 @@ const StudentView = () => {
                             return (
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-primary uppercase tracking-widest">주차 선택</label>
-                                <div className="flex flex-wrap gap-1.5">
+                                <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                                   {weeklyPlan.map(p => (
                                     <button
                                       key={p.week}
                                       type="button"
                                       onClick={() => setEditForm(prev => ({ ...prev, activity_name: p.topic }))}
-                                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                                      className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all whitespace-nowrap ${
                                         activeWeek === p.week
                                           ? 'bg-primary text-white border-primary'
                                           : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
