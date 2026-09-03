@@ -27,7 +27,7 @@ const getViewerKind = (fileName: string): ViewerKind => {
   return 'unsupported';
 };
 
-const PYODIDE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pyodide/0.26.2/full/pyodide.js';
+const PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';
 
 const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: SubmissionViewerModalProps) => {
   const kind = getViewerKind(fileName);
@@ -194,7 +194,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
         }
         setPyOutput('파이썬 실행 환경 준비 중...\n');
         pyodideRef.current = await (window as any).loadPyodide({
-          indexURL: 'https://cdnjs.cloudflare.com/ajax/libs/pyodide/0.26.2/full/',
+          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/',
         });
         pyodideRef.current.setStdout({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
         pyodideRef.current.setStderr({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
