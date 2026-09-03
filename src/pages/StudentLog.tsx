@@ -3671,7 +3671,7 @@ ${guidePrompt}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="min-h-[400px]"
+                className="p-6 md:p-8 space-y-4 min-h-[400px]"
               >
                 {(() => {
                   const availableTools = STUDENT_LEARNING_TOOLS.filter(t => enabledToolIds.includes(t.id));
