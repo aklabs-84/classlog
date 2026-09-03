@@ -3682,19 +3682,19 @@ ${guidePrompt}
                   }
 
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                       {availableTools.map(tool => (
                         <button
                           key={tool.id}
                           onClick={() => setSelectedToolId(tool.id)}
-                          className="flex flex-col items-start gap-3 p-5 bg-white rounded-2xl border-2 border-surface-container-high hover:border-fuchsia-300 hover:shadow-md transition-all text-left"
+                          className="flex flex-col items-start gap-4 p-7 bg-white rounded-3xl border-2 border-surface-container-high hover:border-fuchsia-300 hover:shadow-md transition-all text-left min-h-[180px]"
                         >
-                          <div className="w-11 h-11 rounded-xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-2xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
                             {tool.icon}
                           </div>
-                          <div>
-                            <p className="font-black text-sm">{tool.label}</p>
-                            <p className="text-xs font-bold text-on-surface-variant/60 mt-1 line-clamp-2">{tool.description}</p>
+                          <div className="space-y-1.5">
+                            <p className="font-black text-base">{tool.label}</p>
+                            <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{tool.description}</p>
                           </div>
                         </button>
                       ))}
