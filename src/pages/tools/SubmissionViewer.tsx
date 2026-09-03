@@ -27,6 +27,7 @@ const kindLabel: Record<string, string> = {
   python: 'Python',
   pdf: 'PDF',
   docx: '문서',
+  hwpx: '한글',
   sheet: '표',
 };
 

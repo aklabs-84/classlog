@@ -13,7 +13,7 @@ interface SubmissionViewerModalProps {
   fileName: string;
 }
 
-type ViewerKind = 'web-html' | 'web-zip' | 'python' | 'pdf' | 'docx' | 'sheet' | 'unsupported';
+type ViewerKind = 'web-html' | 'web-zip' | 'python' | 'pdf' | 'docx' | 'hwpx' | 'sheet' | 'unsupported';
 
 const getViewerKind = (fileName: string): ViewerKind => {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -22,6 +22,7 @@ const getViewerKind = (fileName: string): ViewerKind => {
   if (ext === 'py') return 'python';
   if (ext === 'pdf') return 'pdf';
   if (ext === 'docx') return 'docx';
+  if (ext === 'hwpx') return 'hwpx';
   if (ext === 'csv' || ext === 'xlsx' || ext === 'xls') return 'sheet';
   return 'unsupported';
 };
@@ -37,7 +38,9 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   const [pyOutput, setPyOutput] = useState<string>('');
   const [pyRunning, setPyRunning] = useState(false);
   const [docxHtml, setDocxHtml] = useState<string>('');
-  const [sheetHtml, setSheetHtml] = useState<string>('');
+  const [hwpxHtml, setHwpxHtml] = useState<string>('');
+  const [sheets, setSheets] = useState<{ name: string; html: string }[]>([]);
+  const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const pyodideRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
@@ -48,7 +51,9 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     setError(null);
     setPyOutput('');
     setDocxHtml('');
-    setSheetHtml('');
+    setHwpxHtml('');
+    setSheets([]);
+    setActiveSheetIndex(0);
     setHtmlBlobUrl(null);
     objectUrlsRef.current.forEach(u => URL.revokeObjectURL(u));
     objectUrlsRef.current = [];
@@ -127,15 +132,34 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
           setLoading(false);
         }
       })();
+    } else if (kind === 'hwpx') {
+      (async () => {
+        try {
+          const { HwpxReader } = await import('hwp-convert');
+          const reader = new HwpxReader();
+          const res = await fetch(fileUrl);
+          const arrayBuffer = await res.arrayBuffer();
+          await reader.loadFromArrayBuffer(arrayBuffer);
+          const html = await reader.extractHtml({ renderImages: true, renderTables: true, renderStyles: true, embedImages: true });
+          setHwpxHtml(DOMPurify.sanitize(html));
+          setLoading(false);
+        } catch (e: any) {
+          setError('문서를 여는 중 오류가 발생했습니다: ' + (e?.message || e));
+          setLoading(false);
+        }
+      })();
     } else if (kind === 'sheet') {
       (async () => {
         try {
           const res = await fetch(fileUrl);
           const arrayBuffer = await res.arrayBuffer();
           const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const html = XLSX.utils.sheet_to_html(firstSheet);
-          setSheetHtml(DOMPurify.sanitize(html));
+          const parsedSheets = workbook.SheetNames.map(name => ({
+            name,
+            html: DOMPurify.sanitize(XLSX.utils.sheet_to_html(workbook.Sheets[name])),
+          }));
+          setSheets(parsedSheets);
+          setActiveSheetIndex(0);
           setLoading(false);
         } catch (e: any) {
           setError('표 파일을 여는 중 오류가 발생했습니다: ' + (e?.message || e));
@@ -304,7 +328,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
             </>
           )}
 
-          {kind === 'sheet' && (
+          {kind === 'hwpx' && (
             <>
               {error ? (
                 <div className="h-full flex flex-col items-center justify-center gap-2 text-red-500 p-6 text-center">
@@ -312,12 +336,49 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                   <p className="text-sm font-bold">{error}</p>
                 </div>
               ) : (
-                <div className="h-full overflow-auto p-4 bg-white [&_table]:border-collapse [&_td]:border [&_td]:border-neutral-200 [&_td]:px-2 [&_td]:py-1 [&_td]:text-xs [&_th]:border [&_th]:border-neutral-200 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-neutral-100 [&_th]:text-xs" dangerouslySetInnerHTML={{ __html: sheetHtml }} />
+                <div className="h-full overflow-auto p-6 bg-white">
+                  <div className="prose prose-sm max-w-2xl mx-auto" dangerouslySetInnerHTML={{ __html: hwpxHtml }} />
+                </div>
               )}
             </>
           )}
 
-          {loading && (kind === 'web-html' || kind === 'web-zip' || kind === 'docx' || kind === 'sheet') && (
+          {kind === 'sheet' && (
+            <>
+              {error ? (
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-red-500 p-6 text-center">
+                  <AlertTriangle size={28} />
+                  <p className="text-sm font-bold">{error}</p>
+                </div>
+              ) : sheets.length > 0 && (
+                <div className="h-full flex flex-col">
+                  {sheets.length > 1 && (
+                    <div className="flex items-center gap-1 px-3 pt-2 border-b border-neutral-100 bg-white overflow-x-auto shrink-0">
+                      {sheets.map((s, i) => (
+                        <button
+                          key={s.name + i}
+                          onClick={() => setActiveSheetIndex(i)}
+                          className={`px-3 py-1.5 rounded-t-lg text-xs font-bold whitespace-nowrap ${
+                            i === activeSheetIndex
+                              ? 'bg-primary/10 text-primary border border-b-0 border-neutral-200'
+                              : 'text-on-surface-variant hover:bg-surface-container'
+                          }`}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div
+                    className="flex-1 min-h-0 overflow-auto p-4 bg-white [&_table]:border-collapse [&_td]:border [&_td]:border-neutral-200 [&_td]:px-2 [&_td]:py-1 [&_td]:text-xs [&_th]:border [&_th]:border-neutral-200 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-neutral-100 [&_th]:text-xs"
+                    dangerouslySetInnerHTML={{ __html: sheets[activeSheetIndex]?.html || '' }}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {loading && (kind === 'web-html' || kind === 'web-zip' || kind === 'docx' || kind === 'hwpx' || kind === 'sheet') && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/80">
               <Loader2 size={24} className="animate-spin text-primary" />
             </div>
