@@ -9,6 +9,15 @@
   --font-pretendard: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   --font-poppins: "Poppins", "Pretendard Variable", Pretendard, ui-sans-serif, sans-serif;
 
+  /* PORTFOLIO 에디토리얼 팔레트 — 강사 포트폴리오 공개 페이지 전용 (Websmith Studio 스타일), 기존 앱 팔레트와 분리 */
+  --color-port-cream: #f8f8f2;
+  --color-port-card: #ffffff;
+  --color-port-ink: #1a1a1a;
+  --color-port-blue: #bedbff;
+  --color-port-mint: #a4f4cf;
+  --color-port-blush: #ffc9c9;
+  --color-port-signal: #00c950;
+
   /* WRITER 에디토리얼 팔레트 — 랜딩/카탈로그/가이드 전용, 기존 앱 팔레트와 분리 */
   --color-writer-ink: #000000;
   --color-writer-obsidian: #27272b;

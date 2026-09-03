@@ -59,6 +59,7 @@ const PortfolioManager = () => {
       if (portfolioData) {
         const p = portfolioData as PortfolioRow;
         setSlug(p.slug);
+        setSlugCheck('available');
         setIntro(p.intro);
         setVisibility(p.visibility);
         setIncludedClassIds(p.included_class_ids || []);
