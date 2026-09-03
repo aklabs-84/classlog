@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft } from '../lib/auth';
 import { isDemoTeacher } from '../lib/demo';
-import { chatWithLessonPlanCopilot, chatWithObservationAnalyst, chatWithSlideDeckCopilot, chatWithMaterialCopilot, chatWithQuizCopilot, chatWithSurveyCopilot, chatWithIdeaHandoffCopilot, chatWithClassManagerCopilot, chatWithAppGuideCopilot, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
+import { chatWithCopilot, type CopilotModeId as CopilotEngineMode, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 import CodeBlock from '../components/CodeBlock';
 import type { DeckSlide, SlideLayoutKind } from '../components/slidedeck/types';
@@ -909,94 +909,62 @@ const AiCopilot = () => {
     try {
       const history = messagesByMode[modeAtSend].map(m => ({ role: m.role, text: m.text }));
       const selectedClass = classes.find(c => c.id === selectedClassId);
+      // modeAtSend는 이 파일의 CopilotModeId(seatuk_writer 포함 10종)이지만, seatuk_writer 탭은
+      // onSubmit에서 handleSeatukGenerate로 분기되어 이 함수(handleSend)에는 절대 들어오지 않는다.
+      const engineMode = modeAtSend as CopilotEngineMode;
       const response = modeAtSend === 'lesson_plan'
-        ? await chatWithLessonPlanCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            selectedClass?.subject,
-            selectedClass?.weekly_plan,
-            lessonPlanObservations,
-            activeReferences,
+        ? await chatWithCopilot(engineMode, history, userMessage, {
+            className: selectedClass?.name,
+            classId: selectedClassId || undefined,
+            subject: selectedClass?.subject,
+            weeklyPlan: selectedClass?.weekly_plan,
+            observations: lessonPlanObservations,
+            referenceMaterials: activeReferences,
             libraryIndex,
-          )
-        : modeAtSend === 'slide_deck_maker'
-        ? await chatWithSlideDeckCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            selectedClass?.subject,
-            selectedClass?.weekly_plan,
-            activeReferences,
+          })
+        : modeAtSend === 'slide_deck_maker' || modeAtSend === 'material_maker'
+        ? await chatWithCopilot(engineMode, history, userMessage, {
+            className: selectedClass?.name,
+            classId: selectedClassId || undefined,
+            subject: selectedClass?.subject,
+            weeklyPlan: selectedClass?.weekly_plan,
+            referenceMaterials: activeReferences,
             libraryIndex,
-          )
-        : modeAtSend === 'material_maker'
-        ? await chatWithMaterialCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            selectedClass?.subject,
-            selectedClass?.weekly_plan,
-            activeReferences,
+          })
+        : modeAtSend === 'quiz_maker' || modeAtSend === 'survey_maker'
+        ? await chatWithCopilot(engineMode, history, userMessage, {
+            className: selectedClass?.name,
+            classId: selectedClassId || undefined,
+            subject: selectedClass?.subject,
+            referenceMaterials: activeReferences,
             libraryIndex,
-          )
-        : modeAtSend === 'quiz_maker'
-        ? await chatWithQuizCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            selectedClass?.subject,
-            activeReferences,
-            libraryIndex,
-          )
-        : modeAtSend === 'survey_maker'
-        ? await chatWithSurveyCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            selectedClass?.subject,
-            activeReferences,
-            libraryIndex,
-          )
+          })
         : modeAtSend === 'idea_brainstorm'
-        ? await chatWithIdeaHandoffCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            selectedClass?.subject,
-            [],
-          )
+        ? await chatWithCopilot(engineMode, history, userMessage, {
+            className: selectedClass?.name,
+            classId: selectedClassId || undefined,
+            subject: selectedClass?.subject,
+            referenceMaterials: [],
+          })
         : modeAtSend === 'class_manager'
-        ? await chatWithClassManagerCopilot(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            classes.map(c => c.name),
-            selectedClass?.weekly_plan,
-          )
+        ? await chatWithCopilot(engineMode, history, userMessage, {
+            className: selectedClass?.name,
+            classId: selectedClassId || undefined,
+            existingClassNames: classes.map(c => c.name),
+            weeklyPlan: selectedClass?.weekly_plan,
+          })
         : modeAtSend === 'app_guide'
-        ? await chatWithAppGuideCopilot(
-            history,
-            userMessage,
-            TOOLS_GUIDE_TEXT,
-            PLANS_GUIDE_TEXT,
-            guideAccountContext,
-          )
-        : await chatWithObservationAnalyst(
-            history,
-            userMessage,
-            selectedClass?.name,
-            selectedClassId || undefined,
-            analystObservations,
-            selectedClass?.weekly_plan,
-          );
+        ? await chatWithCopilot(engineMode, history, userMessage, {
+            toolsGuideText: TOOLS_GUIDE_TEXT,
+            plansGuideText: PLANS_GUIDE_TEXT,
+            accountContext: guideAccountContext,
+          })
+        : await chatWithCopilot(engineMode, history, userMessage, {
+            className: selectedClass?.name,
+            classId: selectedClassId || undefined,
+            observations: analystObservations,
+            weeklyPlan: selectedClass?.weekly_plan,
+          });
       setMessagesByMode(prev => ({
         ...prev,
         [modeAtSend]: [...prev[modeAtSend], { id: crypto.randomUUID(), role: 'ai', text: response }],

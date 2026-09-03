@@ -1062,256 +1062,145 @@ function trimCopilotHistory(history: { role: string; text: string }[]) {
   return [...head, ...tail];
 }
 
-// AI 코파일럿 — 수업 기획 전문가: 자유 대화로 수업을 구체화하고, 합의되면
-// [[LESSON_PLAN_DRAFT]] 마커가 붙은 계획안 초안을 응답에 포함해 반환한다.
-export async function chatWithLessonPlanCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  subject?: string,
-  weeklyPlan?: { week: number; topic: string }[],
-  observations?: any[],
-  referenceMaterials?: { title: string; content: string }[],
-  libraryIndex?: { title: string; snippet: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.LESSON_PLAN_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+// AI 코파일럿 — 화면별 페르소나가 대화로 초안을 구체화하는 채팅 엔진.
+// 페르소나마다 다른 건 시스템 프롬프트/모델/히스토리 트림 여부/컨텍스트 조립 방식뿐이고
+// 나머지(callProxy 호출, 히스토리 변환)는 완전히 동일해서 설정 테이블 하나로 관리한다.
+// (예전엔 chatWithLessonPlanCopilot처럼 페르소나별 함수 9개가 각각 같은 코드를 반복했었음)
+export type CopilotModeId =
+  | 'lesson_plan'
+  | 'observation_analyst'
+  | 'slide_deck_maker'
+  | 'material_maker'
+  | 'quiz_maker'
+  | 'survey_maker'
+  | 'idea_brainstorm'
+  | 'class_manager'
+  | 'app_guide';
+
+export interface CopilotChatContext {
+  className?: string;
+  classId?: string;
+  subject?: string;
+  weeklyPlan?: { week: number; topic: string }[];
+  observations?: any[];
+  referenceMaterials?: { title: string; content: string }[];
+  libraryIndex?: { title: string; snippet: string }[];
+  existingClassNames?: string[];
+  toolsGuideText?: string;
+  plansGuideText?: string;
+  accountContext?: string;
+}
+
+interface CopilotEngineEntry {
+  model: 'lite' | 'flash' | 'pro';
+  feature: string;
+  trimHistory: boolean;
+  buildSystemInstruction: (ctx: CopilotChatContext) => string;
+}
+
+const COPILOT_ENGINE: Record<CopilotModeId, CopilotEngineEntry> = {
+  // 수업 기획 전문가: 자유 대화로 수업을 구체화하고, 합의되면 [[LESSON_PLAN_DRAFT]] 마커가 붙은
+  // 계획안 초안을 응답에 포함해 반환한다.
+  lesson_plan: {
+    model: 'pro',
+    feature: 'lesson_plan_copilot',
+    trimHistory: true,
+    buildSystemInstruction: ({ className, subject, weeklyPlan, observations, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.LESSON_PLAN_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
 ${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 기획과 자연스럽게 이어지거나 시간표가 겹치면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
 ${observations && observations.length > 0 ? `\n[이 클래스의 최근 관찰 기록 (참고용)]\n${JSON.stringify(formatObservationsForChat(observations))}\n(이 학급 학생들의 실제 성향·참여 패턴을 활동 설계에 참고하세요. 예: 특정 활동 유형에서 참여도가 높았다면 비슷한 형태를 제안. 단, 계획안 본문에는 학생 이름이나 특정 개인을 특정할 수 있는 표현을 그대로 적지 말고 "이 반은~" 같은 일반화된 표현으로 반영하세요.)\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
-${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 톤·형식·활동 아이디어를 이번 기획에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 수업 맥락에 맞게 각색하세요.)\n` : ''}`;
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 톤·형식·활동 아이디어를 이번 기획에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 수업 맥락에 맞게 각색하세요.)\n` : ''}`,
+  },
 
-  return callProxy({
-    mode: 'chat',
+  observation_analyst: {
     model: 'pro',
-    feature: 'lesson_plan_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
-
-export async function chatWithObservationAnalyst(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  observations?: any[],
-  weeklyPlan?: { week: number; topic: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.OBSERVATION_ANALYST}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    feature: 'observation_analyst_copilot',
+    trimHistory: true,
+    buildSystemInstruction: ({ className, weeklyPlan, observations }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.OBSERVATION_ANALYST}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}\n` : ''}
 ${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}
 ${observations && observations.length > 0
     ? `\n[이 클래스의 관찰 기록]\n${JSON.stringify(formatObservationsForChat(observations))}\n(교사가 직접 작성한 기록과 학생이 제출해 승인/대기 중인 기록이 함께 포함되어 있습니다. 위 데이터에 근거해서만 답변하세요.)\n`
-    : '\n[참고] 아직 이 클래스의 관찰 기록 데이터가 없습니다. 클래스를 선택하도록 안내하거나 일반적인 조언만 제공하세요.\n'}`;
+    : '\n[참고] 아직 이 클래스의 관찰 기록 데이터가 없습니다. 클래스를 선택하도록 안내하거나 일반적인 조언만 제공하세요.\n'}`,
+  },
 
-  return callProxy({
-    mode: 'chat',
+  // 슬라이드 제작가: 대화로 슬라이드 내용을 구체화하고, 합의되면 [[SLIDE_DECK_DRAFT]] 마커가 붙은
+  // 초안을 응답에 포함해 반환한다.
+  slide_deck_maker: {
     model: 'pro',
-    feature: 'observation_analyst_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
-
-// AI 코파일럿 — 슬라이드 제작가: 대화로 슬라이드 내용을 구체화하고, 합의되면
-// [[SLIDE_DECK_DRAFT]] 마커가 붙은 초안을 응답에 포함해 반환한다.
-export async function chatWithSlideDeckCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  subject?: string,
-  weeklyPlan?: { week: number; topic: string }[],
-  referenceMaterials?: { title: string; content: string }[],
-  libraryIndex?: { title: string; snippet: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SLIDE_DECK_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    feature: 'slide_deck_copilot',
+    trimHistory: true,
+    buildSystemInstruction: ({ className, subject, weeklyPlan, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SLIDE_DECK_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
 ${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 슬라이드와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
-${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 내용이나 흐름을 이번 슬라이드에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`;
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 내용이나 흐름을 이번 슬라이드에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`,
+  },
 
-  return callProxy({
-    mode: 'chat',
+  // 수업 가이드 제작가: 대화로 학습지/유인물 내용을 처음부터 구체화하고, 합의되면 [[MATERIAL_DRAFT]]
+  // 마커가 붙은 초안을 응답에 포함해 반환한다.
+  material_maker: {
     model: 'pro',
-    feature: 'slide_deck_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
-
-// AI 코파일럿 — 수업 가이드 제작가: 대화로 학습지/유인물 내용을 처음부터 구체화하고, 합의되면
-// [[MATERIAL_DRAFT]] 마커가 붙은 초안을 응답에 포함해 반환한다.
-export async function chatWithMaterialCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  subject?: string,
-  weeklyPlan?: { week: number; topic: string }[],
-  referenceMaterials?: { title: string; content: string }[],
-  libraryIndex?: { title: string; snippet: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.MATERIAL_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    feature: 'material_copilot',
+    trimHistory: true,
+    buildSystemInstruction: ({ className, subject, weeklyPlan, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.MATERIAL_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${RICH_FORMATTING_GUIDE}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
 ${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 자료와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
-${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 톤·형식·구성 아이디어를 이번 자료에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`;
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 톤·형식·구성 아이디어를 이번 자료에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`,
+  },
 
-  return callProxy({
-    mode: 'chat',
-    model: 'pro',
-    feature: 'material_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
-
-// AI 코파일럿 — 퀴즈 제작가: 대화로 퀴즈 사양(참고 내용/문항 수/난이도)을 확정하고, 합의되면
-// [[QUIZ_DRAFT]] 마커가 붙은 확정 요약을 응답에 포함해 반환한다. 실제 문항 생성은 별도(quizGeneratorAI)에서 처리한다.
-export async function chatWithQuizCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  subject?: string,
-  referenceMaterials?: { title: string; content: string }[],
-  libraryIndex?: { title: string; snippet: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.QUIZ_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
-${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
-${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
-${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 퀴즈 출제 근거로 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 이 내용을 바탕으로 사양을 확정하세요.)\n` : ''}`;
-
-  return callProxy({
-    mode: 'chat',
+  // 퀴즈 제작가: 대화로 퀴즈 사양(참고 내용/문항 수/난이도)을 확정하고, 합의되면 [[QUIZ_DRAFT]] 마커가
+  // 붙은 확정 요약을 응답에 포함해 반환한다. 실제 문항 생성은 별도(quizGeneratorAI)에서 처리한다.
+  quiz_maker: {
     model: 'pro',
     feature: 'quiz_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
-
-export async function chatWithSurveyCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  subject?: string,
-  referenceMaterials?: { title: string; content: string }[],
-  libraryIndex?: { title: string; snippet: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SURVEY_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    trimHistory: true,
+    buildSystemInstruction: ({ className, subject, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.QUIZ_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
-${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 설문 출제 근거로 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 이 내용을 바탕으로 사양을 확정하세요.)\n` : ''}`;
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 퀴즈 출제 근거로 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 이 내용을 바탕으로 사양을 확정하세요.)\n` : ''}`,
+  },
 
-  return callProxy({
-    mode: 'chat',
+  survey_maker: {
     model: 'pro',
     feature: 'survey_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
-
-export async function chatWithIdeaHandoffCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  subject?: string,
-  referenceMaterials?: { title: string; content: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.IDEA_HANDOFF_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    trimHistory: true,
+    buildSystemInstruction: ({ className, subject, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SURVEY_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
-${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n` : ''}`;
+${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 설문 출제 근거로 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 이 내용을 바탕으로 사양을 확정하세요.)\n` : ''}`,
+  },
 
-  return callProxy({
-    mode: 'chat',
+  idea_brainstorm: {
     model: 'pro',
     feature: 'idea_handoff_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
+    trimHistory: true,
+    buildSystemInstruction: ({ className, subject, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.IDEA_HANDOFF_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
+${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n` : ''}`,
+  },
 
-export async function chatWithClassManagerCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  className?: string,
-  classId?: string,
-  existingClassNames?: string[],
-  weeklyPlan?: { week: number; topic: string }[],
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.CLASS_MANAGER_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
-${className ? `\n[현재 대화 중인 학급] ${className}\n` : '\n[현재 대화 중인 학급] 아직 선택된 학급이 없습니다.\n'}
-${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}
-${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}`;
-
-  return callProxy({
-    mode: 'chat',
+  class_manager: {
     model: 'pro',
     feature: 'class_manager_copilot',
-    systemInstruction,
-    history: trimCopilotHistory(history).map(h => ({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.text }],
-    })),
-    message,
-    ...(classId && { class_id: classId }),
-  });
-}
+    trimHistory: true,
+    buildSystemInstruction: ({ className, existingClassNames, weeklyPlan }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.CLASS_MANAGER_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+${className ? `\n[현재 대화 중인 학급] ${className}\n` : '\n[현재 대화 중인 학급] 아직 선택된 학급이 없습니다.\n'}
+${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}`,
+  },
 
-// AI 코파일럿 — 사용법 가이드: 앱의 기능/요금제/AI 사용량 등 사용법 전반에 대한 질문에
-// 호출부(AiCopilot.tsx)가 전달한 구조화 데이터(수업 도구 안내, 요금제 비교표, 계정 사용량 요약)에
-// 근거해서만 답한다. 확정 마커/초안 생성이 없는 순수 Q&A 페르소나.
-export async function chatWithAppGuideCopilot(
-  history: { role: string; text: string }[],
-  message: string,
-  toolsGuideText: string,
-  plansGuideText: string,
-  accountContext: string,
-) {
-  const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.APP_GUIDE_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+  // 사용법 가이드: 앱의 기능/요금제/AI 사용량 등 사용법 전반에 대한 질문에 호출부(AiCopilot.tsx)가
+  // 전달한 구조화 데이터(수업 도구 안내, 요금제 비교표, 계정 사용량 요약)에 근거해서만 답한다.
+  // 확정 마커/초안 생성이 없는 순수 Q&A 페르소나라 다른 모드와 달리 히스토리를 트림하지 않는다.
+  app_guide: {
+    model: 'flash',
+    feature: 'app_guide_copilot',
+    trimHistory: false,
+    buildSystemInstruction: ({ toolsGuideText, plansGuideText, accountContext }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.APP_GUIDE_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 [수업 도구 가이드 데이터]
 ${toolsGuideText}
 
@@ -1319,18 +1208,31 @@ ${toolsGuideText}
 ${plansGuideText}
 
 [계정/사용량 정보]
-${accountContext}`;
+${accountContext}`,
+  },
+};
+
+export async function chatWithCopilot(
+  mode: CopilotModeId,
+  history: { role: string; text: string }[],
+  message: string,
+  context: CopilotChatContext = {},
+) {
+  const entry = COPILOT_ENGINE[mode];
+  const systemInstruction = entry.buildSystemInstruction(context);
+  const historyToSend = entry.trimHistory ? trimCopilotHistory(history) : history;
 
   return callProxy({
     mode: 'chat',
-    model: 'flash',
-    feature: 'app_guide_copilot',
+    model: entry.model,
+    feature: entry.feature,
     systemInstruction,
-    history: history.map(h => ({
+    history: historyToSend.map(h => ({
       role: h.role === 'user' ? 'user' : 'model',
       parts: [{ text: h.text }],
     })),
     message,
+    ...(context.classId && { class_id: context.classId }),
   });
 }
 
