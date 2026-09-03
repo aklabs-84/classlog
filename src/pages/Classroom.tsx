@@ -46,6 +46,8 @@ import {
   Copy,
   Megaphone,
   Pin,
+  Eye,
+  EyeOff,
   NotebookPen,
   Library,
   Settings2,
@@ -338,6 +340,7 @@ const Classroom = () => {
   const [savingAnnouncement, setSavingAnnouncement] = useState(false);
   const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<string | null>(null);
   const [pinningAnnouncementId, setPinningAnnouncementId] = useState<string | null>(null);
+  const [togglingVisibilityId, setTogglingVisibilityId] = useState<string | null>(null);
 
   // 선생님 전용 자료 상태
   const [privateMatList, setPrivateMatList] = useState<any[]>([]);
@@ -1670,6 +1673,19 @@ const Classroom = () => {
     }
   };
 
+  const handleToggleAnnouncementVisibility = async (id: string, currentVisible: boolean) => {
+    setTogglingVisibilityId(id);
+    try {
+      await supabase.from('class_announcements').update({ is_visible: !currentVisible }).eq('id', id);
+      if (activeClassId) await fetchAnnouncements(activeClassId);
+      showToast(currentVisible ? '학생에게 숨겼습니다.' : '학생에게 공개했습니다.');
+    } catch {
+      showToast('공개 설정 변경 중 오류가 발생했습니다.');
+    } finally {
+      setTogglingVisibilityId(null);
+    }
+  };
+
   const fetchPrivateMaterials = async (classId: string) => {
     setPrivateMatLoading(true);
     try {
@@ -2548,13 +2564,18 @@ const Classroom = () => {
                     <div className="space-y-3">
                       {announcements.map(a => (
                         <motion.div key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                          className={`p-5 rounded-2xl border-2 ${a.is_pinned ? 'border-amber-400 bg-amber-50' : 'border-surface-container bg-white'}`}>
+                          className={`p-5 rounded-2xl border-2 ${a.is_visible === false ? 'border-surface-container bg-surface-container/40 opacity-60' : a.is_pinned ? 'border-amber-400 bg-amber-50' : 'border-surface-container bg-white'}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
                                 {a.is_pinned && (
                                   <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full">
                                     <Pin size={9} /> 고정
+                                  </span>
+                                )}
+                                {a.is_visible === false && (
+                                  <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 bg-surface-container-high text-on-surface-variant/60 rounded-full">
+                                    <EyeOff size={9} /> 학생에게 숨김
                                   </span>
                                 )}
                                 <p className="text-sm font-black">{a.title}</p>
@@ -2571,6 +2592,14 @@ const Classroom = () => {
                               </p>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => handleToggleAnnouncementVisibility(a.id, a.is_visible !== false)}
+                                disabled={togglingVisibilityId === a.id}
+                                className={`p-2 rounded-xl transition-all ${a.is_visible === false ? 'bg-surface-container text-on-surface-variant/50 hover:bg-surface-container-high' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
+                                title={a.is_visible === false ? '학생에게 공개하기' : '학생에게 숨기기'}
+                              >
+                                {togglingVisibilityId === a.id ? <Loader2 size={13} className="animate-spin" /> : a.is_visible === false ? <EyeOff size={13} /> : <Eye size={13} />}
+                              </button>
                               <button
                                 onClick={() => handleTogglePin(a.id, a.is_pinned)}
                                 disabled={pinningAnnouncementId === a.id}

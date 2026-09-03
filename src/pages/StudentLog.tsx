@@ -277,7 +277,13 @@ const StudentLog = () => {
   const seenBoardSessionIds = useRef(new Set<string>());
   const isFirstQuizPoll = useRef(true);
   const seenQuizSessionIds = useRef(new Set<string>());
-  
+  // 주차 선택 가로 스크롤 칩을 화면 진입 시 1회만 현재 주차 위치로 스크롤하기 위한 플래그
+  const homeWeekScrolledRef = useRef(false);
+  const editLogWeekScrolledRef = useRef(false);
+  const resultWeekScrolledRef = useRef(false);
+  useEffect(() => { editLogWeekScrolledRef.current = false; }, [editingLogId]);
+  useEffect(() => { if (activeTab === 'results') resultWeekScrolledRef.current = false; }, [activeTab]);
+
   // 공지사항
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [expandedAnnouncementId, setExpandedAnnouncementId] = useState<string | null>(null);
@@ -982,6 +988,7 @@ const StudentLog = () => {
         .from('class_announcements')
         .select('*')
         .eq('class_id', classId)
+        .eq('is_visible', true)
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(10);
@@ -2755,6 +2762,12 @@ ${guidePrompt}
                           return (
                             <button
                               key={p.week}
+                              ref={(el) => {
+                                if (isActive && el && !homeWeekScrolledRef.current) {
+                                  homeWeekScrolledRef.current = true;
+                                  el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                                }
+                              }}
                               onClick={() => setSelectedHomeWeek(p.week)}
                               className={`shrink-0 whitespace-nowrap relative flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-black border-2 transition-all ${
                                 isActive ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-neutral-500 border-neutral-200 hover:border-primary/40 hover:text-primary'
@@ -3151,6 +3164,12 @@ ${guidePrompt}
                                           const isActive = norm(editLogForm.activity_name) === norm(p.topic);
                                           return (
                                             <button key={p.week} type="button"
+                                              ref={(el) => {
+                                                if (isActive && el && !editLogWeekScrolledRef.current) {
+                                                  editLogWeekScrolledRef.current = true;
+                                                  el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                                                }
+                                              }}
                                               onClick={() => setEditLogForm(prev => ({ ...prev, activity_name: p.topic }))}
                                               className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
                                               {p.week}주차<span className={`ml-1 text-[9px] ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
@@ -3770,6 +3789,12 @@ ${guidePrompt}
                       return (
                         <button
                           key={week}
+                          ref={(el) => {
+                            if (selectedWeek === week && el && !resultWeekScrolledRef.current) {
+                              resultWeekScrolledRef.current = true;
+                              el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                            }
+                          }}
                           onClick={() => { if (!weekLocked) setSelectedWeek(week); }}
                           disabled={weekLocked}
                           className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${

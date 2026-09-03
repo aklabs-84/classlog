@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -167,6 +167,9 @@ const StudentView = () => {
   const [editForm, setEditForm] = useState({ activity_name: '', content: '', category: '' });
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // 주차 선택 가로 스크롤 칩을 수정 폼이 열릴 때 1회만 현재 주차 위치로 스크롤하기 위한 플래그
+  const editWeekScrolledRef = useRef(false);
+  useEffect(() => { editWeekScrolledRef.current = false; }, [editingId]);
 
   // Unit Submissions States
   const [unitSubmissions, setUnitSubmissions] = useState<any[]>([]);
@@ -1103,6 +1106,12 @@ const StudentView = () => {
                                     <button
                                       key={p.week}
                                       type="button"
+                                      ref={(el) => {
+                                        if (activeWeek === p.week && el && !editWeekScrolledRef.current) {
+                                          editWeekScrolledRef.current = true;
+                                          el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                                        }
+                                      }}
                                       onClick={() => setEditForm(prev => ({ ...prev, activity_name: p.topic }))}
                                       className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all whitespace-nowrap ${
                                         activeWeek === p.week

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Users,
   BookOpen,
@@ -113,6 +113,8 @@ const HomeroomDashboard = ({
   const [showStats, setShowStats] = useState(true);
   const [statsLoading, setStatsLoading] = useState(false);
   const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
+  // 주차 칩 목록을 화면 진입 시 최신 주차 위치로 1회만 스크롤하기 위한 플래그
+  const statsWeekScrolledRef = useRef(false);
   const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string}>>([]);
   const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null}>>([]);
   const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
@@ -472,9 +474,16 @@ const HomeroomDashboard = ({
                          const topic = weeklyPlan.find(p => p.week === week)?.topic;
                          const weekResultCount = getObsOnWeek(week).size;
                          const isSelected = selectedStatsWeek === week;
+                         const isScrollTarget = selectedStatsWeek !== null ? isSelected : week === statsWeeks[statsWeeks.length - 1];
                          return (
                            <button
                              key={week}
+                             ref={(el) => {
+                               if (isScrollTarget && el && !statsWeekScrolledRef.current) {
+                                 statsWeekScrolledRef.current = true;
+                                 el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                               }
+                             }}
                              onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
                              className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
                                isSelected
