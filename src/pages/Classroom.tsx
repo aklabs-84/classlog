@@ -1026,7 +1026,8 @@ const Classroom = () => {
     const { data: groups } = await supabase
       .from('class_groups')
       .select('id, name, color')
-      .eq('class_id', classId);
+      .eq('class_id', classId)
+      .eq('is_archived', false);
     if (!groups || groups.length === 0) { setGroupMap({}); return; }
 
     const { data: members } = await supabase

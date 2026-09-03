@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Shuffle, X, Check, Loader2,
-  Users, UserPlus, Bell, Dices,
+  Users, UserPlus, Bell, Dices, Pencil,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { regenerateClassGroups } from '../../lib/groupRegenerate';
 
 interface Student {
   id: string;
@@ -51,10 +52,23 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
   const [randomGroupCount, setRandomGroupCount] = useState(4);
   const [randomMemberCount, setRandomMemberCount] = useState(4);
   const [randomLoading, setRandomLoading] = useState(false);
+  const [randomGroupNames, setRandomGroupNames] = useState<string[]>([]);
+
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
 
   useEffect(() => {
     if (classId) load();
   }, [classId]);
+
+  const randomNumGroups = randomSplitMode === 'groups'
+    ? randomGroupCount
+    : Math.max(1, Math.ceil(students.length / randomMemberCount));
+
+  useEffect(() => {
+    setRandomGroupNames(prev => Array.from({ length: randomNumGroups }, (_, i) => prev[i] ?? `${i + 1}조`));
+  }, [randomNumGroups]);
 
   const load = async () => {
     setLoading(true);
@@ -62,6 +76,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
       .from('class_groups')
       .select('id, name, color, sort_order')
       .eq('class_id', classId)
+      .eq('is_archived', false)
       .order('sort_order');
 
     const grps: ClassGroup[] = gData || [];
@@ -114,8 +129,43 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
     });
     setMemberMap(newMap);
     setGroups(prev => prev.filter(g => g.id !== groupId));
-    await supabase.from('class_groups').delete().eq('id', groupId);
+    // 하드 삭제 대신 보관 처리: student_results.group_id 연결을 끊지 않아
+    // 과거 제출 기록의 조 배지가 계속 유지되도록 한다.
+    await supabase.from('class_group_members').delete().eq('group_id', groupId);
+    await supabase.from('class_groups').update({ is_archived: true }).eq('id', groupId);
     setDeleteTarget(null);
+    onGroupsChanged?.();
+  };
+
+  const startRename = (group: ClassGroup) => {
+    setRenamingGroupId(group.id);
+    setRenameValue(group.name);
+  };
+
+  const submitRename = async () => {
+    if (!renamingGroupId) return;
+    const name = renameValue.trim();
+    const target = groups.find(g => g.id === renamingGroupId);
+    if (!name || !target || name === target.name) {
+      setRenamingGroupId(null);
+      return;
+    }
+    setRenameLoading(true);
+    const { error } = await supabase
+      .from('class_groups')
+      .update({ name })
+      .eq('id', renamingGroupId);
+    setRenameLoading(false);
+    if (error) {
+      if (error.code === '23505') {
+        alert(`'${name}' 이름의 조가 이미 있습니다. 다른 이름을 사용해주세요.`);
+      } else {
+        alert('조 이름 수정 중 오류가 발생했습니다.');
+      }
+      return;
+    }
+    setGroups(prev => prev.map(g => g.id === renamingGroupId ? { ...g, name } : g));
+    setRenamingGroupId(null);
     onGroupsChanged?.();
   };
 
@@ -186,41 +236,31 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
   const randomPickGroups = async () => {
     if (students.length < 2) return;
-    if (groups.length > 0 && !confirm('기존 조 편성을 삭제하고 새로운 조로 랜덤 배정할까요?')) return;
+    if (groups.length > 0 && !confirm('기존 조를 새로운 조로 랜덤 재편성할까요? (같은 이름의 조는 유지되고, 이전 제출 기록은 그대로 보존됩니다)')) return;
 
     setRandomLoading(true);
 
-    if (groups.length > 0) {
-      await supabase.from('class_group_members').delete().in('group_id', groups.map(g => g.id));
-      await supabase.from('class_groups').delete().eq('class_id', classId);
+    const numGroups = randomNumGroups;
+    const names = Array.from({ length: numGroups }, (_, i) => randomGroupNames[i]?.trim() || `${i + 1}조`);
+    if (new Set(names).size !== names.length) {
+      alert('조 이름이 중복되었습니다. 서로 다른 이름을 입력해주세요.');
+      setRandomLoading(false);
+      return;
     }
 
-    const numGroups = randomSplitMode === 'groups'
-      ? randomGroupCount
-      : Math.max(1, Math.ceil(students.length / randomMemberCount));
+    const desiredGroups = names.map((name, i) => ({
+      name,
+      color: GROUP_COLORS[i % GROUP_COLORS.length],
+      sort_order: i,
+    }));
 
-    const { data: newGroups } = await supabase
-      .from('class_groups')
-      .insert(
-        Array.from({ length: numGroups }, (_, i) => ({
-          class_id: classId,
-          name: `${i + 1}조`,
-          color: GROUP_COLORS[i % GROUP_COLORS.length],
-          sort_order: i,
-        }))
-      )
-      .select();
+    const shuffled = [...students].sort(() => Math.random() - 0.5);
+    const assignments = shuffled.map((student, idx) => ({
+      studentId: student.id,
+      groupName: desiredGroups[idx % numGroups].name,
+    }));
 
-    if (newGroups) {
-      const shuffled = [...students].sort(() => Math.random() - 0.5);
-      const inserts = shuffled.map((student, idx) => ({
-        group_id: newGroups[idx % numGroups].id,
-        student_id: student.id,
-      }));
-      if (inserts.length > 0) {
-        await supabase.from('class_group_members').insert(inserts);
-      }
-    }
+    await regenerateClassGroups(classId, desiredGroups, assignments);
 
     setRandomLoading(false);
     setRandomOpen(false);
@@ -402,6 +442,21 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                   </div>
                 )}
 
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-violet-700">조 이름 (직접 수정 가능)</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {randomGroupNames.map((name, i) => (
+                      <input
+                        key={i}
+                        value={name}
+                        onChange={e => setRandomGroupNames(prev => prev.map((n, idx) => idx === i ? e.target.value : n))}
+                        className="px-2.5 py-1.5 text-xs font-bold bg-white border border-violet-200 rounded-lg focus:outline-none focus:border-violet-400"
+                        placeholder={`${i + 1}조`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={randomPickGroups}
@@ -481,10 +536,32 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                       className="flex items-center justify-between px-4 py-3"
                       style={{ backgroundColor: group.color + '18' }}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: group.color }} />
-                        <span className="font-black text-sm">{group.name}</span>
-                        <span className="text-xs font-bold opacity-50">{members.length}명</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
+                        {renamingGroupId === group.id ? (
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={e => setRenameValue(e.target.value)}
+                            onBlur={submitRename}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') submitRename();
+                              if (e.key === 'Escape') setRenamingGroupId(null);
+                            }}
+                            disabled={renameLoading}
+                            className="font-black text-sm bg-white border border-primary/30 rounded-lg px-1.5 py-0.5 min-w-0 w-24 focus:outline-none focus:border-primary"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => startRename(group)}
+                            className="flex items-center gap-1 font-black text-sm hover:text-primary transition-colors group/name"
+                            title="조 이름 수정"
+                          >
+                            <span className="truncate">{group.name}</span>
+                            <Pencil size={11} className="opacity-0 group-hover/name:opacity-60 shrink-0" />
+                          </button>
+                        )}
+                        <span className="text-xs font-bold opacity-50 shrink-0">{members.length}명</span>
                       </div>
                       {deleteTarget === group.id ? (
                         <div className="flex items-center gap-1">

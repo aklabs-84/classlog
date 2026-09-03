@@ -324,6 +324,7 @@ const ShareClassView = () => {
         .from('class_groups')
         .select('id, name, color, sort_order')
         .eq('class_id', classId)
+        .eq('is_archived', false)
         .order('sort_order', { ascending: true });
       const groupList: GroupRow[] = grps || [];
       setGroups(groupList);

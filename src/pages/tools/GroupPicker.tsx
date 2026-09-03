@@ -5,10 +5,11 @@ import {
   Users, Plus, Trash2, Shuffle, ChevronDown, X,
   Maximize2, Minimize2, Crown, RefreshCw, Check,
   UserPlus, Download, Copy, CheckCheck, Layers, Target,
-  Save, Loader2,
+  Save, Loader2, History,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { regenerateClassGroups } from '../../lib/groupRegenerate';
 
 interface Student {
   id: string;
@@ -21,6 +22,12 @@ interface Group {
   name: string;
   members: Student[];
   leader: Student | null;
+}
+
+interface PickHistoryEntry {
+  id: string;
+  created_at: string;
+  groups: { name: string; leader: string | null; members: string[] }[];
 }
 
 const PRESET_GROUP_NAMES = ['1조', '2조', '3조', '4조', '5조', '6조', '7조', '8조', '9조', '10조'];
@@ -64,6 +71,10 @@ const GroupPicker = () => {
   const [loadedClassName, setLoadedClassName] = useState('');
   const [applyLoading, setApplyLoading] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
+
+  // 클래스별 뽑기 이력
+  const [pickHistory, setPickHistory] = useState<PickHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const handleSaveImage = () => {
     if (groups.length === 0) return;
@@ -231,6 +242,40 @@ const GroupPicker = () => {
       setStudents(merged);
     }
     setLoadingClass(false);
+    loadPickHistory(classId);
+  };
+
+  const loadPickHistory = async (classId: string) => {
+    setHistoryLoading(true);
+    const { data } = await supabase
+      .from('group_pick_history')
+      .select('id, created_at, groups')
+      .eq('class_id', classId)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    setPickHistory(data || []);
+    setHistoryLoading(false);
+  };
+
+  const savePickHistory = async (result: Group[]) => {
+    if (!loadedClassId) return;
+    const snapshot = result.map((g) => ({
+      name: g.name,
+      leader: g.leader?.name ?? null,
+      members: g.members.map((m) => m.name),
+    }));
+    const { error } = await supabase.from('group_pick_history').insert({
+      teacher_id: user!.id,
+      class_id: loadedClassId,
+      class_name: loadedClassName,
+      groups: snapshot,
+    });
+    if (!error) loadPickHistory(loadedClassId);
+  };
+
+  const deletePickHistory = async (id: string) => {
+    setPickHistory((prev) => prev.filter((h) => h.id !== id));
+    await supabase.from('group_pick_history').delete().eq('id', id);
   };
 
   const addManualStudents = () => {
@@ -314,13 +359,14 @@ const GroupPicker = () => {
     setGroups(result);
     setIsPicking(false);
     setShowResult(true);
+    if (loadedClassId) savePickHistory(result);
 
     // 조별 순차 공개
     for (let i = 0; i < result.length; i++) {
       await new Promise((r) => setTimeout(r, 400 * i));
       setRevealedGroups((prev) => new Set([...prev, i]));
     }
-  }, [students, splitMode, groupCount, memberCount, autoLeader]);
+  }, [students, splitMode, groupCount, memberCount, autoLeader, loadedClassId, loadedClassName]);
 
   const reshuffle = () => {
     setShowResult(false);
@@ -330,45 +376,23 @@ const GroupPicker = () => {
 
   const handleApplyToClass = async () => {
     if (!loadedClassId || groups.length === 0) return;
-    if (!confirm(`"${loadedClassName}" 클래스의 기존 조 편성을 삭제하고 현재 결과로 대체할까요?`)) return;
+    if (!confirm(`"${loadedClassName}" 클래스의 조 편성을 현재 결과로 교체할까요? (같은 이름의 조는 유지되고, 이전 제출 기록은 그대로 보존됩니다)`)) return;
 
     setApplyLoading(true);
 
-    const { data: existingGroups } = await supabase
-      .from('class_groups')
-      .select('id')
-      .eq('class_id', loadedClassId);
+    const desiredGroups = groups.map((g, i) => ({
+      name: g.name,
+      color: ROULETTE_COLORS[i % ROULETTE_COLORS.length],
+      sort_order: i,
+    }));
 
-    if (existingGroups && existingGroups.length > 0) {
-      await supabase
-        .from('class_group_members')
-        .delete()
-        .in('group_id', existingGroups.map((g: any) => g.id));
-      await supabase.from('class_groups').delete().eq('class_id', loadedClassId);
-    }
+    const assignments = groups.flatMap(g =>
+      g.members
+        .filter(m => !m.id.startsWith('manual-'))
+        .map(m => ({ studentId: m.id, groupName: g.name }))
+    );
 
-    const { data: newGroups } = await supabase
-      .from('class_groups')
-      .insert(
-        groups.map((g, i) => ({
-          class_id: loadedClassId,
-          name: g.name,
-          color: ROULETTE_COLORS[i % ROULETTE_COLORS.length],
-          sort_order: i,
-        }))
-      )
-      .select();
-
-    if (newGroups) {
-      const memberInserts = groups.flatMap((g, i) =>
-        g.members
-          .filter(m => !m.id.startsWith('manual-'))
-          .map(m => ({ group_id: newGroups[i].id, student_id: m.id }))
-      );
-      if (memberInserts.length > 0) {
-        await supabase.from('class_group_members').insert(memberInserts);
-      }
-    }
+    await regenerateClassGroups(loadedClassId, desiredGroups, assignments);
 
     setApplyLoading(false);
     setApplySuccess(true);
@@ -820,6 +844,60 @@ const GroupPicker = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* 클래스별 뽑기 이력 */}
+        {loadedClassId && (
+          <div className="glass rounded-2xl p-5 border border-white/40 space-y-3">
+            <h3 className="font-black text-on-surface flex items-center gap-2">
+              <History size={18} className="text-primary" />
+              "{loadedClassName}" 뽑기 이력
+              {pickHistory.length > 0 && (
+                <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  {pickHistory.length}건
+                </span>
+              )}
+            </h3>
+            {historyLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 size={18} className="animate-spin text-primary" />
+              </div>
+            ) : pickHistory.length === 0 ? (
+              <p className="text-xs text-on-surface-variant/50 text-center py-4">
+                이 클래스에서 뽑은 이력이 아직 없습니다.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {pickHistory.map((h) => (
+                  <div key={h.id} className="p-3 rounded-xl bg-surface-container-low/50 border border-white/40">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-on-surface-variant/60">
+                        {new Date(h.created_at).toLocaleString('ko-KR')}
+                      </span>
+                      <button
+                        onClick={() => deletePickHistory(h.id)}
+                        className="text-error/50 hover:text-error transition-colors"
+                        title="이력 삭제"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {h.groups.map((g, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-1 rounded-lg bg-white/60 text-[11px] font-bold text-on-surface"
+                          title={g.members.join(', ')}
+                        >
+                          {g.name} ({g.members.length}명)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </>} {/* 랜덤 모드 닫기 */}
       </div>
 
@@ -960,6 +1038,7 @@ const SavedGroupPicker = ({ userId }: { userId: string }) => {
       .from('class_groups')
       .select('id, name, color')
       .eq('class_id', classId)
+      .eq('is_archived', false)
       .order('sort_order');
 
     if (!gData || gData.length === 0) { setSavedGroups([]); setLoading(false); return; }

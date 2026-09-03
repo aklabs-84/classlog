@@ -872,14 +872,14 @@ const StudentLog = () => {
   const fetchMyGroup = async (studentId: string, classId: string) => {
     const { data: memberData } = await supabase
       .from('class_group_members')
-      .select('group_id, class_groups(id, name, class_id)')
+      .select('group_id, class_groups(id, name, class_id, is_archived)')
       .eq('student_id', studentId);
 
     if (!memberData || memberData.length === 0) return;
 
-    // 현재 클래스에 해당하는 조 찾기 (여러 클래스 조 멤버일 수 있음)
+    // 현재 클래스에 해당하는 "활성" 조 찾기 (보관된 조는 현재 소속으로 표시하지 않음)
     const matched = memberData.find(
-      (row: any) => row.class_groups?.class_id === classId
+      (row: any) => row.class_groups?.class_id === classId && row.class_groups?.is_archived === false
     );
     const group = (matched as any)?.class_groups;
     if (!group) return;

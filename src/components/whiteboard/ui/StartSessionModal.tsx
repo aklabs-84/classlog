@@ -64,6 +64,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
         .from('class_groups')
         .select('id, name, sort_order')
         .eq('class_id', selectedClassId)
+        .eq('is_archived', false)
         .order('sort_order');
 
       if (!grps || grps.length === 0) {

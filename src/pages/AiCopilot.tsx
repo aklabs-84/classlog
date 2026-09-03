@@ -1763,7 +1763,8 @@ ${contentSource}
       const { count: existingCount } = await supabase
         .from('class_groups')
         .select('*', { count: 'exact', head: true })
-        .eq('class_id', selectedClassId);
+        .eq('class_id', selectedClassId)
+        .eq('is_archived', false);
       const baseOrder = existingCount ?? 0;
 
       const { data: newGroups, error } = await supabase
@@ -1782,7 +1783,8 @@ ${contentSource}
         const { data: allGroups } = await supabase
           .from('class_groups')
           .select('id')
-          .eq('class_id', selectedClassId);
+          .eq('class_id', selectedClassId)
+          .eq('is_archived', false);
         const { data: studentRows } = await supabase
           .from('students')
           .select('id')
