@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { X, Smartphone, RefreshCw } from 'lucide-react';
+import { X, Smartphone, Tablet, Monitor, RefreshCw } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface PreviewStudent {
   id: string;
@@ -17,9 +18,18 @@ interface StudentPreviewModalProps {
 
 const SESSION_KEY = 'student_session';
 
+type DeviceKey = 'mobile' | 'tablet' | 'desktop';
+
+const DEVICE_PRESETS: Record<DeviceKey, { label: string; icon: LucideIcon; width: number; height: string }> = {
+  mobile: { label: '모바일', icon: Smartphone, width: 420, height: '88vh' },
+  tablet: { label: '태블릿', icon: Tablet, width: 820, height: '85vh' },
+  desktop: { label: 'PC', icon: Monitor, width: 1280, height: '85vh' },
+};
+
 const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModalProps) => {
   const [selectedId, setSelectedId] = useState(students[0]?.id || '');
   const [reloadTick, setReloadTick] = useState(0);
+  const [device, setDevice] = useState<DeviceKey>('mobile');
   const previousSessionRef = useRef<string | null>(null);
   const hasSavedPrevRef = useRef(false);
 
@@ -59,6 +69,8 @@ const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModal
 
   if (students.length === 0) return null;
 
+  const preset = DEVICE_PRESETS[device];
+
   return createPortal(
     <div
       className="fixed inset-0 z-[2000] flex items-center justify-center p-4 sm:p-8 bg-on-surface/50 backdrop-blur-xl"
@@ -67,11 +79,11 @@ const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModal
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col w-full max-w-[440px] h-[88vh] bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden"
+        style={{ width: preset.width, maxWidth: '95vw', height: preset.height }}
+        className="flex flex-col bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden transition-[width] duration-200"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-surface-container-low/40 shrink-0">
-          <Smartphone size={18} className="text-primary shrink-0" />
           <select
             value={selectedId}
             onChange={e => setSelectedId(e.target.value)}
@@ -83,6 +95,24 @@ const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModal
               </option>
             ))}
           </select>
+
+          <div className="flex items-center gap-0.5 p-0.5 bg-surface-container rounded-full shrink-0">
+            {(Object.keys(DEVICE_PRESETS) as DeviceKey[]).map(key => {
+              const Icon = DEVICE_PRESETS[key].icon;
+              const active = device === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setDevice(key)}
+                  className={`p-1.5 rounded-full transition-all ${active ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant/60 hover:text-primary'}`}
+                  title={DEVICE_PRESETS[key].label}
+                >
+                  <Icon size={15} />
+                </button>
+              );
+            })}
+          </div>
+
           <button
             onClick={() => setReloadTick(t => t + 1)}
             className="p-2 rounded-full hover:bg-surface-container transition-all shrink-0"
