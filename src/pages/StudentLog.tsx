@@ -2746,7 +2746,7 @@ ${guidePrompt}
                   {weeklyPlan.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                         {weeklyPlan.map(p => {
                           const isActive = p.week === displayWeek;
                           const wObs = historyLogs.some(l => norm(l.activity_name || '') === norm(p.topic));
@@ -2756,7 +2756,7 @@ ${guidePrompt}
                             <button
                               key={p.week}
                               onClick={() => setSelectedHomeWeek(p.week)}
-                              className={`relative flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-black border-2 transition-all ${
+                              className={`shrink-0 whitespace-nowrap relative flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-black border-2 transition-all ${
                                 isActive ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-neutral-500 border-neutral-200 hover:border-primary/40 hover:text-primary'
                               }`}
                             >
@@ -3145,14 +3145,14 @@ ${guidePrompt}
                                   {classResources.length > 0 && (
                                     <div className="space-y-1.5">
                                       <label className="text-[10px] font-black text-primary uppercase tracking-widest">주차 선택</label>
-                                      <div className="flex flex-wrap gap-1.5">
+                                      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                                         {(classResources as {week: number; topic: string}[]).map(p => {
                                           const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
                                           const isActive = norm(editLogForm.activity_name) === norm(p.topic);
                                           return (
                                             <button key={p.week} type="button"
                                               onClick={() => setEditLogForm(prev => ({ ...prev, activity_name: p.topic }))}
-                                              className={`px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
+                                              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
                                               {p.week}주차<span className={`ml-1 text-[9px] ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
                                             </button>
                                           );
@@ -3761,7 +3761,7 @@ ${guidePrompt}
                   {!editingResult && activeWeek && (
                     <p className="text-[11px] font-bold text-primary/60">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
                   )}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                     {(classResources.length > 0
                       ? classResources.map((r: any) => ({ week: r.week, label: `${r.week}주차${r.topic ? `: ${r.topic}` : ''}` }))
                       : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}주차` }))
@@ -3772,7 +3772,7 @@ ${guidePrompt}
                           key={week}
                           onClick={() => { if (!weekLocked) setSelectedWeek(week); }}
                           disabled={weekLocked}
-                          className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
+                          className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
                             selectedWeek === week
                               ? 'bg-primary text-white border-primary shadow-md'
                               : weekLocked
