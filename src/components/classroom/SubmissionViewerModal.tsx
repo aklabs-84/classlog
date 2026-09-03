@@ -37,6 +37,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   const [htmlBlobUrl, setHtmlBlobUrl] = useState<string | null>(null);
   const [pyOutput, setPyOutput] = useState<string>('');
   const [pyRunning, setPyRunning] = useState(false);
+  const [pyImages, setPyImages] = useState<string[]>([]);
   const [docxHtml, setDocxHtml] = useState<string>('');
   const [hwpxHtml, setHwpxHtml] = useState<string>('');
   const [sheets, setSheets] = useState<{ name: string; html: string }[]>([]);
@@ -181,6 +182,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   const runPython = async () => {
     setPyRunning(true);
     setPyOutput('');
+    setPyImages([]);
     try {
       if (!pyodideRef.current) {
         if (!(window as any).loadPyodide) {
@@ -204,12 +206,43 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
             return value === null ? undefined : value;
           },
         });
+        // matplotlib이 화면 캔버스 대신 정적 이미지를 그리도록 강제 (import 여부와 무관하게 안전)
+        await pyodideRef.current.runPythonAsync("import os\nos.environ['MPLBACKEND'] = 'Agg'");
       } else {
         setPyOutput('');
       }
       const res = await fetch(fileUrl);
       const code = await res.text();
-      await pyodideRef.current.runPythonAsync(code);
+      try {
+        await pyodideRef.current.runPythonAsync(code);
+      } catch (runErr: any) {
+        const missing = /ModuleNotFoundError: No module named '([^']+)'/.exec(runErr?.message || '');
+        if (!missing) throw runErr;
+        const moduleName = missing[1];
+        setPyOutput(prev => prev + `\n[안내] '${moduleName}' 패키지를 추가로 설치하는 중...\n`);
+        await pyodideRef.current.loadPackage('micropip');
+        const micropip = pyodideRef.current.pyimport('micropip');
+        await micropip.install(moduleName);
+        await pyodideRef.current.runPythonAsync(code);
+      }
+      const imagesJson = await pyodideRef.current.runPythonAsync(`
+import sys, json
+if 'matplotlib.pyplot' in sys.modules:
+    import io, base64
+    _plt = sys.modules['matplotlib.pyplot']
+    _imgs = []
+    for _fignum in _plt.get_fignums():
+        _fig = _plt.figure(_fignum)
+        _buf = io.BytesIO()
+        _fig.savefig(_buf, format='png', bbox_inches='tight')
+        _buf.seek(0)
+        _imgs.append(base64.b64encode(_buf.read()).decode('ascii'))
+    _plt.close('all')
+    json.dumps(_imgs)
+else:
+    json.dumps([])
+`);
+      setPyImages(JSON.parse(imagesJson));
     } catch (e: any) {
       setPyOutput(prev => prev + '\n[오류] ' + (e?.message || String(e)));
     } finally {
@@ -308,6 +341,18 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                   {pyOutput || '실행 버튼을 눌러 출력 결과를 확인하세요.'}
                 </pre>
               </div>
+              {pyImages.length > 0 && (
+                <div className="shrink-0 max-h-[45%] overflow-auto bg-white rounded-xl border border-neutral-200 p-3 flex flex-col gap-3">
+                  {pyImages.map((img, i) => (
+                    <img
+                      key={i}
+                      src={`data:image/png;base64,${img}`}
+                      alt={`그래프 결과 ${i + 1}`}
+                      className="max-w-full rounded-lg border border-neutral-100 mx-auto"
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
