@@ -37,6 +37,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
+  Folder, FolderPlus, FolderInput, RefreshCw,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -85,6 +86,15 @@ interface Material {
   source_material_id?: string | null;
   cover_image_url?: string | null;
   cover_source?: 'template' | 'upload' | null;
+  folder_id?: string | null;
+}
+
+interface MaterialFolder {
+  id: string;
+  teacher_id: string;
+  class_id: string | null;
+  name: string;
+  created_at: string;
 }
 
 const formatVersionDate = (iso: string) => {
@@ -104,7 +114,7 @@ const ImportFromClassModal = ({
 }: {
   currentClassId?: string;
   userId: string;
-  onImport: (title: string, content: string, weekNumber: number) => void;
+  onImport: (title: string, content: string, weekNumber: number, sourceMaterialId: string, sourceIsLibrary: boolean) => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<'class' | 'material'>('class');
@@ -159,7 +169,7 @@ const ImportFromClassModal = ({
 
   const handleSelectMaterial = (material: Material) => {
     if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
-    onImport(material.title, material.content ?? '', material.week_number ?? 1);
+    onImport(material.title, material.content ?? '', material.week_number ?? 1, material.id, isLibrary);
     onClose();
   };
 
@@ -1018,6 +1028,17 @@ const MaterialEditor = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
 
+  // 폴더 — 클래스별 또는 공통 자료함별로 자료를 정리
+  const [folders, setFolders] = useState<MaterialFolder[]>([]);
+  // 'all' = 전체, null = 미분류, 그 외 = 특정 폴더 id
+  const [activeFolderId, setActiveFolderId] = useState<'all' | string | null>('all');
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renamingFolderName, setRenamingFolderName] = useState('');
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [moveMenuFor, setMoveMenuFor] = useState<string | null>(null);
+  const [deleteFolderConfirmId, setDeleteFolderConfirmId] = useState<string | null>(null);
+
   // 에디터 열림 여부
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -1051,6 +1072,8 @@ const MaterialEditor = () => {
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null } | null>(null);
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
+  const [importedSourceMaterialId, setImportedSourceMaterialId] = useState<string | null>(null);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
   const [showLessonPlan, setShowLessonPlan] = useState(false);
   const [aiVersions, setAiVersions] = useState<AiVersion[]>([]);
@@ -1124,10 +1147,58 @@ const MaterialEditor = () => {
     }
   };
 
+  // ── 폴더 ──────────────────────────────────────────────────────────────────
+  const fetchFolders = async (classId: string | null) => {
+    let query = supabase.from('material_folders').select('*').eq('teacher_id', user!.id);
+    query = classId ? query.eq('class_id', classId) : query.is('class_id', null);
+    const { data } = await query.order('created_at', { ascending: true });
+    setFolders(data ?? []);
+    setActiveFolderId('all');
+  };
+
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const { data, error } = await supabase
+      .from('material_folders')
+      .insert({ teacher_id: user!.id, class_id: libraryMode ? null : selectedClass?.id ?? null, name })
+      .select()
+      .single();
+    if (error) { alert(`폴더 생성 중 오류가 발생했습니다.\n${error.message}`); return; }
+    if (data) setFolders(prev => [...prev, data as MaterialFolder]);
+    setNewFolderName('');
+    setNewFolderOpen(false);
+  };
+
+  const handleRenameFolder = async (folderId: string) => {
+    const name = renamingFolderName.trim();
+    if (!name) { setRenamingFolderId(null); return; }
+    const { error } = await supabase.from('material_folders').update({ name }).eq('id', folderId);
+    if (error) { alert(`폴더 이름 변경 중 오류가 발생했습니다.\n${error.message}`); return; }
+    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name } : f));
+    setRenamingFolderId(null);
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    setDeleteFolderConfirmId(null);
+    const { error } = await supabase.from('material_folders').delete().eq('id', folderId);
+    if (error) { alert(`폴더 삭제 중 오류가 발생했습니다.\n${error.message}`); return; }
+    setFolders(prev => prev.filter(f => f.id !== folderId));
+    setMaterials(prev => prev.map(m => m.folder_id === folderId ? { ...m, folder_id: null } : m));
+    if (activeFolderId === folderId) setActiveFolderId('all');
+  };
+
+  const handleMoveToFolder = async (material: Material, folderId: string | null) => {
+    setMoveMenuFor(null);
+    const { error } = await supabase.from('class_materials').update({ folder_id: folderId }).eq('id', material.id);
+    if (error) { alert(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return; }
+    setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, folder_id: folderId } : m));
+  };
+
   const resetForm = () => {
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
-    setCoverImageUrl(null); setCoverSource('template');
+    setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
   };
 
   // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
@@ -1224,10 +1295,12 @@ const MaterialEditor = () => {
         setSelectedClass(cls ?? null);
         setLibraryMode(false);
         fetchMaterials(data.class_id);
+        fetchFolders(data.class_id);
       } else {
         setSelectedClass(null);
         setLibraryMode(true);
         fetchLibraryMaterials();
+        fetchFolders(null);
       }
       handleEdit(data as Material);
     })();
@@ -1323,7 +1396,8 @@ const MaterialEditor = () => {
           if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
         }
       } else {
-        const { data: inserted, error } = await supabase.from('class_materials').insert(payload).select('id').single();
+        const insertPayload = { ...payload, source_material_id: importedSourceMaterialId };
+        const { data: inserted, error } = await supabase.from('class_materials').insert(insertPayload).select('id').single();
         if (error) throw error;
         if (inserted) syncMaterialEmbedding(inserted.id, payload.title, payload.content);
       }
@@ -1370,7 +1444,8 @@ const MaterialEditor = () => {
         }
       } else {
         // 아직 한 번도 저장된 적 없는 새 자료 — 첫 자동저장 시 생성하고, 이후엔 위 update 경로를 탄다
-        const { data, error } = await supabase.from('class_materials').insert(payload).select().single();
+        const insertPayload = { ...payload, source_material_id: importedSourceMaterialId };
+        const { data, error } = await supabase.from('class_materials').insert(insertPayload).select().single();
         if (error) throw error;
         if (data) {
           setEditingMaterial(data as Material);
@@ -1398,6 +1473,38 @@ const MaterialEditor = () => {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource]);
+
+  // ── 공통 자료함 원본에 동기화 ─────────────────────────────────────────────
+  // 공통 자료함에서 가져와(연결해) 만든 클래스 사본을 이 클래스 맥락에 맞게 편집한 뒤,
+  // 그 최종본을 원본(source_material_id)에 반영. 다른 클래스에 연결된 사본들은 건드리지 않는다.
+  const [syncing, setSyncing] = useState(false);
+  // window.confirm/alert는 미리보기 창(iframe) 등에서 브라우저가 조용히 차단할 수 있어
+  // 항상 확실히 뜨는 자체 모달로 확인/결과 안내를 처리한다
+  const [syncConfirmOpen, setSyncConfirmOpen] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const runSyncToSource = async () => {
+    if (!editingMaterial?.source_material_id) return;
+    setSyncConfirmOpen(false);
+    setSyncing(true);
+    try {
+      const { error } = await supabase
+        .from('class_materials')
+        .update({
+          title: title.trim(),
+          content: (content ?? '').trim(),
+          ai_versions: aiVersions,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingMaterial.source_material_id);
+      if (error) throw error;
+      setSyncResult({ ok: true, message: '공통 자료함의 원본에 동기화되었습니다.' });
+    } catch (err: any) {
+      console.error('[MaterialEditor] sync to source error:', err);
+      setSyncResult({ ok: false, message: `동기화 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}` });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // ── PDF 다운로드 (브라우저 인쇄 → PDF로 저장) ────────────────────────────────
   const handlePrintPdf = () => {
@@ -1500,6 +1607,10 @@ const MaterialEditor = () => {
     }
   };
 
+  const visibleMaterials = activeFolderId === 'all'
+    ? materials
+    : materials.filter(m => (m.folder_id ?? null) === activeFolderId);
+
   return (
     <>
     <LimitToast message={limitToastMessage} />
@@ -1551,13 +1662,86 @@ const MaterialEditor = () => {
       <ImportFromClassModal
         currentClassId={selectedClass?.id}
         userId={user.id}
-        onImport={(importedTitle, importedContent, importedWeek) => {
+        onImport={(importedTitle, importedContent, importedWeek, sourceMaterialId, sourceIsLibrary) => {
           setTitle(importedTitle ?? '');
           setWeekNumber(importedWeek ?? 1);
           setContent(importedContent ?? '');
+          // 공통 자료함에서 가져온 경우에만 원본으로 기록 — 다음 클래스 자료로 저장될 때 source_material_id로 연결되어
+          // 이후 "원본에 동기화" 버튼으로 편집 내용을 그 공통 자료함 원본에 반영할 수 있게 된다
+          setImportedSourceMaterialId(sourceIsLibrary ? sourceMaterialId : null);
         }}
         onClose={() => setShowImportModal(false)}
       />
+    )}
+    {deleteFolderConfirmId && createPortal(
+      <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4" onClick={() => setDeleteFolderConfirmId(null)}>
+        <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+          <h3 className="font-bold text-on-surface mb-2">폴더를 삭제할까요?</h3>
+          <p className="text-sm text-on-surface-variant whitespace-pre-line mb-5">
+            폴더 안의 자료는 삭제되지 않고 "미분류"로 이동합니다.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setDeleteFolderConfirmId(null)}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold text-on-surface-variant hover:bg-surface-container"
+            >
+              취소
+            </button>
+            <button
+              onClick={() => handleDeleteFolder(deleteFolderConfirmId)}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white hover:opacity-90"
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    {syncConfirmOpen && createPortal(
+      <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4" onClick={() => setSyncConfirmOpen(false)}>
+        <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+          <h3 className="font-bold text-on-surface mb-2">원본에 동기화할까요?</h3>
+          <p className="text-sm text-on-surface-variant whitespace-pre-line mb-5">
+            공통 자료함의 원본 자료가 지금 이 내용으로 덮어씌워집니다.
+            (다른 클래스에 연결된 사본들은 영향을 받지 않습니다.)
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setSyncConfirmOpen(false)}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold text-on-surface-variant hover:bg-surface-container"
+            >
+              취소
+            </button>
+            <button
+              onClick={runSyncToSource}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:opacity-90"
+            >
+              동기화
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    {syncResult && createPortal(
+      <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4" onClick={() => setSyncResult(null)}>
+        <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+          <h3 className={`font-bold mb-2 ${syncResult.ok ? 'text-primary' : 'text-red-600'}`}>
+            {syncResult.ok ? '동기화 완료' : '동기화 실패'}
+          </h3>
+          <p className="text-sm text-on-surface-variant whitespace-pre-line mb-5">{syncResult.message}</p>
+          <div className="flex justify-end">
+            <button
+              onClick={() => setSyncResult(null)}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:opacity-90"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
     )}
     {fullscreenPreview && (
       <PreviewFullscreenModal
@@ -1662,7 +1846,7 @@ const MaterialEditor = () => {
               ) : classes.map(cls => (
                 <button
                   key={cls.id}
-                  onClick={() => { setSelectedClass(cls); setLibraryMode(false); setClassDropdownOpen(false); fetchMaterials(cls.id); setIsEditorOpen(false); resetForm(); }}
+                  onClick={() => { setSelectedClass(cls); setLibraryMode(false); setClassDropdownOpen(false); fetchMaterials(cls.id); fetchFolders(cls.id); setIsEditorOpen(false); resetForm(); }}
                   className="w-full text-left px-4 py-3 hover:bg-surface-container-low transition-colors text-sm font-bold"
                 >
                   {cls.name}
@@ -1673,7 +1857,7 @@ const MaterialEditor = () => {
         </div>
 
         <button
-          onClick={() => { setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); }}
+          onClick={() => { setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); fetchFolders(null); }}
           title="클래스 선택 없이 공통으로 쓸 자료를 만들고, 나중에 원하는 클래스에 연결할 수 있습니다"
           className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all font-black text-sm ${
             libraryMode
@@ -1923,6 +2107,17 @@ const MaterialEditor = () => {
               >
                 <Download size={11} /> 가져오기
               </button>
+              {/* 공통 자료함에서 가져온(연결된) 사본이면 — 수정한 내용을 원본에 반영 */}
+              {!libraryMode && editingMaterial?.source_material_id && (
+                <button
+                  onClick={() => setSyncConfirmOpen(true)}
+                  disabled={syncing}
+                  title="지금 이 내용을 공통 자료함의 원본 자료에 반영합니다"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-primary hover:bg-primary/10 font-bold text-[11px] transition-colors disabled:opacity-40"
+                >
+                  {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} 원본에 동기화
+                </button>
+              )}
               {/* 표지 설정 — PDF 다운로드 시 맨 앞에 자동으로 붙는 표지 페이지 */}
               <button
                 onClick={() => setShowCoverModal(true)}
@@ -2068,6 +2263,84 @@ const MaterialEditor = () => {
             </p>
           </div>
 
+          {/* 폴더 칩 바 */}
+          <div className="flex items-center flex-wrap gap-1.5">
+            <button
+              onClick={() => setActiveFolderId('all')}
+              className={`px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                activeFolderId === 'all' ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+              }`}
+            >
+              전체
+            </button>
+            <button
+              onClick={() => setActiveFolderId(null)}
+              className={`px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                activeFolderId === null ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+              }`}
+            >
+              미분류
+            </button>
+            {folders.map(folder => (
+              <div
+                key={folder.id}
+                className={`group flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                  activeFolderId === folder.id ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+                }`}
+              >
+                {renamingFolderId === folder.id ? (
+                  <input
+                    autoFocus
+                    value={renamingFolderName}
+                    onChange={e => setRenamingFolderName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setRenamingFolderId(null); }}
+                    onBlur={() => handleRenameFolder(folder.id)}
+                    className="w-24 px-1 py-0 rounded bg-white text-on-surface text-xs font-black focus:outline-none"
+                  />
+                ) : (
+                  <button onClick={() => setActiveFolderId(folder.id)} className="flex items-center gap-1.5">
+                    <Folder size={11} /> {folder.name}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
+                  title="이름 변경"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-black/10 transition-opacity"
+                >
+                  <Pencil size={10} />
+                </button>
+                <button
+                  onClick={() => setDeleteFolderConfirmId(folder.id)}
+                  title="폴더 삭제"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-black/10 transition-opacity"
+                >
+                  <XIcon size={10} />
+                </button>
+              </div>
+            ))}
+            {newFolderOpen ? (
+              <div className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setNewFolderOpen(false); setNewFolderName(''); } }}
+                  onBlur={() => { if (!newFolderName.trim()) setNewFolderOpen(false); }}
+                  placeholder="폴더 이름"
+                  className="w-28 px-2.5 py-1.5 rounded-xl border border-surface-container text-xs font-black focus:outline-none focus:border-primary/40"
+                />
+                <button onClick={handleCreateFolder} className="p-1.5 rounded-lg bg-primary text-white"><Check size={12} /></button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setNewFolderOpen(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-xs text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                <FolderPlus size={12} /> 새 폴더
+              </button>
+            )}
+          </div>
+
           {materialsLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 size={28} className="animate-spin text-primary" />
@@ -2078,9 +2351,14 @@ const MaterialEditor = () => {
               <p className="font-black">{libraryMode ? '아직 등록된 공통 자료가 없습니다.' : '아직 작성된 수업 자료가 없습니다.'}</p>
               <p className="text-sm font-bold">위의 '새 자료 작성' 버튼을 눌러 시작하세요.</p>
             </div>
+          ) : visibleMaterials.length === 0 ? (
+            <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
+              <Folder size={48} />
+              <p className="font-black">이 폴더에는 아직 자료가 없습니다.</p>
+            </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {materials.map(material => (
+              {visibleMaterials.map(material => (
                 <div key={material.id} className="group bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/30 hover:shadow-md flex flex-col">
                   {/* 표지 썸네일 */}
                   <div
@@ -2267,6 +2545,49 @@ const MaterialEditor = () => {
                           </button>
                         </>
                       )}
+                      {/* 폴더로 이동 */}
+                      <div className="relative shrink-0">
+                        <button
+                          onClick={() => setMoveMenuFor(v => v === material.id ? null : material.id)}
+                          title="폴더로 이동"
+                          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                        >
+                          <FolderInput size={14} />
+                        </button>
+                        {moveMenuFor === material.id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setMoveMenuFor(null)} />
+                            <div className="absolute bottom-full mb-1 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-52 overflow-hidden">
+                              <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                                이동할 폴더
+                              </p>
+                              <div className="max-h-64 overflow-y-auto">
+                                <button
+                                  onClick={() => handleMoveToFolder(material, null)}
+                                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                >
+                                  <span className="flex-1 min-w-0 text-xs font-black">미분류</span>
+                                  {!material.folder_id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                </button>
+                                {folders.map(folder => (
+                                  <button
+                                    key={folder.id}
+                                    onClick={() => handleMoveToFolder(material, folder.id)}
+                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                  >
+                                    <Folder size={13} className="text-primary shrink-0" />
+                                    <span className="flex-1 min-w-0 text-xs font-black truncate">{folder.name}</span>
+                                    {material.folder_id === folder.id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                  </button>
+                                ))}
+                                {folders.length === 0 && (
+                                  <p className="px-4 py-3 text-xs font-bold text-on-surface-variant opacity-60">폴더가 없습니다. 위의 '새 폴더'로 먼저 만들어주세요.</p>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                       {/* 수정 */}
                       <button
                         onClick={() => handleEdit(material)}
