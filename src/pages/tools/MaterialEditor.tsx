@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText } from '../../lib/gemini';
 import { LessonPlanModal } from '../../components/LessonPlanModal';
+import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -37,7 +38,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -1057,6 +1058,7 @@ const MaterialEditor = () => {
   const [coverUploading, setCoverUploading] = useState(false);
   // 자료와 연결할 외부 체험 활동 앱 URL (예: AIServiceHub 앱) — 학생 화면에 "체험해보기" 버튼으로 표시됨
   const [activityUrl, setActivityUrl] = useState('');
+  const [showAiServicePicker, setShowAiServicePicker] = useState(false);
 
   // UI 상태
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
@@ -1679,6 +1681,12 @@ const MaterialEditor = () => {
         onClose={() => setShowImportModal(false)}
       />
     )}
+    {showAiServicePicker && (
+      <AiServiceLinkPicker
+        onSelect={(url) => setActivityUrl(url)}
+        onClose={() => setShowAiServicePicker(false)}
+      />
+    )}
     {deleteFolderConfirmId && createPortal(
       <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4" onClick={() => setDeleteFolderConfirmId(null)}>
         <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
@@ -2174,9 +2182,16 @@ const MaterialEditor = () => {
               type="text"
               value={activityUrl}
               onChange={e => setActivityUrl(e.target.value)}
-              placeholder="연결할 활동 앱 URL (선택) — 예: AIServiceHub 체험 앱 링크"
+              placeholder="연결할 활동 앱 URL (선택) — 직접 입력하거나 오른쪽에서 찾아보세요"
               className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-bold focus:outline-none focus:border-primary/40"
             />
+            <button
+              type="button"
+              onClick={() => setShowAiServicePicker(true)}
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary/30 font-bold text-[11px] transition-colors"
+            >
+              <Search size={11} /> 찾아보기
+            </button>
           </div>
 
           {/* 편집 / 미리보기 영역 */}
