@@ -1055,6 +1055,8 @@ const MaterialEditor = () => {
   const [coverSource, setCoverSource] = useState<'template' | 'upload'>('template');
   const [showCoverModal, setShowCoverModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  // 자료와 연결할 외부 체험 활동 앱 URL (예: AIServiceHub 앱) — 학생 화면에 "체험해보기" 버튼으로 표시됨
+  const [activityUrl, setActivityUrl] = useState('');
 
   // UI 상태
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
@@ -1199,6 +1201,7 @@ const MaterialEditor = () => {
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
+    setActivityUrl('');
   };
 
   // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
@@ -1274,6 +1277,7 @@ const MaterialEditor = () => {
     setAiVersions(material.ai_versions ?? []);
     setCoverImageUrl(material.cover_image_url ?? null);
     setCoverSource(material.cover_source ?? 'template');
+    setActivityUrl(material.url || '');
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
@@ -1381,6 +1385,7 @@ const MaterialEditor = () => {
         ai_versions: aiVersions,
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
         cover_source: coverSource,
+        url: activityUrl.trim(),
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -1429,6 +1434,7 @@ const MaterialEditor = () => {
         ai_versions: aiVersions,
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
         cover_source: coverSource,
+        url: activityUrl.trim(),
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -1472,7 +1478,7 @@ const MaterialEditor = () => {
     const timer = setTimeout(() => { doAutoSave(); }, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource]);
+  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityUrl]);
 
   // ── 공통 자료함 원본에 동기화 ─────────────────────────────────────────────
   // 공통 자료함에서 가져와(연결해) 만든 클래스 사본을 이 클래스 맥락에 맞게 편집한 뒤,
@@ -2158,6 +2164,18 @@ const MaterialEditor = () => {
               onChange={e => setTitle(e.target.value)}
               placeholder="자료 제목을 입력하세요 *"
               className="flex-1 min-w-[180px] px-4 py-2 bg-white rounded-xl border border-surface-container font-black text-sm focus:outline-none focus:border-primary/40"
+            />
+          </div>
+
+          {/* 연결할 활동 앱 URL — 학생 화면에 "체험해보기" 버튼으로 표시됨 */}
+          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
+            <Link2 size={14} className="shrink-0 text-on-surface-variant" />
+            <input
+              type="text"
+              value={activityUrl}
+              onChange={e => setActivityUrl(e.target.value)}
+              placeholder="연결할 활동 앱 URL (선택) — 예: AIServiceHub 체험 앱 링크"
+              className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-bold focus:outline-none focus:border-primary/40"
             />
           </div>
 
