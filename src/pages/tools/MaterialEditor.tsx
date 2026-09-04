@@ -2186,7 +2186,8 @@ const MaterialEditor = () => {
             />
           </div>
 
-          {/* 연결할 활동 앱 URL — 학생 화면에 "체험해보기" 버튼으로 표시됨. 여러 개 연결 가능 */}
+          {/* 연결할 활동 앱 URL — 학생 화면에 "체험해보기" 버튼으로 표시됨. 여러 개 연결 가능. 관리자 전용 베타 */}
+          {profile?.plan === 'admin' && (
           <div className="flex flex-col gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
             {activityLinks.map((link, i) => (
               <div key={i} className="flex items-center gap-1.5">
@@ -2252,6 +2253,7 @@ const MaterialEditor = () => {
               </button>
             </div>
           </div>
+          )}
 
           {/* 편집 / 미리보기 영역 */}
           {viewMode === 'edit' ? (
