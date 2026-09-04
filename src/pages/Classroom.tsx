@@ -63,6 +63,7 @@ import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
 import PresentationModal from '../components/PresentationModal';
+import type { ActivityLink } from '../components/ActivityLinksButton';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
@@ -296,7 +297,7 @@ const Classroom = () => {
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
   // 연결된 주차만 모아 정렬. content는 fetchResources에서 이미 함께 불러와두므로 추가 API 호출 없이 즉시 전환 가능.
   const weekNavList = useMemo(() => {
@@ -305,7 +306,12 @@ const Classroom = () => {
       .filter((p: any) => p.material_id)
       .map((p: any) => {
         const mat = classMaterials.find((m: any) => m.id === p.material_id);
-        return { week: p.week as number, title: (mat?.title as string) || `${p.week}주차`, content: (mat?.content as string) ?? null };
+        return {
+          week: p.week as number,
+          title: (mat?.title as string) || `${p.week}주차`,
+          content: (mat?.content as string) ?? null,
+          activity_urls: mat?.activity_urls as ActivityLink[] | undefined,
+        };
       })
       .filter((w: any) => w.content !== null)
       .sort((a: any, b: any) => a.week - b.week);
@@ -314,7 +320,7 @@ const Classroom = () => {
   const handleNavigateWeek = (week: number) => {
     const target = weekNavList.find((w: any) => w.week === week);
     if (!target) return;
-    setFullscreenMaterial({ title: target.title, content: target.content, weekNumber: week });
+    setFullscreenMaterial({ title: target.title, content: target.content, weekNumber: week, activity_urls: target.activity_urls });
   };
 
   // 학급정보 수정 팝업에서 에디터 자료 선택용
@@ -1568,7 +1574,7 @@ const Classroom = () => {
       // 서브클래스인 경우 부모 클래스의 자료를 사용
       const sourceId = classInfo?.parent_class_id || classId;
       const [matsRes, generalRes, toolsRes] = await Promise.all([
-        supabase.from('class_materials').select('id, title, content, week_number, is_published').eq('class_id', sourceId).order('week_number', { ascending: true }),
+        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
         supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
       ]);
@@ -1807,11 +1813,11 @@ const Classroom = () => {
     try {
       const { data, error } = await supabase
         .from('class_materials')
-        .select('title, content')
+        .select('title, content, activity_urls')
         .eq('id', materialId)
         .single();
       if (error || !data) { showToast('원본 자료를 찾을 수 없습니다. 삭제되었을 수 있어요.'); return; }
-      setFullscreenMaterial({ title: data.title, content: data.content || '' });
+      setFullscreenMaterial({ title: data.title, content: data.content || '', activity_urls: data.activity_urls });
     } catch {
       showToast('자료를 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -4737,7 +4743,7 @@ const Classroom = () => {
                               onClick={() => {
                                 if (isMaterial) {
                                   if (matInfo) {
-                                    setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week });
+                                    setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls });
                                   } else {
                                     showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                   }
@@ -4827,7 +4833,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined })}
+                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">

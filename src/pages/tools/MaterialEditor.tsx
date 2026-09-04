@@ -6,6 +6,7 @@ import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText } from '../../lib/gemini';
 import { LessonPlanModal } from '../../components/LessonPlanModal';
 import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
+import ActivityLinksButton, { type ActivityLink } from '../../components/ActivityLinksButton';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -38,7 +39,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search, ExternalLink,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -78,6 +79,7 @@ interface Material {
   title: string;
   content: string;
   url: string;
+  activity_urls?: ActivityLink[];
   is_published: boolean;
   created_at: string;
   updated_at: string;
@@ -464,12 +466,12 @@ const LinkToClassModal = ({
 const PreviewFullscreenModal = ({
   title,
   content,
-  url,
+  links,
   onClose,
 }: {
   title: string;
   content: string;
-  url?: string;
+  links?: ActivityLink[];
   onClose: () => void;
 }) => {
   useEffect(() => {
@@ -499,16 +501,7 @@ const PreviewFullscreenModal = ({
           <Eye size={15} className="text-white/60" />
           <span className="font-black text-sm text-white/80 truncate max-w-xs">{title || '미리보기'}</span>
         </div>
-        {url && (
-          <a
-            href={url.startsWith('http') ? url : `https://${url}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow"
-          >
-            <ExternalLink size={15} /> 체험해보기
-          </a>
-        )}
+        <ActivityLinksButton links={links} dark />
       </div>
       {/* 본문 */}
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1068,9 +1061,10 @@ const MaterialEditor = () => {
   const [coverSource, setCoverSource] = useState<'template' | 'upload'>('template');
   const [showCoverModal, setShowCoverModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
-  // 자료와 연결할 외부 체험 활동 앱 URL (예: AIServiceHub 앱) — 학생 화면에 "체험해보기" 버튼으로 표시됨
-  const [activityUrl, setActivityUrl] = useState('');
+  // 자료와 연결할 외부 체험 활동 앱 링크들 (예: AIServiceHub 앱) — 학생 화면에 "체험해보기" 버튼으로 표시됨
+  const [activityLinks, setActivityLinks] = useState<ActivityLink[]>([]);
   const [showAiServicePicker, setShowAiServicePicker] = useState(false);
+  const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // UI 상태
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
@@ -1085,8 +1079,8 @@ const MaterialEditor = () => {
   // 발표 모드에서 "저장" 시 어디에 반영할지 (원본 draft / 특정 AI 버전 / DB 직접 저장 등 호출부마다 다름)
   const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
-  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null } | null>(null);
-  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; url?: string } | null>(null);
+  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null; activity_urls?: ActivityLink[] } | null>(null);
+  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[] } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
   const [importedSourceMaterialId, setImportedSourceMaterialId] = useState<string | null>(null);
@@ -1215,7 +1209,7 @@ const MaterialEditor = () => {
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
-    setActivityUrl('');
+    setActivityLinks([]); setNewLinkUrl('');
   };
 
   // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
@@ -1291,7 +1285,8 @@ const MaterialEditor = () => {
     setAiVersions(material.ai_versions ?? []);
     setCoverImageUrl(material.cover_image_url ?? null);
     setCoverSource(material.cover_source ?? 'template');
-    setActivityUrl(material.url || '');
+    setActivityLinks(material.activity_urls ?? []);
+    setNewLinkUrl('');
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
@@ -1399,7 +1394,7 @@ const MaterialEditor = () => {
         ai_versions: aiVersions,
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
         cover_source: coverSource,
-        url: activityUrl.trim(),
+        activity_urls: activityLinks,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -1448,7 +1443,7 @@ const MaterialEditor = () => {
         ai_versions: aiVersions,
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
         cover_source: coverSource,
-        url: activityUrl.trim(),
+        activity_urls: activityLinks,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -1492,7 +1487,7 @@ const MaterialEditor = () => {
     const timer = setTimeout(() => { doAutoSave(); }, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityUrl]);
+  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks]);
 
   // ── 공통 자료함 원본에 동기화 ─────────────────────────────────────────────
   // 공통 자료함에서 가져와(연결해) 만든 클래스 사본을 이 클래스 맥락에 맞게 편집한 뒤,
@@ -1695,7 +1690,7 @@ const MaterialEditor = () => {
     )}
     {showAiServicePicker && (
       <AiServiceLinkPicker
-        onSelect={(url) => setActivityUrl(url)}
+        onSelect={(url, label) => setActivityLinks(prev => [...prev, { url, label }])}
         onClose={() => setShowAiServicePicker(false)}
       />
     )}
@@ -1773,7 +1768,7 @@ const MaterialEditor = () => {
       <PreviewFullscreenModal
         title={fullscreenPreview.title}
         content={fullscreenPreview.content}
-        url={fullscreenPreview.url}
+        links={fullscreenPreview.links}
         onClose={() => setFullscreenPreview(null)}
       />
     )}
@@ -1814,6 +1809,7 @@ const MaterialEditor = () => {
             title: `${title.trim() || '(제목 없음)'} · ${newVersion.label}`,
             content: newVersion.content,
             url: '',
+            activity_urls: activityLinks,
             is_published: isPublished,
             created_at: newVersion.created_at,
             updated_at: newVersion.created_at,
@@ -2058,6 +2054,7 @@ const MaterialEditor = () => {
                                     title: `${title.trim() || '(제목 없음)'} · ${v.label}`,
                                     content: v.content,
                                     url: '',
+                                    activity_urls: activityLinks,
                                     is_published: isPublished,
                                     created_at: v.created_at,
                                     updated_at: new Date().toISOString(),
@@ -2110,6 +2107,7 @@ const MaterialEditor = () => {
                     title: title.trim() || '(제목 없음)',
                     content,
                     url: '',
+                    activity_urls: activityLinks,
                     is_published: isPublished,
                     created_at: editingMaterial?.created_at ?? new Date().toISOString(),
                     updated_at: new Date().toISOString(),
@@ -2188,23 +2186,71 @@ const MaterialEditor = () => {
             />
           </div>
 
-          {/* 연결할 활동 앱 URL — 학생 화면에 "체험해보기" 버튼으로 표시됨 */}
-          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
-            <Link2 size={14} className="shrink-0 text-on-surface-variant" />
-            <input
-              type="text"
-              value={activityUrl}
-              onChange={e => setActivityUrl(e.target.value)}
-              placeholder="연결할 활동 앱 URL (선택) — 직접 입력하거나 오른쪽에서 찾아보세요"
-              className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-bold focus:outline-none focus:border-primary/40"
-            />
-            <button
-              type="button"
-              onClick={() => setShowAiServicePicker(true)}
-              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary/30 font-bold text-[11px] transition-colors"
-            >
-              <Search size={11} /> 찾아보기
-            </button>
+          {/* 연결할 활동 앱 URL — 학생 화면에 "체험해보기" 버튼으로 표시됨. 여러 개 연결 가능 */}
+          <div className="flex flex-col gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
+            {activityLinks.map((link, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <Link2 size={14} className="shrink-0 text-on-surface-variant" />
+                <input
+                  type="text"
+                  value={link.label}
+                  onChange={e => setActivityLinks(prev => prev.map((l, idx) => idx === i ? { ...l, label: e.target.value } : l))}
+                  placeholder="버튼 이름 (선택)"
+                  className="w-32 shrink-0 px-3 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-bold focus:outline-none focus:border-primary/40"
+                />
+                <input
+                  type="text"
+                  value={link.url}
+                  onChange={e => setActivityLinks(prev => prev.map((l, idx) => idx === i ? { ...l, url: e.target.value } : l))}
+                  placeholder="URL"
+                  className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-bold focus:outline-none focus:border-primary/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setActivityLinks(prev => prev.filter((_, idx) => idx !== i))}
+                  title="삭제"
+                  className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors"
+                >
+                  <XIcon size={13} />
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5">
+              <Link2 size={14} className="shrink-0 text-on-surface-variant" />
+              <input
+                type="text"
+                value={newLinkUrl}
+                onChange={e => setNewLinkUrl(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newLinkUrl.trim()) {
+                    setActivityLinks(prev => [...prev, { url: newLinkUrl.trim(), label: '' }]);
+                    setNewLinkUrl('');
+                  }
+                }}
+                placeholder="연결할 활동 앱 URL 입력 후 Enter (선택) — 여러 개 추가 가능"
+                className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-bold focus:outline-none focus:border-primary/40"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newLinkUrl.trim()) return;
+                  setActivityLinks(prev => [...prev, { url: newLinkUrl.trim(), label: '' }]);
+                  setNewLinkUrl('');
+                }}
+                disabled={!newLinkUrl.trim()}
+                title="추가"
+                className="shrink-0 p-1.5 rounded-lg bg-white border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary/30 transition-colors disabled:opacity-40"
+              >
+                <Plus size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAiServicePicker(true)}
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary/30 font-bold text-[11px] transition-colors"
+              >
+                <Search size={11} /> 찾아보기
+              </button>
+            </div>
           </div>
 
           {/* 편집 / 미리보기 영역 */}
@@ -2223,7 +2269,7 @@ const MaterialEditor = () => {
               {content.trim() ? (
                 <>
                   <button
-                    onClick={() => setFullscreenPreview({ title, content, url: activityUrl })}
+                    onClick={() => setFullscreenPreview({ title, content, links: activityLinks })}
                     className="absolute top-3 right-3 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors z-10"
                     title="전체 화면으로 보기"
                   >
@@ -2462,6 +2508,7 @@ const MaterialEditor = () => {
                               title: material.title,
                               content: getActiveVersion(material).content,
                               coverImageUrl: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
+                              activity_urls: material.activity_urls,
                             });
                           }}
                           title="슬라이드로 보기"
@@ -2473,7 +2520,7 @@ const MaterialEditor = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, url: material.url });
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls });
                         }}
                         title="내용 미리보기"
                         className="p-2.5 rounded-xl bg-white/90 text-on-surface hover:bg-white transition-colors"

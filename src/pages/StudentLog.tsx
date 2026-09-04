@@ -68,6 +68,7 @@ import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import RichEditor from '../components/RichEditor';
+import ActivityLinksButton, { type ActivityLink } from '../components/ActivityLinksButton';
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -293,7 +294,7 @@ const StudentLog = () => {
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; url?: string } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; links?: ActivityLink[] } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
@@ -2398,16 +2399,7 @@ ${guidePrompt}
             <Eye size={15} className="text-white/60" />
             <span className="font-black text-sm text-white/80 truncate max-w-xs">{fullscreenMaterial.title}</span>
           </div>
-          {fullscreenMaterial.url && (
-            <a
-              href={fullscreenMaterial.url.startsWith('http') ? fullscreenMaterial.url : `https://${fullscreenMaterial.url}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow"
-            >
-              <ExternalLink size={15} /> 체험해보기
-            </a>
-          )}
+          <ActivityLinksButton links={fullscreenMaterial.links} dark />
         </div>
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-8 py-10">
@@ -3518,7 +3510,7 @@ ${guidePrompt}
                               className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-cyan-200 hover:shadow-sm transition-all"
                               onClick={() => {
                                 recordMaterialView(mat.id);
-                                setFullscreenMaterial({ title: mat.title, content: mat.content, url: mat.url });
+                                setFullscreenMaterial({ title: mat.title, content: mat.content, links: mat.activity_urls });
                               }}
                             >
                               <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
@@ -3578,7 +3570,7 @@ ${guidePrompt}
                           className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-violet-200 hover:shadow-sm transition-all"
                           onClick={() => {
                             recordMaterialView(mat.id);
-                            setFullscreenMaterial({ title: mat.title, content: mat.content });
+                            setFullscreenMaterial({ title: mat.title, content: mat.content, links: mat.activity_urls });
                           }}
                         >
                           <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
