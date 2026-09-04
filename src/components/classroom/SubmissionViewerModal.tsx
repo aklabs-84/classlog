@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, Play, AlertTriangle, Download } from 'lucide-react';
+import { X, Loader2, Play, Square, AlertTriangle, Download } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import DOMPurify from 'dompurify';
@@ -27,14 +27,13 @@ const getViewerKind = (fileName: string): ViewerKind => {
   return 'unsupported';
 };
 
-const PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';
-
 const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: SubmissionViewerModalProps) => {
   const kind = getViewerKind(fileName);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zipEntryUrl, setZipEntryUrl] = useState<string | null>(null);
   const [htmlBlobUrl, setHtmlBlobUrl] = useState<string | null>(null);
+  const [pyCode, setPyCode] = useState<string>('');
   const [pyOutput, setPyOutput] = useState<string>('');
   const [pyRunning, setPyRunning] = useState(false);
   const [pyImages, setPyImages] = useState<string[]>([]);
@@ -43,11 +42,25 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   const [hwpxHtml, setHwpxHtml] = useState<string>('');
   const [sheets, setSheets] = useState<{ name: string; html: string }[]>([]);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
-  const pyodideRef = useRef<any>(null);
-  const stdinQueueRef = useRef<string[]>([]);
-  const stdinIndexRef = useRef(0);
+  const pyWorkerRef = useRef<Worker | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
+
+  const terminatePyWorker = () => {
+    pyWorkerRef.current?.terminate();
+    pyWorkerRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => terminatePyWorker();
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      terminatePyWorker();
+      setPyRunning(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -170,7 +183,23 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
           setLoading(false);
         }
       })();
-    } else if (kind === 'python' || kind === 'pdf') {
+    } else if (kind === 'python') {
+      terminatePyWorker();
+      setPyOutput('');
+      setPyImages([]);
+      setPyRunning(false);
+      (async () => {
+        try {
+          const res = await fetch(fileUrl);
+          const text = await res.text();
+          setPyCode(text);
+          setLoading(false);
+        } catch (e: any) {
+          setError('코드를 불러오는 중 오류가 발생했습니다: ' + (e?.message || e));
+          setLoading(false);
+        }
+      })();
+    } else if (kind === 'pdf') {
       setLoading(false);
     } else {
       setLoading(false);
@@ -182,79 +211,42 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     };
   }, [isOpen, fileUrl, kind]);
 
-  const runPython = async () => {
+  const runPython = () => {
+    terminatePyWorker();
     setPyRunning(true);
     setPyOutput('');
     setPyImages([]);
-    stdinQueueRef.current = pyStdinInput.split('\n');
-    stdinIndexRef.current = 0;
-    try {
-      if (!pyodideRef.current) {
-        if (!(window as any).loadPyodide) {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = PYODIDE_CDN;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Pyodide 로드 실패'));
-            document.head.appendChild(script);
-          });
-        }
-        setPyOutput('파이썬 실행 환경 준비 중...\n');
-        pyodideRef.current = await (window as any).loadPyodide({
-          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/',
-        });
-        pyodideRef.current.setStdout({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
-        pyodideRef.current.setStderr({ batched: (s: string) => setPyOutput(prev => prev + s + '\n') });
-        pyodideRef.current.setStdin({
-          stdin: () => {
-            if (stdinIndexRef.current < stdinQueueRef.current.length) {
-              return stdinQueueRef.current[stdinIndexRef.current++];
-            }
-            return undefined;
-          },
-        });
-        // matplotlib이 화면 캔버스 대신 정적 이미지를 그리도록 강제 (import 여부와 무관하게 안전)
-        await pyodideRef.current.runPythonAsync("import os\nos.environ['MPLBACKEND'] = 'Agg'");
-      } else {
-        setPyOutput('');
+    const stdin = pyStdinInput.split('\n');
+    const worker = new Worker(new URL('../../workers/pyodideWorker.ts', import.meta.url));
+    pyWorkerRef.current = worker;
+    worker.onmessage = (e: MessageEvent) => {
+      const data = e.data || {};
+      if (data.type === 'stdout') {
+        setPyOutput(prev => prev + data.text + '\n');
+      } else if (data.type === 'status') {
+        setPyOutput(prev => prev + data.text + '\n');
+      } else if (data.type === 'done') {
+        setPyImages(data.images || []);
+        setPyRunning(false);
+        terminatePyWorker();
+      } else if (data.type === 'error') {
+        setPyOutput(prev => prev + '\n[오류] ' + data.text);
+        setPyRunning(false);
+        terminatePyWorker();
       }
-      const res = await fetch(fileUrl);
-      const code = await res.text();
-      try {
-        await pyodideRef.current.runPythonAsync(code);
-      } catch (runErr: any) {
-        const missing = /ModuleNotFoundError: No module named '([^']+)'/.exec(runErr?.message || '');
-        if (!missing) throw runErr;
-        const moduleName = missing[1];
-        setPyOutput(prev => prev + `\n[안내] '${moduleName}' 패키지를 추가로 설치하는 중...\n`);
-        await pyodideRef.current.loadPackage('micropip');
-        const micropip = pyodideRef.current.pyimport('micropip');
-        await micropip.install(moduleName);
-        await pyodideRef.current.runPythonAsync(code);
-      }
-      const imagesJson = await pyodideRef.current.runPythonAsync(`
-import sys, json
-if 'matplotlib.pyplot' in sys.modules:
-    import io, base64
-    _plt = sys.modules['matplotlib.pyplot']
-    _imgs = []
-    for _fignum in _plt.get_fignums():
-        _fig = _plt.figure(_fignum)
-        _buf = io.BytesIO()
-        _fig.savefig(_buf, format='png', bbox_inches='tight')
-        _buf.seek(0)
-        _imgs.append(base64.b64encode(_buf.read()).decode('ascii'))
-    _plt.close('all')
-    json.dumps(_imgs)
-else:
-    json.dumps([])
-`);
-      setPyImages(JSON.parse(imagesJson));
-    } catch (e: any) {
-      setPyOutput(prev => prev + '\n[오류] ' + (e?.message || String(e)));
-    } finally {
+    };
+    worker.onerror = (e: ErrorEvent) => {
+      setPyOutput(prev => prev + '\n[오류] ' + (e.message || '알 수 없는 오류가 발생했습니다.'));
       setPyRunning(false);
-    }
+      terminatePyWorker();
+    };
+    worker.postMessage({ type: 'run', code: pyCode, stdin });
+  };
+
+  const stopPython = () => {
+    terminatePyWorker();
+    setPyRunning(false);
+    setPyOutput(prev => prev + '\n[중단됨] 실행을 중지했습니다.');
   };
 
   if (!isOpen) return null;
@@ -262,7 +254,7 @@ else:
   return createPortal(
     <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden"
+        className={`bg-white rounded-2xl shadow-2xl w-full h-[80vh] flex flex-col overflow-hidden ${kind === 'python' ? 'max-w-6xl' : 'max-w-4xl'}`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
@@ -334,44 +326,63 @@ else:
           )}
 
           {kind === 'python' && (
-            <div className="h-full flex flex-col p-4 gap-3">
-              <div className="shrink-0">
-                <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">
-                  입력값 (코드가 input()을 호출하는 순서대로 한 줄에 하나씩 입력, 필요 없으면 비워두세요)
-                </label>
-                <textarea
-                  value={pyStdinInput}
-                  onChange={e => setPyStdinInput(e.target.value)}
-                  placeholder={'예)\n1\n3\n2'}
-                  rows={3}
-                  className="w-full text-xs font-mono px-2.5 py-2 rounded-lg border border-neutral-200 focus:outline-none focus:border-primary resize-none"
-                />
-              </div>
-              <button
-                onClick={runPython}
-                disabled={pyRunning}
-                className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-black hover:bg-primary/90 disabled:opacity-50"
-              >
-                {pyRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                {pyRunning ? '실행 중...' : '코드 실행'}
-              </button>
-              <div className="flex-1 min-h-0 bg-neutral-900 rounded-xl p-3 overflow-auto">
-                <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
-                  {pyOutput || '실행 버튼을 눌러 출력 결과를 확인하세요.'}
+            <div className="h-full flex flex-col lg:flex-row gap-3 p-4 min-h-0">
+              <div className="h-48 shrink-0 lg:h-auto lg:flex-1 lg:w-1/2 min-h-0 flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-on-surface-variant shrink-0">제출된 코드</label>
+                <pre className="flex-1 min-h-0 overflow-auto bg-neutral-900 text-neutral-100 text-xs font-mono rounded-xl p-3 whitespace-pre-wrap">
+                  {pyCode || '코드를 불러오는 중...'}
                 </pre>
               </div>
-              {pyImages.length > 0 && (
-                <div className="shrink-0 max-h-[45%] overflow-auto bg-white rounded-xl border border-neutral-200 p-3 flex flex-col gap-3">
-                  {pyImages.map((img, i) => (
-                    <img
-                      key={i}
-                      src={`data:image/png;base64,${img}`}
-                      alt={`그래프 결과 ${i + 1}`}
-                      className="max-w-full rounded-lg border border-neutral-100 mx-auto"
-                    />
-                  ))}
+              <div className="flex-1 min-h-0 lg:w-1/2 flex flex-col gap-3">
+                <div className="shrink-0">
+                  <label className="text-[11px] font-bold text-on-surface-variant mb-1 block">
+                    입력값 (코드가 input()을 호출하는 순서대로 한 줄에 하나씩 입력, 필요 없으면 비워두세요)
+                  </label>
+                  <textarea
+                    value={pyStdinInput}
+                    onChange={e => setPyStdinInput(e.target.value)}
+                    placeholder={'예)\n1\n3\n2'}
+                    rows={3}
+                    className="w-full text-xs font-mono px-2.5 py-2 rounded-lg border border-neutral-200 focus:outline-none focus:border-primary resize-none"
+                  />
                 </div>
-              )}
+                <div className="shrink-0 flex items-center gap-2">
+                  <button
+                    onClick={runPython}
+                    disabled={pyRunning}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-black hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {pyRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                    {pyRunning ? '실행 중...' : '코드 실행'}
+                  </button>
+                  {pyRunning && (
+                    <button
+                      onClick={stopPython}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-black hover:bg-red-100"
+                    >
+                      <Square size={14} />
+                      중단
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1 min-h-0 bg-neutral-900 rounded-xl p-3 overflow-auto">
+                  <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+                    {pyOutput || '실행 버튼을 눌러 출력 결과를 확인하세요.'}
+                  </pre>
+                </div>
+                {pyImages.length > 0 && (
+                  <div className="shrink-0 max-h-[45%] overflow-auto bg-white rounded-xl border border-neutral-200 p-3 flex flex-col gap-3">
+                    {pyImages.map((img, i) => (
+                      <img
+                        key={i}
+                        src={`data:image/png;base64,${img}`}
+                        alt={`그래프 결과 ${i + 1}`}
+                        className="max-w-full rounded-lg border border-neutral-100 mx-auto"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -448,7 +459,7 @@ else:
             </>
           )}
 
-          {loading && (kind === 'web-html' || kind === 'web-zip' || kind === 'docx' || kind === 'hwpx' || kind === 'sheet') && (
+          {loading && (kind === 'web-html' || kind === 'web-zip' || kind === 'docx' || kind === 'hwpx' || kind === 'sheet' || kind === 'python') && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/80">
               <Loader2 size={24} className="animate-spin text-primary" />
             </div>

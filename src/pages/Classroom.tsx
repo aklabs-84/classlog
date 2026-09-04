@@ -2484,7 +2484,13 @@ const Classroom = () => {
                                   </a>
                                 )}
                                 {!isObs && post.file_url && (
-                                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                                  <div
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setViewerFile({ url: post.file_url, name: post.display_name || '파일' });
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl hover:bg-amber-100 transition-colors cursor-pointer"
+                                  >
                                     <File size={13} className="text-amber-500 shrink-0" />
                                     <span className="text-xs font-black text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
                                     <Download size={11} className="text-amber-400 shrink-0" />

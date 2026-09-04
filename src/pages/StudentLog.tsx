@@ -1457,6 +1457,11 @@ const StudentLog = () => {
     downloadFile(data.publicUrl, result.display_name || 'download');
   };
 
+  const handlePreviewResult = (result: any) => {
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
+    setViewerFile({ url: data.publicUrl, name: result.display_name || '파일' });
+  };
+
   const handleDeleteResult = async (result: any) => {
     // 그룹 카드에서 삭제 시 그룹 전체 삭제
     const groupRows: any[] = result._group && result._group.length > 1
@@ -4130,6 +4135,11 @@ ${guidePrompt}
                                           </p>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          {r.result_type === 'file' && r.storage_path && getViewerKind(r.display_name || '') !== 'unsupported' && (
+                                            <button onClick={() => handlePreviewResult(r)} title="미리보기" className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all">
+                                              <Eye size={12} />
+                                            </button>
+                                          )}
                                           {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
                                             <button onClick={() => handleDownloadResult(r)} title="다운로드" className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all">
                                               <Upload size={12} className="rotate-180" />
@@ -5185,7 +5195,13 @@ ${guidePrompt}
                                     </a>
                                   )}
                                   {post.file_url && (
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant">
+                                    <div
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setViewerFile({ url: post.file_url, name: post.display_name || '파일' });
+                                      }}
+                                      className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant hover:text-primary cursor-pointer"
+                                    >
                                       <File size={11} className="shrink-0" />
                                       <span className="truncate">{post.display_name || '파일'}</span>
                                     </div>
