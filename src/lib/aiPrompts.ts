@@ -1,5 +1,5 @@
 // AIServiceHub 공개 프롬프트 목록/상세 조회
-// 실제 AIServiceHub 호출은 /api/ai-prompts 서버 프록시가 대신 수행한다 (API 키 노출 방지).
+// 실제 AIServiceHub 호출은 /api/ai-service 서버 프록시가 대신 수행한다 (API 키 노출 방지).
 
 export interface AiPrompt {
   id: string;
@@ -23,14 +23,13 @@ export interface GetAiPromptsOptions {
 }
 
 export async function getAiPrompts(options: GetAiPromptsOptions = {}): Promise<AiPrompt[]> {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({ resource: 'prompts' });
   if (options.category) params.set('category', options.category);
   if (options.tag) params.set('tag', options.tag);
   if (options.limit != null) params.set('limit', String(options.limit));
   if (options.offset != null) params.set('offset', String(options.offset));
 
-  const query = params.toString();
-  const res = await fetch(`/api/ai-prompts${query ? `?${query}` : ''}`);
+  const res = await fetch(`/api/ai-service?${params.toString()}`);
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data?.error ?? 'AI 프롬프트 목록을 불러오지 못했습니다.');
@@ -39,7 +38,7 @@ export async function getAiPrompts(options: GetAiPromptsOptions = {}): Promise<A
 }
 
 export async function getAiPromptById(id: string): Promise<AiPrompt | null> {
-  const res = await fetch(`/api/ai-prompts?id=${encodeURIComponent(id)}`);
+  const res = await fetch(`/api/ai-service?resource=prompts&id=${encodeURIComponent(id)}`);
   if (res.status === 404) return null;
   const data = await res.json();
   if (!res.ok) {
