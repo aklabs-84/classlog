@@ -38,7 +38,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search, ExternalLink,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -464,10 +464,12 @@ const LinkToClassModal = ({
 const PreviewFullscreenModal = ({
   title,
   content,
+  url,
   onClose,
 }: {
   title: string;
   content: string;
+  url?: string;
   onClose: () => void;
 }) => {
   useEffect(() => {
@@ -497,6 +499,16 @@ const PreviewFullscreenModal = ({
           <Eye size={15} className="text-white/60" />
           <span className="font-black text-sm text-white/80 truncate max-w-xs">{title || '미리보기'}</span>
         </div>
+        {url && (
+          <a
+            href={url.startsWith('http') ? url : `https://${url}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow"
+          >
+            <ExternalLink size={15} /> 체험해보기
+          </a>
+        )}
       </div>
       {/* 본문 */}
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1074,7 +1086,7 @@ const MaterialEditor = () => {
   const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null } | null>(null);
-  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
+  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; url?: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
   const [importedSourceMaterialId, setImportedSourceMaterialId] = useState<string | null>(null);
@@ -1761,6 +1773,7 @@ const MaterialEditor = () => {
       <PreviewFullscreenModal
         title={fullscreenPreview.title}
         content={fullscreenPreview.content}
+        url={fullscreenPreview.url}
         onClose={() => setFullscreenPreview(null)}
       />
     )}
@@ -2210,7 +2223,7 @@ const MaterialEditor = () => {
               {content.trim() ? (
                 <>
                   <button
-                    onClick={() => setFullscreenPreview({ title, content })}
+                    onClick={() => setFullscreenPreview({ title, content, url: activityUrl })}
                     className="absolute top-3 right-3 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors z-10"
                     title="전체 화면으로 보기"
                   >
@@ -2460,7 +2473,7 @@ const MaterialEditor = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content });
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, url: material.url });
                         }}
                         title="내용 미리보기"
                         className="p-2.5 rounded-xl bg-white/90 text-on-surface hover:bg-white transition-colors"
