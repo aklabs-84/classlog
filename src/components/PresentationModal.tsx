@@ -5,6 +5,7 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { useTimer } from '../lib/timerContext';
 import RichEditor from './RichEditor';
+import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import {
   ArrowLeft, Save, Pencil, X as XIcon,
   ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
@@ -230,6 +231,7 @@ const getSlideComponents = (
 export interface PresentationMaterial {
   title: string;
   content: string;
+  activity_urls?: ActivityLink[];
 }
 
 // 발표 화면을 나가지 않고 다른 주차 자료로 바로 전환하기 위한 내비게이션 정보 —
@@ -535,6 +537,8 @@ const PresentationModal = ({
           <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
           <span className={`text-sm font-bold truncate ${dark ? 'text-white/60' : 'text-slate-500'}`}>{material.title}</span>
         </div>
+
+        {!editMode && <ActivityLinksButton links={material.activity_urls} dark={dark} />}
 
         {/* 주차 이동 — 발표 화면을 나가지 않고 다른 주차 자료로 바로 전환 */}
         {weekNav && !editMode && (
