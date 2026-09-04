@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Boxes } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import GroupPicker from './tools/GroupPicker';
@@ -18,7 +18,6 @@ import LessonPlanTool from './tools/LessonPlanTool';
 import PortfolioManager from './tools/PortfolioManager';
 import SubmissionViewer from './tools/SubmissionViewer';
 import MicrobitPythonLab from './tools/MicrobitPythonLab';
-import AiServiceCatalog from './tools/AiServiceCatalog';
 
 const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -54,8 +53,6 @@ interface Tool {
   quickGuide?: QuickGuide;
   /** 'learning' = 학생 페이지에 공개해 학생이 직접 사용할 수 있는 도구, 'teaching' = 교사 전용 도구 */
   category: 'learning' | 'teaching';
-  /** true면 관리자(plan === 'admin') 계정에만 노출 — 베타 검증 중인 도구용 */
-  adminOnly?: boolean;
 }
 
 export const tools: Tool[] = [
@@ -258,26 +255,6 @@ export const tools: Tool[] = [
         { title: 'hex 다운로드', desc: '".hex 다운로드" 버튼으로 실제 마이크로비트 보드에 옮겨 그대로 실행할 수 있는 파일을 받습니다.' },
       ],
       tip: '블록 코딩(MakeCode)으로 만든 결과물은 이 도구가 아닌 "제출물 뷰어"의 다운로드 기능을 이용해주세요.',
-    },
-  },
-  {
-    id: 'ai-service-catalog',
-    icon: <Boxes size={28} />,
-    label: 'AI 체험 활동 (베타)',
-    description: 'AIServiceHub에 올라온 교육용 AI 체험 앱을 학생들과 바로 사용해볼 수 있습니다',
-    newSince: '2026-09-04',
-    available: true,
-    category: 'learning',
-    adminOnly: true,
-    planRequired: 'free',
-    limits: { freeDesc: '무제한', proDesc: '무제한' },
-    component: <AiServiceCatalog />,
-    quickGuide: {
-      steps: [
-        { title: '카드 목록 확인', desc: 'AIServiceHub에 등록된 교육용 앱 카드가 표시됩니다.' },
-        { title: '체험 활동 열기', desc: '카드를 클릭하면 새 탭에서 해당 앱이 열립니다.' },
-      ],
-      tip: '아직 관리자 계정에만 보이는 베타 기능입니다.',
     },
   },
   {
@@ -840,7 +817,7 @@ const TeachingTools = () => {
             exit={{ opacity: 0, x: 20 }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
           >
-            {tools.filter(tool => tool.category === activeCategory && (!tool.adminOnly || profile?.plan === 'admin')).map((tool, i) => {
+            {tools.filter(tool => tool.category === activeCategory).map((tool, i) => {
               const byokUnlocked = hasByokKey && !!tool.byokEligible;
               const isBasicLocked = !isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro') && !byokUnlocked;
               const isProLocked = isBasicOrAbove && !isPro && tool.planRequired === 'pro' && !byokUnlocked;
