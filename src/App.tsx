@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, isAnonymousUser } from './lib/auth';
 import { supabase } from './lib/supabase';
@@ -19,44 +19,48 @@ if (
   window.history.replaceState({}, '', '/set-password' + window.location.hash);
 }
 import MainLayout from './components/layout/MainLayout';
-import Dashboard from './pages/Dashboard';
-import IdeaRecord from './pages/IdeaRecord';
-import Login from './pages/Login';
-import Landing from './pages/Landing';
-import Admin from './pages/Admin';
-import Classroom from './pages/Classroom';
-import AIAssistant from './pages/AIAssistant';
-import AiCopilot from './pages/AiCopilot';
-import ActivityLog from './pages/ActivityLog';
-import Settings from './pages/Settings';
-import Export from './pages/Export';
-import ClassroomEntry from './pages/ClassroomEntry';
-import StudentLog from './pages/StudentLog';
-import Archive from './pages/Archive';
-import StudentView from './pages/StudentView';
-import TeachingTools from './pages/TeachingTools';
-import Whiteboard from './pages/tools/Whiteboard';
-import StudentBoardViewer from './pages/tools/StudentBoardViewer';
-import StudentJoin from './pages/tools/StudentJoin';
-import SuggestionsPage from './pages/SuggestionsPage';
-import QuizStudentView from './pages/QuizStudentView';
-import ClassBoard from './pages/ClassBoard';
-import ShareClassView from './pages/ShareClassView';
-import SchoolShareView from './pages/SchoolShareView';
-import SchoolProjectShareView from './pages/SchoolProjectShareView';
-import ParentReportShareView from './pages/ParentReportShareView';
-import SetPassword from './pages/SetPassword';
-import SurveyStudent from './pages/tools/SurveyStudent';
-import Privacy from './pages/Privacy';
-import Terms from './pages/Terms';
-import Waitlist from './pages/Waitlist';
-import TrainingRequest from './pages/TrainingRequest';
-import Gallery from './pages/Gallery';
-import VideoGuide from './pages/VideoGuide';
-import Pricing from './pages/Pricing';
-import SchoolIntroPage from './pages/SchoolIntroPage';
-import PortfolioPublic from './pages/PortfolioPublic';
-import Demo from './pages/Demo';
+
+// 라우트 단위 코드 스플리팅: 페이지들을 지연 로딩해서 초기 진입 시
+// 방문하지 않는 페이지(수업 도구, 자료 편집기 등)의 무거운 의존성이
+// 메인 번들에 딸려 들어가지 않도록 한다.
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const IdeaRecord = lazy(() => import('./pages/IdeaRecord'));
+const Login = lazy(() => import('./pages/Login'));
+const Landing = lazy(() => import('./pages/Landing'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Classroom = lazy(() => import('./pages/Classroom'));
+const AIAssistant = lazy(() => import('./pages/AIAssistant'));
+const AiCopilot = lazy(() => import('./pages/AiCopilot'));
+const ActivityLog = lazy(() => import('./pages/ActivityLog'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Export = lazy(() => import('./pages/Export'));
+const ClassroomEntry = lazy(() => import('./pages/ClassroomEntry'));
+const StudentLog = lazy(() => import('./pages/StudentLog'));
+const Archive = lazy(() => import('./pages/Archive'));
+const StudentView = lazy(() => import('./pages/StudentView'));
+const TeachingTools = lazy(() => import('./pages/TeachingTools'));
+const Whiteboard = lazy(() => import('./pages/tools/Whiteboard'));
+const StudentBoardViewer = lazy(() => import('./pages/tools/StudentBoardViewer'));
+const StudentJoin = lazy(() => import('./pages/tools/StudentJoin'));
+const SuggestionsPage = lazy(() => import('./pages/SuggestionsPage'));
+const QuizStudentView = lazy(() => import('./pages/QuizStudentView'));
+const ClassBoard = lazy(() => import('./pages/ClassBoard'));
+const ShareClassView = lazy(() => import('./pages/ShareClassView'));
+const SchoolShareView = lazy(() => import('./pages/SchoolShareView'));
+const SchoolProjectShareView = lazy(() => import('./pages/SchoolProjectShareView'));
+const ParentReportShareView = lazy(() => import('./pages/ParentReportShareView'));
+const SetPassword = lazy(() => import('./pages/SetPassword'));
+const SurveyStudent = lazy(() => import('./pages/tools/SurveyStudent'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Waitlist = lazy(() => import('./pages/Waitlist'));
+const TrainingRequest = lazy(() => import('./pages/TrainingRequest'));
+const Gallery = lazy(() => import('./pages/Gallery'));
+const VideoGuide = lazy(() => import('./pages/VideoGuide'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const SchoolIntroPage = lazy(() => import('./pages/SchoolIntroPage'));
+const PortfolioPublic = lazy(() => import('./pages/PortfolioPublic'));
+const Demo = lazy(() => import('./pages/Demo'));
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
@@ -167,6 +171,12 @@ const RootRedirect = () => {
 
 const Help = () => <div className="p-10 font-manrope text-2xl font-bold">Help Center (Coming Soon)</div>;
 
+const PageLoading = () => (
+  <div className="min-h-screen flex items-center justify-center bg-surface">
+    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 const IdleWarningModal = () => {
   const { showIdleWarning, idleSecondsLeft, dismissIdleWarning, signOut } = useAuth();
   if (!showIdleWarning) return null;
@@ -228,6 +238,7 @@ function App() {
           <DemoTourOverlay />
           <DemoSpotlightTour />
           <div className="relative z-10">
+            <Suspense fallback={<PageLoading />}>
             <Routes>
               {/* 공개 라우트 */}
               <Route path="/" element={<RootRedirect />} />
@@ -302,6 +313,7 @@ function App() {
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            </Suspense>
           </div>
         </BrowserRouter>
       </div>
