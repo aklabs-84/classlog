@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, Loader2 } from 'lucide-react';
+import { ExternalLink, ImageOff, Loader2 } from 'lucide-react';
 import { getAiApps, type AiApp } from '../../lib/aiApps';
 
 export default function AiServiceCatalog() {
@@ -44,23 +44,20 @@ export default function AiServiceCatalog() {
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {apps.map((app) => {
         const url = app.appUrls[0]?.url;
-        return (
-          <a
-            key={app.id}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`glass rounded-2xl border border-white/40 overflow-hidden group transition-transform ${url ? 'hover:-translate-y-0.5' : 'pointer-events-none opacity-60'}`}
-          >
-            {app.thumbnailUrl && (
-              <div className="aspect-video w-full overflow-hidden bg-surface-container">
+        const cardClass = `glass rounded-2xl border border-white/40 overflow-hidden group transition-transform block ${url ? 'hover:-translate-y-0.5' : ''}`;
+        const cardContent = (
+          <>
+            <div className="aspect-video w-full overflow-hidden bg-surface-container flex items-center justify-center">
+              {app.thumbnailUrl ? (
                 <img
                   src={app.thumbnailUrl}
                   alt=""
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 />
-              </div>
-            )}
+              ) : (
+                <ImageOff size={24} className="text-on-surface-variant/40" />
+              )}
+            </div>
             <div className="p-4 space-y-1.5">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-black text-sm text-on-surface leading-snug">{app.name}</h3>
@@ -69,8 +66,23 @@ export default function AiServiceCatalog() {
               <p className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
                 {app.description}
               </p>
+              {!url && (
+                <span className="inline-block text-[10px] font-black px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
+                  링크 준비 중
+                </span>
+              )}
             </div>
+          </>
+        );
+
+        return url ? (
+          <a key={app.id} href={url} target="_blank" rel="noopener noreferrer" className={cardClass}>
+            {cardContent}
           </a>
+        ) : (
+          <div key={app.id} className={cardClass}>
+            {cardContent}
+          </div>
         );
       })}
     </div>
