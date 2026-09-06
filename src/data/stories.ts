@@ -19,6 +19,7 @@ export const stories: Story[] = [
     summary: '막막했던 수업 준비가 어떻게 3분 만에 수업 계획서와 교안으로 완성되는지, 강사가 직접 겪은 과정과 실전 꿀팁을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224396695188',
     tags: ['강사일기', '수업준비'],
+    thumbnail: '/thumbnail/01_hero_teacher_arc.jpg',
   },
   {
     id: '224397279229',
@@ -27,6 +28,7 @@ export const stories: Story[] = [
     summary: '메모하듯 남긴 아이디어 한 줄이 수업 지도안과 슬라이드까지 자동으로 이어지는 "아이디어 기록" 기능을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224397279229',
     tags: ['아이디어기록', '수업준비'],
+    thumbnail: '/thumbnail/02_idea_spark_memo.jpg',
   },
   {
     id: '224397466414',
@@ -35,6 +37,7 @@ export const stories: Story[] = [
     summary: '10명의 3D 캐릭터 AI 비서와 대화하듯 요청하면 지도안, 슬라이드, 학습지, 퀴즈, 세특까지 완성되는 "AI 코파일럿"을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224397466414',
     tags: ['AI코파일럿', '수업지도안'],
+    thumbnail: '/thumbnail/03_ten_agents_lineup.jpg',
   },
   {
     id: '224397646144',
@@ -43,6 +46,7 @@ export const stories: Story[] = [
     summary: '매 학기 반복되던 명단 등록과 조 편성을 "학급관리 & 클래스룸" 기능에 맡기고, 행정 업무 대신 아이들과의 시간을 늘리는 방법을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224397646144',
     tags: ['학급관리', '클래스룸'],
+    thumbnail: '/thumbnail/04_class_create_excel.jpg',
   },
   {
     id: '224399870236',
@@ -51,6 +55,7 @@ export const stories: Story[] = [
     summary: '수업 전사(AI 음성인식), 화이트보드, 수업 타이머, 조 뽑기까지 — "수업도구" 하나만 띄워두면 되는 올인원 교실 활용법을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224399870236',
     tags: ['수업도구', '수업전사'],
+    thumbnail: '/thumbnail/05_ai_voice_transcription.jpg',
   },
   {
     id: '224401002864',
@@ -59,6 +64,7 @@ export const stories: Story[] = [
     summary: '[수업도구 2탄]으로, 실습 수업을 위한 도구들과 강사 개인 브랜딩에 쓸 수 있는 포트폴리오 기능을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224401002864',
     tags: ['실습', '강사브랜딩'],
+    thumbnail: '/thumbnail/06_submission_viewer.jpg',
   },
   {
     id: '224401241322',
@@ -67,6 +73,7 @@ export const stories: Story[] = [
     summary: '마크다운으로 작성한 수업 자료가 PPT 슬라이드와 수업 계획서로 원클릭 변환되는 과정을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224401241322',
     tags: ['수업자료', '슬라이드제작'],
+    thumbnail: '/thumbnail/07_main_thumbnail.jpg',
   },
   {
     id: '224401298254',
@@ -75,6 +82,7 @@ export const stories: Story[] = [
     summary: '수업 중 누적된 다면 관찰 데이터를 클래스룸에서 터치 한 번으로 연동해, AI가 교과세특 초안을 완성하고 나이스 엑셀로 바로 내보내는 방법을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224401298254',
     tags: ['생기부세특', '나이스연계'],
+    thumbnail: '/thumbnail/08_main_thumbnail.jpg',
   },
   {
     id: '224401312250',
@@ -83,5 +91,6 @@ export const stories: Story[] = [
     summary: '선생님은 클래스룸에서 학생의 활동 기록을 실시간으로 확인하고, 학생과 학부모는 회원가입 없이 링크 하나로 참여·확인할 수 있는 공유 기능을 소개합니다.',
     url: 'https://blog.naver.com/ak_labs/224401312250',
     tags: ['학생포털', '학부모상담'],
+    thumbnail: '/thumbnail/09_main_thumbnail.jpg',
   },
 ];
