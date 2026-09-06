@@ -22,7 +22,7 @@ import {
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
   MonitorPlay, Palette, Lightbulb, Scissors, Lock, Unlock, ClipboardPaste,
-  HelpCircle, Slash, Sparkles, GripVertical,
+  HelpCircle, Slash, Sparkles, GripVertical, AlertTriangle,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -458,6 +458,22 @@ const ResizableImage = ImageExtension.extend({
   },
 });
 
+// 토글 안에 "구분선(hr)"과 "제목(heading)"이 함께 들어있는지 검사한다. 슬라이드 모드에서는
+// 이 둘이 각각 화면을 나누는 경계선 역할을 하는데(marpConvert.ts의 explodeDetailsForSlides
+// 참고), 문서를 보기 좋게 나누려고 별생각 없이 둘 다 넣으면 그 사이에 내용 없는 빈 슬라이드가
+// 끼어드는 경우가 많다 — 토글은 접힌 채로 편집하는 경우가 많아 눈에 잘 안 띄므로, 편집 중에
+// 미리 알려준다.
+function detailsHasHeadingAndHr(node: NodeViewProps['node']): boolean {
+  let hasHeading = false;
+  let hasHr = false;
+  node.descendants(child => {
+    if (child.type.name === 'heading') hasHeading = true;
+    if (child.type.name === 'horizontalRule') hasHr = true;
+    return !(hasHeading && hasHr);
+  });
+  return hasHeading && hasHr;
+}
+
 // ── Details (Toggle) NodeView ─────────────────────────────────────────────────
 const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const [summary, setSummary] = useState<string>(node.attrs.summary || '토글 제목');
@@ -467,10 +483,12 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
     setSummary(node.attrs.summary || '토글 제목');
   }, [node.attrs.summary]);
 
+  const showSlideWarning = detailsHasHeadingAndHr(node);
+
   return (
     <NodeViewWrapper>
       <div className={`my-2 rounded-xl border-2 overflow-hidden transition-colors ${selected ? 'border-primary' : 'border-surface-container'}`}>
-        <div className={`flex items-center gap-2 px-4 py-2.5 bg-surface-container-low transition-colors ${open ? 'border-b border-surface-container' : ''}`}>
+        <div className={`flex items-center gap-2 px-4 py-2.5 bg-surface-container-low transition-colors ${open || showSlideWarning ? 'border-b border-surface-container' : ''}`}>
           <button
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
             onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
@@ -505,6 +523,17 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
             <X size={13} />
           </button>
         </div>
+        {showSlideWarning && (
+          <div className="flex items-start gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200/70 text-[11px] text-amber-800 font-bold leading-relaxed">
+            <AlertTriangle size={13} className="shrink-0 mt-0.5 text-amber-500" />
+            <span>
+              토글 안에 <span className="underline decoration-amber-400">구분선(—)</span>과{' '}
+              <span className="underline decoration-amber-400">제목</span>이 함께 있어요. 슬라이드 모드에서는 둘 다
+              화면을 나누는 경계선이라, 이 조합이 있으면 그 사이에 빈 슬라이드가 생길 수 있어요. 구분선을
+              지우거나 제목을 일반 문단으로 바꿔보세요.
+            </span>
+          </div>
+        )}
         <div className={open ? '' : 'hidden'}>
           <NodeViewContent className="px-4 py-3 min-h-[2.5rem] text-sm" />
         </div>
@@ -1143,7 +1172,7 @@ const EDITOR_GUIDE_SECTIONS: GuideSection[] = [
       { icon: <List size={14} />, label: '글머리 목록', desc: '점(•)으로 항목을 나열해요.', syntax: '- 항목' },
       { icon: <ListOrdered size={14} />, label: '번호 목록', desc: '1, 2, 3 순서로 항목을 나열해요.', syntax: '1. 항목' },
       { icon: <Quote size={14} />, label: '인용구', desc: '문단을 들여쓴 인용 블록으로 표시해요.', syntax: '> 인용문' },
-      { icon: <Minus size={14} />, label: '구분선', desc: '수업 슬라이드 구분 등 내용을 나눌 때 써요.', syntax: '---' },
+      { icon: <Minus size={14} />, label: '구분선', desc: '슬라이드 모드에서는 화면을 나누는 경계선이 돼요. 토글 안에 제목과 함께 넣으면 그 사이에 빈 슬라이드가 생길 수 있으니 주의하세요.', syntax: '---' },
     ],
   },
   {
@@ -1164,7 +1193,7 @@ const EDITOR_GUIDE_SECTIONS: GuideSection[] = [
   {
     title: '자료를 돋보이게',
     items: [
-      { icon: <ChevronRight size={14} />, label: '토글', desc: '클릭하면 펼쳐지는 접이식 블록이에요. 길게 덧붙일 참고 내용을 숨겨둘 때 좋아요.' },
+      { icon: <ChevronRight size={14} />, label: '토글', desc: '클릭하면 펼쳐지는 접이식 블록이에요. 길게 덧붙일 참고 내용을 숨겨둘 때 좋아요. 토글 안에 구분선(—)과 제목을 함께 넣으면 슬라이드 모드에서 빈 화면이 생길 수 있으니, 그럴 땐 편집창에 뜨는 노란 경고를 확인하세요.' },
       { icon: <Lightbulb size={14} />, label: '콜아웃', desc: '정보·주의·팁·중요 강조 박스예요. 왼쪽 아이콘을 클릭하면 종류가 바뀌어요.' },
       { icon: <Table2 size={14} />, label: '표', desc: '버튼을 누른 뒤 원하는 행×열 크기만큼 드래그해서 표를 만들어요.' },
       { icon: <MonitorPlay size={14} />, label: '임베드', desc: 'YouTube 영상이나 구글 슬라이드·문서·시트·설문 링크를 붙여넣으면 화면 안에 바로 재생·표시돼요.' },
