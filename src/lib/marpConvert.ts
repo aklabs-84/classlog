@@ -162,13 +162,20 @@ function explodeDetailsForSlides(content: string, counter: { n: number } = { n: 
     const summaryText = summaryHtml
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
-    result += `\n\n---\n\n# ${summaryText}\n\n`
+    let after = closeIdx + '</details>'.length;
+    while (content[after] === '\n') after++;
+    // 토글 뒤에 실제 내용이 더 없으면(문서의 마지막 요소인 경우) 구분선("---")을 추가하지
+    // 않는다 — 무조건 붙이면 Marp가 그 뒤를 빈 슬라이드 한 장으로 렌더링해버린다.
+    const hasContentBefore = result.trim().length > 0;
+    const hasContentAfter = after < content.length && content.slice(after).trim().length > 0;
+
+    result += `${hasContentBefore ? '\n\n---\n\n' : ''}# ${summaryText}\n\n`
       + `<div class="marp-toggle-boundary" data-toggle-start="${id}" style="display:none"></div>\n\n`
       + `${explodedBody}\n\n`
-      + `<div class="marp-toggle-boundary" data-toggle-end="${id}" style="display:none"></div>\n\n---\n\n`;
+      + `<div class="marp-toggle-boundary" data-toggle-end="${id}" style="display:none"></div>\n\n`
+      + (hasContentAfter ? '---\n\n' : '');
 
-    i = closeIdx + '</details>'.length;
-    while (content[i] === '\n') i++;
+    i = after;
   }
   return result;
 }
