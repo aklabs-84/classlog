@@ -321,6 +321,18 @@ ${sel(' pre code')} {
   -webkit-box-decoration-break: initial;
 }
 ${selDark(' pre code')} { background: none; color: inherit; }
+${sel(' pre')} {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+${sel(' pre code')} {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 ${sel('::-webkit-scrollbar')} { width: 10px; }
 ${sel('::-webkit-scrollbar-thumb')} { background: rgba(139,92,246,0.35); border-radius: 999px; }
 ${sel(' img')} {
