@@ -33,6 +33,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth, isAnonymousUser } from '../lib/auth';
 import { parseVideoUrl } from '../lib/gallery';
+import { stories } from '../data/stories';
 import {
   ChillingDoodle,
 } from 'react-open-doodles';
@@ -1267,6 +1268,45 @@ const Landing = () => {
               </div>
             </motion.div>
           )}
+        </div>
+      </section>
+
+      {/* ── 활용 이야기 (블로그 시리즈) ── */}
+      <section className="py-20 bg-writer-lavender/30">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-10">
+            <Eyebrow><BookOpen size={12} /> 개발자가 직접 쓰는 이야기</Eyebrow>
+            <h2 className="text-3xl font-black mb-3">클래스로그 AI, 이렇게 써보세요</h2>
+            <p className="text-writer-slate text-sm leading-relaxed">
+              강사가 직접 만들고, 직접 쓰면서 정리한 활용법을 하나씩 소개합니다.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {stories.slice(0, 4).map((story) => (
+              <a
+                key={story.id}
+                href={story.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group rounded-[16px] border border-writer-mist bg-white p-5 flex flex-col hover:shadow-md transition-shadow"
+              >
+                <span className="w-6 h-6 rounded-full bg-writer-lavender text-writer-iris text-[11px] font-black flex items-center justify-center mb-3">
+                  {story.order}
+                </span>
+                <p className="font-black text-sm leading-snug mb-2 line-clamp-2">{story.title}</p>
+                <p className="text-xs text-writer-slate/70 leading-relaxed line-clamp-3 flex-1">{story.summary}</p>
+                <span className="inline-flex items-center gap-1 mt-3 text-[11px] font-bold text-writer-iris">
+                  읽어보기 <ChevronRight size={12} />
+                </span>
+              </a>
+            ))}
+          </div>
+          <div className="text-center">
+            <Link to="/stories" className={`${btnGhost} px-6 py-3 text-sm`}>
+              <BookOpen size={16} />
+              전체 활용 이야기 보기
+            </Link>
+          </div>
         </div>
       </section>
 

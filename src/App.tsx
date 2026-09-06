@@ -61,6 +61,7 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const SchoolIntroPage = lazy(() => import('./pages/SchoolIntroPage'));
 const PortfolioPublic = lazy(() => import('./pages/PortfolioPublic'));
 const Demo = lazy(() => import('./pages/Demo'));
+const StoryHub = lazy(() => import('./pages/StoryHub'));
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
@@ -169,8 +170,6 @@ const RootRedirect = () => {
   return <Landing />;
 };
 
-const Help = () => <div className="p-10 font-manrope text-2xl font-bold">Help Center (Coming Soon)</div>;
-
 const PageLoading = () => (
   <div className="min-h-screen flex items-center justify-center bg-surface">
     <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -255,6 +254,7 @@ function App() {
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/video-guide" element={<VideoGuide />} />
+              <Route path="/stories" element={<StoryHub />} />
               <Route path="/sb/:boardId" element={<StudentBoardViewer />} />
               <Route path="/wb-join" element={<StudentJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />
@@ -307,7 +307,7 @@ function App() {
                 <Route path="gallery" element={<Gallery />} />
                 <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
-                <Route path="help" element={<Help />} />
+                <Route path="help" element={<StoryHub />} />
                 <Route path="pricing" element={<Pricing />} />
               </Route>
 
