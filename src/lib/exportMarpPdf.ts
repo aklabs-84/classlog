@@ -46,7 +46,7 @@ function applyManualCoverFit(img: HTMLImageElement, boxW: number, boxH: number) 
 }
 
 export async function exportMarpSlidesToPdf(content: string, title: string, coverImageUrl?: string | null): Promise<void> {
-  const { html, css } = renderMarpSlidesForExport(content);
+  const { html, css, toggleRanges } = renderMarpSlidesForExport(content);
 
   const container = document.createElement('div');
   container.style.position = 'fixed';
@@ -60,10 +60,18 @@ export async function exportMarpSlidesToPdf(content: string, title: string, cove
     // 레이아웃/페인트가 반영될 때까지 두 프레임 대기
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-    // PDF는 정적 문서라 "펼쳐보기" 토글 자체가 의미 없다 — 요약줄만 남기지 않고
-    // <details>를 통째로 출력에서 제외한다. 이미지 로드 대기 전에 미리 제거해,
-    // 어차피 안 보일 내부 이미지 로드를 기다리지 않도록 한다(속도 개선의 일부).
-    container.querySelectorAll('details').forEach((details) => details.remove());
+    // PDF는 정적 문서라 슬라이드 모드처럼 "다음 슬라이드로 순서대로 넘겨보는" 토글
+    // 내용을 인쇄에 포함시키지 않는다 — 토글은 renderMarpSlidesForExport 단계에서 이미
+    // 별도 슬라이드 구간(toggleRanges)으로 펼쳐져 있으므로, 그 구간에 해당하는
+    // <section>을 통째로 제거한다. 이미지 로드 대기 전에 미리 제거해, 어차피 안 보일
+    // 내부 이미지 로드를 기다리지 않도록 한다(속도 개선의 일부).
+    if (toggleRanges.length > 0) {
+      const toggleSectionIdx = new Set<number>();
+      toggleRanges.forEach(r => { for (let idx = r.start; idx <= r.end; idx++) toggleSectionIdx.add(idx); });
+      Array.from(container.querySelectorAll('.marpit > section')).forEach((section, idx) => {
+        if (toggleSectionIdx.has(idx)) section.remove();
+      });
+    }
 
     const imgs = Array.from(container.querySelectorAll('img'));
     await Promise.all(

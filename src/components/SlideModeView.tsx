@@ -8,6 +8,7 @@ import ActivityLinksButton from './ActivityLinksButton';
 import {
   ArrowLeft, ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
   Sun, Moon, X as XIcon, ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2,
+  SkipForward,
 } from 'lucide-react';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
@@ -49,7 +50,15 @@ const SlideModeView = ({
     else rootRef.current?.requestFullscreen?.().catch(() => {});
   };
 
-  const { html, css, slideCount } = useMemo(() => renderMarpSlides(material.content), [material.content]);
+  const { html, css, slideCount, toggleRanges } = useMemo(() => renderMarpSlides(material.content), [material.content]);
+
+  // 현재 슬라이드가 토글(details) 내용이 펼쳐진 구간에 속하면, 그중 가장 바깥쪽 구간을
+  // "건너뛰기" 대상으로 삼는다(중첩 토글이면 안쪽 구간이 여러 개 겹칠 수 있어 가장 큰 것을 선택).
+  const activeToggleRange = useMemo(() => {
+    const hit = toggleRanges.filter(r => slideIndex >= r.start && slideIndex <= r.end);
+    if (hit.length === 0) return null;
+    return hit.reduce((a, b) => ((b.end - b.start) > (a.end - a.start) ? b : a));
+  }, [toggleRanges, slideIndex]);
 
   // 자료가 바뀌면(다른 자료를 슬라이드로 보기) 이전 화면 상태를 초기화
   useEffect(() => {
@@ -273,6 +282,15 @@ const SlideModeView = ({
           >
             <ChevronRight size={16} />
           </button>
+          {activeToggleRange && activeToggleRange.end < slideCount - 1 && (
+            <button
+              onClick={() => setSlideIndex(clampIndex(activeToggleRange.end + 1))}
+              title="토글 내용 건너뛰고 다음 내용으로 이동"
+              className="flex items-center gap-1.5 pl-2.5 pr-3 py-2 rounded-xl text-xs font-black bg-primary text-white hover:brightness-110 active:scale-95 transition-all"
+            >
+              <SkipForward size={14} /> 토글 건너뛰기
+            </button>
+          )}
         </div>
 
         {/* 발표 보조 도구 */}
