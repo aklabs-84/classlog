@@ -7,6 +7,8 @@ export interface Story {
   summary: string;
   url: string;
   tags: string[];
+  /** 목록에 보여줄 대표 썸네일 이미지 URL. 없으면 태그 기반 플레이스홀더가 대신 표시됩니다. */
+  thumbnail?: string;
 }
 
 export const stories: Story[] = [
