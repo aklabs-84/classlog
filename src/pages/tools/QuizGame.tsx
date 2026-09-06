@@ -14,6 +14,7 @@ import { useAuth } from '../../lib/auth';
 import { quizGeneratorAI } from '../../lib/gemini';
 import ConfettiEffect from '../../components/quiz/ConfettiEffect';
 import { playVictoryFanfare } from '../../lib/quizSound';
+import { useBackdropClose } from '../../hooks/useBackdropClose';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -1498,6 +1499,7 @@ interface QFMProps {
 
 const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMProps) => {
   const TIMER_OPTIONS = [10, 15, 20, 30];
+  const backdropHandlers = useBackdropClose(onClose);
 
   return createPortal(
     <motion.div
@@ -1505,7 +1507,7 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      {...backdropHandlers}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}

@@ -5,6 +5,7 @@ import {
   Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus, BellOff, X
 } from 'lucide-react';
 import { useTimer } from '../../lib/timerContext';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 const PRESETS = [
   { label: '준비', minutes: 1, seconds: 0, emoji: '✋' },
@@ -228,15 +229,12 @@ const FullscreenTimer = ({
   const dashOffset = circ * (1 - progress);
 
   // body 잠금 + ESC
+  useScrollLock(visible);
   useEffect(() => {
     if (!visible) return;
-    document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, [visible, onClose]);
 
   return (

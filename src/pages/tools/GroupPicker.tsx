@@ -10,6 +10,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { regenerateClassGroups } from '../../lib/groupRegenerate';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 interface Student {
   id: string;
@@ -198,14 +199,7 @@ const GroupPicker = () => {
   }, []);
 
   // 발표 모드일 때 body 스크롤 잠금
-  useEffect(() => {
-    if (presentMode) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [presentMode]);
+  useScrollLock(presentMode);
 
   const fetchClasses = async () => {
     const { data: ownData } = await supabase
