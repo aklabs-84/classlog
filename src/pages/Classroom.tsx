@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
@@ -28,6 +28,7 @@ import {
   Users2,
   Layers,
   Maximize2,
+  GalleryHorizontal,
   StickyNote,
   RefreshCw,
   ExternalLink,
@@ -64,6 +65,7 @@ import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
 import PresentationModal from '../components/PresentationModal';
+const SlideModeView = lazy(() => import('../components/SlideModeView'));
 import type { ActivityLink } from '../components/ActivityLinksButton';
 
 // Modular Components
@@ -299,6 +301,7 @@ const Classroom = () => {
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[] } | null>(null);
+  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
   // 연결된 주차만 모아 정렬. content는 fetchResources에서 이미 함께 불러와두므로 추가 API 호출 없이 즉시 전환 가능.
   const weekNavList = useMemo(() => {
@@ -369,7 +372,7 @@ const Classroom = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // 전체화면 뷰어 — body/html 스크롤 잠금
-  useScrollLock(!!fullscreenMaterial);
+  useScrollLock(!!fullscreenMaterial || !!slideModeMaterial);
 
   // 토스트 알림 헬퍼
   const showToast = (msg: string) => {
@@ -2058,6 +2061,14 @@ const Classroom = () => {
         }
         resources={presentationResources}
       />
+    )}
+    {slideModeMaterial && (
+      <Suspense fallback={null}>
+        <SlideModeView
+          material={slideModeMaterial}
+          onClose={() => setSlideModeMaterial(null)}
+        />
+      </Suspense>
     )}
     {isDemoTeacher(user) && activeClassId && (
       <DemoModeBanner
@@ -4729,59 +4740,75 @@ const Classroom = () => {
                             : null;
 
                           return (
-                            <button
+                            <div
                               key={`plan-${item.week}`}
-                              onClick={() => {
-                                if (isMaterial) {
-                                  if (matInfo) {
-                                    setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls });
-                                  } else {
-                                    showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
-                                  }
-                                } else {
-                                  window.open(item.url, '_blank');
-                                }
-                              }}
-                              className={`w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container-high group transition-all text-left ${
-                                isMaterial && !matInfo ? 'opacity-50' : isMaterial ? 'hover:bg-secondary/5' : 'hover:bg-primary/5'
+                              className={`w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container-high group transition-all ${
+                                isMaterial && !matInfo ? 'opacity-50' : ''
                               }`}
                             >
-                              {/* 아이콘 */}
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                                isMaterial ? 'bg-secondary/10' : 'bg-primary/10'
-                              }`}>
-                                {isMaterial
-                                  ? <BookOpen size={16} className="text-secondary" />
-                                  : <Link2 size={16} className="text-primary" />
-                                }
-                              </div>
-
-                              {/* 텍스트 */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-black truncate">
-                                  {isMaterial
-                                    ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료가 삭제됨')
-                                    : (item.topic || item.url)
+                              <button
+                                onClick={() => {
+                                  if (isMaterial) {
+                                    if (matInfo) {
+                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls });
+                                    } else {
+                                      showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
+                                    }
+                                  } else {
+                                    window.open(item.url, '_blank');
                                   }
-                                </p>
-                                <p className="text-[10px] text-on-surface-variant/50 truncate">
-                                  {item.week}주차
-                                  {item.topic && !isMaterial && ` · ${item.topic}`}
-                                  {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
-                                </p>
-                              </div>
+                                }}
+                                className={`flex items-center gap-3 flex-1 min-w-0 text-left transition-all ${
+                                  isMaterial ? 'hover:text-secondary' : 'hover:text-primary'
+                                }`}
+                              >
+                                {/* 아이콘 */}
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                  isMaterial ? 'bg-secondary/10' : 'bg-primary/10'
+                                }`}>
+                                  {isMaterial
+                                    ? <BookOpen size={16} className="text-secondary" />
+                                    : <Link2 size={16} className="text-primary" />
+                                  }
+                                </div>
 
-                              {/* 뱃지 + 아이콘 */}
-                              <div className="flex items-center gap-2 shrink-0">
+                                {/* 텍스트 */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-black truncate">
+                                    {isMaterial
+                                      ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료가 삭제됨')
+                                      : (item.topic || item.url)
+                                    }
+                                  </p>
+                                  <p className="text-[10px] text-on-surface-variant/50 truncate">
+                                    {item.week}주차
+                                    {item.topic && !isMaterial && ` · ${item.topic}`}
+                                    {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
+                                  </p>
+                                </div>
+
+                                {/* 뱃지 */}
                                 {isMaterial && matInfo?.is_published && (
-                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md">공개</span>
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md shrink-0">공개</span>
                                 )}
-                                {isMaterial
-                                  ? <Maximize2 size={14} className="text-on-surface-variant/30 group-hover:text-secondary transition-colors" />
-                                  : <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors" />
-                                }
-                              </div>
-                            </button>
+                              </button>
+
+                              {/* 슬라이드 모드로 보기 (자료 에디터 자료만) */}
+                              {isMaterial && matInfo && (
+                                <button
+                                  onClick={() => setSlideModeMaterial({ title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls })}
+                                  title="슬라이드 모드로 보기"
+                                  className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-sky-50 hover:text-sky-600 transition-colors shrink-0"
+                                >
+                                  <GalleryHorizontal size={16} />
+                                </button>
+                              )}
+
+                              {isMaterial
+                                ? <Maximize2 size={14} className="text-on-surface-variant/30 group-hover:text-secondary transition-colors shrink-0" />
+                                : <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors shrink-0" />
+                              }
+                            </div>
                           );
                         })}
                       </div>
@@ -4841,6 +4868,13 @@ const Classroom = () => {
                                   <p className="text-[10px] text-on-surface-variant/50 truncate">{mat.week_number}주차</p>
                                 )}
                               </div>
+                            </button>
+                            <button
+                              onClick={() => setSlideModeMaterial({ title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls })}
+                              title="슬라이드 모드로 보기"
+                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-sky-50 hover:text-sky-600 transition-colors shrink-0"
+                            >
+                              <GalleryHorizontal size={16} />
                             </button>
                             {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
                               <>
