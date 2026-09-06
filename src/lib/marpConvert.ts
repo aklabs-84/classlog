@@ -103,8 +103,118 @@ function joinAdjacentImageHardBreaks(content: string): string {
   return out.join('\n');
 }
 
+// 토글(<details>)은 문서뷰에서는 접었다 펼치는 UI지만, 슬라이드는 클릭으로 펼칠 수 없는
+// 정적인 한 장 한 장이라 "접힌 상태"라는 개념이 없다 — 그대로 두면 Marp가 토글 내부의
+// "---"/제목 단위로 슬라이드를 쪼개면서 <details> 여는 태그와 닫는 태그가 서로 다른
+// 슬라이드로 찢어져, 펼치지 않았는데도 내용이 보이거나 끝에 빈 슬라이드가 남는 등
+// 의도치 않은 모양이 된다.
+// 그래서 슬라이드 렌더링 직전에 각 토글을 명시적인 슬라이드 시퀀스로 미리 풀어준다:
+// "---"(구분선) → "# 토글 제목"(안내 슬라이드) → 토글 내부 내용(내부의 "---"/제목으로 계속
+// 이어서 슬라이드가 나뉨) → "---"(구분선) 순서로 펼쳐, 순서대로 다음 슬라이드 이동으로 볼 수
+// 있게 하고, 그 대신 시작/끝 지점에 숨겨진 표시(data-toggle-start/end)를 심어 어떤 슬라이드
+// 구간이 토글 출신인지 나중에(computeToggleRanges) 구분할 수 있게 한다 — "건너뛰기" 버튼과
+// PDF 내보내기에서 토글 구간을 식별하는 데 쓰인다.
+function explodeDetailsForSlides(content: string, counter: { n: number } = { n: 0 }): string {
+  let result = '';
+  let i = 0;
+  while (true) {
+    const openIdx = content.indexOf('<details>', i);
+    if (openIdx === -1) { result += content.slice(i); break; }
+    result += content.slice(i, openIdx);
+
+    const headMatch = /^<details>\n<summary>([\s\S]*?)<\/summary>\n\n/.exec(content.slice(openIdx));
+    if (!headMatch) {
+      // 형식이 예상과 다르면(수동 편집 등) 안전하게 그대로 통과시키고 다음 위치로 진행
+      result += '<details>';
+      i = openIdx + '<details>'.length;
+      continue;
+    }
+    const summaryHtml = headMatch[1];
+    const bodyStart = openIdx + headMatch[0].length;
+
+    // depth 카운팅으로 이 토글과 정확히 짝이 맞는 </details>를 찾는다(중첩 토글 대비)
+    let depth = 1;
+    let cursor = bodyStart;
+    let closeIdx = -1;
+    while (cursor < content.length) {
+      const nextOpen = content.indexOf('<details>', cursor);
+      const nextClose = content.indexOf('</details>', cursor);
+      if (nextClose === -1) break;
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        cursor = nextOpen + '<details>'.length;
+      } else {
+        depth--;
+        cursor = nextClose + '</details>'.length;
+        if (depth === 0) { closeIdx = nextClose; break; }
+      }
+    }
+    if (closeIdx === -1) {
+      // 닫는 태그를 못 찾으면(형식 오류) 나머지를 그대로 두고 종료
+      result += content.slice(openIdx);
+      i = content.length;
+      break;
+    }
+
+    const rawBody = content.slice(bodyStart, closeIdx).replace(/\n+$/, '');
+    const explodedBody = explodeDetailsForSlides(rawBody, counter);
+    const id = counter.n++;
+    const summaryText = summaryHtml
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+    result += `\n\n---\n\n# ${summaryText}\n\n`
+      + `<div class="marp-toggle-boundary" data-toggle-start="${id}" style="display:none"></div>\n\n`
+      + `${explodedBody}\n\n`
+      + `<div class="marp-toggle-boundary" data-toggle-end="${id}" style="display:none"></div>\n\n---\n\n`;
+
+    i = closeIdx + '</details>'.length;
+    while (content[i] === '\n') i++;
+  }
+  return result;
+}
+
+export interface ToggleSlideRange {
+  start: number;
+  end: number;
+}
+
+// 렌더링된 html 문자열 안에서 data-toggle-start/end 표시를 찾아, 각 표시가 속한
+// <section id="N">의 번호로 토글이 차지하는 슬라이드 구간(0-based)을 계산한다.
+function computeToggleRanges(html: string): ToggleSlideRange[] {
+  if (typeof document === 'undefined' || !html.includes('data-toggle-')) return [];
+  const container = document.createElement('div');
+  container.innerHTML = html;
+
+  const sectionIdOf = (el: Element): number | null => {
+    const section = el.closest('section[id]');
+    const idAttr = section?.getAttribute('id');
+    const n = idAttr ? parseInt(idAttr, 10) : NaN;
+    return Number.isNaN(n) ? null : n;
+  };
+
+  const starts = new Map<string, number>();
+  const ends = new Map<string, number>();
+  container.querySelectorAll('[data-toggle-start]').forEach(el => {
+    const id = el.getAttribute('data-toggle-start')!;
+    const sec = sectionIdOf(el);
+    if (sec != null) starts.set(id, sec);
+  });
+  container.querySelectorAll('[data-toggle-end]').forEach(el => {
+    const id = el.getAttribute('data-toggle-end')!;
+    const sec = sectionIdOf(el);
+    if (sec != null) ends.set(id, sec);
+  });
+
+  const ranges: ToggleSlideRange[] = [];
+  starts.forEach((startSec, id) => {
+    const endSec = ends.get(id);
+    if (endSec != null) ranges.push({ start: startSec - 1, end: endSec - 1 });
+  });
+  return ranges;
+}
+
 const normalize = (content: string) =>
-  widthImagesForMarp(joinAdjacentImageHardBreaks(fixBoldFlanking(stripHrBeforeH1(normalizeHeadingSpace(normalizeStandaloneHr(content || ''))))));
+  widthImagesForMarp(joinAdjacentImageHardBreaks(fixBoldFlanking(stripHrBeforeH1(normalizeHeadingSpace(normalizeStandaloneHr(explodeDetailsForSlides(content || '')))))));
 
 // 사이트 브랜드 팔레트(보라 #8b5cf6 / 시안 #06b6d4 / 핑크 #f472b6)를 반영한
 // Marp 커스텀 테마. Marp 기본 테마 CSS 뒤에 이어붙여 덮어쓴다.
@@ -223,6 +333,7 @@ export interface MarpRenderResult {
   html: string;
   css: string;
   slideCount: number;
+  toggleRanges: ToggleSlideRange[];
 }
 
 export function renderMarpSlides(content: string): MarpRenderResult {
@@ -230,10 +341,10 @@ export function renderMarpSlides(content: string): MarpRenderResult {
   // data-marpit-svg 속성은 슬라이드마다 하나씩 나오는 것 외에 공용 <style> 선택자
   // 안에도 한 번 더 등장하므로, 문자열 등장 횟수 대신 실제 <section id="..."> 개수를 센다.
   const slideCount = (html.match(/<section id="\d+"/g) || []).length;
-  return { html, css: css + MARP_BRAND_THEME_CSS, slideCount: Math.max(slideCount, 1) };
+  return { html, css: css + MARP_BRAND_THEME_CSS, slideCount: Math.max(slideCount, 1), toggleRanges: computeToggleRanges(html) };
 }
 
-export function renderMarpSlidesForExport(content: string): { html: string; css: string } {
+export function renderMarpSlidesForExport(content: string): { html: string; css: string; toggleRanges: ToggleSlideRange[] } {
   const { html, css } = getExportMarp().render(normalize(content));
-  return { html, css: css + MARP_BRAND_THEME_CSS };
+  return { html, css: css + MARP_BRAND_THEME_CSS, toggleRanges: computeToggleRanges(html) };
 }

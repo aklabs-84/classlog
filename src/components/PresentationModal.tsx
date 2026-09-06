@@ -11,6 +11,7 @@ import {
   ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
   Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText, BellOff,
 } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 
@@ -321,15 +322,7 @@ const PresentationModal = ({
 
   // 전체화면 오버레이가 떠 있는 동안 배경 페이지 스크롤을 잠근다 — 안 그러면 배경 페이지의
   // 스크롤바와 본문 영역(stageBoxRef)의 자체 스크롤바가 겹쳐 오른쪽에 2중으로 보인다.
-  useEffect(() => {
-    const prev = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.documentElement.style.overflow = prev;
-      document.body.style.overflow = '';
-    };
-  }, []);
+  useScrollLock(true);
 
   useEffect(() => {
     if (!showResourcePanel) return;

@@ -9,6 +9,7 @@ import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
 import ActivityLinksButton, { type ActivityLink } from '../../components/ActivityLinksButton';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -474,17 +475,12 @@ const PreviewFullscreenModal = ({
   links?: ActivityLink[];
   onClose: () => void;
 }) => {
+  useScrollLock(true);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
-    const prev = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      document.documentElement.style.overflow = prev;
-      document.body.style.overflow = '';
-    };
+    return () => window.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
   return createPortal(

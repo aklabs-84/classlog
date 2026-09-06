@@ -3,6 +3,7 @@ import { X, Plus, ChevronUp, ChevronDown, Sparkles, RotateCcw, Check } from 'luc
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { useBackdropClose } from '../../../hooks/useBackdropClose';
 
 interface ClassItem {
   id: string;
@@ -170,10 +171,11 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
   };
 
   const totalStudents = groupCount * groupSize;
+  const backdropHandlers = useBackdropClose(onClose);
 
   return (
     <div
-      onClick={e => e.target === e.currentTarget && onClose()}
+      {...backdropHandlers}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,

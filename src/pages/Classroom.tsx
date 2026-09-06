@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import RichEditor from '../components/RichEditor';
 import CodeBlock from '../components/CodeBlock';
+import { useScrollLock } from '../hooks/useScrollLock';
 import {
   Trash2,
   X,
@@ -368,17 +369,7 @@ const Classroom = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // 전체화면 뷰어 — body/html 스크롤 잠금
-  useEffect(() => {
-    if (fullscreenMaterial) {
-      const prev = document.documentElement.style.overflow;
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.documentElement.style.overflow = prev;
-        document.body.style.overflow = '';
-      };
-    }
-  }, [fullscreenMaterial]);
+  useScrollLock(!!fullscreenMaterial);
 
   // 토스트 알림 헬퍼
   const showToast = (msg: string) => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Users, Link2, Copy, Check, Unlink } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
+import { useBackdropClose } from '../../../hooks/useBackdropClose';
 
 interface Class {
   id: string;
@@ -121,10 +122,11 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
   };
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
+  const backdropHandlers = useBackdropClose(onClose);
 
   return (
     <div
-      onClick={e => e.target === e.currentTarget && onClose()}
+      {...backdropHandlers}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
