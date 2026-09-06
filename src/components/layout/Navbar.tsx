@@ -3,7 +3,7 @@ import {
   Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
   Bug, Images, Download, Share, MoreVertical, Gift, Lightbulb,
-  ChevronLeft, ChevronRight, Minus, Bot, Zap,
+  ChevronLeft, ChevronRight, Minus, Bot, Zap, BookOpen,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -144,6 +144,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
     { label: 'AI 세특 초안', path: '/ai-assistant', icon: Sparkles },
     { label: '보고서', path: '/export', icon: FileBarChart2 },
     { label: '아카이브', path: '/archive', icon: Archive },
+    { label: '활용 가이드', path: '/stories', icon: BookOpen },
   ];
 
   const renderNotificationsList = () => (
