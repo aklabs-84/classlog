@@ -2425,6 +2425,16 @@ ${guidePrompt}
         </div>
         
         <div className="flex items-center gap-6">
+          {/* 교육 신청하기 버튼 */}
+          <button
+            onClick={() => navigate('/training-request?source=student-log')}
+            title="교육 신청하기"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-primary transition-all"
+          >
+            <GraduationCap size={20} />
+            <span className="hidden sm:inline text-xs font-black">교육 신청하기</span>
+          </button>
+
           {/* Bell 알림 버튼 */}
           <div className="relative">
             <button
