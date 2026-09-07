@@ -1288,16 +1288,32 @@ const Landing = () => {
                 href={story.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group rounded-[16px] border border-writer-mist bg-white p-5 flex flex-col hover:shadow-md transition-shadow"
+                className="group rounded-[16px] border border-writer-mist bg-white overflow-hidden flex flex-col hover:shadow-md transition-shadow"
               >
-                <span className="w-6 h-6 rounded-full bg-writer-lavender text-writer-iris text-[11px] font-black flex items-center justify-center mb-3">
-                  {story.order}
-                </span>
-                <p className="font-black text-sm leading-snug mb-2 line-clamp-2">{story.title}</p>
-                <p className="text-xs text-writer-slate/70 leading-relaxed line-clamp-3 flex-1">{story.summary}</p>
-                <span className="inline-flex items-center gap-1 mt-3 text-[11px] font-bold text-writer-iris">
-                  읽어보기 <ChevronRight size={12} />
-                </span>
+                <div className="relative aspect-video bg-writer-lavender/40 overflow-hidden">
+                  {story.thumbnail ? (
+                    <img
+                      src={story.thumbnail}
+                      alt=""
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <BookOpen size={24} className="text-writer-iris/40" />
+                    </div>
+                  )}
+                  <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-white/90 text-writer-iris text-[11px] font-black flex items-center justify-center shadow-sm">
+                    {story.order}
+                  </span>
+                </div>
+                <div className="p-5 flex flex-col flex-1">
+                  <p className="font-black text-sm leading-snug mb-2 line-clamp-2">{story.title}</p>
+                  <p className="text-xs text-writer-slate/70 leading-relaxed line-clamp-3 flex-1">{story.summary}</p>
+                  <span className="inline-flex items-center gap-1 mt-3 text-[11px] font-bold text-writer-iris">
+                    읽어보기 <ChevronRight size={12} />
+                  </span>
+                </div>
               </a>
             ))}
           </div>

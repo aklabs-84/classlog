@@ -1,8 +1,10 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ExternalLink, GraduationCap, LayoutDashboard, LogIn, Newspaper } from 'lucide-react';
+import { BookOpen, ExternalLink, GraduationCap, LayoutDashboard, LogIn, MessageCircle, Newspaper } from 'lucide-react';
 import { useAuth, isAnonymousUser } from '../lib/auth';
 import { stories, type Story } from '../data/stories';
+
+const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 
 const THUMB_GRADIENTS = [
   'from-amber-300 to-orange-400',
@@ -29,23 +31,41 @@ export default function StoryHub() {
             <span className="text-base font-black tracking-tight text-amber-800">클래스로그 AI</span>
           </button>
 
-          {isLoggedIn ? (
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+          <div className="flex items-center gap-2">
+            <a
+              href={KAKAO_OPEN_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-[#fee500] hover:brightness-95 text-[#3c1e1e] text-sm font-bold rounded-full transition-all shadow-sm"
             >
-              <LayoutDashboard size={14} />
-              대시보드
-            </button>
-          ) : (
+              <MessageCircle size={14} />
+              카카오톡 문의
+            </a>
             <button
-              onClick={() => navigate('/login')}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+              onClick={() => navigate('/training-request?source=stories')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-700 text-sm font-bold rounded-full transition-colors shadow-sm"
             >
-              <LogIn size={14} />
-              선생님 로그인
+              <GraduationCap size={14} />
+              교육 신청하기
             </button>
-          )}
+            {isLoggedIn ? (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+              >
+                <LayoutDashboard size={14} />
+                대시보드
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+              >
+                <LogIn size={14} />
+                선생님 로그인
+              </button>
+            )}
+          </div>
         </div>
       </nav>
 
