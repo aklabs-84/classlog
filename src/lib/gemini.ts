@@ -484,6 +484,30 @@ export async function embedText(text: string): Promise<number[]> {
   return data.embedding as number[];
 }
 
+// 외부 링크의 <title>을 조회 — 서버(api/gemini)의 fetchPageTitle 재사용, 실패 시 URL 자체를 제목으로 반환
+export async function fetchLinkTitle(url: string): Promise<string> {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+
+  if ((import.meta as any).env?.DEV) {
+    // 로컬 dev 서버는 /api 프록시가 없어 서버 함수를 호출할 수 없음 — URL을 그대로 제목으로 사용
+    return trimmed;
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ mode: 'link_meta', url: trimmed }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? '링크 정보 조회 중 오류가 발생했습니다.');
+  return (data.title as string) || trimmed;
+}
+
 // Compatible wrappers matching the @google/generative-ai interface used in the codebase
 function makeModelWrapper(model: 'pro' | 'flash' | 'lite', feature = 'unknown', jsonMode = false) {
   return {

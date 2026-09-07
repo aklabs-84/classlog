@@ -4804,10 +4804,28 @@ const Classroom = () => {
                                 </button>
                               )}
 
-                              {isMaterial
-                                ? <Maximize2 size={14} className="text-on-surface-variant/30 group-hover:text-secondary transition-colors shrink-0" />
-                                : <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors shrink-0" />
-                              }
+                              <button
+                                onClick={() => {
+                                  if (isMaterial) {
+                                    if (matInfo) {
+                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls });
+                                    } else {
+                                      showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
+                                    }
+                                  } else {
+                                    window.open(item.url, '_blank');
+                                  }
+                                }}
+                                title={isMaterial ? '수업 자료 페이지 보기' : '새 탭에서 링크 열기'}
+                                className={`p-2 rounded-xl text-on-surface-variant/40 transition-colors shrink-0 ${
+                                  isMaterial ? 'hover:bg-secondary/10 hover:text-secondary' : 'hover:bg-primary/10 hover:text-primary'
+                                }`}
+                              >
+                                {isMaterial
+                                  ? <Maximize2 size={14} />
+                                  : <ExternalLink size={14} />
+                                }
+                              </button>
                             </div>
                           );
                         })}

@@ -152,6 +152,30 @@ export default async function handler(req: any, res: any) {
     }
   }
 
+  // ── 링크 메타 모드: 외부 URL의 <title>만 조회 — Gemini 호출이 없어 과금/한도 체크 없이 인증만 확인
+  if (mode === 'link_meta') {
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const supabase = createClient(supabaseUrl, serviceKey);
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      const url: string = (req.body.url || '').trim();
+      if (!url || !/^https?:\/\//i.test(url)) {
+        return res.status(400).json({ error: '유효한 URL이 아닙니다.' });
+      }
+      const title = await fetchPageTitle(url);
+      return res.status(200).json({ title: title || url });
+    } catch (error: any) {
+      console.error('[api/gemini] link_meta error:', error?.message);
+      return res.status(500).json({ error: error?.message ?? '링크 정보 조회 중 오류가 발생했습니다.' });
+    }
+  }
+
   // ── 데모 학급 캐시 응답 (실제 Gemini 호출/과금 없이 예시 응답만 반환) ─────────
   if (class_id) {
     const supabasePublic = createClient(supabaseUrl, serviceKey);

@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle, Globe, ExternalLink, ChevronDown } from 'lucide-react';
+import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle, Globe, ExternalLink, ChevronDown, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
 import CodeBlock from '../components/CodeBlock';
-import { analyzeIdea, generateLessonPlanDraft, embedText, webSearchForIdea, type IdeaAnalysisResult, type RelatedMaterialRef, type LessonPRD, type WebSearchResult } from '../lib/gemini';
+import { analyzeIdea, generateLessonPlanDraft, embedText, webSearchForIdea, fetchLinkTitle, type IdeaAnalysisResult, type RelatedMaterialRef, type LessonPRD, type WebSearchResult } from '../lib/gemini';
 import type { DeckSlide } from '../components/slidedeck/types';
 import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
 import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
@@ -122,6 +122,11 @@ const noteDetailMdComponents: any = {
   td: ({ children }: any) => <td className="border border-surface-container px-3 py-2">{children}</td>,
 };
 
+interface ReferenceLink {
+  url: string;
+  title: string;
+}
+
 interface TeacherNote {
   id: string;
   class_id: string | null;
@@ -131,6 +136,9 @@ interface TeacherNote {
   status: string;
   ai_summary: IdeaAnalysisResult | null;
   tags: string[];
+  linked_material_id: string | null;
+  linked_slide_id: string | null;
+  reference_links: ReferenceLink[];
   classes?: { name: string } | null;
 }
 
@@ -189,6 +197,12 @@ export default function IdeaRecord() {
   // 자동저장으로 아직 한 번도 insert되지 않은 새 아이디어인지 추적 — insert 이후엔 이 id로 update만 수행
   const draftNoteIdRef = useRef<string | null>(null);
 
+  // 외부 링크 흡수 입구: Gemini에서 탐색한 링크를 붙여넣으면 제목을 자동 조회해 칩으로 저장
+  const [referenceLinks, setReferenceLinks] = useState<ReferenceLink[]>([]);
+  const [linkInput, setLinkInput] = useState('');
+  const [linkFetching, setLinkFetching] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
   const [filterClassId, setFilterClassId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'write' | 'list'>('write');
 
@@ -203,10 +217,13 @@ export default function IdeaRecord() {
   };
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', content: '' });
+  const [editForm, setEditForm] = useState<{ title: string; content: string; referenceLinks: ReferenceLink[] }>({ title: '', content: '', referenceLinks: [] });
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editUploading, setEditUploading] = useState(false);
+  const [editLinkInput, setEditLinkInput] = useState('');
+  const [editLinkFetching, setEditLinkFetching] = useState(false);
+  const [editLinkError, setEditLinkError] = useState<string | null>(null);
 
   // 카드 클릭 시 뜨는 "원문 전체보기" 모달용
   const [viewingNote, setViewingNote] = useState<TeacherNote | null>(null);
@@ -232,6 +249,9 @@ export default function IdeaRecord() {
   // 5단계: 태그 매칭용 — 카드에 "비슷한 자료 있음" 힌트를 보여주기 위해 한 번만 가져와둠
   const [libraryMaterials, setLibraryMaterials] = useState<{ id: string; title: string; content: string }[]>([]);
   const [librarySlides, setLibrarySlides] = useState<{ id: string; title: string }[]>([]);
+
+  // 자산화 가시화: 노트의 linked_material_id/linked_slide_id가 실제로 어떤 제목의 자료/슬라이드로 이어졌는지 보여주기 위한 제목 조회 맵
+  const [linkedTitles, setLinkedTitles] = useState<Map<string, string>>(new Map());
 
   // 6단계: 작성 중인 내용과 의미적으로 유사한 내 자료/노트/슬라이드를 실시간 검색해 보여주는 패널
   const [relatedSuggestions, setRelatedSuggestions] = useState<MatchedContent[]>([]);
@@ -374,6 +394,43 @@ export default function IdeaRecord() {
     }).length;
   }, [notes]);
 
+  // 자산화 가시화: 아이디어가 실제로 자료/슬라이드로 발전한 누적 건수 — "기록의 복리"를 눈에 보이는 숫자로
+  const materialCount = useMemo(() => notes.filter(n => n.linked_material_id).length, [notes]);
+  const slideCount = useMemo(() => notes.filter(n => n.linked_slide_id).length, [notes]);
+
+  // 카드/통계에 "→ [제목]으로 발전"을 보여주기 위해 linked_material_id/linked_slide_id가 가리키는 실제 제목을 한 번에 조회
+  useEffect(() => {
+    const materialIds = [...new Set(notes.map(n => n.linked_material_id).filter((id): id is string => !!id))];
+    const slideIds = [...new Set(notes.map(n => n.linked_slide_id).filter((id): id is string => !!id))];
+    if (materialIds.length === 0 && slideIds.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const [{ data: materials }, { data: slides }] = await Promise.all([
+        materialIds.length > 0
+          ? supabase.from('class_materials').select('id, title').in('id', materialIds)
+          : Promise.resolve({ data: [] as { id: string; title: string }[] }),
+        slideIds.length > 0
+          ? supabase.from('slide_decks').select('id, title').in('id', slideIds)
+          : Promise.resolve({ data: [] as { id: string; title: string }[] }),
+      ]);
+      if (cancelled) return;
+      const map = new Map<string, string>();
+      (materials || []).forEach(m => map.set(`material:${m.id}`, m.title));
+      (slides || []).forEach(s => map.set(`slide:${s.id}`, s.title));
+      setLinkedTitles(map);
+    })();
+    return () => { cancelled = true; };
+  }, [notes]);
+
+  // 카드/모달의 "→ [제목]으로 발전" 클릭 시 해당 자료/슬라이드로 이동
+  const handleGoToLinked = (type: 'material' | 'slide', id: string) => {
+    if (type === 'material') {
+      navigate('/teaching-tools', { state: { activeToolId: 'material-editor', openMaterialId: id, fromIdeaRecord: true } });
+    } else {
+      navigate('/teaching-tools', { state: { activeToolId: 'slide-deck', openSlideId: id, fromIdeaRecord: true } });
+    }
+  };
+
   const fetchNotes = async () => {
     setLoading(true);
     try {
@@ -390,6 +447,56 @@ export default function IdeaRecord() {
     }
   };
 
+  // 외부 링크 흡수 입구: URL을 붙여넣으면 서버에서 <title>을 조회해 칩으로 저장 — 탐색은 Gemini 등 외부에서,
+  // 정리는 이 앱에서 한다는 포지셔닝의 실행 항목. AI 분석 반영/자동 URL 감지는 이번 범위 밖.
+  const normalizeUrl = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  };
+
+  const handleAddLink = async () => {
+    const url = normalizeUrl(linkInput);
+    if (!url) return;
+    setLinkError(null);
+    setLinkFetching(true);
+    try {
+      const linkTitle = await fetchLinkTitle(url);
+      setReferenceLinks(prev => [...prev, { url, title: linkTitle }]);
+      setLinkInput('');
+    } catch (err) {
+      console.error('[IdeaRecord] 링크 제목 조회 오류:', err);
+      setLinkError('링크 정보를 가져오지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setLinkFetching(false);
+    }
+  };
+
+  const handleRemoveLink = (index: number) => {
+    setReferenceLinks(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddEditLink = async () => {
+    const url = normalizeUrl(editLinkInput);
+    if (!url) return;
+    setEditLinkError(null);
+    setEditLinkFetching(true);
+    try {
+      const linkTitle = await fetchLinkTitle(url);
+      setEditForm(p => ({ ...p, referenceLinks: [...p.referenceLinks, { url, title: linkTitle }] }));
+      setEditLinkInput('');
+    } catch (err) {
+      console.error('[IdeaRecord] 링크 제목 조회 오류:', err);
+      setEditLinkError('링크 정보를 가져오지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setEditLinkFetching(false);
+    }
+  };
+
+  const handleRemoveEditLink = (index: number) => {
+    setEditForm(p => ({ ...p, referenceLinks: p.referenceLinks.filter((_, i) => i !== index) }));
+  };
+
   // ── 새 아이디어 자동 저장 ────────────────────────────────────────────────
   // 자료 에디터(MaterialEditor)와 동일한 패턴: 첫 자동저장 때 insert, 이후엔 같은 행을 update
   const doAutoSave = async (): Promise<boolean> => {
@@ -401,6 +508,7 @@ export default function IdeaRecord() {
         class_id: formClassId === NO_CLASS ? null : formClassId,
         title: title.trim() || null,
         content: content.trim(),
+        reference_links: referenceLinks,
       };
       if (draftNoteIdRef.current) {
         const { error } = await supabase
@@ -409,7 +517,7 @@ export default function IdeaRecord() {
           .eq('id', draftNoteIdRef.current);
         if (error) throw error;
         const noteId = draftNoteIdRef.current;
-        setNotes(prev => prev.map(n => (n.id === noteId ? { ...n, title: payload.title, content: payload.content, class_id: payload.class_id } : n)));
+        setNotes(prev => prev.map(n => (n.id === noteId ? { ...n, title: payload.title, content: payload.content, class_id: payload.class_id, reference_links: payload.reference_links } : n)));
       } else {
         const { data, error } = await supabase.from('teacher_notes').insert(payload).select().single();
         if (error) throw error;
@@ -435,7 +543,7 @@ export default function IdeaRecord() {
     const timer = setTimeout(() => { doAutoSave(); }, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, formClassId, activeTab]);
+  }, [title, content, formClassId, referenceLinks, activeTab]);
 
   // 6단계: 작성 중인 내용과 유사한 내 자료를 실시간 검색 — 하나의 임베딩을 검색 쿼리와
   // 초안 노트의 embedding 갱신에 함께 사용해 Gemini 호출을 중복시키지 않는다.
@@ -572,6 +680,9 @@ export default function IdeaRecord() {
       setRelatedSuggestions([]);
       setWebSearchResult(null);
       setWebSearchError(null);
+      setReferenceLinks([]);
+      setLinkInput('');
+      setLinkError(null);
       setActiveTab('list');
     } catch (err: any) {
       alert('저장 중 오류가 발생했습니다: ' + err.message);
@@ -582,7 +693,9 @@ export default function IdeaRecord() {
 
   const handleStartEdit = (note: TeacherNote) => {
     setEditingId(note.id);
-    setEditForm({ title: note.title || '', content: note.content });
+    setEditForm({ title: note.title || '', content: note.content, referenceLinks: note.reference_links || [] });
+    setEditLinkInput('');
+    setEditLinkError(null);
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -594,12 +707,13 @@ export default function IdeaRecord() {
         .update({
           title: editForm.title.trim() || null,
           content: editForm.content.trim(),
+          reference_links: editForm.referenceLinks,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
       if (error) throw error;
       setNotes(prev =>
-        prev.map(n => (n.id === id ? { ...n, title: editForm.title.trim() || null, content: editForm.content.trim() } : n))
+        prev.map(n => (n.id === id ? { ...n, title: editForm.title.trim() || null, content: editForm.content.trim(), reference_links: editForm.referenceLinks } : n))
       );
       embedText(`${editForm.title.trim()}\n${editForm.content.trim()}`.trim())
         .then(vector => {
@@ -872,6 +986,29 @@ export default function IdeaRecord() {
             >
               <HelpCircle size={13} /> 가이드 보기
             </button>
+
+            {/* 자산화 가시화: 기록이 실제로 무엇을 낳았는지 누적 숫자로 보여주는 스탯 바 */}
+            {notes.length > 0 && (
+              <div className="flex items-center gap-2 mt-4 flex-wrap">
+                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.06] shadow-soft">
+                  <StickyNote size={15} className="text-on-surface-variant/50 shrink-0" />
+                  <span className="text-lg font-black text-on-surface leading-none tabular-nums">{notes.length}</span>
+                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">아이디어 기록</span>
+                </div>
+                <ArrowRight size={14} className="text-on-surface-variant/25 shrink-0" />
+                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.06] shadow-soft">
+                  <FileText size={15} className="text-primary/60 shrink-0" />
+                  <span className="text-lg font-black text-primary leading-none tabular-nums">{materialCount}</span>
+                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">자료로 발전</span>
+                </div>
+                <ArrowRight size={14} className="text-on-surface-variant/25 shrink-0" />
+                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.06] shadow-soft">
+                  <Presentation size={15} className="text-secondary/60 shrink-0" />
+                  <span className="text-lg font-black text-secondary leading-none tabular-nums">{slideCount}</span>
+                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">슬라이드로 발전</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="text-right shrink-0 pr-3">
             <p className="text-3xl font-black text-primary leading-none tabular-nums">{thisMonthCount}</p>
@@ -965,6 +1102,41 @@ export default function IdeaRecord() {
             uploading={uploading}
             minHeight="220px"
           />
+        </div>
+
+        {/* 외부 링크 흡수 입구: Gemini 등에서 찾은 참고 링크를 붙여넣으면 제목을 자동 조회해 정리 */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={linkInput}
+              onChange={e => setLinkInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink(); } }}
+              placeholder="참고 링크 붙여넣기 (예: 유튜브, 블로그 주소)"
+              className="flex-1 px-4 py-2.5 bg-surface-container rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <button
+              type="button"
+              onClick={handleAddLink}
+              disabled={!linkInput.trim() || linkFetching}
+              className="flex items-center gap-1 px-3.5 py-2.5 bg-surface-container hover:bg-primary/10 hover:text-primary rounded-xl text-xs font-black text-on-surface-variant transition-all disabled:opacity-50 shrink-0"
+            >
+              {linkFetching ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} 추가
+            </button>
+          </div>
+          {linkError && <p className="text-[11px] font-bold text-red-500">{linkError}</p>}
+          {referenceLinks.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {referenceLinks.map((link, i) => (
+                <span key={`${link.url}-${i}`} className="flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full bg-surface-container text-[11px] font-bold text-on-surface-variant/80">
+                  <Link2 size={10} className="shrink-0 text-primary/60" />
+                  <span className="truncate max-w-[220px]">{link.title}</span>
+                  <button type="button" onClick={() => handleRemoveLink(i)} className="shrink-0 text-on-surface-variant/40 hover:text-error">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 6단계: 작성 중인 내용과 유사한 내 자료 실시간 검색 결과 */}
@@ -1094,6 +1266,39 @@ export default function IdeaRecord() {
                           contentRoundedClassName="rounded-b-xl"
                         />
                       </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={editLinkInput}
+                            onChange={e => setEditLinkInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddEditLink(); } }}
+                            placeholder="참고 링크 붙여넣기"
+                            className="flex-1 px-3.5 py-2 bg-surface-container rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddEditLink}
+                            disabled={!editLinkInput.trim() || editLinkFetching}
+                            className="flex items-center gap-1 px-3 py-2 bg-surface-container hover:bg-primary/10 hover:text-primary rounded-lg text-xs font-black text-on-surface-variant transition-all disabled:opacity-50 shrink-0"
+                          >
+                            {editLinkFetching ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} 추가
+                          </button>
+                        </div>
+                        {editLinkError && <p className="text-[11px] font-bold text-red-500">{editLinkError}</p>}
+                        {editForm.referenceLinks.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {editForm.referenceLinks.map((link, i) => (
+                              <span key={`${link.url}-${i}`} className="flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full bg-surface-container text-[11px] font-bold text-on-surface-variant/80">
+                                <Link2 size={10} className="shrink-0 text-primary/60" />
+                                <span className="truncate max-w-[220px]">{link.title}</span>
+                                <button type="button" onClick={() => handleRemoveEditLink(i)} className="shrink-0 text-on-surface-variant/40 hover:text-error">
+                                  <X size={11} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => setEditingId(null)}
@@ -1183,6 +1388,45 @@ export default function IdeaRecord() {
                           </div>
                         )}
 
+                        {note.reference_links?.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                            {note.reference_links.map((link, i) => (
+                              <a
+                                key={`${link.url}-${i}`}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="flex items-center gap-1 max-w-[150px] text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70 hover:text-primary transition-colors"
+                              >
+                                <Link2 size={9} className="shrink-0" /> <span className="truncate">{link.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 자산화 가시화: 이 아이디어가 실제로 만들어낸 자료/슬라이드로 바로 이동 */}
+                        {(note.linked_material_id || note.linked_slide_id) && (
+                          <div className="flex flex-col gap-1 mt-2">
+                            {note.linked_material_id && linkedTitles.get(`material:${note.linked_material_id}`) && (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleGoToLinked('material', note.linked_material_id!); }}
+                                className="flex items-center gap-1.5 text-[11px] font-black text-primary hover:underline w-fit"
+                              >
+                                <FileText size={11} className="shrink-0" /> → {linkedTitles.get(`material:${note.linked_material_id}`)} 자료로 만들어짐
+                              </button>
+                            )}
+                            {note.linked_slide_id && linkedTitles.get(`slide:${note.linked_slide_id}`) && (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleGoToLinked('slide', note.linked_slide_id!); }}
+                                className="flex items-center gap-1.5 text-[11px] font-black text-secondary hover:underline w-fit"
+                              >
+                                <Presentation size={11} className="shrink-0" /> → {linkedTitles.get(`slide:${note.linked_slide_id}`)} 슬라이드로 만들어짐
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-on-surface/[0.05]">
                           <div className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40">
                             <Clock size={10} />
@@ -1255,12 +1499,23 @@ export default function IdeaRecord() {
                   <ReactMarkdown components={noteDetailMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                     {viewingNote.content}
                   </ReactMarkdown>
-                  {(viewingNote.tags?.length > 0 || similarResourceDetails.has(viewingNote.id)) && (
+                  {(viewingNote.tags?.length > 0 || viewingNote.reference_links?.length > 0 || similarResourceDetails.has(viewingNote.id)) && (
                     <div className="flex items-center gap-1.5 flex-wrap mt-4 pt-4 border-t border-on-surface/[0.05]">
                       {viewingNote.tags?.map(tag => (
                         <span key={tag} className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant/70">
                           <Tag size={10} /> {tag}
                         </span>
+                      ))}
+                      {viewingNote.reference_links?.map((link, i) => (
+                        <a
+                          key={`${link.url}-${i}`}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 max-w-[220px] text-[11px] font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant/70 hover:text-primary transition-colors"
+                        >
+                          <Link2 size={10} className="shrink-0" /> <span className="truncate">{link.title}</span>
+                        </a>
                       ))}
                       {similarResourceDetails.has(viewingNote.id) && (
                         <button
