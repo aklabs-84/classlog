@@ -62,6 +62,10 @@ const SchoolIntroPage = lazy(() => import('./pages/SchoolIntroPage'));
 const PortfolioPublic = lazy(() => import('./pages/PortfolioPublic'));
 const Demo = lazy(() => import('./pages/Demo'));
 const StoryHub = lazy(() => import('./pages/StoryHub'));
+const SchoolProjectSchoolsPage = lazy(() => import('./pages/SchoolProjectSchoolsPage'));
+const SchoolProjectNewPage = lazy(() => import('./pages/SchoolProjectNewPage'));
+const SchoolProjectDetailPage = lazy(() => import('./pages/SchoolProjectDetailPage'));
+const SchoolProjectClassDetailPage = lazy(() => import('./pages/SchoolProjectClassDetailPage'));
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
@@ -309,6 +313,10 @@ function App() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<StoryHub />} />
                 <Route path="pricing" element={<Pricing />} />
+                <Route path="school-projects/new" element={<SchoolProjectNewPage />} />
+                <Route path="school-projects/:projectId/schools" element={<SchoolProjectSchoolsPage />} />
+                <Route path="school-projects/:projectId/schools/:schoolId" element={<SchoolProjectDetailPage />} />
+                <Route path="school-projects/:projectId/schools/:schoolId/classes/:classId" element={<SchoolProjectClassDetailPage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

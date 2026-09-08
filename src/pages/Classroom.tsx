@@ -1567,12 +1567,24 @@ const Classroom = () => {
     try {
       // 서브클래스인 경우 부모 클래스의 자료를 사용
       const sourceId = classInfo?.parent_class_id || classId;
-      const [matsRes, generalRes, toolsRes] = await Promise.all([
+      // 주차별 계획(학교 프로젝트 전체 적용)이 가리키는 자료는 특정 반이 아니라
+      // 프로젝트 공용 자료실(class_id = null)에 있을 수 있으므로 별도로 함께 조회한다.
+      const effectivePlan: any[] = classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || []);
+      const planMaterialIds = [...new Set(effectivePlan.map((p: any) => p.material_id).filter(Boolean))] as string[];
+
+      const [matsRes, generalRes, toolsRes, planMatsRes] = await Promise.all([
         supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
         supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
+        planMaterialIds.length > 0
+          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls').in('id', planMaterialIds)
+          : Promise.resolve({ data: [] as any[] }),
       ]);
-      setClassMaterials(matsRes.data || []);
+      const mergedMaterials = [...(matsRes.data || [])];
+      (planMatsRes.data || []).forEach((m: any) => {
+        if (!mergedMaterials.some(x => x.id === m.id)) mergedMaterials.push(m);
+      });
+      setClassMaterials(mergedMaterials);
       setGeneralMaterials(generalRes.data || []);
       const toolMap: Record<string, boolean> = {};
       (toolsRes.data || []).forEach((t: any) => { toolMap[t.tool_id] = t.is_published; });

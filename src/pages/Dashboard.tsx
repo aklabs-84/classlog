@@ -27,7 +27,8 @@ import {
   ChevronDown,
   Crown,
   Zap,
-  Archive
+  Archive,
+  Building2
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate, NavLink } from 'react-router-dom';
@@ -213,13 +214,28 @@ const Dashboard = () => {
     const { data } = await supabase
       .from('school_projects')
       .select(`
-        id, name, school_name, status, start_date, end_date, share_token, created_at,
+        id, name, school_name, status, start_date, end_date, share_token, created_at, parent_project_id,
         classes!school_project_id(id, parent_class_id, assigned_teacher_id)
       `)
       .eq('admin_id', user.id)
       .neq('status', 'archived')
+      .is('parent_project_id', null)
       .order('created_at', { ascending: false });
-    setMyProjects(data || []);
+
+    const projects = data || [];
+    if (projects.length > 0) {
+      const { data: children } = await supabase
+        .from('school_projects')
+        .select('id, parent_project_id')
+        .in('parent_project_id', projects.map(p => p.id));
+      const childCountMap: Record<string, number> = {};
+      (children || []).forEach((c: any) => {
+        childCountMap[c.parent_project_id] = (childCountMap[c.parent_project_id] || 0) + 1;
+      });
+      setMyProjects(projects.map(p => ({ ...p, schoolCount: childCountMap[p.id] || 0 })));
+    } else {
+      setMyProjects([]);
+    }
   };
 
   const fetchAssignedClasses = async () => {
@@ -349,10 +365,16 @@ const Dashboard = () => {
         .eq('teacher_id', user?.id)
         .eq('is_archived', false);
 
+      // 학교 프로젝트의 루트("전체") 클래스는 실제 가르치는 반이 아니라 관리용 placeholder이므로
+      // "나의 학급" 목록에서 제외한다 (하단 "학교 프로젝트" 섹션에서 별도로 노출됨)
+      const teachingClassesData = (allClassesData || []).filter(
+        c => !(c.school_project_id && !c.parent_class_id)
+      );
+
       // 데모 교사 계정은 여러 방문자가 공유하므로 본인이 발급받은 학급만 화면에 남긴다
       const rawClassesData = isDemoTeacher(user)
-        ? (allClassesData || []).filter(c => c.id === getDemoClassId())
-        : allClassesData;
+        ? teachingClassesData.filter(c => c.id === getDemoClassId())
+        : teachingClassesData;
 
       let scopedStudentIds: string[] = [];
 
@@ -1073,7 +1095,7 @@ const Dashboard = () => {
               <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full uppercase tracking-wide">PRO</span>
             </div>
             <button
-              onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+              onClick={() => navigate('/school-projects/new')}
               className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-xl transition-all"
             >
               <Plus size={14} /> 새 프로젝트
@@ -1082,7 +1104,7 @@ const Dashboard = () => {
 
           {myProjects.length === 0 ? (
             <button
-              onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+              onClick={() => navigate('/school-projects/new')}
               className="w-full surface-card p-8 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all group"
             >
               <School size={32} className="mx-auto mb-2 group-hover:scale-110 transition-transform" />
@@ -1151,11 +1173,21 @@ const Dashboard = () => {
                         </button>
                       )}
                     </div>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        navigate(`/school-projects/${proj.id}/schools`);
+                      }}
+                      className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 py-2 rounded-xl transition-all"
+                    >
+                      <Building2 size={13} />
+                      {proj.schoolCount > 0 ? `학교 목록 보기 (${proj.schoolCount})` : '여러 학교로 확장하기'}
+                    </button>
                   </div>
                 );
               })}
               <button
-                onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+                onClick={() => navigate('/school-projects/new')}
                 className="surface-card p-6 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all flex flex-col items-center justify-center gap-2 min-h-[140px]"
               >
                 <Plus size={24} />
