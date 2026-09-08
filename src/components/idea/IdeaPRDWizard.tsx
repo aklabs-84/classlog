@@ -18,7 +18,7 @@ const TOTAL_QUESTION_STEPS = 7;
 const FREEFORM_HINT_STEP = 4; // "가장 중요하게 생각하는 것" 단계(0-indexed) — 직접 입력을 권장하는 안내 배너 표시
 
 const FORMAT_TITLE: Record<'material' | 'slide', string> = {
-  material: '수업 계획안',
+  material: '수업 자료',
   slide: '수업 슬라이드',
 };
 

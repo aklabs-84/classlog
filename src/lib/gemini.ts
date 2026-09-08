@@ -1901,7 +1901,7 @@ export interface LessonPRD {
 type QAPair = { question: string; answer: string };
 
 const WIZARD_FORMAT_LABEL: Record<'material' | 'slide', string> = {
-  material: '수업 계획안(수업 자료)',
+  material: '수업 자료',
   slide: '수업 슬라이드',
 };
 
@@ -2037,7 +2037,7 @@ export async function generateContentFromPRD(
     : '';
   const formatInstruction = format === 'slide'
     ? '이 문서는 발표용 슬라이드로 옮겨질 원고입니다. 슬라이드 한 장에 들어갈 만한 분량으로 섹션을 짧게 끊어 작성하세요.'
-    : '이 문서는 그대로 교사가 수업에 쓸 수업 계획안입니다.';
+    : '이 문서는 "교사가 무엇을 할지" 안내하는 계획서가 아니라, 학생에게 그대로 배부하거나 화면에 띄워 쓸 수 있는 완성된 수업 자료 그 자체입니다.';
   const richFormattingBlock = format === 'material' ? `\n\n${RICH_FORMATTING_GUIDE}` : '';
 
   const prompt = `당신은 아래 PRD(기획서)를 그대로 따라 ${WIZARD_FORMAT_LABEL[format]} 문서를 작성하는 AI입니다.
@@ -2056,6 +2056,7 @@ ${relatedBlock}
 [작성 규칙]
 - 마크다운 문서로 작성하세요. PRD의 구성(structure) 단계를 "## " 소제목으로 그대로 사용하세요.
 - ${formatInstruction}
+- 각 소제목 아래에는 "이 단계에서 교사가 무엇을 진행한다"는 식의 안내·설명이 아니라, 그 단계에서 학생이 실제로 읽고·보고·풀 콘텐츠(설명글, 발문, 예시, 활동지 문항, 토론 질문 등)를 직접 작성하세요. 교사를 위한 진행 안내가 꼭 필요하면 괄호 등으로 짧게만 덧붙이세요.
 - PRD의 톤/분량 지침과 꼭 반영할 요소를 반드시 따르세요.
 - 원문 아이디어에 없는 사실 정보를 임의로 지어내지 말고, 교육적으로 자연스럽게 살을 붙이는 수준으로 작성하세요.
 - 결과에는 문서 본문만 작성하고, 다른 설명이나 인사말은 넣지 마세요.${richFormattingBlock}`;
