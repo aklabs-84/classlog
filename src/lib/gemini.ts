@@ -556,6 +556,8 @@ export const ideaPRDAI             = makeModelWrapper('lite', 'idea_prd_generate
 export const ideaPRDDraftAI        = makeModelWrapper('flash', 'idea_prd_draft');
 // 수업 계획서 자동생성(MaterialEditor) 전용 — 위 lessonPlanDraftAI(아이디어→마크다운)와는 별개 기능
 export const lessonPlanSectionsAI  = makeModelWrapper('pro', 'lesson_plan_sections', true);
+// 완성된 계획서(LessonPlanSections) → 수업 자료 에디터용 교안 초안 생성 전용
+export const materialFromPlanAI    = makeModelWrapper('pro', 'material_from_lesson_plan', true);
 export const portfolioIntroDraftAI = makeModelWrapper('lite',  'portfolio_intro');
 
 /**
@@ -1778,7 +1780,7 @@ ${PURPOSE_TONE_HINT[config.purpose]}
 ${config.hasEvaluation ? `평가 방식: ${config.evaluationMethod}` : '평가계획 섹션은 빈 문자열로 둡니다.'}
 ${config.includeStandards ? '2022 개정 교육과정 성취기준과 연계해 standards 필드를 작성합니다.' : 'standards 필드는 생략합니다.'}
 ${config.customInstruction ? `[선생님의 추가 요청사항]\n${config.customInstruction}\n위 요청사항을 최대한 반영하되, 아래 스키마 형식과 "원문에 없는 활동을 임의로 추가하지 않는다"는 원칙은 그대로 지킵니다.` : ''}
-원문에 없는 활동을 임의로 추가하지 않습니다. sessionPlans는 자료에 표시된 주차/차시 구성을 참고해 차시별로 나누고, 각 행마다 그 차시에서 진행하는 학습 및 실습 내용을 구체적으로 정리합니다. 아래 스키마를 정확히 따릅니다.
+원문에 없는 활동을 임의로 추가하지 않습니다. sessionPlans는 자료에 표시된 주차/차시 구성을 참고해 차시별로 나누고, 각 행마다 그 차시에서 진행하는 학습 및 실습 내용을 구체적으로 정리합니다. 이 자료만으로는 알 수 없는 세부 정보(예: 정확한 준비물 수량, 모둠 구성 방식 등)는 지어내지 말고 일반적이고 무난한 수준으로 자연스럽게 채워서 작성합니다. 아래 스키마를 정확히 따릅니다.
 
 ${LESSON_PLAN_SECTIONS_SCHEMA_HINT}
 
@@ -1814,6 +1816,51 @@ ${materialsText}`;
     materials: String(parsed.materials ?? ''),
     assessment: config.hasEvaluation ? String(parsed.assessment ?? '') : '',
     standards: config.includeStandards ? String(parsed.standards ?? '') : undefined,
+  };
+}
+
+// 완성된 계획서(LessonPlanSections)를 바탕으로, 수업 자료 에디터(RichEditor)에 바로 넣을 수 있는
+// 실제 수업 교안 마크다운 초안 + 이어서 확장하면 좋을 방향 제안을 함께 생성한다 (API 1회 호출로 두 필드 반환).
+export async function generateMaterialDraftFromLessonPlan(
+  plan: LessonPlanSections,
+  classInfo: { subject?: string; className?: string; classId?: string },
+): Promise<{ content: string; expansionSuggestions: string[] }> {
+  const sessionPlansText = (plan.sessionPlans ?? [])
+    .map(row => `[${row.session}] ${row.title}\n${row.content}${row.note ? `\n(참고: ${row.note})` : ''}`)
+    .join('\n\n');
+
+  const prompt = `다음은 선생님이 이미 승인한 수업 계획서입니다. 이 계획서 그대로 수업을 진행할 수 있도록, 수업 자료 에디터에 바로 쓸 수 있는 실제 교안 초안을 작성합니다.
+
+[과목/클래스] ${classInfo.subject ?? ''} ${classInfo.className ?? ''}
+[단원] ${plan.basicInfo.unitTitle}
+[대상] ${plan.basicInfo.target}
+[학습목표]
+${plan.objectives}
+
+[차시별 계획]
+${sessionPlansText}
+
+[준비물]
+${plan.materials}
+
+[작성 규칙]
+- content 필드는 마크다운 문서로, "## 수업 목표", "## 차시별 활동" 등 계획서의 차시 구성을 따라가는 소제목 구조로 작성합니다.
+- 계획서에 없는 활동을 임의로 추가하지 않습니다. 다만 계획서만으로는 알 수 없는 구체적인 정보(예: 정확한 준비물 수량, 모둠 구성 방식, 학생 수준별 발문, 활동지 문항 등)가 필요한 자리는 절대 지어내지 말고, 문장 중간에 자연스럽게 다음 형식 그대로 표시합니다: [여기에 구체적인 내용을 입력해 주세요: 어떤 정보가 필요한지 짧은 힌트]
+- expansionSuggestions 필드는 이 초안을 이어서 어떻게 확장하면 좋을지 구체적인 가이드 3~5개를 짧은 문장으로 제시합니다 (예: "2차시 모둠활동에 역할 분담표를 추가해보세요").
+- 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{ "content": "마크다운 본문", "expansionSuggestions": ["...", "..."] }
+
+${RICH_FORMATTING_GUIDE}`;
+
+  const result = await materialFromPlanAI.generateContent(
+    prompt,
+    classInfo.classId ? { class_id: classInfo.classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  return {
+    content: String(parsed.content ?? '').trim(),
+    expansionSuggestions: Array.isArray(parsed.expansionSuggestions) ? parsed.expansionSuggestions.map((s: any) => String(s)) : [],
   };
 }
 

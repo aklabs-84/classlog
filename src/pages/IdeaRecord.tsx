@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle, Globe, ExternalLink, ChevronDown, Plus } from 'lucide-react';
+import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle, Globe, ExternalLink, ChevronDown, Plus, Flame, PartyPopper } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
@@ -254,9 +254,15 @@ export default function IdeaRecord() {
   const [linkedTitles, setLinkedTitles] = useState<Map<string, string>>(new Map());
 
   // 6단계: 작성 중인 내용과 의미적으로 유사한 내 자료/노트/슬라이드를 실시간 검색해 보여주는 패널
+  // — 결과를 그냥 목록으로 깔아두지 않고 "확인해 보시겠어요?" 질문형 팝업으로 먼저 제안한 뒤, 확인을 누르면 펼침
   const [relatedSuggestions, setRelatedSuggestions] = useState<MatchedContent[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
-  const [suggestOpen, setSuggestOpen] = useState(true);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestPromptDismissed, setSuggestPromptDismissed] = useState(false);
+  const lastSuggestKeyRef = useRef<string>('');
+  // 검색 결과가 0건이면(비슷한 기록이 없는 새 아이디어) 확장을 유도하는 안내를 한 번 보여줌
+  const [newIdeaHintShown, setNewIdeaHintShown] = useState(false);
+  const [newIdeaHintDismissed, setNewIdeaHintDismissed] = useState(false);
   const [previewItem, setPreviewItem] = useState<MatchedContent | null>(null);
   const [previewFullContent, setPreviewFullContent] = useState<string | null>(null);
   const [previewFullLoading, setPreviewFullLoading] = useState(false);
@@ -397,6 +403,41 @@ export default function IdeaRecord() {
   // 자산화 가시화: 아이디어가 실제로 자료/슬라이드로 발전한 누적 건수 — "기록의 복리"를 눈에 보이는 숫자로
   const materialCount = useMemo(() => notes.filter(n => n.linked_material_id).length, [notes]);
   const slideCount = useMemo(() => notes.filter(n => n.linked_slide_id).length, [notes]);
+
+  // 꾸준함 가시화: KST 기준 날짜별로 기록 여부를 묶어 "오늘(또는 어제)부터 며칠 연속 기록했는지" 계산
+  // 오늘 아직 기록이 없어도 어제까지 이어졌다면 자정 전에 스트릭이 끊긴 것처럼 보이지 않도록 어제부터 확인
+  const currentStreak = useMemo(() => {
+    if (notes.length === 0) return 0;
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    const toKstDateStr = (d: Date) => new Date(d.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+    const recordedDates = new Set(notes.map(n => toKstDateStr(new Date(n.created_at))));
+    const todayStr = toKstDateStr(new Date());
+    let cursorMs = Date.parse(`${todayStr}T00:00:00Z`);
+    if (!recordedDates.has(todayStr)) cursorMs -= 86400000;
+    let streak = 0;
+    while (recordedDates.has(new Date(cursorMs).toISOString().slice(0, 10))) {
+      streak += 1;
+      cursorMs -= 86400000;
+    }
+    return streak;
+  }, [notes]);
+
+  // 누적 마일스톤 축하 토스트: 기록 개수가 처음으로 5/10/25/50/100...에 도달하는 순간만 감지(초기 로드 시 오탐 방지 위해 1씩 증가할 때만 트리거)
+  const MILESTONES = [5, 10, 25, 50, 100, 200, 500];
+  const prevNoteCountRef = useRef<number | null>(null);
+  const [milestoneToast, setMilestoneToast] = useState<string | null>(null);
+  useEffect(() => {
+    const prev = prevNoteCountRef.current;
+    if (prev !== null && notes.length === prev + 1 && MILESTONES.includes(notes.length)) {
+      setMilestoneToast(`${notes.length}번째 아이디어를 기록하셨어요!`);
+    }
+    prevNoteCountRef.current = notes.length;
+  }, [notes.length]);
+  useEffect(() => {
+    if (!milestoneToast) return;
+    const timer = setTimeout(() => setMilestoneToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [milestoneToast]);
 
   // 카드/통계에 "→ [제목]으로 발전"을 보여주기 위해 linked_material_id/linked_slide_id가 가리키는 실제 제목을 한 번에 조회
   useEffect(() => {
@@ -548,7 +589,12 @@ export default function IdeaRecord() {
   // 6단계: 작성 중인 내용과 유사한 내 자료를 실시간 검색 — 하나의 임베딩을 검색 쿼리와
   // 초안 노트의 embedding 갱신에 함께 사용해 Gemini 호출을 중복시키지 않는다.
   useEffect(() => {
-    if (activeTab !== 'write') { setRelatedSuggestions([]); setSuggestLoading(false); return; }
+    if (activeTab !== 'write') {
+      setRelatedSuggestions([]); setSuggestLoading(false); setSuggestOpen(false);
+      setSuggestPromptDismissed(false); setNewIdeaHintShown(false); setNewIdeaHintDismissed(false);
+      lastSuggestKeyRef.current = '';
+      return;
+    }
     const trimmed = content.replace(/<[^>]+>/g, ' ').trim();
     if (trimmed.length < 20) { setRelatedSuggestions([]); setSuggestLoading(false); return; }
     let cancelled = false;
@@ -563,7 +609,19 @@ export default function IdeaRecord() {
           exclude_note_id: draftNoteIdRef.current,
         });
         if (error) throw error;
-        if (!cancelled) setRelatedSuggestions(((data ?? []) as MatchedContent[]).filter(r => r.similarity > 0.55));
+        if (!cancelled) {
+          const filtered = ((data ?? []) as MatchedContent[]).filter(r => r.similarity > 0.55);
+          setRelatedSuggestions(filtered);
+          if (filtered.length > 0) {
+            const key = filtered.map(r => `${r.source_type}:${r.id}`).join(',');
+            if (key !== lastSuggestKeyRef.current) {
+              lastSuggestKeyRef.current = key;
+              setSuggestPromptDismissed(false);
+            }
+          } else if (!newIdeaHintShown) {
+            setNewIdeaHintShown(true);
+          }
+        }
         if (draftNoteIdRef.current) {
           supabase.from('teacher_notes').update({ embedding: vector }).eq('id', draftNoteIdRef.current)
             .then(({ error: embedError }) => { if (embedError) console.error('[IdeaRecord] 노트 임베딩 갱신 오류:', embedError); });
@@ -840,7 +898,7 @@ export default function IdeaRecord() {
     );
   };
 
-  // "수업 자료로 만들기" — 원문을 그대로 옮기지 않고 AI가 실제 수업 계획안을 새로 작성해 전달
+  // "수업 계획서로 만들기" — 원문을 그대로 옮기지 않고 AI가 실제 수업 계획안을 새로 작성해 전달
   const handleCreateMaterial = async (length: 'simple' | 'detailed') => {
     if (!analysisNote || !analysisResult) return;
     setCreatingMaterialLength(length);
@@ -859,8 +917,8 @@ export default function IdeaRecord() {
       ]);
       navigate('/teaching-tools', {
         state: {
-          activeToolId: 'material-editor',
-          draftMaterial: {
+          activeToolId: 'lesson-plan',
+          draftLessonPlan: {
             noteId: analysisNote.id,
             title: analysisNote.title || '제목 없는 아이디어',
             content: draftContent,
@@ -915,8 +973,8 @@ export default function IdeaRecord() {
     }
     navigate('/teaching-tools', {
       state: {
-        activeToolId: 'material-editor',
-        draftMaterial: {
+        activeToolId: 'lesson-plan',
+        draftLessonPlan: {
           noteId: analysisNote.id,
           title: analysisNote.title || '제목 없는 아이디어',
           content,
@@ -978,7 +1036,7 @@ export default function IdeaRecord() {
               {displayName}, <span className="gradient-text">오늘은 어떤 수업</span>이 떠오르셨나요?
             </h1>
             <p className="text-sm text-on-surface-variant mt-2 max-w-md">
-              떠오른 생각을 가볍게 적어두면, AI가 기존 자료를 살펴보고 수업으로 발전시킬 방법을 함께 찾아드려요.
+              떠오른 생각을 가볍게 적어두세요. 이미 쌓아온 자료와 연결해, 바로 쓸 수 있는 수업으로 정리해드려요.
             </p>
             <button
               onClick={() => setGuideOpen(true)}
@@ -1010,9 +1068,16 @@ export default function IdeaRecord() {
               </div>
             )}
           </div>
-          <div className="text-right shrink-0 pr-3">
-            <p className="text-3xl font-black text-primary leading-none tabular-nums">{thisMonthCount}</p>
-            <p className="text-[11px] font-black text-on-surface-variant/50 mt-1">이번 달 기록</p>
+          <div className="flex flex-col items-end gap-1.5 shrink-0 pr-3">
+            {currentStreak > 0 && (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant/40">
+                <Flame size={11} className="text-orange-500/70 shrink-0" />{currentStreak}일 연속 기록
+              </span>
+            )}
+            <div className="text-right">
+              <p className="text-3xl font-black text-primary leading-none tabular-nums">{thisMonthCount}</p>
+              <p className="text-[11px] font-black text-on-surface-variant/50 mt-1">이번 달 기록</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1072,7 +1137,7 @@ export default function IdeaRecord() {
                 <Save size={11} /> 자동 저장됨
               </span>
             )}
-            <span className="text-[11px] font-bold text-on-surface-variant/50">가볍게 적어두세요 — 나중에 AI가 다듬어드려요</span>
+            <span className="text-[12.5px] font-bold text-on-surface-variant">가볍게 적어두세요 — 자료로, 슬라이드로 바로 이어져요</span>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -1139,49 +1204,90 @@ export default function IdeaRecord() {
           )}
         </div>
 
-        {/* 6단계: 작성 중인 내용과 유사한 내 자료 실시간 검색 결과 */}
-        {(suggestLoading || relatedSuggestions.length > 0) && (
+        {/* 6단계: 작성 중인 내용과 유사한 내 자료 실시간 검색 — 목록을 그냥 깔아두지 않고,
+            "확인해 보시겠어요?" 질문형 제안을 먼저 보여준 뒤 확인을 누르면 목록을 펼침 */}
+        {suggestLoading && relatedSuggestions.length === 0 && (
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant/40">
+            <Loader2 size={12} className="animate-spin" /> 비슷한 내용을 찾는 중...
+          </p>
+        )}
+
+        {!suggestPromptDismissed && relatedSuggestions.length > 0 && !suggestOpen && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/[0.05] px-4 py-3">
+            <span className="flex items-center gap-2 text-sm font-bold text-on-surface">
+              <Sparkles size={15} className="text-primary shrink-0" />
+              비슷한 내용의 자료가 {relatedSuggestions.length}건 있어요. 확인해 보시겠어요?
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSuggestOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-black active:scale-95 transition-transform"
+              >
+                확인하기
+              </button>
+              <button
+                type="button"
+                onClick={() => setSuggestPromptDismissed(true)}
+                className="p-1.5 rounded-lg text-on-surface-variant/40 hover:bg-surface-container-high transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {relatedSuggestions.length > 0 && suggestOpen && (
           <div className="rounded-2xl border border-primary/10 bg-primary/[0.03] p-4 space-y-2.5">
             <button
               type="button"
-              onClick={() => setSuggestOpen(v => !v)}
+              onClick={() => setSuggestOpen(false)}
               className="w-full flex items-center justify-between gap-1.5 text-xs font-black text-primary"
             >
               <span className="flex items-center gap-1.5">
-                {suggestLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                참고할 만한 자료{relatedSuggestions.length > 0 && ` (${relatedSuggestions.length})`}
+                <Sparkles size={13} /> 참고할 만한 자료 ({relatedSuggestions.length})
               </span>
-              <ChevronDown size={14} className={`transition-transform ${suggestOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className="rotate-180 transition-transform" />
             </button>
-            {suggestOpen && (
-              <>
-                {relatedSuggestions.length === 0 && suggestLoading && (
-                  <p className="text-[11px] font-bold text-on-surface-variant/50">비슷한 내용을 찾는 중...</p>
-                )}
-                <div className="space-y-2">
-                  {relatedSuggestions.map(item => (
-                    <div
-                      key={`${item.source_type}-${item.id}`}
-                      onClick={() => setPreviewItem(item)}
-                      className="flex items-start gap-2.5 px-3 py-2.5 bg-surface-container-lowest rounded-xl cursor-pointer hover:bg-surface-container transition-colors"
-                    >
-                      <span className="mt-0.5 shrink-0 text-on-surface-variant/50">
-                        {item.source_type === 'material' ? <FileText size={14} /> : item.source_type === 'slide' ? <Presentation size={14} /> : <Lightbulb size={14} />}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wide">{SOURCE_TYPE_LABEL[item.source_type]}</span>
-                          <span className="text-xs font-black text-on-surface truncate">{item.title}</span>
-                        </div>
-                        {item.snippet && (
-                          <p className="text-[11px] font-medium text-on-surface-variant/60 line-clamp-2 mt-0.5">{item.snippet}</p>
-                        )}
-                      </div>
+            <div className="space-y-2">
+              {relatedSuggestions.map(item => (
+                <div
+                  key={`${item.source_type}-${item.id}`}
+                  onClick={() => setPreviewItem(item)}
+                  className="flex items-start gap-2.5 px-3 py-2.5 bg-surface-container-lowest rounded-xl cursor-pointer hover:bg-surface-container transition-colors"
+                >
+                  <span className="mt-0.5 shrink-0 text-on-surface-variant/50">
+                    {item.source_type === 'material' ? <FileText size={14} /> : item.source_type === 'slide' ? <Presentation size={14} /> : <Lightbulb size={14} />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wide">{SOURCE_TYPE_LABEL[item.source_type]}</span>
+                      <span className="text-xs font-black text-on-surface truncate">{item.title}</span>
                     </div>
-                  ))}
+                    {item.snippet && (
+                      <p className="text-[11px] font-medium text-on-surface-variant/60 line-clamp-2 mt-0.5">{item.snippet}</p>
+                    )}
+                  </div>
                 </div>
-              </>
-            )}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 6단계 신규: 비슷한 기록이 없는 새 아이디어일 때 — 그냥 넘어가지 않고 구체화를 유도 */}
+        {newIdeaHintShown && !newIdeaHintDismissed && relatedSuggestions.length === 0 && !suggestLoading && (
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-on-surface/[0.08] bg-surface-container-low px-4 py-3">
+            <span className="flex items-start gap-2 text-xs font-bold text-on-surface-variant/70 leading-relaxed">
+              <Lightbulb size={14} className="text-on-surface-variant/50 shrink-0 mt-0.5" />
+              아직 비슷한 기록이 없는 새로운 아이디어예요. 언제, 어떤 학생 반응을 기대하는지 조금 더 적어두면 나중에 더 구체적인 계획안으로 완성돼요.
+            </span>
+            <button
+              type="button"
+              onClick={() => setNewIdeaHintDismissed(true)}
+              className="p-1.5 rounded-lg text-on-surface-variant/40 hover:bg-surface-container-high transition-colors shrink-0"
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
 
@@ -1858,7 +1964,7 @@ export default function IdeaRecord() {
                           <div className="rounded-2xl border border-on-surface/[0.08] bg-surface-container/30 p-3.5">
                             <div className="flex items-center gap-1.5 mb-2.5">
                               <FileText size={13} className="text-on-surface-variant/50" />
-                              <span className="text-xs font-bold text-on-surface-variant/70">수업 자료로 만들기</span>
+                              <span className="text-xs font-bold text-on-surface-variant/70">수업 계획서로 만들기</span>
                               {analysisResult.suggestedFormat !== 'slide' && (
                                 <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary text-white">AI 추천</span>
                               )}
@@ -2056,6 +2162,15 @@ export default function IdeaRecord() {
       </AnimatePresence>
 
       {guideOpen && <IdeaRecordGuideModal onClose={closeGuide} />}
+
+      {/* 누적 마일스톤 축하 토스트 */}
+      {milestoneToast && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-2 px-5 py-3 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.08] shadow-elevated">
+          <PartyPopper size={16} className="text-primary shrink-0" />
+          <span className="text-sm font-black text-on-surface">{milestoneToast}</span>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

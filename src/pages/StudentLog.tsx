@@ -2925,7 +2925,7 @@ ${guidePrompt}
                       <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">
                         주차별 주제 선택 <span className="text-red-400 ml-0.5">*</span>
                       </label>
-                      <span className="text-[10px] text-on-surface-variant/40 font-bold">주제를 선택해야 제출할 수 있습니다</span>
+                      <span className="text-[12px] font-bold text-on-surface-variant">주제를 선택해야 제출할 수 있습니다</span>
                     </div>
                     {activeWeekTopic && (
                       <p className="text-[11px] font-bold text-primary/60 ml-2">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
@@ -2957,7 +2957,7 @@ ${guidePrompt}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between ml-2">
                       <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">활동 주제</label>
-                      <span className="text-[10px] text-on-surface-variant/40 font-bold">* 명확한 핵심 활동명을 입력하세요</span>
+                      <span className="text-[12px] font-bold text-on-surface-variant">* 명확한 핵심 활동명을 입력하세요</span>
                     </div>
                     <input
                       type="text"

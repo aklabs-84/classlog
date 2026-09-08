@@ -728,7 +728,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-on-surface-variant/50">
+              <p className="text-[12px] font-bold text-on-surface-variant">
                 다운로드 시 엑셀 헤더명: {exportColumns.filter(c => c.checked).map(c => c.naissLabel).join(' | ')}
               </p>
             </div>

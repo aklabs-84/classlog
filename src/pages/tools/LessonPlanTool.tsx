@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { LessonPlanConfig, LessonPlanSections } from '../../lib/gemini';
-import { generateLessonPlanSections } from '../../lib/gemini';
+import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan } from '../../lib/gemini';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../../lib/lessonPlanExport';
 import { LessonPlanModal, LessonPlanSectionsEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
   Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save, RotateCcw,
+  Maximize2, Minimize2, Wand2,
 } from 'lucide-react';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
@@ -212,6 +213,9 @@ const SavedPlanViewModal = ({
   const [showRegenerateInput, setShowRegenerateInput] = useState(false);
   const [regenerateInstruction, setRegenerateInstruction] = useState('');
   const [regenerating, setRegenerating] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [creatingMaterial, setCreatingMaterial] = useState(false);
+  const navigate = useNavigate();
 
   const startEditing = () => { setEditSnapshot(sections); setEditing(true); };
   const cancelEditing = () => { if (editSnapshot) setSections(editSnapshot); setEditing(false); };
@@ -285,15 +289,63 @@ const SavedPlanViewModal = ({
     onClose();
   };
 
+  // 저장된 계획서 그대로 수업할 수 있는 교안 초안을 만들어 수업 자료 에디터로 넘긴다.
+  const handleCreateMaterial = async () => {
+    setCreatingMaterial(true);
+    try {
+      const classRow = plan.class_id
+        ? await supabase.from('classes').select('name, subject').eq('id', plan.class_id).single().then(r => r.data)
+        : null;
+      const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, {
+        subject: classRow?.subject,
+        className: classRow?.name,
+        classId: plan.class_id ?? undefined,
+      });
+      navigate('/teaching-tools', {
+        state: {
+          activeToolId: 'material-editor',
+          draftMaterial: {
+            noteId: '',
+            title: sections.basicInfo.unitTitle ? `${sections.basicInfo.unitTitle} 수업 교안` : '수업 교안',
+            content,
+            classId: plan.class_id ?? null,
+            expansionGuide: expansionSuggestions,
+          },
+        },
+      });
+      onClose();
+    } catch {
+      window.alert('수업 자료 초안 생성 중 오류가 발생했습니다.');
+    } finally {
+      setCreatingMaterial(false);
+    }
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4" onClick={editing ? undefined : onClose}>
-      <div className="bg-white shadow-2xl rounded-2xl w-full h-full sm:w-[94vw] sm:h-[92vh] max-w-4xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div
+        className={`bg-white shadow-2xl rounded-2xl w-full flex flex-col overflow-hidden transition-all ${
+          editing && isFullscreen
+            ? 'h-full sm:w-[98vw] sm:h-[96vh] max-w-[1600px]'
+            : 'h-full sm:w-[94vw] sm:h-[92vh] max-w-4xl'
+        }`}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><FileText size={15} /></div>
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-on-surface truncate">{sections?.basicInfo?.unitTitle || '수업 계획서'}</p>
             <p className="text-xs text-on-surface-variant mt-0.5">{PURPOSE_LABEL[plan.purpose]} · {formatDate(plan.created_at)}</p>
           </div>
+          {editing && (
+            <button
+              onClick={() => setIsFullscreen(v => !v)}
+              title={isFullscreen ? '작은 화면으로' : '전체 화면으로'}
+              className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          )}
           {!editing && (
             <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"><X size={16} /></button>
           )}
@@ -384,6 +436,13 @@ const SavedPlanViewModal = ({
               <button onClick={() => exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                 <FileDown size={14} /> PDF
               </button>
+              <button
+                onClick={handleCreateMaterial}
+                disabled={creatingMaterial}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary/10 text-primary hover:bg-primary/15 disabled:opacity-60 transition-colors"
+              >
+                {creatingMaterial ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 수업 자료 만들기
+              </button>
             </>
           )}
         </div>
@@ -411,7 +470,7 @@ const LessonPlanTool = () => {
   // 처음부터 진짜 레코드로 만들어 저장/재생성 흐름 전체에서 동일하게 동작하게 한다.
   useEffect(() => {
     if (draftHandledRef.current) return;
-    const draft = (location.state as { draftLessonPlan?: { title: string; content: string; classId: string | null } } | null)?.draftLessonPlan;
+    const draft = (location.state as { draftLessonPlan?: { noteId?: string; title: string; content: string; classId: string | null } } | null)?.draftLessonPlan;
     if (!draft || !user) return;
     draftHandledRef.current = true;
     (async () => {
@@ -428,6 +487,11 @@ const LessonPlanTool = () => {
         })
         .select('id')
         .single();
+      // 아이디어 기록에서 넘어온 초안이면, 자료 에디터와 동일하게 원본 노트에 발전 결과를 되돌려 기록
+      if (!error && draft.noteId) {
+        supabase.from('teacher_notes').update({ linked_material_id: data.id }).eq('id', draft.noteId)
+          .then(({ error: linkError }) => { if (linkError) console.error('[LessonPlanTool] linked_material_id 기록 오류:', linkError); });
+      }
       setActiveMaterial({
         materials: [{ id: error ? '' : data.id, title: draft.title, content: draft.content, week_number: 1 }],
         classId: draft.classId,

@@ -213,7 +213,7 @@ const SetPassword = () => {
                 {referralMsg.text}
               </p>
             )}
-            <p className="text-[11px] text-on-surface-variant/40 ml-2">
+            <p className="text-[12.5px] font-bold text-on-surface-variant ml-2">
               추천인과 본인 모두 7일 Pro 체험 베타가 지급됩니다
             </p>
           </div>

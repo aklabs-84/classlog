@@ -120,7 +120,7 @@ export default function InstallPromptBanner() {
                     <p className="text-sm text-on-surface-variant/70 mt-0.5 leading-relaxed">
                       하단 툴바의 <span className="font-black text-blue-500">공유 버튼</span>을 탭하세요
                       <br />
-                      <span className="text-[11px] text-on-surface-variant/50">(사각형에 위쪽 화살표 모양)</span>
+                      <span className="text-[12.5px] font-bold text-on-surface-variant">(사각형에 위쪽 화살표 모양)</span>
                     </p>
                   </div>
                 </div>
@@ -146,7 +146,7 @@ export default function InstallPromptBanner() {
                     <p className="text-sm text-on-surface-variant/70 mt-0.5 leading-relaxed">
                       오른쪽 위 <span className="font-black text-green-600">"추가"</span>를 탭하면 완료!
                       <br />
-                      <span className="text-[11px] text-on-surface-variant/50">홈 화면에 클래스로그 아이콘이 생깁니다</span>
+                      <span className="text-[12.5px] font-bold text-on-surface-variant">홈 화면에 클래스로그 아이콘이 생깁니다</span>
                     </p>
                   </div>
                 </div>

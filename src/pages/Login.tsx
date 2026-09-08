@@ -202,7 +202,7 @@ const Login = () => {
                   className="w-full pl-14 pr-6 py-4 bg-surface-container/50 rounded-2xl text-sm font-bold font-mono uppercase focus:outline-none focus:ring-8 focus:ring-primary/5 focus:bg-white focus:border-primary/20 border-2 border-transparent transition-all shadow-inner"
                 />
               </div>
-              <p className="text-[11px] text-on-surface-variant/40 ml-2 mt-2">
+              <p className="text-[12.5px] font-bold text-on-surface-variant ml-2 mt-2">
                 추천인과 본인 모두 7일 체험이 추가로 지급돼요 (구글 가입 시 적용)
               </p>
             </motion.div>
@@ -358,7 +358,7 @@ const Login = () => {
         </form>
 
         <div className="mt-10 pt-10 border-t border-on-surface/5 text-center">
-          <p className="text-[11px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] mb-6">학생인가요? 코드를 입력하세요</p>
+          <p className="text-sm font-black text-on-surface-variant uppercase tracking-[0.3em] mb-6">학생인가요? 코드를 입력하세요</p>
           <button
             onClick={() => navigate('/classroom-entry')}
             className="w-full py-5 rounded-2xl glass hover:bg-white text-primary font-black text-sm flex items-center justify-center gap-3 active:scale-95 transition-all border border-white/60 shadow-soft"

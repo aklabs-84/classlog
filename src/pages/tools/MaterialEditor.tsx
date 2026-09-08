@@ -1016,6 +1016,9 @@ const MaterialEditor = () => {
   const openMaterialHandledRef = useRef(false);
   // 아이디어 기록의 "참고할 만한 자료" 패널을 통해 이 자료로 넘어온 경우 — 에디터 상단에 돌아가기 링크를 보여준다
   const [cameFromIdeaRecord, setCameFromIdeaRecord] = useState(false);
+  // 계획서 → 수업 자료 초안 생성 시 함께 받은 "이어서 확장하면 좋을 방향" 가이드 — 언제든 다시 열어볼 수 있게 유지
+  const [expansionGuide, setExpansionGuide] = useState<string[] | null>(null);
+  const [showExpansionGuide, setShowExpansionGuide] = useState(false);
 
   // 클래스
   const [classes, setClasses] = useState<any[]>([]);
@@ -1206,12 +1209,13 @@ const MaterialEditor = () => {
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
     setActivityLinks([]); setNewLinkUrl('');
+    setExpansionGuide(null); setShowExpansionGuide(false);
   };
 
   // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
   useEffect(() => {
     if (draftHandledRef.current) return;
-    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null } } | null)?.draftMaterial;
+    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null; expansionGuide?: string[] } } | null)?.draftMaterial;
     if (!draft) return;
     draftHandledRef.current = true;
     resetForm();
@@ -1223,6 +1227,10 @@ const MaterialEditor = () => {
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
+    if (draft.expansionGuide && draft.expansionGuide.length > 0) {
+      setExpansionGuide(draft.expansionGuide);
+      setShowExpansionGuide(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2093,6 +2101,18 @@ const MaterialEditor = () => {
               >
                 <FileText size={11} /> 계획서 만들기
               </button>
+              {/* 계획서 기반 초안 생성 시 함께 받은 확장 가이드 — 언제든 다시 열어볼 수 있는 토글 */}
+              {expansionGuide && expansionGuide.length > 0 && (
+                <button
+                  onClick={() => setShowExpansionGuide(o => !o)}
+                  title="이 초안을 어떻게 확장하면 좋을지 AI 제안 보기"
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                    showExpansionGuide ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                >
+                  <Lightbulb size={11} /> 확장 가이드
+                </button>
+              )}
               {/* 편집 중인 내용을 바로 발표 모드로 */}
               <button
                 onClick={() => {
@@ -2249,6 +2269,40 @@ const MaterialEditor = () => {
               </button>
             </div>
           </div>
+          )}
+
+          {/* 확장 가이드 팝업 — 닫아도 expansionGuide 자체는 유지되어 위 토글 버튼으로 다시 열 수 있다 */}
+          {showExpansionGuide && expansionGuide && expansionGuide.length > 0 && (
+            <div className="mx-5 mt-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl relative">
+              <button
+                onClick={() => setShowExpansionGuide(false)}
+                title="닫기 (다시 보려면 위 '확장 가이드' 버튼을 눌러주세요)"
+                className="absolute top-3 right-3 p-1 rounded-lg text-amber-700 hover:bg-amber-100 transition-colors"
+              >
+                <XIcon size={14} />
+              </button>
+              <p className="flex items-center gap-1.5 text-xs font-black text-amber-800 mb-2">
+                <Lightbulb size={13} /> 이렇게 이어서 확장해보세요
+              </p>
+              <ul className="space-y-1.5">
+                {expansionGuide.map((tip, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs font-bold text-amber-900">
+                    <span className="shrink-0 mt-0.5">·</span>
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 계획서 기반 초안 생성 시 AI가 구체적인 내용을 채우지 못하고 남겨둔 부분이 있을 때 안내 */}
+          {content.includes('여기에 구체적인 내용을 입력해 주세요') && (
+            <div className="flex items-start gap-2 mx-5 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <Pencil size={14} className="shrink-0 mt-0.5 text-amber-600" />
+              <p className="text-xs font-bold text-amber-800">
+                직접 입력이 필요한 부분이 있어요. 아래 <span className="font-black">[여기에 구체적인 내용을 입력해 주세요]</span> 표시를 찾아 실제 내용으로 채워주세요.
+              </p>
+            </div>
           )}
 
           {/* 편집 / 미리보기 영역 */}

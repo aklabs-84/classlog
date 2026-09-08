@@ -473,7 +473,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   </div>
 
                   {/* 범례 */}
-                  <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center gap-3 text-[10px] text-on-surface-variant/50 font-bold">
+                  <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center gap-3 text-[11px] text-on-surface-variant font-bold">
                     <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" /> 출석 기록 있음
                     </span>

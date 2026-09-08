@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Lightbulb, Sparkles, FileText, Presentation, MessageCircleQuestion, ArrowRight, PenLine } from 'lucide-react';
+import { X, Lightbulb, Sparkles, FileText, Presentation, MessageCircleQuestion, ArrowRight, PenLine, Link2, Layers } from 'lucide-react';
 
 const SAMPLE_IDEA = '3단원 광합성 수업, 실험 위주로 하고 싶은데 어떻게 구성하면 좋을지 모르겠어요. 학생들이 직접 관찰하고 기록하는 활동이 있었으면 좋겠어요.';
+
+// 아이디어 기록이 실제로 어떤 도움을 주는지 요약 — 카피 조정(축 3) 반영: "탐색은 외부에서, 정리는 여기서" 포지셔닝
+const WHY_ITEMS: { icon: typeof Sparkles; text: string }[] = [
+  { icon: Sparkles, text: '짧은 메모도 바로 쓸 수 있는 계획안·슬라이드로 압축돼요' },
+  { icon: Link2, text: '참고 링크를 붙이면 제목과 함께 저장돼 다시 찾을 필요 없어요' },
+  { icon: Layers, text: '기록이 쌓일수록 비슷한 자료를 먼저 찾아 연결해드려요' },
+];
 
 type ActionKey = 'simple' | 'detailed' | 'slide' | 'wizard';
 
@@ -59,11 +66,20 @@ export default function IdeaRecordGuideModal({ onClose }: { onClose: () => void 
             <Lightbulb size={13} /> 아이디어 기록, 이렇게 써보세요
           </div>
           <h2 className="text-xl font-black text-on-surface tracking-tightest leading-tight">
-            떠오른 생각을 적으면, <span className="gradient-text">AI가 수업으로 발전</span>시켜드려요
+            떠오른 생각을 적으면, <span className="gradient-text">AI가 수업 자료로 완성</span>해드려요
           </h2>
           <p className="text-sm text-on-surface-variant mt-2">
-            기록 → AI로 발전 → 수업 자료실에서 완성, 3단계로 이어져요.
+            가볍게 적은 기록이, AI를 거쳐 바로 쓸 수 있는 자료·슬라이드로 쌓여요.
           </p>
+        </div>
+
+        <div className="px-6 pb-4 flex flex-col gap-1.5">
+          {WHY_ITEMS.map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <item.icon size={13} className="text-primary shrink-0" />
+              <span className="text-[13px] font-bold text-on-surface leading-snug">{item.text}</span>
+            </div>
+          ))}
         </div>
 
         <div className="px-6 pb-3">
@@ -97,7 +113,7 @@ export default function IdeaRecordGuideModal({ onClose }: { onClose: () => void 
 
         <div className="px-6 pb-6 pt-2">
           <div className="rounded-2xl border border-on-surface/[0.06] bg-surface-container-low p-4 space-y-3">
-            <p className="text-xs font-bold text-on-surface-variant/70">{active.desc}</p>
+            <p className="text-sm font-bold text-on-surface leading-relaxed">{active.desc}</p>
             <div className="rounded-xl bg-surface-container-lowest border border-on-surface/[0.06] p-3.5">
               <pre className="text-[11px] font-medium text-on-surface/70 whitespace-pre-wrap leading-relaxed font-sans">{active.sample}</pre>
             </div>

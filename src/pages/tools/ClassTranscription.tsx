@@ -1277,7 +1277,7 @@ ${transcriptText}
                   <div ref={transcriptEndRef} />
                 </div>
 
-                <p className="text-[11px] text-on-surface-variant/50 text-center">
+                <p className="text-[12.5px] font-bold text-on-surface-variant text-center">
                   수업이 끝나면 "수업 종료"를 눌러주세요. AI가 학생별 관찰 기록, 수업 평가, 자기평가 리포트를 자동 생성합니다.
                 </p>
               </div>
@@ -1312,7 +1312,7 @@ ${transcriptText}
                   <div ref={transcriptEndRef} />
                 </div>
 
-                <p className="text-[11px] text-on-surface-variant/50 text-center">
+                <p className="text-[12.5px] font-bold text-on-surface-variant text-center">
                   잠시 멈췄습니다. 수업을 이어가려면 "녹음 재개"를 눌러주세요.
                 </p>
 
@@ -1362,7 +1362,7 @@ ${transcriptText}
                     <span className="text-xs font-black text-green-700">전사 내용이 "기록 보기"에 저장됐습니다</span>
                   </div>
                 )}
-                <p className="text-[11px] text-on-surface-variant/50 text-center">
+                <p className="text-[12.5px] font-bold text-on-surface-variant text-center">
                   AI 분석을 시작하면 학생별 관찰 기록, 수업 평가, 자기평가 리포트가 추가됩니다. AI 크레딧은 분석 시에만 사용됩니다.
                 </p>
 

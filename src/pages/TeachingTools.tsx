@@ -514,6 +514,18 @@ const TeachingTools = () => {
     setContactSubmitted(true);
   };
 
+  // 이미 이 페이지에 머무는 중에 다른 도구의 state(예: 계획서→수업 자료 만들기)로 navigate가 다시 들어온 경우,
+  // 최초 mount 때만 읽는 activeTool의 lazy initializer로는 반영되지 않으므로 location.state 변경을 별도로 감지한다.
+  useEffect(() => {
+    const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
+    if (!stateToolId) return;
+    const requestedTool = tools.find(t => t.id === stateToolId) ?? null;
+    if (requestedTool && !isToolLocked(requestedTool, isPro, isBasicOrAbove)) {
+      setActiveTool(requestedTool);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
   // activeTool이 바뀔 때마다 URL tool= 파라미터 동기화
   // state 옵션을 넘기지 않으면 location.state가 undefined로 덮어써져
   // openSessionId 같은 딥링크 payload가 자식 컴포넌트에 도달하기 전에 유실된다.

@@ -967,7 +967,7 @@ const StudentView = () => {
               </div>
               <div>
                 <h3 className="font-black text-base text-primary tracking-tight">행동특성 및 종합의견 초안</h3>
-                <p className="text-[10px] font-bold text-on-surface-variant/50 mt-0.5">나이스 생기부 → 행동특성 및 종합의견란에 붙여넣기</p>
+                <p className="text-[12.5px] font-bold text-on-surface-variant mt-0.5">나이스 생기부 → 행동특성 및 종합의견란에 붙여넣기</p>
               </div>
             </div>
             <div className="relative z-10">

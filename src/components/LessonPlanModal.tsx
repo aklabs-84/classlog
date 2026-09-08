@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import { generateLessonPlanSections, resolveLessonPlanSectionOrder } from '../lib/gemini';
+import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan, resolveLessonPlanSectionOrder } from '../lib/gemini';
 import type { LessonPlanSections, LessonPlanConfig, LessonPlanSessionRow, LessonPlanCustomSection } from '../lib/gemini';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../lib/lessonPlanExport';
 import {
   X, Sparkles, Loader2, RotateCcw, AlertCircle, Check, Copy, FileDown, Save, FileText, Pencil, Plus,
-  GripVertical, Scissors, GitMerge, Trash2,
+  GripVertical, Scissors, GitMerge, Trash2, Maximize2, Minimize2, Wand2,
 } from 'lucide-react';
 
 const SECTION_LABELS: Record<string, string> = {
@@ -19,26 +20,42 @@ const SECTION_LABELS: Record<string, string> = {
   standards: '성취기준 연계',
 };
 
+// 계획서 만들기 모달 — 용도 선택 시 어떤 결과물이 나오는지 미리 보여주는 정적 설명/샘플
+const PURPOSE_PREVIEW: Record<LessonPlanConfig['purpose'], { desc: string; sample: string }> = {
+  formal: {
+    desc: '차시별 표 형식 · 도입-전개-정리 흐름과 준비물·평가까지 상세히 담아요',
+    sample: '1차시｜분수의 덧셈 개념 이해 — 동분모 분수 덧셈 원리를 그림으로 설명하고, 모둠별로 문제를 풀어본다.',
+  },
+  summary: {
+    desc: '핵심만 3~4문장으로 압축해요 — 관리자 결재·동료 공유용',
+    sample: '이번 수업은 분수의 덧셈 개념을 익히는 활동입니다. 그림 자료로 원리를 설명한 뒤 모둠 활동으로 이해를 다집니다.',
+  },
+  parent: {
+    desc: '학부모가 읽기 편한 안내문 톤으로, 가정에서 도와줄 점도 담아요',
+    sample: '이번 주 수학 시간에는 분수의 덧셈을 배워요. 가정에서는 아이가 그림으로 분수를 표현해보도록 격려해 주세요.',
+  },
+};
+
 // ── 계획서 만들기 모달 — 미리보기 편집 필드 ─────────────────────────────────
 export const LabeledInput = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
   <div>
-    <p className="text-[10px] font-black text-on-surface-variant mb-1">{label}</p>
+    <p className="text-xs font-black text-on-surface-variant mb-1">{label}</p>
     <input
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-surface-container text-xs focus:outline-none focus:border-primary/40"
+      className="w-full px-3 py-2 bg-white rounded-lg border border-surface-container text-sm focus:outline-none focus:border-primary/40"
     />
   </div>
 );
 
 export const LabeledTextarea = ({ label, value, onChange, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) => (
   <div>
-    <p className="text-[10px] font-black text-on-surface-variant mb-1">{label}</p>
+    <p className="text-xs font-black text-on-surface-variant mb-1">{label}</p>
     <textarea
       value={value}
       onChange={e => onChange(e.target.value)}
       rows={rows}
-      className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-surface-container text-xs focus:outline-none focus:border-primary/40 resize-y"
+      className="w-full px-3 py-2 bg-white rounded-lg border border-surface-container text-sm leading-relaxed focus:outline-none focus:border-primary/40 resize-y"
     />
   </div>
 );
@@ -78,23 +95,23 @@ export const SessionPlansEditor = ({ rows, onChange }: { rows: LessonPlanSession
 
   return (
     <div>
-      <p className="text-[10px] font-black text-on-surface-variant mb-1">차시별 내용</p>
+      <p className="text-xs font-black text-on-surface-variant mb-1">차시별 내용</p>
       <div className="space-y-2">
         {rows.map((row, idx) => (
           <div key={idx}>
-            <div className="rounded-xl border border-surface-container p-2.5 space-y-1.5 bg-white">
+            <div className="rounded-xl border border-surface-container p-3 space-y-2 bg-white">
               <div className="flex items-center gap-2">
                 <input
                   value={row.session}
                   onChange={e => updateRow(idx, { session: e.target.value })}
                   placeholder="차시 (예: 1차시)"
-                  className="w-24 px-2 py-1 bg-surface-container-low rounded-lg text-xs font-bold focus:outline-none"
+                  className="w-28 px-2.5 py-1.5 bg-surface-container-low rounded-lg text-sm font-bold focus:outline-none"
                 />
                 <input
                   value={row.title}
                   onChange={e => updateRow(idx, { title: e.target.value })}
                   placeholder="제목"
-                  className="flex-1 px-2 py-1 bg-surface-container-low rounded-lg text-xs font-bold focus:outline-none"
+                  className="flex-1 px-2.5 py-1.5 bg-surface-container-low rounded-lg text-sm font-bold focus:outline-none"
                 />
                 <button onClick={() => splitRow(idx)} title="이 차시를 둘로 분리" className="p-1 rounded-lg text-on-surface-variant/50 hover:bg-surface-container-low shrink-0">
                   <Scissors size={13} />
@@ -107,14 +124,14 @@ export const SessionPlansEditor = ({ rows, onChange }: { rows: LessonPlanSession
                 value={row.content}
                 onChange={e => updateRow(idx, { content: e.target.value })}
                 placeholder="이 차시에서 진행할 학습 및 실습 내용"
-                rows={7}
-                className="w-full px-2 py-1.5 bg-surface-container-low rounded-lg text-xs focus:outline-none resize-y"
+                rows={9}
+                className="w-full px-2.5 py-2 bg-surface-container-low rounded-lg text-sm leading-relaxed focus:outline-none resize-y"
               />
               <input
                 value={row.note}
                 onChange={e => updateRow(idx, { note: e.target.value })}
                 placeholder="비고 (선택)"
-                className="w-full px-2 py-1 bg-surface-container-low rounded-lg text-xs focus:outline-none"
+                className="w-full px-2.5 py-1.5 bg-surface-container-low rounded-lg text-sm focus:outline-none"
               />
             </div>
             {idx < rows.length - 1 && (
@@ -250,7 +267,7 @@ export const LessonPlanSectionsEditor = ({
               value={custom.title}
               onChange={e => updateCustomSection(id, { title: e.target.value })}
               placeholder="섹션 제목"
-              className="flex-1 px-2.5 py-1.5 bg-white rounded-lg border border-surface-container text-xs font-black focus:outline-none focus:border-primary/40"
+              className="flex-1 px-3 py-2 bg-white rounded-lg border border-surface-container text-sm font-black focus:outline-none focus:border-primary/40"
             />
             <button onClick={() => removeCustomSection(id)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 shrink-0">
               <Trash2 size={13} />
@@ -261,7 +278,7 @@ export const LessonPlanSectionsEditor = ({
             onChange={e => updateCustomSection(id, { content: e.target.value })}
             placeholder="자유롭게 내용을 입력하세요"
             rows={5}
-            className="w-full px-2.5 py-1.5 bg-white rounded-lg border border-surface-container text-xs focus:outline-none focus:border-primary/40 resize-y"
+            className="w-full px-3 py-2 bg-white rounded-lg border border-surface-container text-sm leading-relaxed focus:outline-none focus:border-primary/40 resize-y"
           />
         </div>
       );
@@ -290,11 +307,11 @@ export const LessonPlanSectionsEditor = ({
                 setOverSectionKey(null);
               }}
               onDragEnd={() => { setDragSectionKey(null); setOverSectionKey(null); }}
-              className={`rounded-2xl border border-surface-container/70 bg-surface-container-low/40 p-3 transition-opacity ${dragSectionKey === key ? 'opacity-40' : ''}`}
+              className={`rounded-2xl border border-surface-container/70 bg-surface-container-low/40 p-4 transition-opacity ${dragSectionKey === key ? 'opacity-40' : ''}`}
             >
               <div className="flex items-center gap-1.5 mb-2 cursor-grab text-on-surface-variant/50 active:cursor-grabbing">
                 <GripVertical size={14} />
-                <span className="text-[10px] font-black uppercase tracking-wide">{SECTION_LABELS[key] ?? '커스텀 섹션'}</span>
+                <span className="text-xs font-black uppercase tracking-wide">{SECTION_LABELS[key] ?? '커스텀 섹션'}</span>
               </div>
               {body}
             </div>
@@ -334,6 +351,9 @@ export const LessonPlanModal = ({
   onSaved?: () => void;
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [creatingMaterial, setCreatingMaterial] = useState(false);
   const [step, setStep] = useState<LessonPlanStep>('configure');
   const [purpose, setPurpose] = useState<LessonPlanConfig['purpose']>('formal');
   const [hasEvaluation, setHasEvaluation] = useState(false);
@@ -462,6 +482,37 @@ export const LessonPlanModal = ({
     setEditingSaved(false);
   };
 
+  // 저장된 계획서 그대로 수업할 수 있는 교안 초안을 만들어 수업 자료 에디터로 넘긴다.
+  const handleCreateMaterial = async () => {
+    if (!sections) return;
+    setCreatingMaterial(true);
+    try {
+      const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, {
+        subject: classSubject,
+        className,
+        classId: classId ?? undefined,
+      });
+      navigate('/teaching-tools', {
+        state: {
+          activeToolId: 'material-editor',
+          draftMaterial: {
+            noteId: '',
+            title: sections.basicInfo.unitTitle ? `${sections.basicInfo.unitTitle} 수업 교안` : '수업 교안',
+            content,
+            classId: classId ?? null,
+            expansionGuide: expansionSuggestions,
+          },
+        },
+      });
+      onClose();
+    } catch {
+      setErrorMessage('수업 자료 초안 생성 중 오류가 발생했습니다.');
+      setStep('error');
+    } finally {
+      setCreatingMaterial(false);
+    }
+  };
+
   return createPortal(
     <div
       className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4"
@@ -469,8 +520,10 @@ export const LessonPlanModal = ({
     >
       <div
         className={`bg-white shadow-2xl flex flex-col overflow-hidden transition-all ${
-          step === 'preview' && saved
+          step === 'preview' && saved && !editingSaved
             ? 'rounded-2xl w-full h-full sm:w-[94vw] sm:h-[92vh] max-w-4xl'
+            : isFullscreen
+            ? 'rounded-2xl w-full h-full sm:w-[98vw] sm:h-[96vh] max-w-[1600px]'
             : 'rounded-3xl w-full max-w-2xl max-h-[85vh]'
         }`}
         onClick={e => e.stopPropagation()}
@@ -490,6 +543,15 @@ export const LessonPlanModal = ({
               {step === 'error' && '오류가 발생했습니다'}
             </p>
           </div>
+          {step !== 'loading' && !(step === 'preview' && saved && !editingSaved) && (
+            <button
+              onClick={() => setIsFullscreen(v => !v)}
+              title={isFullscreen ? '작은 화면으로' : '전체 화면으로'}
+              className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          )}
           {step !== 'loading' && (
             <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
               <X size={16} />
@@ -512,6 +574,10 @@ export const LessonPlanModal = ({
                       {label}
                     </button>
                   ))}
+                </div>
+                <div className="mt-2 px-3.5 py-3 rounded-xl bg-primary/[0.06] border border-primary/15 space-y-1.5">
+                  <p className="text-[13px] font-bold text-on-surface leading-relaxed">{PURPOSE_PREVIEW[purpose].desc}</p>
+                  <p className="text-[12.5px] font-semibold text-on-surface-variant leading-relaxed">예시: “{PURPOSE_PREVIEW[purpose].sample}”</p>
                 </div>
               </div>
 
@@ -544,12 +610,24 @@ export const LessonPlanModal = ({
                     className="mt-1.5 w-full px-3 py-2 bg-white rounded-xl border border-surface-container text-sm focus:outline-none focus:border-primary/40"
                   />
                 )}
+                {hasEvaluation && (
+                  <p className="mt-1.5 px-3 py-2 rounded-lg bg-primary/[0.06] border border-primary/15 text-[12.5px] font-bold text-on-surface leading-relaxed">
+                    체크하면 '평가계획' 섹션이 추가돼요 — 예: 모둠활동 참여도를 관찰평가로 확인합니다.
+                  </p>
+                )}
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={includeStandards} onChange={e => setIncludeStandards(e.target.checked)} className="accent-primary" />
-                <span className="text-xs font-black text-on-surface-variant">2022 개정 교육과정 성취기준 연계</span>
-              </label>
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={includeStandards} onChange={e => setIncludeStandards(e.target.checked)} className="accent-primary" />
+                  <span className="text-xs font-black text-on-surface-variant">2022 개정 교육과정 성취기준 연계</span>
+                </label>
+                {includeStandards && (
+                  <p className="mt-1.5 px-3 py-2 rounded-lg bg-primary/[0.06] border border-primary/15 text-[12.5px] font-bold text-on-surface leading-relaxed">
+                    체크하면 '성취기준 연계' 섹션이 추가돼요 — 예: [4수02-04] 분모가 같은 분수의 덧셈과 뺄셈의 계산 원리를 이해한다.
+                  </p>
+                )}
+              </div>
 
               <div>
                 <p className="text-xs font-black text-on-surface-variant mb-1.5">추가 요청사항 (선택)</p>
@@ -667,6 +745,13 @@ export const LessonPlanModal = ({
                 </button>
                 <button onClick={() => sections && exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                   <FileDown size={14} /> PDF
+                </button>
+                <button
+                  onClick={handleCreateMaterial}
+                  disabled={creatingMaterial}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary/10 text-primary hover:bg-primary/15 disabled:opacity-60 transition-colors"
+                >
+                  {creatingMaterial ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 수업 자료 만들기
                 </button>
                 <button
                   onClick={onClose}
