@@ -371,11 +371,13 @@ const SchoolProjectSchoolsPage = () => {
     setImportOpen(false);
   };
 
-  const handlePickPlanMaterial = (idx: number, m: ImportableMaterial) => {
+  const handlePickPlanMaterial = async (idx: number, m: ImportableMaterial) => {
     const plan = [...weeklyPlan];
     plan[idx] = { ...plan[idx], topic: m.title, material_id: m.id, url: m.activity_urls?.[0]?.url || plan[idx].url };
     setWeeklyPlan(plan);
     setPlanMaterialDropdownIdx(null);
+    // 주차별 계획에 연결된 자료는 학교 프로젝트의 다른 강사/학생도 봐야 하므로 공개 상태로 전환
+    await supabase.from('class_materials').update({ is_published: true, updated_at: new Date().toISOString() }).eq('id', m.id);
   };
 
   const handleUnlinkPlanMaterial = (idx: number) => {

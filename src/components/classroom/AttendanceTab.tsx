@@ -116,13 +116,25 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
     if (!classId) return;
     const { data } = await supabase
       .from('classes')
-      .select('today_started_at, today_ended_at, weekly_plan, active_week')
+      .select('today_started_at, today_ended_at, weekly_plan, active_week, parent_class_id')
       .eq('id', classId)
       .single();
     setSessionStartedAt(data?.today_started_at ?? null);
     setSessionEndedAt(data?.today_ended_at ?? null);
-    setWeeklyPlan(Array.isArray(data?.weekly_plan) ? data.weekly_plan : []);
     setActiveWeek(data?.active_week ?? null);
+
+    // 학교 프로젝트 소속 반(서브클래스)은 주차별 계획이 자신이 아니라 학교 루트 클래스에 저장되므로,
+    // 부모 클래스가 있으면 그쪽의 weekly_plan을 가져와야 오늘 수업 시작 시 차시 선택 목록이 뜬다.
+    if (data?.parent_class_id) {
+      const { data: parentData } = await supabase
+        .from('classes')
+        .select('weekly_plan')
+        .eq('id', data.parent_class_id)
+        .single();
+      setWeeklyPlan(Array.isArray(parentData?.weekly_plan) ? parentData.weekly_plan : []);
+    } else {
+      setWeeklyPlan(Array.isArray(data?.weekly_plan) ? data.weekly_plan : []);
+    }
   }, [classId]);
 
   useEffect(() => { fetchSession(); }, [fetchSession]);
