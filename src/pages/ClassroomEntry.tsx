@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
-import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound } from 'lucide-react';
+import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound, UserPlus } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AvatarPicker from '../components/AvatarPicker';
@@ -19,6 +19,12 @@ const ClassroomEntry = () => {
   const [searchName, setSearchName] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [showEntryModal, setShowEntryModal] = useState(false);
+
+  // 자가등록(명단에 없는 학생) 관련 상태
+  const [showSelfSignup, setShowSelfSignup] = useState(false);
+  const [selfSignupName, setSelfSignupName] = useState('');
+  const [selfSignupLoading, setSelfSignupLoading] = useState(false);
+  const [selfSignupError, setSelfSignupError] = useState('');
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -136,6 +142,39 @@ const ClassroomEntry = () => {
   const handleModalClose = () => {
     setShowEntryModal(false);
     setSelectedStudent(null);
+  };
+
+  const handleSelfSignup = async () => {
+    const name = selfSignupName.trim();
+    if (!name) { setSelfSignupError('이름을 입력해주세요.'); return; }
+
+    setSelfSignupLoading(true);
+    setSelfSignupError('');
+    try {
+      const fullCode = codes.join('');
+      const { data: newStudentId, error } = await supabase.rpc('self_register_student', {
+        p_entry_code: fullCode,
+        p_full_name: name,
+      });
+
+      if (error || !newStudentId) {
+        setSelfSignupError('등록에 실패했습니다. 선생님께 문의해 주세요.');
+        return;
+      }
+
+      const newStudent = { id: newStudentId, full_name: name };
+      setSelectedStudent(newStudent);
+      setShowSelfSignup(false);
+      setSelfSignupName('');
+      // 방금 등록된 학생이라 PIN이 없는 상태 — 바로 PIN 설정 단계로 진행
+      setHasPinSet(false);
+      setPinDigits(['', '', '', '']);
+      setPinConfirmDigits(['', '', '', '']);
+      setPinError('');
+      setStep(3);
+    } finally {
+      setSelfSignupLoading(false);
+    }
   };
 
   const handleFinalEnter = async () => {
@@ -360,6 +399,45 @@ const ClassroomEntry = () => {
                   </button>
                 ))}
               </div>
+
+              {targetClass?.allow_self_signup && (
+                !showSelfSignup ? (
+                  <button
+                    onClick={() => setShowSelfSignup(true)}
+                    className="w-full py-3 rounded-2xl font-black text-sm text-on-surface-variant border-2 border-dashed border-surface-container-high hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-2"
+                  >
+                    <UserPlus size={16} />
+                    명단에 없어요
+                  </button>
+                ) : (
+                  <div className="p-4 bg-surface-container-low rounded-2xl space-y-3">
+                    <p className="text-xs font-black text-on-surface-variant">이름을 입력하면 새로 등록돼요.</p>
+                    <input
+                      type="text"
+                      placeholder="이름 입력"
+                      value={selfSignupName}
+                      onChange={(e) => { setSelfSignupError(''); setSelfSignupName(e.target.value); }}
+                      className="w-full px-4 py-3 bg-white rounded-xl text-sm font-bold border border-surface-container-high focus:outline-none focus:ring-4 focus:ring-primary/10"
+                    />
+                    {selfSignupError && <p className="text-error text-xs font-bold">{selfSignupError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowSelfSignup(false); setSelfSignupName(''); setSelfSignupError(''); }}
+                        className="flex-1 py-3 bg-surface-container rounded-xl font-black text-xs text-on-surface-variant hover:bg-surface-container-high transition-all"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleSelfSignup}
+                        disabled={selfSignupLoading || !selfSignupName.trim()}
+                        className="flex-[2] py-3 btn-gradient rounded-xl font-black text-xs flex items-center justify-center disabled:opacity-50"
+                      >
+                        {selfSignupLoading ? <Loader2 className="animate-spin" size={16} /> : '등록하고 입장하기'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
             </div>
 
             <button
