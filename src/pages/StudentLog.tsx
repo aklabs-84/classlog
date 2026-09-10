@@ -1138,8 +1138,8 @@ const StudentLog = () => {
       e.target.value = '';
       return;
     }
-    const oversized = files.find(f => f.size > 20 * 1024 * 1024);
-    if (oversized) { alert('파일 크기는 각각 20MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    const oversized = files.find(f => f.size > 50 * 1024 * 1024);
+    if (oversized) { alert('파일 크기는 각각 50MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
     setResultImageFiles(files);
     Promise.all(files.map(file => new Promise<string>((resolve) => {
       const reader = new FileReader();
@@ -1151,7 +1151,7 @@ const StudentLog = () => {
   const handleUploadFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 20 * 1024 * 1024) { alert('파일 크기는 20MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    if (file.size > 50 * 1024 * 1024) { alert('파일 크기는 50MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
     setResultFileUpload(file);
   };
 
@@ -3913,7 +3913,7 @@ ${guidePrompt}
                           </div>
                           <div className="text-left">
                             <p className="font-black text-emerald-600 text-sm">이미지 선택 (여러 장 가능)</p>
-                            <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP · 장당 최대 20MB · 최대 {MAX_RESULT_IMAGES}장</p>
+                            <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP · 장당 최대 50MB · 최대 {MAX_RESULT_IMAGES}장</p>
                           </div>
                         </div>
                       )}
@@ -3965,7 +3965,7 @@ ${guidePrompt}
                             </div>
                             <div>
                               <p className="font-black text-amber-600 text-sm">파일 선택</p>
-                              <p className="text-xs font-bold text-amber-400">모든 파일 형식 (최대 20MB)</p>
+                              <p className="text-xs font-bold text-amber-400">모든 파일 형식 (최대 50MB)</p>
                             </div>
                           </div>
                         );
@@ -4840,7 +4840,7 @@ ${guidePrompt}
 
                         <button
                           onClick={() => navigate(`/survey/${sf.pin_code}`, {
-                            state: { autoJoinName: session?.student_name }
+                            state: { autoJoinName: session?.student_name, studentId: session?.student_id, classId: session?.class_id }
                           })}
                           className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-black text-sm shadow-lg shadow-teal-200 hover:brightness-110 active:scale-95 transition-all shrink-0"
                         >

@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
+import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
 import {
   ArrowLeft,
   School,
@@ -68,6 +69,7 @@ const PAGE_TABS = [
   { key: 'teachers', label: '강사 관리' },
   { key: 'materials', label: '수업 자료' },
   { key: 'plan', label: '주차별 계획' },
+  { key: 'survey', label: '설문' },
 ] as const;
 type PageTabKey = (typeof PAGE_TABS)[number]['key'];
 
@@ -1264,6 +1266,10 @@ const SchoolProjectSchoolsPage = () => {
             </>
           )}
         </div>
+      )}
+
+      {activeTab === 'survey' && projectId && (
+        <SchoolProjectSurveyTab projectId={projectId} schools={schools} />
       )}
 
       {/* 학교 추가 모달 */}

@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
-type Step = 'pin' | 'name' | 'survey' | 'done';
+type Step = 'pin' | 'name' | 'select-class' | 'survey' | 'done';
 
 interface SurveyForm {
   id: string;
@@ -15,6 +15,19 @@ interface SurveyForm {
   status: string;
   is_anonymous: boolean;
   redirect_url: string | null;
+  class_id: string | null;
+  school_project_id: string | null;
+}
+
+interface SchoolOption {
+  id: string;
+  name: string;
+  school_name: string | null;
+}
+
+interface ClassOption {
+  id: string;
+  name: string;
 }
 
 interface SurveyQuestion {
@@ -245,6 +258,8 @@ export default function SurveyStudent() {
   const navigate = useNavigate();
   const location = useLocation();
   const autoJoinName = (location.state as any)?.autoJoinName ?? '';
+  const sessionStudentId = (location.state as any)?.studentId ?? null;
+  const sessionClassId = (location.state as any)?.classId ?? null;
 
   const [step, setStep] = useState<Step>(pin ? 'name' : 'pin');
   const [pinInput, setPinInput] = useState(pin ?? '');
@@ -256,6 +271,13 @@ export default function SurveyStudent() {
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [responseId, setResponseId] = useState<string | null>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
+
+  // 프로젝트 전체용 설문(학생 세션 없이 PIN만 입력해 들어온 경우) 학교/반 선택
+  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [classPickerLoading, setClassPickerLoading] = useState(false);
 
   // PIN으로 설문 조회 (URL에 pin이 있으면 자동 로드)
   useEffect(() => {
@@ -280,13 +302,56 @@ export default function SurveyStudent() {
     if (form) setStep('name');
   };
 
+  // 응답에 붙일 반 id를 결정: 학생 세션 > 개별 반 전용 설문(자동) > 학교/반 선택 필요 여부
+  const needsClassPicker = !!form?.school_project_id && !sessionClassId;
+
   const handleNameSubmit = async () => {
     if (!form) return;
     if (!form.is_anonymous && !nameInput.trim()) { setErrorMsg('이름을 입력해주세요.'); return; }
+    if (needsClassPicker) {
+      setErrorMsg('');
+      setLoading(true);
+      const { data: schools } = await supabase
+        .from('school_projects')
+        .select('id, name, school_name')
+        .eq('parent_project_id', form.school_project_id!)
+        .order('name');
+      setSchoolOptions(schools ?? []);
+      setLoading(false);
+      setStep('select-class');
+      return;
+    }
+    await submitResponse(sessionClassId ?? form.class_id ?? null);
+  };
+
+  const handleSchoolSelect = async (schoolId: string) => {
+    setSelectedSchoolId(schoolId);
+    setSelectedClassId('');
+    setClassOptions([]);
+    if (!schoolId) return;
+    setClassPickerLoading(true);
+    const { data } = await supabase
+      .from('classes')
+      .select('id, name')
+      .eq('school_project_id', schoolId)
+      .order('name');
+    setClassOptions(data ?? []);
+    setClassPickerLoading(false);
+  };
+
+  const handleClassPickerSubmit = async () => {
+    if (!selectedClassId) { setErrorMsg('반을 선택해주세요.'); return; }
+    await submitResponse(selectedClassId);
+  };
+
+  const submitResponse = async (classId: string | null) => {
+    if (!form) return;
     setLoading(true);
     const { data, error } = await supabase.from('survey_responses').insert({
       form_id: form.id,
       respondent_name: form.is_anonymous ? '익명' : nameInput.trim(),
+      student_id: sessionStudentId,
+      class_id: classId,
     }).select().single();
     if (error || !data) { setErrorMsg('참여 중 오류가 발생했습니다.'); setLoading(false); return; }
     setResponseId(data.id);
@@ -371,6 +436,48 @@ export default function SurveyStudent() {
         {errorMsg && <p style={{ fontSize: 13, color: '#EF4444', marginBottom: 8 }}>{errorMsg}</p>}
         <button onClick={handleNameSubmit}
           style={{ marginTop: 12, width: '100%', padding: '14px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          시작하기 <ArrowRight size={16} style={{ display: 'inline', marginLeft: 4 }} />
+        </button>
+      </motion.div>
+    </div>
+  );
+
+  // 학교 / 반 선택 (학생 세션 없이 프로젝트 전체용 설문에 PIN으로 바로 들어온 경우)
+  if (step === 'select-class') return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #EFF6FF, #F0FDF4)', padding: 24 }}>
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+        style={{ background: '#fff', borderRadius: 20, padding: 36, width: '100%', maxWidth: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', textAlign: 'center' }}
+      >
+        <h1 style={{ fontSize: 20, fontWeight: 'bold', color: '#111', marginBottom: 4 }}>{form?.title}</h1>
+        <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 24 }}>소속 학교와 반을 선택해주세요</p>
+
+        <select
+          value={selectedSchoolId}
+          onChange={e => handleSchoolSelect(e.target.value)}
+          style={{ width: '100%', fontSize: 15, padding: '12px', border: '2px solid #E5E7EB', borderRadius: 12, outline: 'none', color: '#111', marginBottom: 12, boxSizing: 'border-box', background: '#fff' }}
+        >
+          <option value="">학교 선택</option>
+          {schoolOptions.map(s => (
+            <option key={s.id} value={s.id}>{s.school_name || s.name}</option>
+          ))}
+        </select>
+
+        <select
+          value={selectedClassId}
+          onChange={e => setSelectedClassId(e.target.value)}
+          disabled={!selectedSchoolId || classPickerLoading}
+          style={{ width: '100%', fontSize: 15, padding: '12px', border: '2px solid #E5E7EB', borderRadius: 12, outline: 'none', color: '#111', boxSizing: 'border-box', background: '#fff' }}
+        >
+          <option value="">{classPickerLoading ? '불러오는 중...' : '반 선택'}</option>
+          {classOptions.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+
+        {errorMsg && <p style={{ fontSize: 13, color: '#EF4444', marginTop: 8 }}>{errorMsg}</p>}
+        <button onClick={handleClassPickerSubmit} disabled={!selectedClassId}
+          style={{ marginTop: 16, width: '100%', padding: '14px', background: selectedClassId ? '#3B82F6' : '#E5E7EB', color: selectedClassId ? '#fff' : '#9CA3AF', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 'bold', cursor: selectedClassId ? 'pointer' : 'default' }}
         >
           시작하기 <ArrowRight size={16} style={{ display: 'inline', marginLeft: 4 }} />
         </button>

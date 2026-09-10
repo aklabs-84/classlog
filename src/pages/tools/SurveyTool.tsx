@@ -420,12 +420,12 @@ function PresentationMode({
 }
 
 // ─── Question Editor Modal ──────────────────────────────────────────────────────
-interface QuestionEditorProps {
+export interface QuestionEditorProps {
   initial: Partial<SurveyQuestion>;
   onSave: (q: Partial<SurveyQuestion>) => void;
   onClose: () => void;
 }
-function QuestionEditor({ initial, onSave, onClose }: QuestionEditorProps) {
+export function QuestionEditor({ initial, onSave, onClose }: QuestionEditorProps) {
   const [type, setType] = useState<QuestionType>(initial.type ?? 'multiple_choice');
   const [text, setText] = useState(initial.text ?? '');
   const [options, setOptions] = useState<{ label: string }[]>(
