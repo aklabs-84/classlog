@@ -58,6 +58,7 @@ import {
   ChevronsRight,
   Plus,
   Cpu,
+  Sparkles,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
@@ -69,6 +70,7 @@ import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import RichEditor from '../components/RichEditor';
 import ActivityLinksButton, { type ActivityLink } from '../components/ActivityLinksButton';
+import { getAiApps, type AiApp } from '../lib/aiApps';
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -300,6 +302,8 @@ const StudentLog = () => {
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
+  const [entryCode, setEntryCode] = useState<string | null>(null);
+  const [aiHubApps, setAiHubApps] = useState<AiApp[]>([]);
 
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
@@ -332,6 +336,13 @@ const StudentLog = () => {
   useEffect(() => {
     if (activeWeekTopic && !title) setTitle(activeWeekTopic);
   }, [activeWeekTopic]);
+  // AIServiceHub 카탈로그 — 교사가 공개한 외부 학습 도구(예: 바이브코딩 스튜디오)를 학생 화면에 표시하기 위해 조회
+  useEffect(() => {
+    getAiApps({ limit: 100 })
+      .then(apps => setAiHubApps(apps.filter(a => a.appUrls?.[0]?.url)))
+      .catch(() => setAiHubApps([]));
+  }, []);
+
   const [detailItem, setDetailItem] = useState<any>(null);
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -935,12 +946,13 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed, parent_class_id, today_started_at, active_week')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed, parent_class_id, today_started_at, active_week, entry_code')
         .eq('id', classId)
         .single();
 
       if (data) {
         setTeacherId(data.teacher_id);
+        setEntryCode(data.entry_code || null);
         const startedToday = data.today_started_at &&
           new Date(data.today_started_at).toDateString() === new Date().toDateString();
         setActiveWeek(startedToday ? (data.active_week ?? null) : null);
@@ -3692,9 +3704,10 @@ ${guidePrompt}
               >
                 {(() => {
                   const availableTools = STUDENT_LEARNING_TOOLS.filter(t => enabledToolIds.includes(t.id));
+                  const externalTools = aiHubApps.filter(a => enabledToolIds.includes(`external:${a.id}`));
                   const selectedTool = availableTools.find(t => t.id === selectedToolId);
 
-                  if (availableTools.length === 0) {
+                  if (availableTools.length === 0 && externalTools.length === 0) {
                     return (
                       <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                         <Cpu size={64} />
@@ -3717,6 +3730,14 @@ ${guidePrompt}
                     );
                   }
 
+                  const openExternalTool = (app: AiApp) => {
+                    const url = app.appUrls[0].url;
+                    const qs = new URLSearchParams();
+                    if (entryCode) qs.set('entryCode', entryCode);
+                    if (session?.student_name) qs.set('studentName', session.student_name);
+                    window.open(qs.toString() ? `${url}?${qs.toString()}` : url, '_blank', 'noopener,noreferrer');
+                  };
+
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                       {availableTools.map(tool => (
@@ -3731,6 +3752,24 @@ ${guidePrompt}
                           <div className="space-y-1.5">
                             <p className="font-black text-base">{tool.label}</p>
                             <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{tool.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                      {externalTools.map(app => (
+                        <button
+                          key={app.id}
+                          onClick={() => openExternalTool(app)}
+                          className="flex flex-col items-start gap-4 p-7 bg-white rounded-3xl border-2 border-surface-container-high hover:border-fuchsia-300 hover:shadow-md transition-all text-left min-h-[180px]"
+                        >
+                          <div className="w-12 h-12 rounded-2xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
+                            <Sparkles size={20} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="font-black text-base flex items-center gap-1.5">
+                              {app.name}
+                              <ExternalLink size={13} className="text-on-surface-variant/40" />
+                            </p>
+                            <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{app.description}</p>
                           </div>
                         </button>
                       ))}

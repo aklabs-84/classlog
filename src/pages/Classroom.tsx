@@ -61,6 +61,7 @@ import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { isDemoTeacher } from '../lib/demo';
+import { getAiApps, type AiApp } from '../lib/aiApps';
 import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
@@ -421,6 +422,14 @@ const Classroom = () => {
       setSelectedStudentIds([]);
     }
   }, [user]);
+
+  // AIServiceHub 카탈로그(바이브코딩 스튜디오 등) — "학습 도구" 패널에 LEARNING_TOOLS와 함께 노출
+  const [aiHubApps, setAiHubApps] = useState<AiApp[]>([]);
+  useEffect(() => {
+    getAiApps({ limit: 100 })
+      .then(apps => setAiHubApps(apps.filter(a => a.appUrls?.[0]?.url)))
+      .catch(() => setAiHubApps([]));
+  }, []);
 
   // Cmd+K / Ctrl+K 전체 검색 단축키
   useEffect(() => {
@@ -5034,6 +5043,38 @@ const Classroom = () => {
                                   }`}
                                 >
                                   {togglingToolId === tool.id ? (
+                                    <Loader2 size={13} className="animate-spin" />
+                                  ) : isPublished ? (
+                                    <><Unlock size={13} /> 공개 중</>
+                                  ) : (
+                                    <><Lock size={13} /> 비공개</>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {aiHubApps.map(app => {
+                            const toolId = `external:${app.id}`;
+                            const isPublished = !!enabledTools[toolId];
+                            return (
+                              <div key={toolId} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                                    <Sparkles size={14} />
+                                  </div>
+                                  <p className="text-sm font-black truncate">{app.name}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleToggleTool(toolId)}
+                                  disabled={togglingToolId === toolId}
+                                  title={isPublished ? '비공개로 전환' : '학생에게 공개'}
+                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                    isPublished
+                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                      : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                                  }`}
+                                >
+                                  {togglingToolId === toolId ? (
                                     <Loader2 size={13} className="animate-spin" />
                                   ) : isPublished ? (
                                     <><Unlock size={13} /> 공개 중</>

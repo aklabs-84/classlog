@@ -58,6 +58,9 @@ async function handleGet(req: any, res: any) {
     baseUrl
   );
   if (!id) {
+    // ClassLog는 "학습 도구" 카탈로그 용도로만 apps를 조회하므로, 마켓플레이스 전체 공개 앱이 아니라
+    // classlog_only=true로 체크된 앱만 받아오도록 항상 좁혀서 요청한다.
+    if (resource === 'apps') upstreamUrl.searchParams.set('classlogOnly', 'true');
     if (category) upstreamUrl.searchParams.set('category', String(category));
     if (tag) upstreamUrl.searchParams.set('tag', String(tag));
     if (limit) upstreamUrl.searchParams.set('limit', String(limit));
