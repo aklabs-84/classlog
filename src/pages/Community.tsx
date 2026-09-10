@@ -93,6 +93,7 @@ type Comment = {
   id: string;
   post_id: string;
   author_id: string;
+  parent_id: string | null;
   content: string;
   created_at: string;
   author: { full_name: string | null; avatar_url: string | null } | null;
@@ -114,6 +115,9 @@ const Community = () => {
   const [commentText, setCommentText] = useState('');
   const [commentSending, setCommentSending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -168,13 +172,33 @@ const Community = () => {
     setDeletingId(null);
   };
 
+  const handleSendReply = async (parentId: string) => {
+    if (!user || !selectedPost || !replyText.trim()) return;
+    setReplySending(true);
+    const { data, error } = await supabase
+      .from('community_comments')
+      .insert({ post_id: selectedPost.id, author_id: user.id, parent_id: parentId, content: replyText.trim() })
+      .select('*, author:profiles(full_name, avatar_url)')
+      .single();
+    if (!error && data) {
+      setComments(prev => [...prev, data as unknown as Comment]);
+      setReplyText('');
+      setReplyingTo(null);
+      setPosts(prev => prev.map(p => p.id === selectedPost.id
+        ? { ...p, comments: [{ count: (p.comments?.[0]?.count ?? 0) + 1 }] }
+        : p));
+    }
+    setReplySending(false);
+  };
+
   const handleDeleteComment = async (id: string) => {
     const { error } = await supabase.from('community_comments').delete().eq('id', id);
     if (!error) {
-      setComments(prev => prev.filter(c => c.id !== id));
+      const removedCount = comments.filter(c => c.id === id || c.parent_id === id).length;
+      setComments(prev => prev.filter(c => c.id !== id && c.parent_id !== id));
       if (selectedPost) {
         setPosts(prev => prev.map(p => p.id === selectedPost.id
-          ? { ...p, comments: [{ count: Math.max(0, (p.comments?.[0]?.count ?? 1) - 1) }] }
+          ? { ...p, comments: [{ count: Math.max(0, (p.comments?.[0]?.count ?? removedCount) - removedCount) }] }
           : p));
       }
     }
@@ -232,26 +256,81 @@ const Community = () => {
             <p className="text-sm text-on-surface-variant/40 font-bold py-4 text-center">첫 댓글을 남겨보세요.</p>
           ) : (
             <div className="space-y-4 mb-4">
-              {comments.map(c => (
-                <div key={c.id} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 text-xs font-black">
-                    {(c.author?.full_name || '?').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-on-surface">{c.author?.full_name || '탈퇴한 사용자'}</span>
-                      <span className="text-[10px] text-on-surface-variant/40 font-bold">{formatDate(c.created_at)}</span>
+              {comments.filter(c => !c.parent_id).map(c => (
+                <div key={c.id}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 text-xs font-black">
+                      {(c.author?.full_name || '?').charAt(0).toUpperCase()}
                     </div>
-                    <p className="text-sm font-medium text-on-surface/90 mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-on-surface">{c.author?.full_name || '탈퇴한 사용자'}</span>
+                        <span className="text-[10px] text-on-surface-variant/40 font-bold">{formatDate(c.created_at)}</span>
+                      </div>
+                      <p className="text-sm font-medium text-on-surface/90 mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
+                      <button
+                        onClick={() => { setReplyingTo(replyingTo === c.id ? null : c.id); setReplyText(''); }}
+                        className="mt-1 text-[11px] font-black text-on-surface-variant/50 hover:text-primary transition-colors"
+                      >
+                        답글
+                      </button>
+                    </div>
+                    {(user?.id === c.author_id || profile?.is_admin) && (
+                      <button
+                        onClick={() => handleDeleteComment(c.id)}
+                        className="shrink-0 text-neutral-300 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
-                  {(user?.id === c.author_id || profile?.is_admin) && (
-                    <button
-                      onClick={() => handleDeleteComment(c.id)}
-                      className="shrink-0 text-neutral-300 hover:text-rose-500 transition-colors"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
+
+                  <div className="pl-11 mt-3 space-y-3">
+                    {comments.filter(r => r.parent_id === c.id).map(r => (
+                      <div key={r.id} className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant shrink-0 text-[11px] font-black">
+                          {(r.author?.full_name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-on-surface">{r.author?.full_name || '탈퇴한 사용자'}</span>
+                            <span className="text-[10px] text-on-surface-variant/40 font-bold">{formatDate(r.created_at)}</span>
+                          </div>
+                          <p className="text-sm font-medium text-on-surface/90 mt-0.5 leading-relaxed whitespace-pre-wrap">{r.content}</p>
+                        </div>
+                        {(user?.id === r.author_id || profile?.is_admin) && (
+                          <button
+                            onClick={() => handleDeleteComment(r.id)}
+                            className="shrink-0 text-neutral-300 hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {replyingTo === c.id && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={replyText}
+                          onChange={e => setReplyText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !replySending) handleSendReply(c.id); }}
+                          placeholder="답글을 입력하세요..."
+                          maxLength={500}
+                          className="flex-1 px-3.5 py-2 bg-surface-container rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                        />
+                        <button
+                          onClick={() => handleSendReply(c.id)}
+                          disabled={replySending || !replyText.trim()}
+                          className="w-9 h-9 rounded-lg bg-primary text-white flex items-center justify-center disabled:opacity-40 transition-all shrink-0"
+                        >
+                          {replySending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
