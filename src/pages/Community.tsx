@@ -118,6 +118,12 @@ const Community = () => {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [replySending, setReplySending] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  const flashHighlight = (id: string) => {
+    setHighlightedId(id);
+    setTimeout(() => setHighlightedId(prev => (prev === id ? null : prev)), 2500);
+  };
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -130,6 +136,36 @@ const Community = () => {
   }, []);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
+
+  useEffect(() => {
+    if (!selectedPost) return;
+    const postId = selectedPost.id;
+    const channel = supabase
+      .channel(`community_comments_${postId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_comments', filter: `post_id=eq.${postId}` }, async (payload) => {
+        const newId = payload.new.id as string;
+        const { data } = await supabase
+          .from('community_comments')
+          .select('*, author:profiles(full_name, avatar_url)')
+          .eq('id', newId)
+          .single();
+        if (!data) return;
+        setComments(prev => {
+          if (prev.some(c => c.id === newId)) return prev;
+          setPosts(p => p.map(post => post.id === postId
+            ? { ...post, comments: [{ count: (post.comments?.[0]?.count ?? 0) + 1 }] }
+            : post));
+          flashHighlight(newId);
+          return [...prev, data as unknown as Comment];
+        });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'community_comments', filter: `post_id=eq.${postId}` }, (payload) => {
+        const oldId = payload.old.id as string;
+        setComments(prev => prev.filter(c => c.id !== oldId));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedPost?.id]);
 
   const openPost = async (post: Post) => {
     setSelectedPost(post);
@@ -157,6 +193,7 @@ const Community = () => {
       setPosts(prev => prev.map(p => p.id === selectedPost.id
         ? { ...p, comments: [{ count: (p.comments?.[0]?.count ?? 0) + 1 }] }
         : p));
+      flashHighlight(data.id);
     }
     setCommentSending(false);
   };
@@ -187,6 +224,7 @@ const Community = () => {
       setPosts(prev => prev.map(p => p.id === selectedPost.id
         ? { ...p, comments: [{ count: (p.comments?.[0]?.count ?? 0) + 1 }] }
         : p));
+      flashHighlight(data.id);
     }
     setReplySending(false);
   };
@@ -258,7 +296,7 @@ const Community = () => {
             <div className="space-y-4 mb-4">
               {comments.filter(c => !c.parent_id).map(c => (
                 <div key={c.id}>
-                  <div className="flex items-start gap-3">
+                  <div className={`flex items-start gap-3 -mx-2 px-2 py-1.5 rounded-xl transition-colors duration-[2000ms] ${highlightedId === c.id ? 'bg-primary/10' : 'bg-transparent'}`}>
                     <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 text-xs font-black">
                       {(c.author?.full_name || '?').charAt(0).toUpperCase()}
                     </div>
@@ -287,7 +325,7 @@ const Community = () => {
 
                   <div className="pl-11 mt-3 space-y-3">
                     {comments.filter(r => r.parent_id === c.id).map(r => (
-                      <div key={r.id} className="flex items-start gap-2.5">
+                      <div key={r.id} className={`flex items-start gap-2.5 -mx-2 px-2 py-1.5 rounded-xl transition-colors duration-[2000ms] ${highlightedId === r.id ? 'bg-primary/10' : 'bg-transparent'}`}>
                         <div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant shrink-0 text-[11px] font-black">
                           {(r.author?.full_name || '?').charAt(0).toUpperCase()}
                         </div>
