@@ -567,7 +567,7 @@ const SubjectDashboard = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-hover-reveal">
                     {statsWeeks.map(week => {
                       const topic = weeklyPlan.find(p => p.week === week)?.topic;
                       const weekResultCount = getObsOnWeek(week).size;

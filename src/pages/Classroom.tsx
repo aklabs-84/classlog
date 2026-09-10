@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
@@ -225,6 +225,40 @@ const Classroom = () => {
   const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading'>(
     (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading') || 'list'
   );
+  // 메인 탭바 클릭-드래그 가로 스크롤
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const tabDragState = useRef({ isDown: false, moved: false, startX: 0, scrollLeft: 0 });
+  const handleTabBarMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    tabDragState.current = { isDown: true, moved: false, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+  };
+  const handleTabBarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const state = tabDragState.current;
+    const el = tabBarRef.current;
+    if (!state.isDown || !el) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    const walk = x - state.startX;
+    if (Math.abs(walk) > 5) state.moved = true;
+    el.scrollLeft = state.scrollLeft - walk;
+  };
+  const endTabBarDrag = () => {
+    tabDragState.current.isDown = false;
+  };
+  const handleTabBarWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = tabBarRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+    }
+  };
+  const handleTabBarClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (tabDragState.current.moved) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
   // 보드 탭 state
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -2230,7 +2264,16 @@ const Classroom = () => {
           {(!classInfo?.school_project_id || classInfo?.parent_class_id) && (
           <>
           <div className="flex justify-center mb-8 md:mb-16">
-            <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[1.5rem] md:rounded-[1.75rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
+            <div
+              ref={tabBarRef}
+              onMouseDown={handleTabBarMouseDown}
+              onMouseMove={handleTabBarMouseMove}
+              onMouseUp={endTabBarDrag}
+              onMouseLeave={endTabBarDrag}
+              onWheel={handleTabBarWheel}
+              onClickCapture={handleTabBarClickCapture}
+              className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[1.5rem] md:rounded-[1.75rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full scrollbar-hover-reveal cursor-grab active:cursor-grabbing select-none"
+            >
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
                 { id: 'units', label: '단원 관리', icon: BookOpen },
