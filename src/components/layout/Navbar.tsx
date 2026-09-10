@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import {
   Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  Bug, Images, Download, Share, MoreVertical, Gift, Lightbulb,
+  Images, Download, Share, MoreVertical, Gift, Lightbulb, Users,
   ChevronLeft, ChevronRight, Minus, Bot, Zap, BookOpen,
 } from 'lucide-react';
-import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -44,7 +43,6 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [bugReportOpen, setBugReportOpen] = useState(false);
   const [showNavIOSGuide, setShowNavIOSGuide] = useState(false);
 
   // PWA로 이미 실행 중이거나 설치 완료된 경우에만 숨김
@@ -144,6 +142,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
     { label: 'AI 세특 초안', path: '/ai-assistant', icon: Sparkles },
     { label: '보고서', path: '/export', icon: FileBarChart2 },
     { label: '아카이브', path: '/archive', icon: Archive },
+    { label: '커뮤니티', path: '/community', icon: Users },
     { label: '활용 가이드', path: '/stories', icon: BookOpen },
   ];
 
@@ -381,12 +380,6 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   className="absolute left-full bottom-0 ml-3 w-44 glass rounded-2xl shadow-elevated p-1.5 z-50 border border-white/60"
                 >
-                  <button
-                    onClick={() => { setBugReportOpen(true); setShowMoreMenu(false); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-red-50 transition-all text-on-surface-variant/70 hover:text-red-400 text-[13px] font-black"
-                  >
-                    <Bug size={15} /> 버그 신고
-                  </button>
                   <NavLink
                     to="/settings#referral"
                     onClick={() => setShowMoreMenu(false)}
@@ -400,13 +393,6 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
           </div>
         ) : (
           <>
-            <button
-              onClick={() => setBugReportOpen(true)}
-              title="버그 신고"
-              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-red-400 flex items-center justify-center"
-            >
-              <Bug size={17} />
-            </button>
             <NavLink
               to="/settings#referral"
               title="친구 초대"
@@ -616,12 +602,6 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
                 >
                   <Gift size={16} /> 초대
                 </NavLink>
-                <button
-                  onClick={() => { setBugReportOpen(true); setMobileMenuOpen(false); }}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl font-black text-sm bg-red-50 hover:bg-red-100 transition-all text-red-400"
-                >
-                  <Bug size={16} /> 버그
-                </button>
               </div>
               {showInstallBtn && (
                 <button
@@ -659,7 +639,6 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
         </>
       )}
     </AnimatePresence>
-    <BugReportModal isOpen={bugReportOpen} onClose={() => setBugReportOpen(false)} />
 
     {/* iOS 앱 설치 안내 모달 (네비 버튼에서 트리거) */}
     <AnimatePresence>

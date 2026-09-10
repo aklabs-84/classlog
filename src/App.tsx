@@ -66,6 +66,7 @@ const SchoolProjectSchoolsPage = lazy(() => import('./pages/SchoolProjectSchools
 const SchoolProjectNewPage = lazy(() => import('./pages/SchoolProjectNewPage'));
 const SchoolProjectDetailPage = lazy(() => import('./pages/SchoolProjectDetailPage'));
 const SchoolProjectClassDetailPage = lazy(() => import('./pages/SchoolProjectClassDetailPage'));
+const Community = lazy(() => import('./pages/Community'));
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
@@ -311,6 +312,7 @@ function App() {
                 <Route path="gallery" element={<Gallery />} />
                 <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="community" element={<Community />} />
                 <Route path="help" element={<StoryHub />} />
                 <Route path="pricing" element={<Pricing />} />
                 <Route path="school-projects/new" element={<SchoolProjectNewPage />} />
