@@ -17,14 +17,15 @@ type Stage = 'question' | 'prd_loading' | 'prd' | 'generating';
 const TOTAL_QUESTION_STEPS = 7;
 const FREEFORM_HINT_STEP = 4; // "가장 중요하게 생각하는 것" 단계(0-indexed) — 직접 입력을 권장하는 안내 배너 표시
 
-const FORMAT_TITLE: Record<'material' | 'slide', string> = {
+const FORMAT_TITLE: Record<'material' | 'slide' | 'guide', string> = {
   material: '수업 자료',
   slide: '수업 슬라이드',
+  guide: '수업 계획서',
 };
 
 interface IdeaPRDWizardProps {
   ideaContent: string;
-  format: 'material' | 'slide';
+  format: 'material' | 'slide' | 'guide';
   relatedMaterials: RelatedMaterialRef[];
   classId?: string;
   onClose: () => void;

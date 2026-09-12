@@ -1944,9 +1944,10 @@ export interface LessonPRD {
 
 type QAPair = { question: string; answer: string };
 
-const WIZARD_FORMAT_LABEL: Record<'material' | 'slide', string> = {
+const WIZARD_FORMAT_LABEL: Record<'material' | 'slide' | 'guide', string> = {
   material: '수업 자료',
   slide: '수업 슬라이드',
+  guide: '수업 계획서',
 };
 
 const WIZARD_STAGE_GOAL = [
@@ -1979,7 +1980,7 @@ function buildQAHistoryBlock(qaHistory: QAPair[]): string {
 // revisionOf가 있으면 "PRD를 반려당한 뒤 이전 답변은 유지한 채 무엇을 조정할지 좁히는 질문"으로 프레이밍.
 export async function generateNextClarifyingQuestion(
   ideaContent: string,
-  format: 'material' | 'slide',
+  format: 'material' | 'slide' | 'guide',
   qaHistory: QAPair[],
   classId?: string,
   revisionOf?: LessonPRD
@@ -2026,7 +2027,7 @@ ${qaBlock}${revisionBlock}
 // 3단계 질문·답변을 종합해 PRD(수업 설계 기획서)를 생성
 export async function generateLessonPRD(
   ideaContent: string,
-  format: 'material' | 'slide',
+  format: 'material' | 'slide' | 'guide',
   qaHistory: QAPair[],
   classId?: string
 ): Promise<LessonPRD> {
@@ -2071,7 +2072,7 @@ export async function generateContentFromPRD(
   ideaContent: string,
   prd: LessonPRD,
   relatedMaterials: RelatedMaterialRef[],
-  format: 'material' | 'slide',
+  format: 'material' | 'slide' | 'guide',
   classId?: string
 ): Promise<string> {
   const relatedBlock = relatedMaterials.length > 0
@@ -2081,8 +2082,10 @@ export async function generateContentFromPRD(
     : '';
   const formatInstruction = format === 'slide'
     ? '이 문서는 발표용 슬라이드로 옮겨질 원고입니다. 슬라이드 한 장에 들어갈 만한 분량으로 섹션을 짧게 끊어 작성하세요.'
+    : format === 'guide'
+    ? '이 문서는 학생에게 배부할 자료가 아니라, 교사가 실제 수업을 진행할 때 참고하는 수업 계획안입니다. 각 단계에서 교사가 무엇을 진행하는지, 어떤 발문을 던지는지, 소요 시간과 준비물은 무엇인지를 구체적으로 작성하세요.'
     : '이 문서는 "교사가 무엇을 할지" 안내하는 계획서가 아니라, 학생에게 그대로 배부하거나 화면에 띄워 쓸 수 있는 완성된 수업 자료 그 자체입니다.';
-  const richFormattingBlock = format === 'material' ? `\n\n${RICH_FORMATTING_GUIDE}` : '';
+  const richFormattingBlock = format === 'material' || format === 'guide' ? `\n\n${RICH_FORMATTING_GUIDE}` : '';
 
   const prompt = `당신은 아래 PRD(기획서)를 그대로 따라 ${WIZARD_FORMAT_LABEL[format]} 문서를 작성하는 AI입니다.
 

@@ -241,7 +241,10 @@ export default function IdeaRecord() {
   const [analysisRelatedContent, setAnalysisRelatedContent] = useState<MatchedContent[]>([]);
   const [analysisRelatedOpen, setAnalysisRelatedOpen] = useState(true);
   const [creatingMaterialLength, setCreatingMaterialLength] = useState<'simple' | 'detailed' | null>(null);
-  const [wizardFormat, setWizardFormat] = useState<'material' | 'slide' | null>(null);
+  const [wizardFormat, setWizardFormat] = useState<'material' | 'slide' | 'guide' | null>(null);
+  // 위저드를 어느 경로에서 띄웠는지 — 'develop'(아이디어 발전 전 빈약 감지)는 승인 시 analyzeIdea로 이어지고,
+  // 'create'(그 외 모든 "만들기" 경로)는 기존처럼 /teaching-tools로 이동
+  const [wizardOrigin, setWizardOrigin] = useState<'create' | 'develop'>('create');
   // "다시 생성" 시 원하는 방향을 지정할 수 있는 추가 지침 입력용
   const [showRegenerateInput, setShowRegenerateInput] = useState(false);
   const [regenerateInstruction, setRegenerateInstruction] = useState('');
@@ -829,6 +832,32 @@ export default function IdeaRecord() {
     }
   };
 
+  // 아이디어 원문이 AI로 발전시키기에 너무 빈약한지 판단 (추가 API 호출 없이 클라이언트에서 즉시 판단)
+  const isIdeaContentSparse = (content: string): boolean => {
+    const trimmed = content.trim();
+    if (trimmed.length < 40) return true;
+    const hasSentenceBreak = /[.!?\n]/.test(trimmed);
+    return trimmed.length < 80 && !hasSentenceBreak;
+  };
+
+  // 빈약한 아이디어에 대해 위저드로 보완 질문을 받은 뒤, 그 답으로 만들어진 내용을 바탕으로 분석을 진행
+  const runAnalysisWithEnrichedContent = async (note: TeacherNote, enrichedContent: string) => {
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    try {
+      const relatedMaterials = await fetchRelatedMaterials(note);
+      setAnalysisRelatedMaterials(relatedMaterials);
+      const result = await analyzeIdea(enrichedContent, note.class_id ?? undefined, relatedMaterials);
+      setAnalysisResult(result);
+    } catch (err: any) {
+      setAnalysisError(err?.message === 'AI_LIMIT_EXCEEDED'
+        ? '이번 달 AI 사용 한도에 도달했습니다.'
+        : '분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   const runAnalysis = async (note: TeacherNote, customInstruction?: string) => {
     setAnalysisLoading(true);
     setAnalysisError(null);
@@ -856,6 +885,13 @@ export default function IdeaRecord() {
       setAnalysisError(null);
       // 저장된 분석 결과를 재사용하는 경우에도 "수업 자료로 만들기" 생성 시 쓸 관련 자료는 새로 조회
       fetchRelatedMaterials(note).then(setAnalysisRelatedMaterials);
+    } else if (isIdeaContentSparse(note.content)) {
+      // 원문이 너무 빈약하면 바로 분석하지 않고, 위저드로 몇 가지를 먼저 물어본 뒤 그 답을 바탕으로 분석
+      setAnalysisResult(null);
+      setAnalysisRelatedMaterials([]);
+      setAnalysisRelatedContent([]);
+      setWizardOrigin('develop');
+      setWizardFormat('guide');
     } else {
       setAnalysisResult(null);
       setAnalysisRelatedMaterials([]);
@@ -901,6 +937,15 @@ export default function IdeaRecord() {
   // "수업 계획서로 만들기" — 원문을 그대로 옮기지 않고 AI가 실제 수업 계획안을 새로 작성해 전달
   const handleCreateMaterial = async (length: 'simple' | 'detailed') => {
     if (!analysisNote || !analysisResult) return;
+    // 진행 순서 초안(guideOutline)이 너무 빈약하면 구체적인 계획서를 만들기 어려우므로,
+    // 곧바로 생성하지 않고 위저드로 몇 가지를 먼저 물어본 뒤 그 답으로 계획서를 만든다
+    const outlineTooThin = analysisResult.guideOutline.length < 2
+      || analysisResult.guideOutline.every(step => step.trim().length < 8);
+    if (outlineTooThin) {
+      setWizardOrigin('create');
+      setWizardFormat('guide');
+      return;
+    }
     setCreatingMaterialLength(length);
     try {
       const [draftContent] = await Promise.all([
@@ -953,6 +998,14 @@ export default function IdeaRecord() {
 
   // 위저드(질문 3단계 → PRD → 승인)로 만든 초안을 기존 "자료로 만들기"/"슬라이드로 만들기" 이동 경로에 그대로 태움
   const handleWizardApprove = (content: string, _prd: LessonPRD) => {
+    if (wizardOrigin === 'develop') {
+      // "아이디어 발전" 단계 진입 전 빈약함을 감지해 띄운 위저드 — 어딘가로 이동하지 않고
+      // 위저드가 만든 내용을 바탕으로 그 자리에서 analyzeIdea를 실행해 기존 발전 결과 화면을 보여준다
+      const note = analysisNote;
+      setWizardFormat(null);
+      if (note) runAnalysisWithEnrichedContent(note, content);
+      return;
+    }
     if (!analysisNote || !analysisResult) return;
     const format = wizardFormat;
     setWizardFormat(null);
@@ -2020,7 +2073,10 @@ export default function IdeaRecord() {
 
                         {/* 그룹 B: AI와 대화하며 구체화 (다른 성격의 흐름) */}
                         <button
-                          onClick={() => setWizardFormat(analysisResult.suggestedFormat === 'slide' ? 'slide' : 'material')}
+                          onClick={() => {
+                            setWizardOrigin('create');
+                            setWizardFormat(analysisResult.suggestedFormat === 'slide' ? 'slide' : 'material');
+                          }}
                           className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
                         >
                           <Wand2 size={18} className="shrink-0" />
@@ -2099,7 +2155,11 @@ export default function IdeaRecord() {
           format={wizardFormat}
           relatedMaterials={analysisRelatedMaterials}
           classId={analysisNote.class_id ?? undefined}
-          onClose={() => setWizardFormat(null)}
+          onClose={() => {
+            setWizardFormat(null);
+            // "발전" 단계 진입 전 자동으로 띄운 위저드를 답변 없이 닫으면, 빈 발전 결과 화면 대신 모달 자체를 닫는다
+            if (wizardOrigin === 'develop') handleCloseAnalysis();
+          }}
           onApprove={handleWizardApprove}
         />
       )}
