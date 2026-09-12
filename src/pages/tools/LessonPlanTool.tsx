@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { LessonPlanConfig, LessonPlanSections } from '../../lib/gemini';
-import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan } from '../../lib/gemini';
+import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan, generateMaterialDraftFromLessonPlanSession } from '../../lib/gemini';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../../lib/lessonPlanExport';
 import { LessonPlanModal, LessonPlanSectionsEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
@@ -290,29 +290,46 @@ const SavedPlanViewModal = ({
   };
 
   // 저장된 계획서 그대로 수업할 수 있는 교안 초안을 만들어 수업 자료 에디터로 넘긴다.
+  // 차시가 2개 이상이면 차시별로 각각 초안을 생성해 별도의 자료로 만든다.
   const handleCreateMaterial = async () => {
     setCreatingMaterial(true);
     try {
       const classRow = plan.class_id
         ? await supabase.from('classes').select('name, subject').eq('id', plan.class_id).single().then(r => r.data)
         : null;
-      const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, {
-        subject: classRow?.subject,
-        className: classRow?.name,
-        classId: plan.class_id ?? undefined,
-      });
-      navigate('/teaching-tools', {
-        state: {
-          activeToolId: 'material-editor',
-          draftMaterial: {
-            noteId: '',
-            title: sections.basicInfo.unitTitle ? `${sections.basicInfo.unitTitle} 수업 교안` : '수업 교안',
-            content,
-            classId: plan.class_id ?? null,
-            expansionGuide: expansionSuggestions,
+      const classInfo = { subject: classRow?.subject, className: classRow?.name, classId: plan.class_id ?? undefined };
+      const sessions = sections.sessionPlans ?? [];
+      if (sessions.length > 1) {
+        const drafts = await Promise.all(
+          sessions.map(async row => {
+            const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlanSession(sections, row, classInfo);
+            return {
+              noteId: '',
+              title: [row.session, row.title].filter(Boolean).join(' ') || '수업 교안',
+              content,
+              classId: plan.class_id ?? null,
+              expansionGuide: expansionSuggestions,
+            };
+          })
+        );
+        navigate('/teaching-tools', {
+          state: { activeToolId: 'material-editor', draftMaterials: drafts },
+        });
+      } else {
+        const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, classInfo);
+        navigate('/teaching-tools', {
+          state: {
+            activeToolId: 'material-editor',
+            draftMaterial: {
+              noteId: '',
+              title: sections.basicInfo.unitTitle ? `${sections.basicInfo.unitTitle} 수업 교안` : '수업 교안',
+              content,
+              classId: plan.class_id ?? null,
+              expansionGuide: expansionSuggestions,
+            },
           },
-        },
-      });
+        });
+      }
       onClose();
     } catch {
       window.alert('수업 자료 초안 생성 중 오류가 발생했습니다.');

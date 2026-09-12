@@ -1013,6 +1013,7 @@ const MaterialEditor = () => {
   // 아이디어 기록(나의 노트)에서 "수업 자료로 만들기"로 넘어온 초안 — 첫 자동저장 완료 시 원본 노트에 연결 기록
   const pendingDraftNoteIdRef = useRef<string | null>(null);
   const draftHandledRef = useRef(false);
+  const draftMaterialsHandledRef = useRef(false);
   const openMaterialHandledRef = useRef(false);
   // 아이디어 기록의 "참고할 만한 자료" 패널을 통해 이 자료로 넘어온 경우 — 에디터 상단에 돌아가기 링크를 보여준다
   const [cameFromIdeaRecord, setCameFromIdeaRecord] = useState(false);
@@ -1231,6 +1232,46 @@ const MaterialEditor = () => {
       setExpansionGuide(draft.expansionGuide);
       setShowExpansionGuide(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 수업계획서가 2차시 이상이면 차시별 자료 초안이 배열로 넘어온다 — 각각 검토 없이 바로 저장하고 목록으로 돌아간다.
+  useEffect(() => {
+    if (draftMaterialsHandledRef.current) return;
+    const drafts = (location.state as { draftMaterials?: Array<{ title: string; content: string; classId?: string | null; expansionGuide?: string[] }> } | null)?.draftMaterials;
+    if (!drafts || drafts.length === 0) return;
+    draftMaterialsHandledRef.current = true;
+    (async () => {
+      if (!checkIsBasicOrAbove(profile)) {
+        const { count } = await supabase
+          .from('class_materials')
+          .select('id', { count: 'exact', head: true })
+          .eq('teacher_id', user!.id);
+        if ((count ?? 0) + drafts.length > FREE_MATERIAL_LIMIT) {
+          showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+          return;
+        }
+      }
+      const rows = drafts.map(draft => ({
+        class_id: null,
+        teacher_id: user!.id,
+        week_number: 1,
+        title: draft.title.trim() || '수업 교안',
+        content: (draft.content ?? '').trim(),
+        is_published: false,
+        ai_versions: [],
+      }));
+      const { data: inserted, error } = await supabase.from('class_materials').insert(rows).select('id, title, content');
+      if (error) {
+        alert(`수업 자료 생성 중 오류가 발생했습니다.\n${error.message}`);
+        return;
+      }
+      (inserted ?? []).forEach(row => syncMaterialEmbedding(row.id, row.title, row.content));
+      setLibraryMode(true);
+      setSelectedClass(null);
+      await fetchLibraryMaterials();
+      alert(`${drafts.length}개 차시의 수업 자료가 각각 생성되었습니다.`);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

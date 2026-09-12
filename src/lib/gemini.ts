@@ -1864,6 +1864,50 @@ ${RICH_FORMATTING_GUIDE}`;
   };
 }
 
+// 계획서의 특정 차시 하나만 바탕으로 수업 자료 초안을 생성한다.
+// 계획이 2차시 이상이면 차시별로 이 함수를 호출해 자료를 각각 따로 만든다.
+export async function generateMaterialDraftFromLessonPlanSession(
+  plan: LessonPlanSections,
+  session: LessonPlanSessionRow,
+  classInfo: { subject?: string; className?: string; classId?: string },
+): Promise<{ content: string; expansionSuggestions: string[] }> {
+  const prompt = `다음은 선생님이 이미 승인한 수업 계획서 중 한 차시입니다. 이 차시 그대로 수업을 진행할 수 있도록, 수업 자료 에디터에 바로 쓸 수 있는 실제 교안 초안을 작성합니다.
+
+[과목/클래스] ${classInfo.subject ?? ''} ${classInfo.className ?? ''}
+[단원] ${plan.basicInfo.unitTitle}
+[대상] ${plan.basicInfo.target}
+[전체 학습목표]
+${plan.objectives}
+
+[이 차시의 계획]
+[${session.session}] ${session.title}
+${session.content}${session.note ? `\n(참고: ${session.note})` : ''}
+
+[준비물]
+${plan.materials}
+
+[작성 규칙]
+- 이 차시 하나만 다루는 독립된 수업 자료입니다. 다른 차시 내용은 포함하지 않습니다.
+- content 필드는 마크다운 문서로, 이 차시의 활동 흐름(도입/전개/정리 등)을 따라가는 소제목 구조로 작성합니다.
+- 계획서에 없는 활동을 임의로 추가하지 않습니다. 다만 계획서만으로는 알 수 없는 구체적인 정보(예: 정확한 준비물 수량, 모둠 구성 방식, 학생 수준별 발문, 활동지 문항 등)가 필요한 자리는 절대 지어내지 말고, 문장 중간에 자연스럽게 다음 형식 그대로 표시합니다: [여기에 구체적인 내용을 입력해 주세요: 어떤 정보가 필요한지 짧은 힌트]
+- expansionSuggestions 필드는 이 초안을 이어서 어떻게 확장하면 좋을지 구체적인 가이드 2~3개를 짧은 문장으로 제시합니다.
+- 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{ "content": "마크다운 본문", "expansionSuggestions": ["...", "..."] }
+
+${RICH_FORMATTING_GUIDE}`;
+
+  const result = await materialFromPlanAI.generateContent(
+    prompt,
+    classInfo.classId ? { class_id: classInfo.classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  return {
+    content: String(parsed.content ?? '').trim(),
+    expansionSuggestions: Array.isArray(parsed.expansionSuggestions) ? parsed.expansionSuggestions.map((s: any) => String(s)) : [],
+  };
+}
+
 // ── 강사 포트폴리오: 통계+대표자료 제목 → 소개글 초안 ──────────────────────────
 
 export async function generatePortfolioIntroDraft(
