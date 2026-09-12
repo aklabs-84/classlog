@@ -1655,6 +1655,57 @@ const Classroom = () => {
     }
   };
 
+  // AIServiceHub 연동 앱을 "메인 수업도구"로 지정 — 공개 처리 + 1~4주차 빈 틀 자료 자동 생성
+  const PRIMARY_TOOL_AUTO_WEEKS = 4;
+  const [settingPrimaryToolId, setSettingPrimaryToolId] = useState<string | null>(null);
+  const handleSetPrimaryTool = async (toolId: string, app: AiApp) => {
+    if (!activeClassId) return;
+    setSettingPrimaryToolId(toolId);
+    try {
+      if (!enabledTools[toolId]) {
+        const { error: toggleError } = await supabase
+          .from('class_enabled_tools')
+          .upsert({ class_id: activeClassId, tool_id: toolId, is_published: true, updated_at: new Date().toISOString() }, { onConflict: 'class_id,tool_id' });
+        if (toggleError) throw toggleError;
+        setEnabledTools(prev => ({ ...prev, [toolId]: true }));
+      }
+
+      const { error: updateError } = await supabase
+        .from('classes')
+        .update({ primary_tool_id: toolId })
+        .eq('id', activeClassId);
+      if (updateError) throw updateError;
+      setClassInfo((prev: any) => prev ? { ...prev, primary_tool_id: toolId } : prev);
+
+      const existingWeeks = new Set(
+        classMaterials.filter((m: any) => m.week_number != null).map((m: any) => m.week_number)
+      );
+      const rows = [];
+      for (let week = 1; week <= PRIMARY_TOOL_AUTO_WEEKS; week++) {
+        if (existingWeeks.has(week)) continue;
+        rows.push({
+          class_id: activeClassId,
+          teacher_id: user?.id,
+          week_number: week,
+          title: `${app.name} ${week}주차`,
+          content: '',
+          activity_urls: [{ url: app.appUrls[0].url, label: app.name }],
+        });
+      }
+      if (rows.length > 0) {
+        const { error: insertError } = await supabase.from('class_materials').insert(rows);
+        if (insertError) throw insertError;
+        await fetchResources(activeClassId);
+      }
+      showToast(`"${app.name}"을(를) 메인 수업도구로 설정하고 빈 주차 자료를 만들었습니다.`);
+    } catch (err) {
+      console.error('handleSetPrimaryTool error:', err);
+      showToast('메인 수업도구 설정 중 오류가 발생했습니다.');
+    } finally {
+      setSettingPrimaryToolId(null);
+    }
+  };
+
   // 연동 학급(교과/협력 교사)의 class row는 linked_class_id로 원본 담임 학급을 가리킴 —
   // 학생은 담임반 입장코드로 로그인하므로, 공지도 항상 담임반 id 기준으로 저장/조회해야 학생 화면에 보임
   const resolveClassId = (classId: string | null) => {
@@ -5056,32 +5107,51 @@ const Classroom = () => {
                           {aiHubApps.map(app => {
                             const toolId = `external:${app.id}`;
                             const isPublished = !!enabledTools[toolId];
+                            const isPrimary = classInfo?.primary_tool_id === toolId;
                             return (
-                              <div key={toolId} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                                    <Sparkles size={14} />
+                              <div key={toolId} className="flex flex-col gap-2 p-3 bg-white rounded-2xl border border-surface-container-high">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                                      <Sparkles size={14} />
+                                    </div>
+                                    <p className="text-sm font-black truncate">{app.name}</p>
+                                    {isPrimary && (
+                                      <span className="shrink-0 text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">메인 도구</span>
+                                    )}
                                   </div>
-                                  <p className="text-sm font-black truncate">{app.name}</p>
+                                  <button
+                                    onClick={() => handleToggleTool(toolId)}
+                                    disabled={togglingToolId === toolId}
+                                    title={isPublished ? '비공개로 전환' : '학생에게 공개'}
+                                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                      isPublished
+                                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                        : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                                    }`}
+                                  >
+                                    {togglingToolId === toolId ? (
+                                      <Loader2 size={13} className="animate-spin" />
+                                    ) : isPublished ? (
+                                      <><Unlock size={13} /> 공개 중</>
+                                    ) : (
+                                      <><Lock size={13} /> 비공개</>
+                                    )}
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={() => handleToggleTool(toolId)}
-                                  disabled={togglingToolId === toolId}
-                                  title={isPublished ? '비공개로 전환' : '학생에게 공개'}
-                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
-                                    isPublished
-                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                      : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
-                                  }`}
-                                >
-                                  {togglingToolId === toolId ? (
-                                    <Loader2 size={13} className="animate-spin" />
-                                  ) : isPublished ? (
-                                    <><Unlock size={13} /> 공개 중</>
-                                  ) : (
-                                    <><Lock size={13} /> 비공개</>
-                                  )}
-                                </button>
+                                {!isPrimary && (
+                                  <button
+                                    onClick={() => handleSetPrimaryTool(toolId, app)}
+                                    disabled={settingPrimaryToolId === toolId}
+                                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl font-black text-xs text-primary bg-primary/10 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                                  >
+                                    {settingPrimaryToolId === toolId ? (
+                                      <><Loader2 size={13} className="animate-spin" /> 설정 중...</>
+                                    ) : (
+                                      <><Sparkles size={13} /> 메인 수업도구로 사용 (1~{PRIMARY_TOOL_AUTO_WEEKS}주차 자료 자동 생성)</>
+                                    )}
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
