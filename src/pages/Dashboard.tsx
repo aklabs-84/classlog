@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import {
@@ -62,6 +62,7 @@ const Dashboard = () => {
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null); // null = 전체
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const isCreatingFolderRef = useRef(false);
   const [movingClassId, setMovingClassId] = useState<string | null>(null); // 드롭다운 열린 클래스 ID
 
   // 빠른 처리 큐
@@ -184,16 +185,21 @@ const Dashboard = () => {
   };
 
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim() || !user) return;
-    const { data, error } = await supabase
-      .from('class_folders')
-      .insert({ teacher_id: user.id, name: newFolderName.trim(), color_hex: '#6366f1' })
-      .select('id, name, color_hex')
-      .single();
-    if (!error && data) {
-      setFolders(prev => [...prev, data]);
-      setNewFolderName('');
-      setShowCreateFolder(false);
+    if (!newFolderName.trim() || !user || isCreatingFolderRef.current) return;
+    isCreatingFolderRef.current = true;
+    try {
+      const { data, error } = await supabase
+        .from('class_folders')
+        .insert({ teacher_id: user.id, name: newFolderName.trim(), color_hex: '#6366f1' })
+        .select('id, name, color_hex')
+        .single();
+      if (!error && data) {
+        setFolders(prev => [...prev, data]);
+        setNewFolderName('');
+        setShowCreateFolder(false);
+      }
+    } finally {
+      isCreatingFolderRef.current = false;
     }
   };
 
@@ -907,7 +913,7 @@ const Dashboard = () => {
                   type="text"
                   value={newFolderName}
                   onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setShowCreateFolder(false); setNewFolderName(''); } }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleCreateFolder(); if (e.key === 'Escape') { setShowCreateFolder(false); setNewFolderName(''); } }}
                   placeholder="폴더 이름"
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface-container border border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20 w-28"
                 />

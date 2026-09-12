@@ -1042,6 +1042,7 @@ const MaterialEditor = () => {
   const [renamingFolderName, setRenamingFolderName] = useState('');
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const isCreatingFolderRef = useRef(false);
   const [moveMenuFor, setMoveMenuFor] = useState<string | null>(null);
   const [deleteFolderConfirmId, setDeleteFolderConfirmId] = useState<string | null>(null);
 
@@ -1168,16 +1169,21 @@ const MaterialEditor = () => {
 
   const handleCreateFolder = async () => {
     const name = newFolderName.trim();
-    if (!name) return;
-    const { data, error } = await supabase
-      .from('material_folders')
-      .insert({ teacher_id: user!.id, class_id: libraryMode ? null : selectedClass?.id ?? null, name })
-      .select()
-      .single();
-    if (error) { alert(`폴더 생성 중 오류가 발생했습니다.\n${error.message}`); return; }
-    if (data) setFolders(prev => [...prev, data as MaterialFolder]);
-    setNewFolderName('');
-    setNewFolderOpen(false);
+    if (!name || isCreatingFolderRef.current) return;
+    isCreatingFolderRef.current = true;
+    try {
+      const { data, error } = await supabase
+        .from('material_folders')
+        .insert({ teacher_id: user!.id, class_id: libraryMode ? null : selectedClass?.id ?? null, name })
+        .select()
+        .single();
+      if (error) { alert(`폴더 생성 중 오류가 발생했습니다.\n${error.message}`); return; }
+      if (data) setFolders(prev => [...prev, data as MaterialFolder]);
+      setNewFolderName('');
+      setNewFolderOpen(false);
+    } finally {
+      isCreatingFolderRef.current = false;
+    }
   };
 
   const handleRenameFolder = async (folderId: string) => {
@@ -2509,7 +2515,7 @@ const MaterialEditor = () => {
                   autoFocus
                   value={newFolderName}
                   onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setNewFolderOpen(false); setNewFolderName(''); } }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleCreateFolder(); if (e.key === 'Escape') { setNewFolderOpen(false); setNewFolderName(''); } }}
                   onBlur={() => { if (!newFolderName.trim()) setNewFolderOpen(false); }}
                   placeholder="폴더 이름"
                   className="w-28 px-2.5 py-1.5 rounded-xl border border-surface-container text-xs font-black focus:outline-none focus:border-primary/40"
