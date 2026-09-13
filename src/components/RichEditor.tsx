@@ -11,6 +11,7 @@ import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
 import { Plugin, NodeSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Suggestion from '@tiptap/suggestion';
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
@@ -858,6 +859,35 @@ const AutoHorizontalRule = Extension.create({
   },
 });
 
+// ── AI가 남긴 "[여기에 구체적인 내용을 입력해 주세요...]" 자리를 편집 화면에서 눈에 띄게 표시 ──
+const FILL_PLACEHOLDER_PATTERN = /\[여기에 구체적인 내용을 입력해 주세요[^\]]*\]/g;
+const FillPlaceholderHighlight = Extension.create({
+  name: 'fillPlaceholderHighlight',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          decorations(state) {
+            const decorations: Decoration[] = [];
+            state.doc.descendants((node, pos) => {
+              if (!node.isText) return;
+              const text = node.text || '';
+              FILL_PLACEHOLDER_PATTERN.lastIndex = 0;
+              let match: RegExpExecArray | null;
+              while ((match = FILL_PLACEHOLDER_PATTERN.exec(text))) {
+                const from = pos + match.index;
+                const to = from + match[0].length;
+                decorations.push(Decoration.inline(from, to, { class: 'ai-fill-placeholder' }));
+              }
+            });
+            return DecorationSet.create(state.doc, decorations);
+          },
+        },
+      }),
+    ];
+  },
+});
+
 // ── 색상 프리셋 ───────────────────────────────────────────────────────────────
 const TABLE_COLORS = [
   { label: '기본', hex: null },
@@ -1594,6 +1624,7 @@ const RichEditor = ({
       CustomCodeBlock,
       SlashCommandExtension,
       AutoHorizontalRule,
+      FillPlaceholderHighlight,
       Markdown.configure({
         html: true,
         tightLists: true,

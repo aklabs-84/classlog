@@ -122,18 +122,18 @@ const TOUR_STEPS: TourStep[] = [
 
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const MATERIAL_MD_COMPONENTS = {
-  h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6">{children}</h1>,
-  h2: ({ children }: any) => <h2 className="text-xl font-black mb-3 mt-5">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4">{children}</h3>,
-  p: ({ children }: any) => <p className="mb-3 text-sm leading-relaxed">{children}</p>,
-  ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
-  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
-  li: ({ children }: any) => <li className="text-sm">{children}</li>,
+  h1: ({ children }: any) => <h1 className="text-3xl font-black mb-5 mt-7">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-2xl font-black mb-4 mt-6">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-xl font-black mb-3 mt-5">{children}</h3>,
+  p: ({ children }: any) => <p className="mb-4 text-base leading-loose">{children}</p>,
+  ul: ({ children }: any) => <ul className="list-disc pl-6 mb-4 space-y-2 text-base leading-loose">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-4 space-y-2 text-base leading-loose">{children}</ol>,
+  li: ({ children }: any) => <li className="text-base leading-loose">{children}</li>,
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-4 border-cyan-400 pl-4 italic text-on-surface-variant my-3 bg-cyan-50 py-2 rounded-r-xl text-sm">{children}</blockquote>
+    <blockquote className="border-l-4 border-cyan-400 pl-4 italic text-on-surface-variant my-4 bg-cyan-50 py-3 rounded-r-xl text-base leading-relaxed">{children}</blockquote>
   ),
   code: ({ children, className }: any) => {
-    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-base font-mono text-primary">{children}</code>;
     return <code className={className}>{children}</code>;
   },
   pre: ({ children }: any) => {
@@ -145,16 +145,20 @@ const MATERIAL_MD_COMPONENTS = {
   img: ({ src, alt, title }: any) => {
     const wm = (title || '').match(/(?:^|,)width:(\d+)/);
     const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
-    return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
+    return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-4 shadow" />;
   },
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>,
-  hr: () => <hr className="border-surface-container my-5" />,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-base hover:opacity-70">{children}</a>,
+  hr: () => <hr className="border-surface-container my-6" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
   em: ({ children }: any) => <em className="italic">{children}</em>,
-  details: ({ children }: any) => <details className="group my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
+  table: ({ children }: any) => <div className="overflow-auto my-4 rounded-xl border border-surface-container"><table className="w-full border-collapse text-base">{children}</table></div>,
+  thead: ({ children }: any) => <thead>{children}</thead>,
+  th: ({ children }: any) => <th className="border border-surface-container px-4 py-2.5 bg-surface-container-low font-black text-left">{children}</th>,
+  td: ({ children }: any) => <td className="border border-surface-container px-4 py-2.5 align-top">{children}</td>,
+  details: ({ children }: any) => <details className="group my-4 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
   summary: ({ children }: any) => (
-    <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
-      <span className="text-primary text-xs transition-transform duration-200 group-open:rotate-90">▶</span> {children}
+    <summary className="px-4 py-3 bg-surface-container-low cursor-pointer font-black text-base list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
+      <span className="text-primary text-sm transition-transform duration-200 group-open:rotate-90">▶</span> {children}
     </summary>
   ),
   div: (props: any) => renderMaterialCallout(props),
@@ -2416,6 +2420,7 @@ ${guidePrompt}
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-8 py-10">
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeRaw]}
               components={MATERIAL_MD_COMPONENTS}
             >

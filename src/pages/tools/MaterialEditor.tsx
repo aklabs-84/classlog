@@ -503,7 +503,7 @@ const PreviewFullscreenModal = ({
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-10">
           <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-            {content}
+            {highlightFillPlaceholders(content)}
           </ReactMarkdown>
         </div>
       </div>
@@ -511,6 +511,11 @@ const PreviewFullscreenModal = ({
     document.body
   );
 };
+
+// ── AI가 남긴 "[여기에 구체적인 내용을 입력해 주세요...]" 자리를 미리보기에서 눈에 띄게 표시 ──
+const PLACEHOLDER_PATTERN = /\[여기에 구체적인 내용을 입력해 주세요[^\]]*\]/g;
+const highlightFillPlaceholders = (markdown: string) =>
+  markdown.replace(PLACEHOLDER_PATTERN, (match) => `<mark class="ai-fill-placeholder">${match}</mark>`);
 
 // ── 마크다운 컴포넌트 렌더러 ──────────────────────────────────────────────────
 const mdComponents: any = {
@@ -2374,7 +2379,7 @@ const MaterialEditor = () => {
                   >
                     <Maximize2 size={15} />
                   </button>
-                  <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
+                  <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{highlightFillPlaceholders(content)}</ReactMarkdown>
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">

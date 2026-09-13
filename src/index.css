@@ -347,6 +347,16 @@
 .rich-editor-content strong { font-weight: 900; }
 .rich-editor-content em { font-style: italic; }
 
+/* ── 직접 입력 필요 표시(AI가 남긴 [여기에 ...] 자리) ── */
+.rich-editor-content .ai-fill-placeholder,
+.rich-editor-preview .ai-fill-placeholder {
+  color: #dc2626;
+  font-weight: 800;
+  background: #fef2f2;
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.25rem;
+}
+
 /* ── 표 스타일 ── */
 .rich-editor-content table.rich-table,
 .rich-editor-content table {
