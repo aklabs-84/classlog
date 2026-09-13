@@ -8,8 +8,9 @@ import ImageExtension from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
+import { CellSelection } from '@tiptap/pm/tables';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
-import { Plugin, NodeSelection } from '@tiptap/pm/state';
+import { Plugin, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
@@ -2094,7 +2095,20 @@ const RichEditor = ({
           <Trash2 size={11} />열 삭제
         </button>
         <button
-          onClick={() => editor.chain().focus().deleteTable().run()}
+          onClick={() => {
+            if (!editor) return;
+            // 삭제 후 커서가 바로 다음 표 안으로 이동하면 이 플로팅 메뉴가 그 표 위에 겹쳐 떠서
+            // 마치 다른 표도 같이 사라진 것처럼 보이므로, 삭제 직후 커서를 표 밖으로 빼준다.
+            const $pos = editor.state.selection.$anchor;
+            let tablePos: number | null = null;
+            for (let d = $pos.depth; d > 0; d--) {
+              if ($pos.node(d).type.spec.tableRole === 'table') { tablePos = $pos.before(d); break; }
+            }
+            editor.chain().focus().deleteTable().command(({ tr }) => {
+              if (tablePos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(tablePos, tr.doc.content.size))));
+              return true;
+            }).run();
+          }}
           className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors ml-1"
           title="표 전체 삭제"
         >
@@ -2349,11 +2363,20 @@ const RichEditor = ({
           presets={TABLE_COLORS}
           onSelect={(color) => {
             if (!editor) return;
-            const refPos = lastInTablePosRef.current;
-            if (refPos < 0) return;
 
             editor.chain().command(({ tr, state }) => {
-              // 셀 색상은 현재 셀에만 적용 — refPos 기준 셀 찾기
+              const { selection } = state;
+              // 드래그로 여러 셀을 선택한 경우(CellSelection) 선택된 모든 셀에 적용
+              if (selection instanceof CellSelection) {
+                selection.forEachCell((node: any, pos: number) => {
+                  tr.setNodeMarkup(pos, undefined, { ...node.attrs, backgroundColor: color });
+                });
+                return true;
+              }
+
+              // 단일 커서인 경우 — 현재 셀에만 적용 — refPos 기준 셀 찾기
+              const refPos = lastInTablePosRef.current;
+              if (refPos < 0) return false;
               let cellAbsPos = -1;
               let cellNode: any = null;
               state.doc.nodesBetween(0, state.doc.content.size, (n: any, pos: number) => {
