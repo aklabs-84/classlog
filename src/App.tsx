@@ -42,6 +42,8 @@ const TeachingTools = lazy(() => import('./pages/TeachingTools'));
 const Whiteboard = lazy(() => import('./pages/tools/Whiteboard'));
 const StudentBoardViewer = lazy(() => import('./pages/tools/StudentBoardViewer'));
 const StudentJoin = lazy(() => import('./pages/tools/StudentJoin'));
+const LiveBoardTeacher = lazy(() => import('./pages/tools/LiveBoardTeacher'));
+const LiveBoardJoin = lazy(() => import('./pages/tools/LiveBoardJoin'));
 const SuggestionsPage = lazy(() => import('./pages/SuggestionsPage'));
 const QuizStudentView = lazy(() => import('./pages/QuizStudentView'));
 const ClassBoard = lazy(() => import('./pages/ClassBoard'));
@@ -262,6 +264,7 @@ function App() {
               <Route path="/stories" element={<StoryHub />} />
               <Route path="/sb/:boardId" element={<StudentBoardViewer />} />
               <Route path="/wb-join" element={<StudentJoin />} />
+              <Route path="/lb-join" element={<LiveBoardJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />
               <Route path="/school-share/:schoolId" element={<SchoolShareView />} />
               <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
@@ -280,6 +283,9 @@ function App() {
 
               {/* 화이트보드 (전체 화면, 레이아웃 없음) — 익명(학생)+인증(선생님) 모두 허용 */}
               <Route path="/whiteboard/:boardId" element={<WhiteboardRoute><Whiteboard /></WhiteboardRoute>} />
+
+              {/* 실시간 참여 게시판 교사 진행 화면 (전체 화면, 레이아웃 없음, 교사 전용) */}
+              <Route path="/live-board/:boardId" element={<ProtectedRoute><LiveBoardTeacher /></ProtectedRoute>} />
 
               {/* 보호된 레이아웃 라우트 (/dashboard 아래) */}
               <Route

@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Radio } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import GroupPicker from './tools/GroupPicker';
@@ -18,6 +18,7 @@ import LessonPlanTool from './tools/LessonPlanTool';
 import PortfolioManager from './tools/PortfolioManager';
 import SubmissionViewer from './tools/SubmissionViewer';
 import MicrobitPythonLab from './tools/MicrobitPythonLab';
+import LiveBoardList from '../components/live-board/LiveBoardList';
 
 const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -325,6 +326,27 @@ export const tools: Tool[] = [
         { title: '단축키 활용', desc: 'Ctrl+C/V 복사·붙여넣기, Ctrl+Z 되돌리기, Delete 삭제. 섹션 색상은 우클릭 메뉴로 변경합니다.' },
       ],
       tip: '무료 플랜은 보드 1개까지만 만들 수 있습니다. 수업 종료 후 공유 중지 버튼을 눌러 학생 접근을 차단하세요.',
+    },
+  },
+  {
+    id: 'live-board',
+    icon: <Radio size={28} />,
+    label: '실시간 참여 게시판',
+    description: '오늘 수업에서만 쓰는 질문 게시판을 만들고 학생 답변을 실시간으로 확인합니다',
+    newSince: '2026-09-14',
+    available: true,
+    category: 'teaching',
+    planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
+    component: <LiveBoardList />,
+    quickGuide: {
+      steps: [
+        { title: '게시판 만들기', desc: '+ 새 게시판을 클릭해 학생에게 물어볼 질문을 입력합니다.' },
+        { title: '코드 공유', desc: '발급된 6자리 코드를 학생에게 알려주면 /lb-join에서 바로 참여합니다.' },
+        { title: '실시간으로 답변 확인', desc: '학생이 제출하는 즉시 카드로 나타납니다. 입력 멈추기로 잠시 답변을 막을 수 있습니다.' },
+        { title: '종료 또는 저장', desc: '수업이 끝나면 종료하세요. 저장하지 않으면 몇 시간 후 자동 삭제됩니다.' },
+      ],
+      tip: '저장하지 않은 게시판은 당일 수업 후 자동으로 삭제됩니다. 계속 남기고 싶다면 진행 화면의 "저장하기"를 눌러주세요.',
     },
   },
   {
