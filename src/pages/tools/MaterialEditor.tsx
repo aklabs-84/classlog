@@ -49,7 +49,7 @@ import PresentationModal, { renderCallout } from '../../components/PresentationM
 const SlideModeView = lazy(() => import('../../components/SlideModeView'));
 import MaterialCoverPage from '../../components/MaterialCoverPage';
 import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
-import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
+import LimitToast, { useLimitToast, ActionToast, useActionToast } from '../../components/ui/LimitToast';
 import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
 import type { LessonPRD } from '../../lib/gemini';
 
@@ -1013,6 +1013,7 @@ const FREE_MATERIAL_LIMIT = 2;
 const MaterialEditor = () => {
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
+  const { actionToastMessage, showActionToast } = useActionToast();
   const location = useLocation();
   const navigate = useNavigate();
   // 아이디어 기록(나의 노트)에서 "수업 자료로 만들기"로 넘어온 초안 — 첫 자동저장 완료 시 원본 노트에 연결 기록
@@ -1214,6 +1215,8 @@ const MaterialEditor = () => {
     const { error } = await supabase.from('class_materials').update({ folder_id: folderId }).eq('id', material.id);
     if (error) { alert(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return; }
     setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, folder_id: folderId } : m));
+    const folderName = folderId ? folders.find(f => f.id === folderId)?.name ?? '폴더' : '미분류';
+    showActionToast(`"${folderName}"(으)로 이동했습니다.`);
   };
 
   const resetForm = () => {
@@ -1680,11 +1683,15 @@ const MaterialEditor = () => {
 
   const visibleMaterials = activeFolderId === 'all'
     ? materials
-    : materials.filter(m => (m.folder_id ?? null) === activeFolderId);
+    : materials
+        .filter(m => (m.folder_id ?? null) === activeFolderId)
+        // 폴더 안에서는 제목 기준 자연 정렬(숫자→가나다→abc 순)로 보여준다
+        .sort((a, b) => a.title.localeCompare(b.title, 'ko', { numeric: true, sensitivity: 'base' }));
 
   return (
     <>
     <LimitToast message={limitToastMessage} />
+    <ActionToast message={actionToastMessage} />
     {/* PDF 다운로드용 인쇄 전용 영역 — 화면엔 보이지 않고 인쇄(PDF 저장) 시에만 노출됨 */}
     {isEditorOpen && createPortal(
       <div className="print-only">

@@ -33,3 +33,33 @@ const LimitToast = ({ message }: { message: string | null }) => {
 };
 
 export default LimitToast;
+
+// 자료 이동 완료 등 일반적인 성공 안내에 쓰는 토스트 — LimitToast와 동일한 스타일이지만 잠금 아이콘 대신 체크 아이콘을 씀
+export function useActionToast() {
+  const [actionToastMessage, setActionToastMessage] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showActionToast = useCallback((message: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setActionToastMessage(message);
+    timerRef.current = setTimeout(() => setActionToastMessage(null), 2500);
+  }, []);
+
+  return { actionToastMessage, showActionToast };
+}
+
+export const ActionToast = ({ message }: { message: string | null }) => {
+  if (!message) return null;
+  return createPortal(
+    <div style={{
+      position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+      background: '#1E293B', color: '#fff', borderRadius: 12, padding: '12px 20px',
+      fontSize: 13, fontWeight: 600, zIndex: 9999, display: 'flex', alignItems: 'center', gap: 8,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.25)', maxWidth: '90vw', textAlign: 'center',
+    }}>
+      <span>✅</span>
+      {message}
+    </div>,
+    document.body
+  );
+};
