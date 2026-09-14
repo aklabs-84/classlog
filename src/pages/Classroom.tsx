@@ -62,6 +62,7 @@ import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { isDemoTeacher } from '../lib/demo';
 import { getAiApps, type AiApp } from '../lib/aiApps';
+import { linkPrimaryToolMaterials, PRIMARY_TOOL_AUTO_WEEKS } from '../lib/aiHubClassSetup';
 import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
@@ -1655,8 +1656,7 @@ const Classroom = () => {
     }
   };
 
-  // AIServiceHub 연동 앱을 "메인 수업도구"로 지정 — 공개 처리 + 1~4주차 빈 틀 자료 자동 생성
-  const PRIMARY_TOOL_AUTO_WEEKS = 4;
+  // AIServiceHub 연동 앱을 "메인 수업도구"로 지정 — 공개 처리 + 1~4주차 자료에 앱 링크 자동 연결(공통 자료함에 연결된 자료가 있으면 그걸로, 없으면 빈 틀 생성)
   const [settingPrimaryToolId, setSettingPrimaryToolId] = useState<string | null>(null);
   const handleSetPrimaryTool = async (toolId: string, app: AiApp) => {
     if (!activeClassId) return;
@@ -1677,27 +1677,9 @@ const Classroom = () => {
       if (updateError) throw updateError;
       setClassInfo((prev: any) => prev ? { ...prev, primary_tool_id: toolId } : prev);
 
-      const existingWeeks = new Set(
-        classMaterials.filter((m: any) => m.week_number != null).map((m: any) => m.week_number)
-      );
-      const rows = [];
-      for (let week = 1; week <= PRIMARY_TOOL_AUTO_WEEKS; week++) {
-        if (existingWeeks.has(week)) continue;
-        rows.push({
-          class_id: activeClassId,
-          teacher_id: user?.id,
-          week_number: week,
-          title: `${app.name} ${week}주차`,
-          content: '',
-          activity_urls: [{ url: app.appUrls[0].url, label: app.name }],
-        });
-      }
-      if (rows.length > 0) {
-        const { error: insertError } = await supabase.from('class_materials').insert(rows);
-        if (insertError) throw insertError;
-        await fetchResources(activeClassId);
-      }
-      showToast(`"${app.name}"을(를) 메인 수업도구로 설정하고 빈 주차 자료를 만들었습니다.`);
+      await linkPrimaryToolMaterials({ classId: activeClassId, teacherId: user?.id ?? '', app, existingMaterials: classMaterials });
+      await fetchResources(activeClassId);
+      showToast(`"${app.name}"을(를) 메인 수업도구로 설정하고 1~${PRIMARY_TOOL_AUTO_WEEKS}주차 자료에 링크를 연결했습니다.`);
     } catch (err) {
       console.error('handleSetPrimaryTool error:', err);
       showToast('메인 수업도구 설정 중 오류가 발생했습니다.');

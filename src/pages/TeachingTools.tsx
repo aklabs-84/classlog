@@ -1,9 +1,12 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Radio } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Radio, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { getAiApps, type AiApp } from '../lib/aiApps';
+import { createClassFromHubApp, PRIMARY_TOOL_AUTO_WEEKS } from '../lib/aiHubClassSetup';
+import { useActionToast, useLimitToast, ActionToast, default as LimitToast } from '../components/ui/LimitToast';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
@@ -417,8 +420,9 @@ function isNewBadgeActive(newSince?: string): boolean {
 
 const TeachingTools = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const hasByokKey = !!localStorage.getItem('gemini_api_key');
   const isToolLocked = (tool: Tool, isProArg: boolean, isBasicOrAboveArg: boolean): boolean => {
     if (!tool.available) return true;
@@ -450,6 +454,53 @@ const TeachingTools = () => {
   const [contactError, setContactError] = useState<string | null>(null);
   const [guideTool, setGuideTool] = useState<Tool | null>(null);
   const [activeCategory, setActiveCategory] = useState<'learning' | 'teaching'>('teaching');
+
+  // AI Service Hub 연동 앱 — 학습 도구 탭에서 원클릭으로 클래스 생성할 때 사용
+  const [aiHubApps, setAiHubApps] = useState<AiApp[]>([]);
+  const [selectedHubApp, setSelectedHubApp] = useState<AiApp | null>(null);
+  const [hubClassName, setHubClassName] = useState('');
+  const [hubCreating, setHubCreating] = useState(false);
+  const { actionToastMessage, showActionToast } = useActionToast();
+  const { limitToastMessage, showLimitToast } = useLimitToast();
+
+  useEffect(() => {
+    getAiApps({ limit: 100 })
+      .then(apps => setAiHubApps(apps.filter(a => a.appUrls?.[0]?.url)))
+      .catch(err => console.error('getAiApps error:', err));
+  }, []);
+
+  const openHubAppModal = (app: AiApp) => {
+    setSelectedHubApp(app);
+    setHubClassName(`${app.name} 클래스`);
+  };
+
+  const closeHubAppModal = () => {
+    if (hubCreating) return;
+    setSelectedHubApp(null);
+    setHubClassName('');
+  };
+
+  const handleCreateClassFromHubApp = async () => {
+    if (!selectedHubApp || !user) return;
+    if (!hubClassName.trim()) {
+      showLimitToast('클래스 이름을 입력해주세요.');
+      return;
+    }
+    setHubCreating(true);
+    try {
+      const result = await createClassFromHubApp({ user, profile, app: selectedHubApp, className: hubClassName.trim() });
+      if (!result.ok) {
+        showLimitToast(result.message || '클래스 생성 중 오류가 발생했습니다.');
+        return;
+      }
+      showActionToast(`"${hubClassName.trim()}" 클래스를 생성했습니다.`);
+      setSelectedHubApp(null);
+      setHubClassName('');
+      navigate(`/classroom?id=${result.classId}&tab=teacher_materials`);
+    } finally {
+      setHubCreating(false);
+    }
+  };
 
   const isPro = checkIsPro(profile);
   const isBasicOrAbove = checkIsBasicOrAbove(profile);
@@ -966,9 +1017,90 @@ const TeachingTools = () => {
                 </motion.button>
               );
             })}
+
+            {activeCategory === 'learning' && aiHubApps.length > 0 && (
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 mt-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles size={16} className="text-primary" />
+                  <h3 className="text-sm font-black text-on-surface">AI Service Hub 연동 앱으로 클래스 만들기</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {aiHubApps.map(app => (
+                    <button
+                      key={app.id}
+                      onClick={() => openHubAppModal(app)}
+                      className="glass rounded-2xl p-5 border border-white/40 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left flex flex-col gap-3"
+                    >
+                      {app.thumbnailUrl ? (
+                        <img src={app.thumbnailUrl} alt={app.name} className="w-12 h-12 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                          <Sparkles size={20} />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h4 className="font-black text-on-surface text-sm">{app.name}</h4>
+                        <p className="text-xs text-on-surface-variant mt-1 leading-relaxed line-clamp-2">{app.description}</p>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-black text-primary">
+                        클래스 생성하기 <ChevronRight size={14} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {selectedHubApp && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={closeHubAppModal}>
+          <div
+            className="bg-white dark:bg-surface-container-lowest rounded-3xl shadow-2xl max-w-md w-full p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                {selectedHubApp.thumbnailUrl ? (
+                  <img src={selectedHubApp.thumbnailUrl} alt={selectedHubApp.name} className="w-11 h-11 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Sparkles size={20} />
+                  </div>
+                )}
+                <h3 className="text-base font-black text-gray-900">{selectedHubApp.name}</h3>
+              </div>
+              <button onClick={closeHubAppModal} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-on-surface-variant leading-relaxed mb-5">{selectedHubApp.description}</p>
+            <label className="block text-xs font-bold text-on-surface-variant mb-1.5">클래스 이름</label>
+            <input
+              type="text"
+              value={hubClassName}
+              onChange={e => setHubClassName(e.target.value)}
+              placeholder="클래스 이름을 입력하세요"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 mb-2"
+            />
+            <p className="text-[11px] text-on-surface-variant/70 mb-5">
+              이 앱이 메인 수업도구로 지정된 클래스가 생성됩니다. 공통 자료함에 이 앱과 연결된 자료가 있다면 1~{PRIMARY_TOOL_AUTO_WEEKS}주차 자료로 자동 연결됩니다.
+            </p>
+            <button
+              onClick={handleCreateClassFromHubApp}
+              disabled={hubCreating}
+              className="w-full py-3 rounded-xl bg-primary text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {hubCreating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              {hubCreating ? '생성 중...' : '클래스 생성하기'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ActionToast message={actionToastMessage} />
+      <LimitToast message={limitToastMessage} />
     </div>
   );
 };
