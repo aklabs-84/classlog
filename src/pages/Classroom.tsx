@@ -5086,7 +5086,7 @@ const Classroom = () => {
                               </div>
                             );
                           })}
-                          {aiHubApps.map(app => {
+                          {aiHubApps.filter(app => Object.prototype.hasOwnProperty.call(enabledTools, `external:${app.id}`)).map(app => {
                             const toolId = `external:${app.id}`;
                             const isPublished = !!enabledTools[toolId];
                             const isPrimary = classInfo?.primary_tool_id === toolId;

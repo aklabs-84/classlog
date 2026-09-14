@@ -5,7 +5,7 @@ import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpe
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { getAiApps, type AiApp } from '../lib/aiApps';
-import { createClassFromHubApp, PRIMARY_TOOL_AUTO_WEEKS } from '../lib/aiHubClassSetup';
+import { createClassFromHubApp, connectHubAppToClass, PRIMARY_TOOL_AUTO_WEEKS } from '../lib/aiHubClassSetup';
 import { useActionToast, useLimitToast, ActionToast, default as LimitToast } from '../components/ui/LimitToast';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
@@ -455,11 +455,16 @@ const TeachingTools = () => {
   const [guideTool, setGuideTool] = useState<Tool | null>(null);
   const [activeCategory, setActiveCategory] = useState<'learning' | 'teaching'>('teaching');
 
-  // AI Service Hub 연동 앱 — 학습 도구 탭에서 원클릭으로 클래스 생성할 때 사용
+  // AI Service Hub 연동 앱 — 학습 도구 탭에서 새 클래스 생성 또는 기존 클래스 연결에 사용
   const [aiHubApps, setAiHubApps] = useState<AiApp[]>([]);
   const [selectedHubApp, setSelectedHubApp] = useState<AiApp | null>(null);
+  const [hubModalMode, setHubModalMode] = useState<'create' | 'connect'>('create');
   const [hubClassName, setHubClassName] = useState('');
   const [hubCreating, setHubCreating] = useState(false);
+  const [myClasses, setMyClasses] = useState<{ id: string; name: string }[]>([]);
+  const [myClassesLoading, setMyClassesLoading] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [hubConnecting, setHubConnecting] = useState(false);
   const { actionToastMessage, showActionToast } = useActionToast();
   const { limitToastMessage, showLimitToast } = useLimitToast();
 
@@ -471,13 +476,30 @@ const TeachingTools = () => {
 
   const openHubAppModal = (app: AiApp) => {
     setSelectedHubApp(app);
+    setHubModalMode('create');
     setHubClassName(`${app.name} 클래스`);
+    setSelectedClassId('');
+    if (user && myClasses.length === 0 && !myClassesLoading) {
+      setMyClassesLoading(true);
+      (async () => {
+        const { data, error } = await supabase
+          .from('classes')
+          .select('id, name')
+          .eq('teacher_id', user.id)
+          .eq('is_archived', false)
+          .order('created_at', { ascending: false });
+        if (error) { console.error('내 클래스 목록 조회 오류:', error); }
+        else setMyClasses(data || []);
+        setMyClassesLoading(false);
+      })();
+    }
   };
 
   const closeHubAppModal = () => {
-    if (hubCreating) return;
+    if (hubCreating || hubConnecting) return;
     setSelectedHubApp(null);
     setHubClassName('');
+    setSelectedClassId('');
   };
 
   const handleCreateClassFromHubApp = async () => {
@@ -499,6 +521,29 @@ const TeachingTools = () => {
       navigate(`/classroom?id=${result.classId}&tab=teacher_materials`);
     } finally {
       setHubCreating(false);
+    }
+  };
+
+  const handleConnectHubAppToExistingClass = async () => {
+    if (!selectedHubApp || !selectedClassId) {
+      showLimitToast('연결할 클래스를 선택해주세요.');
+      return;
+    }
+    setHubConnecting(true);
+    try {
+      const result = await connectHubAppToClass({ classId: selectedClassId, app: selectedHubApp });
+      if (!result.ok) {
+        showLimitToast(result.message || '도구 연결 중 오류가 발생했습니다.');
+        return;
+      }
+      const className = myClasses.find(c => c.id === selectedClassId)?.name ?? '';
+      showActionToast(`"${selectedHubApp.name}"을(를) "${className}" 클래스에 연결했습니다.`);
+      const classId = selectedClassId;
+      setSelectedHubApp(null);
+      setSelectedClassId('');
+      navigate(`/classroom?id=${classId}&tab=teacher_materials`);
+    } finally {
+      setHubConnecting(false);
     }
   };
 
@@ -1075,26 +1120,81 @@ const TeachingTools = () => {
                 <X size={18} />
               </button>
             </div>
-            <p className="text-sm text-on-surface-variant leading-relaxed mb-5">{selectedHubApp.description}</p>
-            <label className="block text-xs font-bold text-on-surface-variant mb-1.5">클래스 이름</label>
-            <input
-              type="text"
-              value={hubClassName}
-              onChange={e => setHubClassName(e.target.value)}
-              placeholder="클래스 이름을 입력하세요"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 mb-2"
-            />
-            <p className="text-[11px] text-on-surface-variant/70 mb-5">
-              이 앱이 메인 수업도구로 지정된 클래스가 생성됩니다. 공통 자료함에 이 앱과 연결된 자료가 있다면 1~{PRIMARY_TOOL_AUTO_WEEKS}주차 자료로 자동 연결됩니다.
-            </p>
-            <button
-              onClick={handleCreateClassFromHubApp}
-              disabled={hubCreating}
-              className="w-full py-3 rounded-xl bg-primary text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {hubCreating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              {hubCreating ? '생성 중...' : '클래스 생성하기'}
-            </button>
+            <p className="text-sm text-on-surface-variant leading-relaxed mb-4">{selectedHubApp.description}</p>
+
+            <div className="flex items-center gap-1.5 p-1 bg-surface-container rounded-xl w-fit mb-4">
+              <button
+                onClick={() => setHubModalMode('create')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors ${
+                  hubModalMode === 'create' ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                새 클래스 만들기
+              </button>
+              <button
+                onClick={() => setHubModalMode('connect')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors ${
+                  hubModalMode === 'connect' ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                기존 클래스에 연결
+              </button>
+            </div>
+
+            {hubModalMode === 'create' ? (
+              <>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1.5">클래스 이름</label>
+                <input
+                  type="text"
+                  value={hubClassName}
+                  onChange={e => setHubClassName(e.target.value)}
+                  placeholder="클래스 이름을 입력하세요"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 mb-2"
+                />
+                <p className="text-[11px] text-on-surface-variant/70 mb-5">
+                  이 앱이 메인 수업도구로 지정된 클래스가 생성됩니다. 공통 자료함에 이 앱과 연결된 자료가 있다면 1~{PRIMARY_TOOL_AUTO_WEEKS}주차 자료로 자동 연결됩니다.
+                </p>
+                <button
+                  onClick={handleCreateClassFromHubApp}
+                  disabled={hubCreating}
+                  className="w-full py-3 rounded-xl bg-primary text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {hubCreating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                  {hubCreating ? '생성 중...' : '클래스 생성하기'}
+                </button>
+              </>
+            ) : (
+              <>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1.5">연결할 클래스</label>
+                {myClassesLoading ? (
+                  <div className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-on-surface-variant/60 mb-2">불러오는 중...</div>
+                ) : myClasses.length === 0 ? (
+                  <div className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-on-surface-variant/60 mb-2">연결 가능한 클래스가 없습니다.</div>
+                ) : (
+                  <select
+                    value={selectedClassId}
+                    onChange={e => setSelectedClassId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 mb-2"
+                  >
+                    <option value="">클래스를 선택하세요</option>
+                    {myClasses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-[11px] text-on-surface-variant/70 mb-5">
+                  선택한 클래스의 "수업 자료실" &gt; 학습 도구 목록에 이 앱이 추가됩니다. 이후 그 화면에서 공개 여부와 메인 수업도구 지정, 주차 자료 자동 연결을 설정할 수 있습니다.
+                </p>
+                <button
+                  onClick={handleConnectHubAppToExistingClass}
+                  disabled={hubConnecting || !selectedClassId}
+                  className="w-full py-3 rounded-xl bg-primary text-white font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {hubConnecting ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                  {hubConnecting ? '연결 중...' : '이 클래스에 연결하기'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

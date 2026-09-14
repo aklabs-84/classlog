@@ -108,6 +108,27 @@ export async function linkPrimaryToolMaterials({
   }
 }
 
+// AI Service Hub 앱을 이미 있는 클래스에 "연결"만 한다(공개 처리, class_enabled_tools row 생성).
+// 메인 수업도구 지정·주차 자료 자동 연결은 Classroom.tsx의 "학습 도구" 섹션에서 별도로 진행한다.
+// — 이렇게 연결된 앱만 해당 클래스의 "수업 자료실" 모달에 노출된다(연결 안 한 앱은 목록에서 숨김).
+export async function connectHubAppToClass({
+  classId,
+  app,
+}: {
+  classId: string;
+  app: AiApp;
+}): Promise<{ ok: boolean; message?: string }> {
+  const toolId = `external:${app.id}`;
+  const { error } = await supabase
+    .from('class_enabled_tools')
+    .upsert({ class_id: classId, tool_id: toolId, is_published: true, updated_at: new Date().toISOString() }, { onConflict: 'class_id,tool_id' });
+  if (error) {
+    console.error('connectHubAppToClass error:', error);
+    return { ok: false, message: error.message || '도구 연결 중 오류가 발생했습니다.' };
+  }
+  return { ok: true };
+}
+
 // AI Service Hub 앱을 메인 수업도구로 지정하고 새 클래스를 원클릭 생성한다.
 export async function createClassFromHubApp({
   user,
