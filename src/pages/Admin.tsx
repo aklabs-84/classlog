@@ -106,6 +106,15 @@ interface ClassRow {
   profiles: { full_name: string; email: string } | null;
   _studentCount?: number;
 }
+interface ClassDetailExtra {
+  entry_code: string | null; school_code: string | null; class_type: string | null;
+  is_archived: boolean | null; is_closed: boolean | null;
+  share_enabled: boolean | null; is_demo: boolean | null;
+  start_date: string | null; end_date: string | null;
+}
+interface ClassDetailStudent {
+  id: string; full_name: string; student_number: number | null;
+}
 interface StudentRow {
   id: string; full_name: string; student_number: number | null;
   class_id: string; created_at: string;
@@ -293,6 +302,17 @@ const StatCard = ({ label, value, icon: Icon, color }: {
   </div>
 );
 
+const InfoField = ({ icon: Icon, label, value }: {
+  icon: React.ElementType; label: string; value: string;
+}) => (
+  <div className="bg-amber-50/60 rounded-xl px-3 py-2.5">
+    <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+      <Icon size={11} />{label}
+    </p>
+    <p className="text-sm font-bold text-amber-900 truncate">{value}</p>
+  </div>
+);
+
 const PAGE_SIZE = 10;
 
 const getPagerRange = (page: number, totalPages: number): (number | '...')[] => {
@@ -470,6 +490,12 @@ const Admin = () => {
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting]         = useState(false);
+
+  // ── 학급 상세 ──────────────────────────────────────────────────────────────
+  const [classDetail, setClassDetail]               = useState<ClassRow | null>(null);
+  const [classDetailExtra, setClassDetailExtra]      = useState<ClassDetailExtra | null>(null);
+  const [classDetailStudents, setClassDetailStudents] = useState<ClassDetailStudent[]>([]);
+  const [classDetailLoading, setClassDetailLoading]   = useState(false);
 
   // ── 탭 전환 시 로드 ────────────────────────────────────────────────────────
   // authLoading 또는 비관리자 상태에서는 fetch를 실행하지 않음
@@ -795,6 +821,27 @@ const Admin = () => {
       ...c, profiles: tMap[c.teacher_id] ?? null, _studentCount: cntMap[c.id] || 0,
     })));
     setClassesLoading(false);
+  };
+
+  const openClassDetail = async (cls: ClassRow) => {
+    setClassDetail(cls);
+    setClassDetailExtra(null);
+    setClassDetailStudents([]);
+    setClassDetailLoading(true);
+
+    const [{ data: extra }, { data: stu }] = await Promise.all([
+      supabase.from('classes')
+        .select('entry_code, school_code, class_type, is_archived, is_closed, share_enabled, is_demo, start_date, end_date')
+        .eq('id', cls.id).single(),
+      supabase.from('students')
+        .select('id, full_name, student_number')
+        .eq('class_id', cls.id)
+        .order('student_number', { ascending: true }),
+    ]);
+
+    setClassDetailExtra(extra ?? null);
+    setClassDetailStudents(stu ?? []);
+    setClassDetailLoading(false);
   };
 
   const fetchStudents = async () => {
@@ -2084,7 +2131,12 @@ const Admin = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-black text-amber-900 text-sm">{cls.name}</span>
+                      <button
+                        onClick={() => openClassDetail(cls)}
+                        className="font-black text-amber-900 text-sm hover:text-amber-600 hover:underline transition-colors text-left"
+                      >
+                        {cls.name}
+                      </button>
                       {cls.subject && <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-200">{cls.subject}</span>}
                     </div>
                     <div className="flex items-center gap-4 text-xs text-amber-500">
@@ -3314,6 +3366,98 @@ const Admin = () => {
                     </tr>
                   </tfoot>
                 </table>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* 학급 상세 모달 */}
+    <AnimatePresence>
+      {classDetail && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setClassDetail(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 모달 헤더 */}
+            <div className="px-6 py-4 border-b border-amber-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-amber-900 text-base">{classDetail.name}</span>
+                {classDetail.subject && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-200">
+                    {classDetail.subject}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setClassDetail(null)}
+                className="p-2 rounded-xl hover:bg-amber-50 text-amber-400 hover:text-amber-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* 모달 바디 */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {classDetailLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="animate-spin text-amber-400" size={28} />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    <InfoField icon={User} label="담당 교사" value={classDetail.profiles?.full_name ?? '교사 미확인'} />
+                    <InfoField icon={Mail} label="교사 이메일" value={classDetail.profiles?.email ?? '-'} />
+                    <InfoField icon={Users} label="학생 수" value={`${classDetail._studentCount ?? classDetailStudents.length}명`} />
+                    <InfoField icon={Calendar} label="생성일" value={new Date(classDetail.created_at).toLocaleDateString('ko-KR')} />
+                    <InfoField icon={BookOpen} label="입장 코드" value={classDetailExtra?.entry_code ?? '-'} />
+                    <InfoField icon={BookOpen} label="학교 코드" value={classDetailExtra?.school_code ?? '-'} />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-5">
+                    {classDetailExtra?.is_archived && (
+                      <span className="text-[10px] font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded-full">보관됨</span>
+                    )}
+                    {classDetailExtra?.is_closed && (
+                      <span className="text-[10px] font-bold px-2 py-1 bg-red-50 text-red-500 rounded-full">마감됨</span>
+                    )}
+                    {classDetailExtra?.is_demo && (
+                      <span className="text-[10px] font-bold px-2 py-1 bg-violet-50 text-violet-500 rounded-full">데모</span>
+                    )}
+                    {classDetailExtra?.share_enabled && (
+                      <span className="text-[10px] font-bold px-2 py-1 bg-emerald-50 text-emerald-600 rounded-full">공유 활성</span>
+                    )}
+                    {!classDetailExtra?.is_archived && !classDetailExtra?.is_closed && !classDetailExtra?.is_demo && !classDetailExtra?.share_enabled && (
+                      <span className="text-[10px] font-bold px-2 py-1 bg-amber-50 text-amber-600 rounded-full">정상 운영 중</span>
+                    )}
+                  </div>
+
+                  <p className="text-xs font-bold text-amber-700 mb-2">학생 명단 ({classDetailStudents.length}명)</p>
+                  {classDetailStudents.length === 0 ? (
+                    <p className="text-xs text-amber-400 py-4 text-center">등록된 학생이 없습니다</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {classDetailStudents.map(s => (
+                        <div key={s.id} className="flex items-center gap-2 px-3 py-2 bg-amber-50/60 rounded-xl text-xs">
+                          <span className="text-amber-400 font-bold w-6 text-right">{s.student_number ?? '-'}</span>
+                          <span className="text-amber-900 font-bold">{s.full_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </motion.div>
