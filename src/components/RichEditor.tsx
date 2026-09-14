@@ -7,6 +7,7 @@ import LinkExtension from '@tiptap/extension-link';
 import ImageExtension from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
+import HorizontalRuleExt from '@tiptap/extension-horizontal-rule';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { CellSelection } from '@tiptap/pm/tables';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
@@ -829,6 +830,41 @@ const CustomCodeBlock = CodeBlockExt.extend({
   },
 });
 
+// ── 구분선(hr) NodeView ──────────────────────────────────────────────────────
+// 기본 <hr>은 실제 그려지는 선이 2px로 얇아서 클릭해 선택하기 어렵고, 선택돼도
+// 시각적 표시가 없어 "지워지지 않는 구분선"처럼 보이는 문제가 있었다.
+// 클릭 가능한 여백을 넓게 잡고, 호버 시 삭제 버튼을 보여줘 바로 지울 수 있게 한다.
+const HorizontalRuleView = ({ node, editor, getPos, selected }: NodeViewProps) => {
+  return (
+    <NodeViewWrapper
+      as="div"
+      className={`group relative my-2 py-2 cursor-pointer rounded-lg transition-colors ${selected ? 'bg-primary/10' : 'hover:bg-surface-container-low'}`}
+      onMouseDown={(e: React.MouseEvent) => {
+        e.preventDefault();
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (typeof pos !== 'number') return;
+        editor.chain().setNodeSelection(pos).focus().run();
+      }}
+    >
+      <hr contentEditable={false} className={`border-none border-t-2 border-dashed ${selected ? 'border-primary' : 'border-surface-container-high'}`} />
+      <button
+        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-lg bg-white shadow border border-surface-container text-on-surface-variant hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-colors"
+        title="구분선 삭제"
+      >
+        <X size={13} />
+      </button>
+    </NodeViewWrapper>
+  );
+};
+
+const CustomHorizontalRule = HorizontalRuleExt.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(HorizontalRuleView);
+  },
+});
+
 // ── 구분선 자동 보정 ──────────────────────────────────────────────────────────
 // "---"만 입력하면 즉시 구분선(hr)로 바뀌는 내장 입력 규칙이 한글 입력기/붙여넣기 등의
 // 타이밍 이슈로 가끔 놓쳐서 "---" 글자가 그대로 남는 경우가 있음.
@@ -1621,8 +1657,9 @@ const RichEditor = ({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false, link: false }),
+      StarterKit.configure({ codeBlock: false, link: false, horizontalRule: false }),
       CustomCodeBlock,
+      CustomHorizontalRule,
       SlashCommandExtension,
       AutoHorizontalRule,
       FillPlaceholderHighlight,
