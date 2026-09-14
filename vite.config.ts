@@ -62,6 +62,13 @@ export default defineConfig({
         importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
+            // 관리자 페이지(/admin)에서 나가는 Supabase 요청은 캐시를 타지 않고 항상 최신 데이터를 가져온다.
+            // (NetworkFirst 캐시로 인해 삭제 직후에도 예전 목록이 다시 보이는 문제 방지)
+            urlPattern: ({ url, request }) =>
+              /\.supabase\.co$/.test(url.hostname) && (request.referrer || '').includes('/admin'),
+            handler: 'NetworkOnly',
+          },
+          {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',
             options: { cacheName: 'supabase-cache', networkTimeoutSeconds: 10 },
