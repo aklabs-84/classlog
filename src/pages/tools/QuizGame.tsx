@@ -6,7 +6,7 @@ import {
   ClipboardCheck, ChevronDown, Play, Trophy, Users,
   Plus, Trash2, Edit3, Check, X, ChevronRight,
   RefreshCw, BarChart2, Clock, Zap, Crown, Copy, CheckCheck,
-  ArrowRight, ListChecks, BookOpen, Wifi
+  ArrowRight, ListChecks, BookOpen, Wifi, Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getServerTimeOffsetMs } from '../../lib/serverTime';
@@ -15,6 +15,7 @@ import { quizGeneratorAI } from '../../lib/gemini';
 import ConfettiEffect from '../../components/quiz/ConfettiEffect';
 import { playVictoryFanfare } from '../../lib/quizSound';
 import { useBackdropClose } from '../../hooks/useBackdropClose';
+import { uploadQuizImage } from '../../components/quiz/imageUpload';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -38,6 +39,9 @@ interface Question {
   correct_answer: number; // 0~3
   time_limit: number;
   explanation?: string;
+  question_type: 'multiple_choice' | 'short_answer';
+  image_url?: string | null;
+  correct_answers?: string[] | null;
 }
 
 interface Session {
@@ -60,10 +64,12 @@ interface Answer {
   id: string;
   participant_id: string;
   question_id: string;
-  selected_option: number;
+  selected_option: number | null;
   is_correct: boolean;
   score: number;
   response_time: number;
+  answer_text?: string | null;
+  needs_review?: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -112,6 +118,11 @@ const QuizGame = () => {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [timer, setTimer] = useState(20);
   const [copied, setCopied] = useState(false);
+
+  // 주관식 수동 채점
+  const [gradeOverrides, setGradeOverrides] = useState<Record<string, boolean>>({});
+  const [gradingDone, setGradingDone] = useState(false);
+  const [gradingSaving, setGradingSaving] = useState(false);
 
   // UI 뷰
   type View = 'setup' | 'questions' | 'game';
@@ -240,25 +251,34 @@ const QuizGame = () => {
     setAiGenerating(true); setAiError('');
     try {
       const diffLabel = aiDifficulty === 'easy' ? '쉬운' : aiDifficulty === 'medium' ? '보통' : '어려운';
-      const prompt = `다음 수업 자료를 바탕으로 4지선다형 퀴즈 문제를 ${aiCount}개 만들어주세요.
+      const prompt = `다음 수업 자료를 바탕으로 퀴즈 문제를 ${aiCount}개 만들어주세요.
 난이도: ${diffLabel}
 수업 자료:
 ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.title + ')'}
+
+문제는 4지선다형(multiple_choice)과 주관식/단답형(short_answer)을 적절히 섞어서 만들어주세요.
+- multiple_choice: option_1~4와 correct_answer(0~3, 0=option_1이 정답)를 채워주세요.
+- short_answer: option_1~4는 빈 문자열("")로 두고, correct_answers 배열에 정답으로 인정할 답을 1개 이상(표기법이 다른 동의어 포함) 넣어주세요.
 
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요:
 {
   "questions": [
     {
+      "type": "multiple_choice",
       "text": "문제 내용",
       "option_1": "선택지1",
       "option_2": "선택지2",
       "option_3": "선택지3",
       "option_4": "선택지4",
       "correct_answer": 0
+    },
+    {
+      "type": "short_answer",
+      "text": "문제 내용",
+      "correct_answers": ["정답1", "정답1의 동의어"]
     }
   ]
-}
-correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
+}`;
 
       const result = await quizGeneratorAI.generateContent(prompt);
       const raw = result.response.text();
@@ -268,17 +288,22 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
       if (!parsed.questions || !Array.isArray(parsed.questions)) throw new Error('형식 오류');
 
       // DB에 문제 삽입
-      const rows = parsed.questions.map((q: any, i: number) => ({
-        quiz_set_id: selectedQuizSet.id,
-        order_index: questions.length + i,
-        text: q.text || '',
-        option_1: q.option_1 || '',
-        option_2: q.option_2 || '',
-        option_3: q.option_3 || '',
-        option_4: q.option_4 || '',
-        correct_answer: q.correct_answer ?? 0,
-        time_limit: 20,
-      }));
+      const rows = parsed.questions.map((q: any, i: number) => {
+        const isShortAnswer = q.type === 'short_answer';
+        return {
+          quiz_set_id: selectedQuizSet.id,
+          order_index: questions.length + i,
+          question_type: isShortAnswer ? 'short_answer' : 'multiple_choice',
+          text: q.text || '',
+          option_1: isShortAnswer ? '' : (q.option_1 || ''),
+          option_2: isShortAnswer ? '' : (q.option_2 || ''),
+          option_3: isShortAnswer ? '' : (q.option_3 || ''),
+          option_4: isShortAnswer ? '' : (q.option_4 || ''),
+          correct_answer: isShortAnswer ? 0 : (q.correct_answer ?? 0),
+          correct_answers: isShortAnswer ? (Array.isArray(q.correct_answers) ? q.correct_answers.filter(Boolean) : []) : null,
+          time_limit: 20,
+        };
+      });
       const { error } = await supabase.from('quiz_questions').insert(rows);
       if (error) throw error;
 
@@ -335,24 +360,36 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
   const handleSaveQuestion = async () => {
     if (!editingQuestion || !selectedQuizSet) return;
     const { text, option_1, option_2, option_3, option_4 } = editingQuestion;
-    if (!text?.trim() || !option_1?.trim() || !option_2?.trim() ||
-        !option_3?.trim() || !option_4?.trim()) return;
+    const isShortAnswer = editingQuestion.question_type === 'short_answer';
+    if (!text?.trim()) return;
+    if (isShortAnswer) {
+      const answers = (editingQuestion.correct_answers ?? []).map(a => a.trim()).filter(Boolean);
+      if (answers.length === 0) return;
+    } else {
+      if (!option_1?.trim() || !option_2?.trim() || !option_3?.trim() || !option_4?.trim()) return;
+    }
 
     setSavingQuestion(true);
+    const payload = {
+      text: editingQuestion.text,
+      question_type: isShortAnswer ? 'short_answer' as const : 'multiple_choice' as const,
+      option_1: isShortAnswer ? '' : editingQuestion.option_1,
+      option_2: isShortAnswer ? '' : editingQuestion.option_2,
+      option_3: isShortAnswer ? '' : editingQuestion.option_3,
+      option_4: isShortAnswer ? '' : editingQuestion.option_4,
+      correct_answer: isShortAnswer ? 0 : (editingQuestion.correct_answer ?? 0),
+      correct_answers: isShortAnswer
+        ? (editingQuestion.correct_answers ?? []).map(a => a.trim()).filter(Boolean)
+        : null,
+      image_url: editingQuestion.image_url || null,
+      time_limit: editingQuestion.time_limit ?? 20,
+      explanation: editingQuestion.explanation?.trim() || null,
+    };
     if (editingQuestion.id) {
       // 수정
       const { error } = await supabase
         .from('quiz_questions')
-        .update({
-          text: editingQuestion.text,
-          option_1: editingQuestion.option_1,
-          option_2: editingQuestion.option_2,
-          option_3: editingQuestion.option_3,
-          option_4: editingQuestion.option_4,
-          correct_answer: editingQuestion.correct_answer ?? 0,
-          time_limit: editingQuestion.time_limit ?? 20,
-          explanation: editingQuestion.explanation?.trim() || null,
-        })
+        .update(payload)
         .eq('id', editingQuestion.id);
       if (!error) await fetchQuestions(selectedQuizSet.id);
     } else {
@@ -360,14 +397,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
       const { error } = await supabase.from('quiz_questions').insert({
         quiz_set_id: selectedQuizSet.id,
         order_index: questions.length,
-        text: editingQuestion.text,
-        option_1: editingQuestion.option_1,
-        option_2: editingQuestion.option_2,
-        option_3: editingQuestion.option_3,
-        option_4: editingQuestion.option_4,
-        correct_answer: editingQuestion.correct_answer ?? 0,
-        time_limit: editingQuestion.time_limit ?? 20,
-        explanation: editingQuestion.explanation?.trim() || null,
+        ...payload,
       });
       if (!error) await fetchQuestions(selectedQuizSet.id);
     }
@@ -552,6 +582,13 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [aiModalOpen]);
 
+  // 문제가 바뀔 때마다 주관식 채점 상태 초기화
+  useEffect(() => {
+    setGradeOverrides({});
+    setGradingDone(false);
+    setGradingSaving(false);
+  }, [session?.current_question_index]);
+
   // ── 게임 제어 ──────────────────────────────────────────────────────────────
   const updateSessionState = async (
     state: GameState,
@@ -657,6 +694,81 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
 
   // ── 현재 문제 답변 필터
   const currentAnswers = answers.filter(a => a.question_id === currentQuestion?.id);
+
+  // 주관식 답안 그룹화 (동일 답안끼리 묶어서 일괄 채점)
+  const shortAnswerGroups = (() => {
+    if (!currentQuestion || currentQuestion.question_type !== 'short_answer') return [];
+    const normalizedCorrect = (currentQuestion.correct_answers ?? []).map(a => a.trim().toLowerCase());
+    const map = new Map<string, { display: string; answers: Answer[] }>();
+    currentAnswers.forEach(a => {
+      const raw = (a.answer_text ?? '').trim();
+      const key = raw.toLowerCase();
+      if (!map.has(key)) map.set(key, { display: raw || '(빈 답안)', answers: [] });
+      map.get(key)!.answers.push(a);
+    });
+    return Array.from(map.entries()).map(([key, group]) => ({
+      key,
+      display: group.display,
+      answers: group.answers,
+      suggestedCorrect: normalizedCorrect.includes(key),
+    }));
+  })();
+
+  // ── 주관식 채점 완료 처리 ────────────────────────────────────────────────
+  const handleFinishGrading = async () => {
+    if (!currentQuestion || shortAnswerGroups.length === 0) return;
+    setGradingSaving(true);
+
+    const scoreDeltaByParticipant = new Map<string, number>();
+    const BASE = 500;
+    const MAX_BONUS = 500;
+    const timeLimit = currentQuestion.time_limit || 20;
+
+    for (const group of shortAnswerGroups) {
+      const isCorrect = gradeOverrides[group.key] ?? group.suggestedCorrect;
+      if (isCorrect) {
+        for (const ans of group.answers) {
+          const score = Math.max(0, BASE + Math.floor((1 - ans.response_time / timeLimit) * MAX_BONUS));
+          const { error } = await supabase
+            .from('quiz_answers')
+            .update({ is_correct: true, score, needs_review: false })
+            .eq('id', ans.id);
+          if (!error) {
+            scoreDeltaByParticipant.set(
+              ans.participant_id,
+              (scoreDeltaByParticipant.get(ans.participant_id) ?? 0) + score
+            );
+          }
+        }
+      } else {
+        const ids = group.answers.map(a => a.id);
+        await supabase
+          .from('quiz_answers')
+          .update({ is_correct: false, score: 0, needs_review: false })
+          .in('id', ids);
+      }
+    }
+
+    for (const [participantId, delta] of scoreDeltaByParticipant.entries()) {
+      const { error } = await supabase.rpc('update_participant_score', {
+        p_participant_id: participantId,
+        p_score_delta: delta,
+      });
+      if (error) {
+        const participant = participants.find(p => p.id === participantId);
+        if (participant) {
+          await supabase
+            .from('quiz_participants')
+            .update({ score: participant.score + delta })
+            .eq('id', participantId);
+        }
+      }
+    }
+
+    await fetchParticipantsFresh(session!.id);
+    setGradingDone(true);
+    setGradingSaving(false);
+  };
 
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER: SETUP VIEW
@@ -859,6 +971,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                 setEditingQuestion({
                   text: '', option_1: '', option_2: '', option_3: '', option_4: '',
                   correct_answer: 0, time_limit: 20, explanation: '',
+                  question_type: 'multiple_choice', image_url: null, correct_answers: [],
                 });
               }}
               className="flex items-center gap-1.5 px-3 py-2 btn-vibrant rounded-xl text-xs font-black"
@@ -980,6 +1093,11 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                     <p className="text-sm font-bold text-on-surface leading-relaxed">{q.text}</p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {q.question_type === 'short_answer' && (
+                      <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-1 rounded-lg">
+                        주관식
+                      </span>
+                    )}
                     <span className="flex items-center gap-1 text-[10px] text-on-surface-variant bg-surface-container-low/50 px-2 py-1 rounded-lg">
                       <Clock size={10} />
                       {q.time_limit}초
@@ -998,33 +1116,46 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[q.option_1, q.option_2, q.option_3, q.option_4].map((opt, idx) => {
-                    const isCorrect = idx === q.correct_answer;
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm font-bold border-2 ${
-                          isCorrect
-                            ? 'bg-green-500 border-green-600 text-white shadow-md shadow-green-200'
-                            : `${OPTION_LIGHT_COLORS[idx]} opacity-60`
-                        }`}
-                      >
-                        <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${
-                          isCorrect ? 'bg-white/30 text-white' : `text-white ${OPTION_COLORS[idx]}`
-                        }`}>
-                          {isCorrect ? <Check size={11} strokeWidth={3} /> : OPTION_LABELS[idx]}
-                        </span>
-                        <span className="flex-1 break-words leading-snug">{opt}</span>
-                        {isCorrect && (
-                          <span className="shrink-0 text-[10px] font-black bg-white/25 text-white px-1.5 py-0.5 rounded-md mt-0.5">
-                            정답
+                {q.image_url && (
+                  <img src={q.image_url} alt="문제 이미지" className="w-full max-h-40 object-cover rounded-xl" />
+                )}
+                {q.question_type === 'short_answer' ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(q.correct_answers ?? []).map((a, idx) => (
+                      <span key={idx} className="text-xs font-bold bg-green-500 text-white px-2.5 py-1.5 rounded-lg">
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[q.option_1, q.option_2, q.option_3, q.option_4].map((opt, idx) => {
+                      const isCorrect = idx === q.correct_answer;
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm font-bold border-2 ${
+                            isCorrect
+                              ? 'bg-green-500 border-green-600 text-white shadow-md shadow-green-200'
+                              : `${OPTION_LIGHT_COLORS[idx]} opacity-60`
+                          }`}
+                        >
+                          <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${
+                            isCorrect ? 'bg-white/30 text-white' : `text-white ${OPTION_COLORS[idx]}`
+                          }`}>
+                            {isCorrect ? <Check size={11} strokeWidth={3} /> : OPTION_LABELS[idx]}
                           </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          <span className="flex-1 break-words leading-snug">{opt}</span>
+                          {isCorrect && (
+                            <span className="shrink-0 text-[10px] font-black bg-white/25 text-white px-1.5 py-0.5 rounded-md mt-0.5">
+                              정답
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
@@ -1214,23 +1345,34 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                   <span className="text-[9px] text-on-surface-variant">초</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-2 px-3 py-3 rounded-xl border border-white/40 bg-surface-container-low/50"
-                  >
-                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5 ${OPTION_COLORS[idx]}`}>
-                      {OPTION_LABELS[idx]}
-                    </span>
-                    <span className="text-sm font-bold text-on-surface flex-1 break-words leading-snug">{opt}</span>
-                    {/* 실시간 답변 수 */}
-                    <span className="text-xs text-on-surface-variant font-bold shrink-0 mt-0.5">
-                      {currentAnswers.filter(a => a.selected_option === idx).length}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {currentQuestion.image_url && (
+                <img src={currentQuestion.image_url} alt="문제 이미지" className="w-full max-h-64 object-contain rounded-2xl bg-surface-container-low/50" />
+              )}
+              {currentQuestion.question_type === 'short_answer' ? (
+                <div className="flex items-center justify-center gap-2 py-6 rounded-xl border border-white/40 bg-surface-container-low/50">
+                  <span className="text-sm font-bold text-on-surface-variant">주관식 제출</span>
+                  <span className="text-2xl font-black text-primary">{currentAnswers.length}</span>
+                  <span className="text-sm font-bold text-on-surface-variant">/ {participants.length}명</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2 px-3 py-3 rounded-xl border border-white/40 bg-surface-container-low/50"
+                    >
+                      <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5 ${OPTION_COLORS[idx]}`}>
+                        {OPTION_LABELS[idx]}
+                      </span>
+                      <span className="text-sm font-bold text-on-surface flex-1 break-words leading-snug">{opt}</span>
+                      {/* 실시간 답변 수 */}
+                      <span className="text-xs text-on-surface-variant font-bold shrink-0 mt-0.5">
+                        {currentAnswers.filter(a => a.selected_option === idx).length}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button
@@ -1248,7 +1390,68 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             <div className="glass rounded-3xl p-6 border border-white/40 space-y-4">
               <h4 className="font-black text-on-surface text-lg">{currentQuestion.text}</h4>
+              {currentQuestion.image_url && (
+                <img src={currentQuestion.image_url} alt="문제 이미지" className="w-full max-h-64 object-contain rounded-2xl bg-surface-container-low/50" />
+              )}
 
+              {currentQuestion.question_type === 'short_answer' ? (
+                <div className="space-y-3">
+                  {shortAnswerGroups.length === 0 && (
+                    <p className="text-sm font-bold text-on-surface-variant text-center py-6">제출된 답안이 없습니다.</p>
+                  )}
+                  {shortAnswerGroups.map(group => {
+                    const isCorrect = gradeOverrides[group.key] ?? group.suggestedCorrect;
+                    return (
+                      <div
+                        key={group.key}
+                        className={`flex items-center gap-3 p-3 rounded-xl border-2 ${
+                          isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-200'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-on-surface break-words">{group.display}</p>
+                          <p className="text-xs text-on-surface-variant font-bold mt-0.5">{group.answers.length}명 제출</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            disabled={gradingDone}
+                            onClick={() => setGradeOverrides(prev => ({ ...prev, [group.key]: true }))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-50 ${
+                              isCorrect ? 'bg-green-500 text-white' : 'bg-white text-green-600 border border-green-300'
+                            }`}
+                          >
+                            정답
+                          </button>
+                          <button
+                            disabled={gradingDone}
+                            onClick={() => setGradeOverrides(prev => ({ ...prev, [group.key]: false }))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-50 ${
+                              !isCorrect ? 'bg-red-500 text-white' : 'bg-white text-red-500 border border-red-300'
+                            }`}
+                          >
+                            오답
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {shortAnswerGroups.length > 0 && (
+                    <button
+                      onClick={handleFinishGrading}
+                      disabled={gradingDone || gradingSaving}
+                      className="w-full py-3 rounded-2xl font-black text-sm btn-vibrant flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {gradingSaving ? (
+                        <><RefreshCw size={16} className="animate-spin" /> 채점 반영 중...</>
+                      ) : gradingDone ? (
+                        <><Check size={16} strokeWidth={3} /> 채점 완료</>
+                      ) : (
+                        '채점 완료'
+                      )}
+                    </button>
+                  )}
+                </div>
+              ) : (
               <div className="space-y-3">
                 {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => {
                   const count = optionStats[idx]?.count ?? 0;
@@ -1305,6 +1508,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                   );
                 })}
               </div>
+              )}
 
               {/* 해설 */}
               {currentQuestion.explanation && (
@@ -1320,9 +1524,15 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
               )}
             </div>
 
+            {currentQuestion.question_type === 'short_answer' && shortAnswerGroups.length > 0 && !gradingDone && (
+              <p className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-center">
+                채점을 완료해야 순위에 점수가 반영됩니다.
+              </p>
+            )}
             <button
               onClick={handleShowRanking}
-              className="w-full py-4 rounded-2xl font-black text-base btn-vibrant flex items-center justify-center gap-3"
+              disabled={currentQuestion.question_type === 'short_answer' && shortAnswerGroups.length > 0 && !gradingDone}
+              className="w-full py-4 rounded-2xl font-black text-base btn-vibrant flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Crown size={20} />
               순위 보기
@@ -1500,6 +1710,34 @@ interface QFMProps {
 const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMProps) => {
   const TIMER_OPTIONS = [10, 15, 20, 30];
   const backdropHandlers = useBackdropClose(onClose);
+  const [uploading, setUploading] = useState(false);
+  const [newAnswerText, setNewAnswerText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isShortAnswer = question.question_type === 'short_answer';
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadQuizImage(file);
+    if (url) onChange({ ...question, image_url: url });
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const addAnswer = () => {
+    const trimmed = newAnswerText.trim();
+    if (!trimmed) return;
+    const current = question.correct_answers ?? [];
+    if (current.includes(trimmed)) { setNewAnswerText(''); return; }
+    onChange({ ...question, correct_answers: [...current, trimmed] });
+    setNewAnswerText('');
+  };
+
+  const removeAnswer = (idx: number) => {
+    const current = question.correct_answers ?? [];
+    onChange({ ...question, correct_answers: current.filter((_, i) => i !== idx) });
+  };
 
   return createPortal(
     <motion.div
@@ -1525,6 +1763,29 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
         </div>
 
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+          {/* 문제 유형 */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">문제 유형</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onChange({ ...question, question_type: 'multiple_choice' })}
+                className={`flex-1 py-2 rounded-xl text-sm font-black border transition-all ${
+                  !isShortAnswer ? 'bg-primary text-white border-primary' : 'border-surface-container-high text-on-surface-variant hover:border-primary/30'
+                }`}
+              >
+                4지선다형
+              </button>
+              <button
+                onClick={() => onChange({ ...question, question_type: 'short_answer' })}
+                className={`flex-1 py-2 rounded-xl text-sm font-black border transition-all ${
+                  isShortAnswer ? 'bg-primary text-white border-primary' : 'border-surface-container-high text-on-surface-variant hover:border-primary/30'
+                }`}
+              >
+                주관식(직접 입력)
+              </button>
+            </div>
+          </div>
+
           {/* 문제 내용 */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-on-surface-variant">문제 내용</label>
@@ -1537,7 +1798,69 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
             />
           </div>
 
-          {/* 선택지 */}
+          {/* 문제 이미지 (선택) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">
+              문제 이미지 <span className="font-normal text-on-surface-variant/60">(선택)</span>
+            </label>
+            {question.image_url ? (
+              <div className="relative">
+                <img src={question.image_url} alt="문제 이미지" className="w-full max-h-48 object-contain rounded-xl bg-surface-container-low/50" />
+                <button
+                  onClick={() => onChange({ ...question, image_url: null })}
+                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg transition-all"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-surface-container-high text-on-surface-variant hover:border-primary/40 transition-all text-sm font-bold disabled:opacity-50"
+              >
+                {uploading ? (
+                  <><RefreshCw size={16} className="animate-spin" /> 업로드 중...</>
+                ) : (
+                  <><ImageIcon size={16} /> 이미지 업로드</>
+                )}
+              </button>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+          </div>
+
+          {/* 선택지 / 정답 */}
+          {isShortAnswer ? (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-on-surface-variant">정답으로 인정할 답안 (여러 개 등록 가능)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {(question.correct_answers ?? []).map((a, idx) => (
+                  <span key={idx} className="flex items-center gap-1.5 text-xs font-bold bg-green-500 text-white px-2.5 py-1.5 rounded-lg">
+                    {a}
+                    <button onClick={() => removeAnswer(idx)} className="hover:opacity-70">
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newAnswerText}
+                  onChange={e => setNewAnswerText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAnswer(); } }}
+                  placeholder="정답 입력 후 Enter"
+                  className="flex-1 px-3 py-2 rounded-xl border border-surface-container-high bg-surface-container-low/30 text-sm font-bold focus:outline-none focus:border-primary/40 transition-all"
+                />
+                <button
+                  onClick={addAnswer}
+                  className="px-3 py-2 rounded-xl bg-primary/10 text-primary text-sm font-black hover:bg-primary/20 transition-all"
+                >
+                  추가
+                </button>
+              </div>
+              <p className="text-[10px] text-on-surface-variant">시간 종료 후 학생 답안을 직접 확인하고 정답/오답을 처리합니다. 여기 등록한 답안은 채점 시 기본 정답 후보로만 사용됩니다.</p>
+            </div>
+          ) : (
           <div className="space-y-2">
             <label className="text-xs font-bold text-on-surface-variant">선택지 (정답 클릭으로 지정)</label>
             {(['option_1', 'option_2', 'option_3', 'option_4'] as const).map((key, idx) => {
@@ -1571,6 +1894,7 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
             })}
             <p className="text-[10px] text-on-surface-variant">선택지 행을 클릭하면 정답으로 지정됩니다</p>
           </div>
+          )}
 
           {/* 타이머 */}
           <div className="space-y-2">
@@ -1616,7 +1940,12 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
           </button>
           <button
             onClick={onSave}
-            disabled={saving || !question.text?.trim()}
+            disabled={
+              saving || !question.text?.trim() ||
+              (isShortAnswer
+                ? (question.correct_answers ?? []).filter(a => a.trim()).length === 0
+                : !question.option_1?.trim() || !question.option_2?.trim() || !question.option_3?.trim() || !question.option_4?.trim())
+            }
             className="flex-1 py-2.5 rounded-xl btn-vibrant text-sm font-black flex items-center justify-center gap-2 disabled:opacity-40"
           >
             {saving ? (

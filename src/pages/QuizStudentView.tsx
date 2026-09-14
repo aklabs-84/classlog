@@ -34,6 +34,9 @@ interface Question {
   correct_answer: number;
   time_limit: number;
   explanation?: string;
+  question_type: 'multiple_choice' | 'short_answer';
+  image_url?: string | null;
+  correct_answers?: string[] | null;
 }
 
 interface Participant {
@@ -81,9 +84,19 @@ const QuizStudentView = () => {
 
   // 퀴즈 진행
   const [myAnswer, setMyAnswer] = useState<number | null>(null);
-  const [lastResult, setLastResult] = useState<{ isCorrect: boolean; score: number; correctAnswer: number } | null>(null);
+  const [lastResult, setLastResult] = useState<{
+    questionType: 'multiple_choice' | 'short_answer';
+    isCorrect: boolean;
+    score: number;
+    correctAnswer: number;
+    answerText?: string;
+    pending?: boolean;
+  } | null>(null);
+  const [shortAnswerText, setShortAnswerText] = useState('');
   const [timer, setTimer] = useState(20);
   const [isConnected, setIsConnected] = useState(false);
+  // 주관식 제출 후 교사 채점 대기 중인 답변의 id — 채점 완료 realtime UPDATE를 이 id로만 매칭
+  const pendingAnswerIdRef = useRef<string | null>(null);
 
   const [showConfetti, setShowConfetti] = useState(false);
   const prevQuestionIndex = useRef<number>(-1);
@@ -190,6 +203,8 @@ const QuizStudentView = () => {
       if (prev && updated.current_question_index !== prev.current_question_index) {
         setMyAnswer(null);
         setLastResult(null);
+        setShortAnswerText('');
+        pendingAnswerIdRef.current = null;
       }
       return updated;
     });
@@ -221,6 +236,17 @@ const QuizStudentView = () => {
         { event: 'INSERT', schema: 'public', table: 'quiz_participants', filter: `session_id=eq.${sessionId}` },
         () => {
           fetchParticipants(sessionId);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'quiz_answers', filter: `participant_id=eq.${participantId}` },
+        (payload) => {
+          const updated = payload.new as { id: string; is_correct: boolean; score: number };
+          if (pendingAnswerIdRef.current && updated.id === pendingAnswerIdRef.current) {
+            setLastResult(prev => prev ? { ...prev, isCorrect: updated.is_correct, score: updated.score, pending: false } : prev);
+            pendingAnswerIdRef.current = null;
+          }
         }
       )
       .subscribe((status) => {
@@ -272,6 +298,19 @@ const QuizStudentView = () => {
         .eq('id', participantId)
         .single();
       if (pData) setParticipant(prev => (prev ? { ...prev, ...pData } : (pData as Participant)));
+
+      // 주관식 채점 결과 realtime 유실 대비 폴백
+      if (pendingAnswerIdRef.current) {
+        const { data: ansData } = await supabase
+          .from('quiz_answers')
+          .select('id, is_correct, score, needs_review')
+          .eq('id', pendingAnswerIdRef.current)
+          .single();
+        if (ansData && !ansData.needs_review) {
+          setLastResult(prev => prev ? { ...prev, isCorrect: ansData.is_correct, score: ansData.score, pending: false } : prev);
+          pendingAnswerIdRef.current = null;
+        }
+      }
     };
 
     const t = setInterval(poll, 4000);
@@ -385,7 +424,7 @@ const QuizStudentView = () => {
       ? Math.max(0, BASE + Math.floor((1 - responseTime / currentQuestion.time_limit) * MAX_BONUS))
       : 0;
 
-    setLastResult({ isCorrect, score, correctAnswer: currentQuestion.correct_answer });
+    setLastResult({ questionType: 'multiple_choice', isCorrect, score, correctAnswer: currentQuestion.correct_answer, pending: false });
 
     // DB에 답변 저장
     await supabase.from('quiz_answers').insert({
@@ -396,6 +435,7 @@ const QuizStudentView = () => {
       is_correct: isCorrect,
       score,
       response_time: responseTime,
+      needs_review: false,
     });
 
     // 참가자 점수 업데이트
@@ -420,6 +460,46 @@ const QuizStudentView = () => {
       // 로컬 state 즉시 반영 (Realtime 이벤트 도착 전 UX용)
       setParticipant(prev => prev ? { ...prev, score: prev.score + score } : prev);
     }
+  };
+
+  // ── 주관식 답변 제출 ──────────────────────────────────────────────────────────
+  // 즉시 정답/오답을 판정하지 않고, 선생님이 시간 종료 후 직접 채점할 때까지 대기한다.
+  const handleShortAnswerSubmit = async () => {
+    if (!session || !participant || myAnswer !== null) return;
+    if (session.state !== 'QUIZ') return;
+    if (timer <= 0) return;
+    const text = shortAnswerText.trim();
+    if (!text) return;
+
+    setMyAnswer(-1); // 주관식은 선택지 인덱스가 없으므로 "제출 완료" sentinel
+
+    const currentQuestion = questions[session.current_question_index];
+    if (!currentQuestion) return;
+
+    const started = session.question_started_at
+      ? new Date(session.question_started_at).getTime()
+      : serverNow();
+    const responseTime = (serverNow() - started) / 1000;
+
+    setLastResult({ questionType: 'short_answer', isCorrect: false, score: 0, correctAnswer: -1, answerText: text, pending: true });
+
+    const { data: inserted } = await supabase
+      .from('quiz_answers')
+      .insert({
+        session_id: session.id,
+        participant_id: participant.id,
+        question_id: currentQuestion.id,
+        selected_option: null,
+        answer_text: text,
+        is_correct: false,
+        score: 0,
+        response_time: responseTime,
+        needs_review: true,
+      })
+      .select()
+      .single();
+
+    if (inserted) pendingAnswerIdRef.current = inserted.id;
   };
 
   // ── 현재 정보 ──────────────────────────────────────────────────────────────
@@ -645,15 +725,43 @@ const QuizStudentView = () => {
                     </div>
 
                     {/* 문제 */}
-                    <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 md:p-8 lg:p-10 border border-white/20">
+                    <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 md:p-8 lg:p-10 border border-white/20 space-y-4">
                       <p className="text-white font-black text-center text-2xl md:text-3xl lg:text-4xl leading-relaxed break-words">
                         {currentQuestion.text}
                       </p>
+                      {currentQuestion.image_url && (
+                        <img
+                          src={currentQuestion.image_url}
+                          alt=""
+                          className="max-h-64 md:max-h-80 mx-auto rounded-xl object-contain"
+                        />
+                      )}
                     </div>
 
                     {/* 선택지 또는 완료 표시 */}
                     {myAnswer === null ? (
                       timer > 0 ? (
+                        currentQuestion.question_type === 'short_answer' ? (
+                          <div className="flex flex-col gap-3">
+                            <input
+                              type="text"
+                              value={shortAnswerText}
+                              onChange={(e) => setShortAnswerText(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleShortAnswerSubmit(); }}
+                              placeholder="답을 입력하세요"
+                              autoFocus
+                              className="w-full rounded-2xl bg-white/15 border border-white/30 px-5 py-4 text-white font-bold text-lg placeholder-white/40 focus:outline-none focus:border-white/60"
+                            />
+                            <motion.button
+                              whileTap={{ scale: 0.96 }}
+                              onClick={handleShortAnswerSubmit}
+                              disabled={!shortAnswerText.trim()}
+                              className="w-full rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 disabled:opacity-40 disabled:cursor-not-allowed py-4 text-white font-black text-lg shadow-xl transition-all active:brightness-90"
+                            >
+                              제출하기
+                            </motion.button>
+                          </div>
+                        ) : (
                         <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-5">
                           {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
                             <motion.button
@@ -669,6 +777,7 @@ const QuizStudentView = () => {
                             </motion.button>
                           ))}
                         </div>
+                        )
                       ) : (
                         <motion.div
                           initial={{ scale: 0.85, opacity: 0 }}
@@ -709,7 +818,24 @@ const QuizStudentView = () => {
                     exit={{ opacity: 0, scale: 0.85 }}
                     className="space-y-4"
                   >
-                    {lastResult ? (
+                    {lastResult && lastResult.pending ? (
+                      /* 주관식 채점 대기 중 */
+                      <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center space-y-4">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                          className="text-5xl w-fit mx-auto"
+                        >
+                          ⏳
+                        </motion.div>
+                        <h2 className="text-2xl font-black text-white">채점 대기 중...</h2>
+                        <p className="text-white/60 text-sm">선생님이 답안을 확인하고 있어요</p>
+                        <div className="bg-white/10 rounded-2xl px-5 py-4 text-left">
+                          <p className="text-white/50 text-xs font-black mb-1.5">내가 제출한 답</p>
+                          <p className="text-white font-black text-lg leading-snug break-words">{lastResult.answerText}</p>
+                        </div>
+                      </div>
+                    ) : lastResult ? (
                       <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center space-y-4">
                         <motion.div
                           initial={{ scale: 0 }}
@@ -746,10 +872,12 @@ const QuizStudentView = () => {
                         >
                           <p className="text-green-300 text-xs font-black mb-1.5 flex items-center gap-1">
                             <CheckCircle size={13} strokeWidth={3} />
-                            정답
+                            {lastResult.questionType === 'short_answer' ? '내가 제출한 답' : '정답'}
                           </p>
-                          <p className="text-white font-black text-lg leading-snug">
-                            {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][lastResult.correctAnswer]}
+                          <p className="text-white font-black text-lg leading-snug break-words">
+                            {lastResult.questionType === 'short_answer'
+                              ? lastResult.answerText
+                              : [currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][lastResult.correctAnswer]}
                           </p>
                         </motion.div>
                       </div>
@@ -772,8 +900,10 @@ const QuizStudentView = () => {
                             <CheckCircle size={13} strokeWidth={3} />
                             정답
                           </p>
-                          <p className="text-white font-black text-lg leading-snug">
-                            {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
+                          <p className="text-white font-black text-lg leading-snug break-words">
+                            {currentQuestion.question_type === 'short_answer'
+                              ? (currentQuestion.correct_answers?.join(', ') || '(정답 미등록)')
+                              : [currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
                           </p>
                         </motion.div>
                       </div>

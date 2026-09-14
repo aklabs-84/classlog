@@ -22,7 +22,7 @@ interface Props {
 
 const INIT_X = 60;
 const INIT_Y = 40;
-const INIT_ZOOM = 0.7;
+const INIT_ZOOM = 1;
 const DOT_SPACING = 24; // px (canvas 좌표 기준)
 
 export default function WhiteboardCanvas({
