@@ -59,6 +59,7 @@ import {
   Plus,
   Cpu,
   Sparkles,
+  Radio,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
@@ -424,6 +425,7 @@ const StudentLog = () => {
   const latestNoteContentRef = useRef('');       // 최신 노트 내용 (이미지 URL 교체 후 값)
 
   // Board Tab States
+  const [liveBoardCode, setLiveBoardCode] = useState('');
   const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
   const [boardSessionAlert, setBoardSessionAlert] = useState<{ id: string; class_name: string; session_code: string; group_count: number } | null>(null);
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
@@ -4998,6 +5000,41 @@ ${guidePrompt}
                 exit={{ opacity: 0, y: -10 }}
                 className="p-6 md:p-8"
               >
+                {/* 실시간 참여 게시판 입장 */}
+                <div className="mb-8">
+                  <div className="mb-4 space-y-0.5">
+                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.25em]">Live Response</p>
+                    <h3 className="text-xl font-black">실시간 참여 게시판 입장</h3>
+                    <p className="text-sm text-on-surface-variant font-bold">선생님이 알려준 6자리 코드를 입력하세요</p>
+                  </div>
+                  <div className="rounded-2xl border-2 border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 p-6 flex items-center gap-4 flex-wrap">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+                      <Radio size={26} className="text-white" />
+                    </div>
+                    <input
+                      type="text"
+                      value={liveBoardCode}
+                      onChange={(e) => setLiveBoardCode(e.target.value.toUpperCase().slice(0, 6))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && liveBoardCode.length === 6) {
+                          navigate(`/lb-join?code=${liveBoardCode}`);
+                        }
+                      }}
+                      placeholder="6자리 코드 입력"
+                      maxLength={6}
+                      className="flex-1 min-w-[160px] px-4 py-3 rounded-2xl border-2 border-emerald-200 bg-white font-black text-lg tracking-[0.3em] text-center uppercase focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      onClick={() => navigate(`/lb-join?code=${liveBoardCode}`)}
+                      disabled={liveBoardCode.length !== 6}
+                      className="flex items-center gap-1.5 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-black text-sm rounded-2xl transition-all shrink-0"
+                    >
+                      입장하기 <ArrowRight size={14} />
+                    </button>
+                  </div>
+                  <hr className="mt-8 border-surface-container-high" />
+                </div>
+
                 {/* 활성 수업 보드 세션 */}
                 {activeBoardSessions.length > 0 && (
                   <div className="mb-8">
