@@ -53,13 +53,23 @@ import LimitToast, { useLimitToast, ActionToast, useActionToast } from '../../co
 import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
 import type { LessonPRD } from '../../lib/gemini';
 
+// 목차는 마크다운을 파싱하지 않고 헤딩 텍스트를 그대로 출력하므로, 저장 시 이스케이프된
+// 특수문자(\[, \] 등)와 강조 마크(**bold**, `code`)를 사람이 읽는 순수 텍스트로 되돌린다.
+const unescapeMarkdownText = (text: string) =>
+  text
+    .replace(/\\([\\`*_{}[\]()#+\-.!>~|])/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1');
+
 // PDF 목차 페이지용 — 본문 마크다운 소제목(#~###)을 순서대로 추출
 const extractHeadingsForToc = (content: string): TocSection[] => {
   const sections: TocSection[] = [];
   const re = /^(#{1,3})\s+(.+)$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(content))) {
-    sections.push({ level: m[1].length, text: m[2].trim() });
+    sections.push({ level: m[1].length, text: unescapeMarkdownText(m[2].trim()) });
   }
   return sections;
 };
@@ -524,7 +534,7 @@ const mdComponents: any = {
   h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4 text-on-surface">{children}</h3>,
   p: ({ children }: any) => <p className="mb-3 leading-relaxed text-sm text-on-surface">{children}</p>,
   ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
-  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
+  ol: ({ children, start }: any) => <ol start={start} className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
   li: ({ children }: any) => <li className="text-sm text-on-surface">{children}</li>,
   blockquote: ({ children }: any) => (
     <blockquote className="border-l-4 border-primary pl-4 italic text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-xl">

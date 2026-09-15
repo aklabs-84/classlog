@@ -1671,7 +1671,9 @@ const RichEditor = ({
         transformCopiedText: false,
       }),
       LinkExtension.configure({ openOnClick: false }),
-      ResizableImage.configure({ inline: true }),
+      // allowBase64: 기본값 false면 붙여넣기 HTML의 <img src="data:..."> 태그가
+      // 파싱 규칙(img[src]:not([src^="data:"]))에서 제외되어 통째로 사라진다 — data URI 이미지 붙여넣기 지원을 위해 true로 설정
+      ResizableImage.configure({ inline: true, allowBase64: true }),
       DetailsExtension,
       CalloutExtension,
       ColorableTable.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
