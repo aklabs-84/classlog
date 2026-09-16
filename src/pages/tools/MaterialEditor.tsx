@@ -1091,6 +1091,10 @@ const MaterialEditor = () => {
   // 에디터를 열 때(신규/수정 진입) 폼 필드가 초기값으로 세팅되면서 발생하는 최초 1회 변경은
   // 자동저장 대상이 아니므로 건너뛰기 위한 플래그
   const autosaveSkipRef = useRef(true);
+  // 아직 한 번도 저장되지 않은 새 자료를 생성하는 insert가 수동 저장/자동 저장에서 동시에
+  // 일어나면(예: 자동저장 debounce가 막 돌 때 사용자가 저장 버튼을 누른 경우) 같은 내용이
+  // 두 번 insert돼 중복 자료가 생긴다. 진행 중인 생성 Promise를 공유해 insert가 한 번만 나가도록 막는다.
+  const creatingMaterialPromiseRef = useRef<Promise<Material> | null>(null);
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
   // 발표 모드에서 "저장" 시 어디에 반영할지 (원본 draft / 특정 AI 버전 / DB 직접 저장 등 호출부마다 다름)
@@ -1448,6 +1452,28 @@ const MaterialEditor = () => {
       .catch(err => console.error('[MaterialEditor] 임베딩 갱신 오류:', err));
   };
 
+  // 아직 저장된 적 없는 새 자료의 최초 insert를 한 번만 실행하도록 보장한다.
+  // 이미 생성이 진행 중이면 그 Promise를 그대로 기다렸다가 같은 결과를 반환한다.
+  const createMaterialOnce = async (payload: Record<string, any>): Promise<Material> => {
+    if (creatingMaterialPromiseRef.current) return creatingMaterialPromiseRef.current;
+    const promise = (async () => {
+      const insertPayload = {
+        ...payload,
+        source_material_id: importedSourceMaterialId,
+        folder_id: activeFolderId && activeFolderId !== 'all' ? activeFolderId : null,
+      };
+      const { data, error } = await supabase.from('class_materials').insert(insertPayload).select().single();
+      if (error) throw error;
+      return data as Material;
+    })();
+    creatingMaterialPromiseRef.current = promise;
+    try {
+      return await promise;
+    } finally {
+      creatingMaterialPromiseRef.current = null;
+    }
+  };
+
   const handleSave = async () => {
     if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
     if (!title.trim()) { alert('제목을 입력해주세요.'); return; }
@@ -1479,10 +1505,8 @@ const MaterialEditor = () => {
           if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
         }
       } else {
-        const insertPayload = { ...payload, source_material_id: importedSourceMaterialId };
-        const { data: inserted, error } = await supabase.from('class_materials').insert(insertPayload).select('id').single();
-        if (error) throw error;
-        if (inserted) syncMaterialEmbedding(inserted.id, payload.title, payload.content);
+        const inserted = await createMaterialOnce(payload);
+        syncMaterialEmbedding(inserted.id, payload.title, payload.content);
       }
       if (libraryMode) await fetchLibraryMaterials(); else await fetchMaterials(selectedClass.id);
       setIsEditorOpen(false);
@@ -1528,18 +1552,14 @@ const MaterialEditor = () => {
         }
       } else {
         // 아직 한 번도 저장된 적 없는 새 자료 — 첫 자동저장 시 생성하고, 이후엔 위 update 경로를 탄다
-        const insertPayload = { ...payload, source_material_id: importedSourceMaterialId };
-        const { data, error } = await supabase.from('class_materials').insert(insertPayload).select().single();
-        if (error) throw error;
-        if (data) {
-          setEditingMaterial(data as Material);
-          syncMaterialEmbedding((data as Material).id, payload.title, payload.content);
-          if (pendingDraftNoteIdRef.current) {
-            const noteId = pendingDraftNoteIdRef.current;
-            pendingDraftNoteIdRef.current = null;
-            supabase.from('teacher_notes').update({ linked_material_id: (data as Material).id }).eq('id', noteId)
-              .then(({ error: linkError }) => { if (linkError) console.error('[MaterialEditor] linked_material_id 기록 오류:', linkError); });
-          }
+        const data = await createMaterialOnce(payload);
+        setEditingMaterial(data);
+        syncMaterialEmbedding(data.id, payload.title, payload.content);
+        if (pendingDraftNoteIdRef.current) {
+          const noteId = pendingDraftNoteIdRef.current;
+          pendingDraftNoteIdRef.current = null;
+          supabase.from('teacher_notes').update({ linked_material_id: data.id }).eq('id', noteId)
+            .then(({ error: linkError }) => { if (linkError) console.error('[MaterialEditor] linked_material_id 기록 오류:', linkError); });
         }
       }
       setAutoSaveStatus('saved');
