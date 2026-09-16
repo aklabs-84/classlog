@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
@@ -471,37 +472,40 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
             )}
           </button>
 
-          <AnimatePresence>
-            {showNotifications && (
-              <>
-                <motion.div
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm"
-                  onClick={() => setShowNotifications(false)}
-                />
-                <div
-                  className="fixed inset-0 z-[71] flex items-center justify-center p-4"
-                  style={{
-                    paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))',
-                    paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
-                    paddingLeft: 'calc(1rem + env(safe-area-inset-left, 0px))',
-                    paddingRight: 'calc(1rem + env(safe-area-inset-right, 0px))',
-                  }}
-                  onClick={() => setShowNotifications(false)}
-                >
+          {createPortal(
+            <AnimatePresence>
+              {showNotifications && (
+                <>
                   <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="w-full max-w-sm max-h-full flex flex-col glass rounded-2xl shadow-elevated p-5 overflow-hidden border border-white/60"
-                    onClick={(e) => e.stopPropagation()}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[9970] bg-black/30 backdrop-blur-sm"
+                    onClick={() => setShowNotifications(false)}
+                  />
+                  <div
+                    className="fixed inset-0 z-[9971] flex items-center justify-center p-4"
+                    style={{
+                      paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))',
+                      paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
+                      paddingLeft: 'calc(1rem + env(safe-area-inset-left, 0px))',
+                      paddingRight: 'calc(1rem + env(safe-area-inset-right, 0px))',
+                    }}
+                    onClick={() => setShowNotifications(false)}
                   >
-                    {renderNotificationsList()}
-                  </motion.div>
-                </div>
-              </>
-            )}
-          </AnimatePresence>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="w-full max-w-sm max-h-full flex flex-col glass rounded-2xl shadow-elevated p-5 overflow-hidden border border-white/60"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {renderNotificationsList()}
+                    </motion.div>
+                  </div>
+                </>
+              )}
+            </AnimatePresence>,
+            document.body
+          )}
         </div>
 
         {/* 아바타 */}
