@@ -896,6 +896,34 @@ const AutoHorizontalRule = Extension.create({
   },
 });
 
+// ── 이미지 선택 유지 보정 ─────────────────────────────────────────────────────
+// 이미지는 inline 노드라서, 같은 문단(혹은 인접한 위치)의 텍스트를 편집하면
+// ProseMirror가 그 자리를 "삭제 후 재삽입"으로 매핑해 이미지의 NodeSelection이
+// TextSelection으로 강등된다. 그 결과 selected가 false가 되어, 선택 상태에서만
+// 렌더링되는 리사이즈 핸들·툴바 등 조작 UI가 통째로 사라진다(사용자에게는 "크기
+// 조절이 안 되는" 것처럼 보임). 편집 직후에도 이미지가 그 자리에 그대로 남아있다면
+// 선택을 다시 걸어 UI가 계속 유지되게 한다.
+const PreserveImageSelection = Extension.create({
+  name: 'preserveImageSelection',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction: (transactions, oldState, newState) => {
+          if (!transactions.some(tr => tr.docChanged)) return null;
+          if (transactions.some(tr => tr.selectionSet)) return null;
+          const oldSel = oldState.selection;
+          if (!(oldSel instanceof NodeSelection) || oldSel.node.type.name !== 'image') return null;
+          if (newState.selection instanceof NodeSelection && newState.selection.node.type.name === 'image') return null;
+          const mappedPos = transactions.reduce((pos, tr) => tr.mapping.map(pos), oldSel.from);
+          const node = newState.doc.nodeAt(mappedPos);
+          if (!node || node.type.name !== 'image') return null;
+          return newState.tr.setSelection(NodeSelection.create(newState.doc, mappedPos));
+        },
+      }),
+    ];
+  },
+});
+
 // ── AI가 남긴 "[여기에 구체적인 내용을 입력해 주세요...]" 자리를 편집 화면에서 눈에 띄게 표시 ──
 const FILL_PLACEHOLDER_PATTERN = /\[여기에 구체적인 내용을 입력해 주세요[^\]]*\]/g;
 const FillPlaceholderHighlight = Extension.create({
@@ -1674,6 +1702,7 @@ const RichEditor = ({
       // allowBase64: 기본값 false면 붙여넣기 HTML의 <img src="data:..."> 태그가
       // 파싱 규칙(img[src]:not([src^="data:"]))에서 제외되어 통째로 사라진다 — data URI 이미지 붙여넣기 지원을 위해 true로 설정
       ResizableImage.configure({ inline: true, allowBase64: true }),
+      PreserveImageSelection,
       DetailsExtension,
       CalloutExtension,
       ColorableTable.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
