@@ -156,7 +156,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
           </button>
         )}
       </div>
-      <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+      <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         {notifications.length > 0 ? notifications.map((n) => {
           const dest: string | null = n.link ||
             ((n.type === 'student_submission' || n.type === 'result_submission') ? '/classroom' : null);
@@ -355,7 +355,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute left-full bottom-0 ml-3 w-[min(320px,calc(100vw-2rem))] glass rounded-2xl shadow-elevated p-5 z-50 overflow-hidden border border-white/60"
+                className="absolute left-full bottom-0 ml-3 w-[min(320px,calc(100vw-2rem))] max-h-[70vh] flex flex-col glass rounded-2xl shadow-elevated p-5 z-50 overflow-hidden border border-white/60"
               >
                 {renderNotificationsList()}
               </motion.div>
@@ -473,14 +473,23 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
 
           <AnimatePresence>
             {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 mt-4 w-[min(320px,calc(100vw-2rem))] glass rounded-2xl shadow-elevated p-5 z-50 overflow-hidden border border-white/60"
-              >
-                {renderNotificationsList()}
-              </motion.div>
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm"
+                  onClick={() => setShowNotifications(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="fixed left-4 right-4 top-1/2 -translate-y-1/2 z-[71] max-h-[80vh] flex flex-col glass rounded-2xl shadow-elevated p-5 overflow-hidden border border-white/60"
+                  style={{ marginLeft: 'env(safe-area-inset-left, 0px)', marginRight: 'env(safe-area-inset-right, 0px)' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {renderNotificationsList()}
+                </motion.div>
+              </>
             )}
           </AnimatePresence>
         </div>
