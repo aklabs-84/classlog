@@ -594,7 +594,7 @@ export function QuestionEditor({ initial, onSave, onClose }: QuestionEditorProps
   );
 }
 
-const FREE_SURVEY_LIMIT = 1;
+const FREE_SURVEY_LIMIT = 5;
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export default function SurveyTool() {

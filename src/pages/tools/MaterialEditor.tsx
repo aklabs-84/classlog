@@ -1018,7 +1018,7 @@ const CoverPickerModal = ({
   );
 };
 
-const FREE_MATERIAL_LIMIT = 2;
+const FREE_MATERIAL_LIMIT = 5;
 
 const MaterialEditor = () => {
   const { user, profile } = useAuth();

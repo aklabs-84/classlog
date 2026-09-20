@@ -28,8 +28,8 @@ const CLASS_CREATE_MARKER = '[[CLASS_CREATE]]';
 const STUDENT_ADD_MARKER = '[[STUDENT_ADD]]';
 const GROUP_CREATE_MARKER = '[[GROUP_CREATE]]';
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
-const FREE_SLIDE_DECK_LIMIT = 1;
-const FREE_SURVEY_LIMIT = 1;
+const FREE_SLIDE_DECK_LIMIT = 3;
+const FREE_SURVEY_LIMIT = 5;
 
 // 페르소나 아바타 이미지 로드 실패 시(파일 누락/CDN 오류 등) 깨진 이미지 아이콘 대신 보여줄 기본 이미지
 const FALLBACK_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23E5E7EB'/%3E%3Ccircle cx='20' cy='16' r='6' fill='%239CA3AF'/%3E%3Cpath d='M8 33c1.5-7 6.5-11 12-11s10.5 4 12 11' fill='%239CA3AF'/%3E%3C/svg%3E";

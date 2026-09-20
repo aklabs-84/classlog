@@ -45,7 +45,7 @@ export const PLANS: Plan[] = [
       retention: '수업 종료 후 1개월',
       ai: '월 20회',
       editor: 'BYOK',
-      quiz: '최대 5문항',
+      quiz: '최대 15문항',
       survey: 'BYOK',
       whiteboard: '4개까지',
       transcription: 'BYOK',

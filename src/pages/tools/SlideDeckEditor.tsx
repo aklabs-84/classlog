@@ -47,7 +47,7 @@ interface DeckListRow {
   updated_at: string;
 }
 
-const FREE_SLIDE_DECK_LIMIT = 1;
+const FREE_SLIDE_DECK_LIMIT = 3;
 
 export default function SlideDeckEditor() {
   const { user, profile } = useAuth();
