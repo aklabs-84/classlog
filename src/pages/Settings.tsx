@@ -560,7 +560,7 @@ const Settings = () => {
               {!isEffectivelyPro && (
                 <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
                   <p className="font-black mb-0.5">📦 제출물 보관 안내</p>
-                  무료 플랜에서는 수업이 끝나고 1개월이 지나면 학생들이 제출한 결과물이 자동으로 삭제돼요. 삭제 14일 전과 3일 전에 알림을 드려요. Pro 플랜은 직접 지우기 전까지 계속 보관돼요.
+                  무료 플랜에서는 수업이 끝나고 1개월이 지나면 학생들이 제출한 결과물과, 그 수업에 연결된 협업 화이트보드가 자동으로 삭제돼요. 삭제 14일 전과 3일 전에 알림을 드려요. Pro 플랜은 직접 지우기 전까지 계속 보관돼요.
                 </div>
               )}
             </div>

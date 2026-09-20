@@ -15,12 +15,18 @@ interface Props {
 export default function ImageCard({ obj, isSelected, onSelect, onUpdate, onDelete, onDragStart }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
   const url = obj.content.url as string | undefined;
 
   const handleFile = async (file: File) => {
+    // 업로드가 끝나기 전에도 올리는 사람 화면에는 바로 미리보기를 보여준다
+    const localUrl = URL.createObjectURL(file);
+    setPreview(localUrl);
     setUploading(true);
     const publicUrl = await uploadBoardImage(file);
     setUploading(false);
+    setPreview(null);
+    URL.revokeObjectURL(localUrl);
     if (publicUrl) {
       onUpdate({ content: { ...obj.content, url: publicUrl } });
     }
@@ -57,14 +63,17 @@ export default function ImageCard({ obj, isSelected, onSelect, onUpdate, onDelet
       )}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
       {uploading ? (
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#6B7280' }}>
-          <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
-          <span style={{ fontSize: 12 }}>업로드 중...</span>
+        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#6B7280' }}>
+          {preview && <img src={preview} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.5, pointerEvents: 'none' }} />}
+          <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', position: 'relative' }} />
+          <span style={{ fontSize: 12, position: 'relative' }}>업로드 중...</span>
         </div>
       ) : url ? (
         <img
           src={url} alt=""
           draggable={false}
+          loading="lazy"
+          decoding="async"
           style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
         />
       ) : (

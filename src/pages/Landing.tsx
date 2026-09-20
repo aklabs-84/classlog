@@ -119,8 +119,8 @@ const teachingTools = [
   { icon: ClipboardCheck, title: '실시간 퀴즈', desc: 'AI 문항 자동 생성 · PIN 참여', badge: '무료', image: '/screenshots/tools/quiz.png' },
   { icon: BookOpen, title: '수업 자료 에디터', desc: '마크다운 작성 · 슬라이드 발표', badge: '무료 2개', image: '/screenshots/tools/materials.png' },
   { icon: Mic, title: '수업 전사', desc: 'Groq Whisper 실시간 전사 · AI 분석', badge: '무료 월 20회', image: '/screenshots/tools/transcription.png' },
-  { icon: LayoutPanelTop, title: '협업 화이트보드', desc: '실시간 조별 협업 · 6종 오브젝트', badge: '무료 1개', image: '/screenshots/tools/whiteboard.png' },
-  { icon: BarChart2, title: '실시간 설문', desc: '6가지 문항 유형 · AI 응답 분석', badge: '무료 1개', image: '/screenshots/tools/survey.png' },
+  { icon: LayoutPanelTop, title: '협업 화이트보드', desc: '실시간 조별 협업 · 6종 오브젝트', badge: '무료 4개', image: '/screenshots/tools/whiteboard.png' },
+  { icon: BarChart2, title: '실시간 설문', desc: '6가지 문항 유형 · AI 응답 분석', badge: '무료 4개', image: '/screenshots/tools/survey.png' },
   { icon: Images, title: '수업 갤러리', desc: '사진·영상 주차별 보관 · 학급 공유', badge: '무료', image: '/screenshots/tools/gallery.png' },
 ];
 
@@ -156,7 +156,7 @@ const pricingPlans = [
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
       { text: '퀴즈 (최대 5문항)', ok: true },
       { text: '설문 (1개까지)', ok: true },
-      { text: '화이트보드 (1개까지)', ok: true },
+      { text: '화이트보드 (4개까지)', ok: true },
       { text: '일괄 AI 생성', ok: false },
       { text: 'NAISS 내보내기', ok: false },
       { text: '학교 프로젝트', ok: false },

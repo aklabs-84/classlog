@@ -54,5 +54,47 @@ Deno.serve(async (req) => {
     });
     summary.push({ class_id: c.class_id, rows: c.result_rows, files: paths.length, status });
   }
-  return json({ mode, notified, candidates: list.length, processed: summary.length, summary });
+  // 종료된 클래스에 연결된 협업 화이트보드(보드 행 + Storage 이미지)도 같은 기준으로 정리
+  const { data: boardCands, error: bErr } = await admin.rpc('purge_candidate_boards');
+  if (bErr) return json({ error: bErr.message, mode, notified, summary }, 500);
+  const boards = (boardCands ?? []) as { board_id: string; class_id: string; teacher_id: string; ended_on: string }[];
+  const byClass = new Map<string, { teacher_id: string; ended_on: string; ids: string[] }>();
+  for (const b of boards) {
+    const g = byClass.get(b.class_id) ?? { teacher_id: b.teacher_id, ended_on: b.ended_on, ids: [] };
+    g.ids.push(b.board_id);
+    byClass.set(b.class_id, g);
+  }
+  if (mode === 'purge' && byClass.size > ABORT_IF_CANDIDATES_OVER) {
+    return json({ aborted: 'too_many_board_classes', count: byClass.size, summary }, 200);
+  }
+  const boardSummary: unknown[] = [];
+  for (const [classId, g] of Array.from(byClass.entries()).slice(0, MAX_CLASSES_PER_RUN)) {
+    const { data: objs } = await admin.from('board_objects').select('content').in('board_id', g.ids).eq('type', 'image');
+    // 이미지는 whiteboard-images 버킷 루트에 파일명만으로 저장되어 있다(imageUtils.uploadBoardImage).
+    const files = Array.from(new Set((objs ?? [])
+      .map((o: { content: { url?: string } | null }) => o.content?.url)
+      .filter((u): u is string => !!u && u.includes('/whiteboard-images/'))
+      .map(u => decodeURIComponent(u.split('/').pop()!.split('?')[0]))
+      .filter(Boolean)));
+
+    let status = 'planned';
+    if (mode === 'purge') {
+      status = 'done';
+      for (let i = 0; i < files.length; i += 100) {
+        const { error } = await admin.storage.from('whiteboard-images').remove(files.slice(i, i + 100));
+        if (error) { status = 'file_delete_failed'; break; }
+      }
+      if (status === 'done') {
+        const { error } = await admin.from('whiteboards').delete().in('id', g.ids);
+        if (error) status = 'row_delete_failed';
+      }
+    }
+    await admin.from('storage_purge_log').insert({
+      mode, kind: 'whiteboards', class_id: classId, teacher_id: g.teacher_id, ended_on: g.ended_on,
+      result_rows: g.ids.length, file_count: files.length, status,
+    });
+    boardSummary.push({ class_id: classId, boards: g.ids.length, files: files.length, status });
+  }
+
+  return json({ mode, notified, candidates: list.length, processed: summary.length, summary, boardClasses: byClass.size, boardSummary });
 });

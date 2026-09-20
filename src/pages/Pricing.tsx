@@ -47,7 +47,7 @@ export const PLANS: Plan[] = [
       editor: 'BYOK',
       quiz: '최대 5문항',
       survey: 'BYOK',
-      whiteboard: false,
+      whiteboard: '4개까지',
       transcription: 'BYOK',
       bulkAi: false,
       naiss: false,

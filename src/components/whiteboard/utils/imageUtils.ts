@@ -31,7 +31,7 @@ function convertToWebP(file: File, maxWidth: number, quality: number): Promise<B
 
 // 이미지를 WebP로 변환 후 Supabase Storage에 업로드, public URL 반환
 export async function uploadBoardImage(file: File): Promise<string | null> {
-  const webpBlob = await convertToWebP(file, 1920, 0.85);
+  const webpBlob = await convertToWebP(file, 1200, 0.8);
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
 
   const { data, error } = await supabase.storage

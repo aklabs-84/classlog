@@ -222,6 +222,16 @@ export default function Whiteboard() {
     emitObjectCreated(obj);
   }, [scheduleAutoSave, emitObjectCreated, pushHistory]);
 
+  // 끌기·크기조절은 pointermove마다 호출되므로, 화면 반영은 즉시 하되 다른 참가자에게 보내는 브로드캐스트는
+  // 오브젝트별로 묶어(100ms) 마지막 상태까지 함께 보낸다 — 동시 접속자가 많을 때 메시지 폭주를 막는다.
+  const pendingEmits = useRef<Map<string, { changes: Partial<BoardObject>; timer: ReturnType<typeof setTimeout> }>>(new Map());
+  const emitUpdatedRef = useRef(emitObjectUpdated);
+  emitUpdatedRef.current = emitObjectUpdated;
+  useEffect(() => () => {
+    pendingEmits.current.forEach(({ changes, timer }, id) => { clearTimeout(timer); emitUpdatedRef.current(id, changes); });
+    pendingEmits.current.clear();
+  }, []);
+
   const handleUpdateObject = useCallback((id: string, changes: Partial<BoardObject>) => {
     const stamped = { ...changes, updated_at: new Date().toISOString() };
     setObjects(prev => {
@@ -230,8 +240,20 @@ export default function Whiteboard() {
       scheduleAutoSave(next);
       return next;
     });
-    emitObjectUpdated(id, stamped);
-  }, [scheduleAutoSave, emitObjectUpdated, pushHistory]);
+    const pending = pendingEmits.current.get(id);
+    if (pending) {
+      pending.changes = { ...pending.changes, ...stamped };
+      return;
+    }
+    const entry = {
+      changes: stamped as Partial<BoardObject>,
+      timer: setTimeout(() => {
+        pendingEmits.current.delete(id);
+        emitUpdatedRef.current(id, entry.changes);
+      }, 100),
+    };
+    pendingEmits.current.set(id, entry);
+  }, [scheduleAutoSave, pushHistory]);
 
   const handleDeleteObject = useCallback((id: string) => {
     setObjects(prev => {

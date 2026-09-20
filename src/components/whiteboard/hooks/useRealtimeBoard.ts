@@ -9,7 +9,7 @@ const HEARTBEAT_MS = 10_000;  // Realtime 상태와 무관하게 항상 실행
 const SESSION_EXPIRY_MS = 45_000;  // fetchMembers 컷오프: 45초
 const CURSOR_FADE_MS = 5_000;
 const POLLING_MS = 3_000;
-const CURSOR_THROTTLE_MS = 50;
+const CURSOR_THROTTLE_MS = 150; // 동시 접속자가 많을 때 메시지 폭주를 막기 위해 50→150ms
 
 function getAvatarColor(userId: string): string {
   let hash = 0;
@@ -326,6 +326,7 @@ export function useRealtimeBoard(
   }, [user.id]);
 
   const emitCursorMove = useCallback((canvasX: number, canvasY: number) => {
+    if (isViewerRef.current) return; // 보기 전용 참가자는 커서를 보내지 않는다
     const now = Date.now();
     if (now - lastCursorEmit.current < CURSOR_THROTTLE_MS) return;
     lastCursorEmit.current = now;
