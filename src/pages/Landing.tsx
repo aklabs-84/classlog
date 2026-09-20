@@ -151,8 +151,8 @@ const pricingPlans = [
     desc: '처음 시작하는 선생님',
     price: null,
     features: [
-      { text: '클래스 최대 1개', ok: true },
-      { text: '학생 최대 20명/클래스', ok: true },
+      { text: '동시 진행 클래스 5개', ok: true },
+      { text: '학생 최대 40명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
       { text: '퀴즈 (최대 5문항)', ok: true },
       { text: '설문 (1개까지)', ok: true },
@@ -199,8 +199,8 @@ const pricingPlans = [
     waitlistPlan: 'pro',
     features: [
       { text: '무료 플랜 기능 전체 포함, 아래 내용까지 추가로', ok: true },
-      { text: '클래스 최대 10개', ok: true },
-      { text: '학생 최대 35명/클래스', ok: true },
+      { text: '동시 진행 클래스 무제한', ok: true },
+      { text: '학생 최대 40명/클래스', ok: true },
       { text: '학생 관찰 기록 · 교사 메모', ok: true },
       { text: '퀴즈 · 설문 · 화이트보드 무제한', ok: true },
       { text: '일괄 AI 생성', ok: true },

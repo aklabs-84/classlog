@@ -40,8 +40,8 @@ export const PLANS: Plan[] = [
     badgeClass: '',
     ctaLabel: '현재 이용 중',
     features: {
-      classes: '클래스 1개',
-      students: '학생 20명/반',
+      classes: '동시 진행 5개',
+      students: '학생 40명/반',
       ai: '월 20회',
       editor: 'BYOK',
       quiz: '최대 5문항',
@@ -101,8 +101,8 @@ export const PLANS: Plan[] = [
     badgeClass: 'bg-amber-500 text-white',
     ctaLabel: 'Pro 시작하기',
     features: {
-      classes: '클래스 10개',
-      students: '학생 35명/반',
+      classes: '동시 진행 무제한',
+      students: '학생 40명/반',
       ai: '가장 넉넉하게',
       editor: true,
       quiz: '무제한',

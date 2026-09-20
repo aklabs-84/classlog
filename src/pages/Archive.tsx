@@ -12,6 +12,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import { useNavigate } from 'react-router-dom';
 
 const ArchivePage = () => {
@@ -65,8 +66,12 @@ const ArchivePage = () => {
       
       showToast("학급이 복원되었습니다. ✨");
       await fetchArchivedClasses();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error restoring class:', error);
+      if (String(error?.message || '').includes('CLASS_LIMIT_EXCEEDED')) {
+        showToast("진행 중인 클래스 한도에 도달했어요. 다른 클래스를 종료하거나 보관한 뒤 복원해 주세요.");
+        return;
+      }
       showToast("학급 복원 중 오류가 발생했습니다.");
     }
   };
@@ -75,13 +80,15 @@ const ArchivePage = () => {
     if (!confirm(`"${name}" 학급을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 관련 데이터가 사라집니다.`)) return;
     
     try {
+      const filePaths = await collectClassResultPaths(id);
       const { error } = await supabase
         .from('classes')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      
+      await removeStoragePaths(filePaths);
+
       showToast("학급이 영구적으로 삭제되었습니다.");
       await fetchArchivedClasses();
     } catch (error) {

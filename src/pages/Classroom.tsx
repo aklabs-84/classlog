@@ -57,7 +57,8 @@ import {
   Wand2,
   Cpu,
 } from 'lucide-react';
-import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
+import { useAuth, getClassLimit, getStudentLimit, countActiveClasses } from '../lib/auth';
+import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { isDemoTeacher } from '../lib/demo';
@@ -780,18 +781,12 @@ const Classroom = () => {
     if (!newClassData.name || (isSubjectRequired && !newClassData.subject) || !user) return;
     if (!newClassData.start_date || !newClassData.end_date) return;
 
-    // 플랜별 클래스 수 제한 (admin만 무제한)
-    if (profile?.plan !== 'admin') {
-      const classLimit = getClassLimit(profile);
-      const { count } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true })
-        .eq('teacher_id', user.id);
-      if ((count ?? 0) >= classLimit) {
-        setIsCreateModalOpen(false);
-        setUpgradeModalReason('class_limit');
-        return;
-      }
+    // 플랜별 "동시 진행 중" 클래스 수 제한 (종료한 클래스는 카운트 제외)
+    const classLimit = getClassLimit(profile);
+    if (isFinite(classLimit) && (await countActiveClasses(user.id)) >= classLimit) {
+      setIsCreateModalOpen(false);
+      setUpgradeModalReason('class_limit');
+      return;
     }
 
     const entryCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -916,8 +911,13 @@ const Classroom = () => {
       setMaterialDropdownIdx(null);
       await fetchClasses();
       showToast("학급 정보가 성공적으로 수정되었습니다. 💾");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating class:', error);
+      if (String(error?.message || '').includes('CLASS_LIMIT_EXCEEDED')) {
+        setIsUpdateModalOpen(false);
+        setUpgradeModalReason('class_limit');
+        return;
+      }
       showToast("학급 수정 중 오류가 발생했습니다.");
     }
   };
@@ -961,7 +961,11 @@ const Classroom = () => {
       if (error) throw error;
       await fetchClasses();
       showToast(newState ? '수업이 종료되었습니다.' : '수업이 재개되었습니다.');
-    } catch (_e) {
+    } catch (e: any) {
+      if (String(e?.message || '').includes('CLASS_LIMIT_EXCEEDED')) {
+        setUpgradeModalReason('class_limit');
+        return;
+      }
       showToast('상태 변경 중 오류가 발생했습니다.');
     }
   };
@@ -1029,8 +1033,12 @@ const Classroom = () => {
       showToast("학급이 복원되었습니다. ✨");
       await fetchArchivedClasses();
       await fetchClasses();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error restoring class:', error);
+      if (String(error?.message || '').includes('CLASS_LIMIT_EXCEEDED')) {
+        setUpgradeModalReason('class_limit');
+        return;
+      }
       showToast("학급 복원 중 오류가 발생했습니다.");
     }
   };
@@ -1039,13 +1047,15 @@ const Classroom = () => {
     if (!confirm(`"${name}" 학급을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 관련 데이터(학생, 기록 등)가 사라질 수 있습니다.`)) return;
     
     try {
+      const filePaths = await collectClassResultPaths(id);
       const { error } = await supabase
         .from('classes')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      
+      await removeStoragePaths(filePaths);
+
       showToast("학급이 영구적으로 삭제되었습니다.");
       await fetchArchivedClasses();
     } catch (error) {
@@ -1280,7 +1290,7 @@ const Classroom = () => {
     // 플랜별 학생 수 제한 체크
     const studentLimit = getStudentLimit(profile);
     if (students.length >= studentLimit) {
-      alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+      alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       return;
     }
 
@@ -1300,7 +1310,7 @@ const Classroom = () => {
     } catch (err: any) {
       console.error('Error adding student:', err);
       if (typeof err?.message === 'string' && err.message.includes('STUDENT_LIMIT_EXCEEDED')) {
-        alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+        alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       }
     }
   };
@@ -1332,7 +1342,7 @@ const Classroom = () => {
     const studentLimit = getStudentLimit(profile);
     if (students.length + names.length > studentLimit) {
       const remaining = Math.max(0, studentLimit - students.length);
-      alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${students.length}명 등록 중 — ${remaining}명만 추가 가능합니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+      alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${students.length}명 등록 중 — ${remaining}명만 추가 가능합니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       return;
     }
 
@@ -1364,7 +1374,7 @@ const Classroom = () => {
     } catch (err: any) {
       console.error('Error bulk registering students:', err);
       if (typeof err?.message === 'string' && err.message.includes('STUDENT_LIMIT_EXCEEDED')) {
-        alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+        alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       }
     }
   };
@@ -1420,12 +1430,14 @@ const Classroom = () => {
     if (!confirm(`선택한 ${count}명의 학생 정보를 모두 삭제하시겠습니까? 기록된 모든 데이터가 영구적으로 사라집니다.`)) return;
 
     try {
+      const filePaths = await collectStudentResultPaths(selectedStudentIds);
       const { error } = await supabase
         .from('students')
         .delete()
         .in('id', selectedStudentIds);
-      
+
       if (error) throw error;
+      await removeStoragePaths(filePaths);
       showToast(`${count}명의 학생이 성공적으로 삭제되었습니다. ✨`);
       setSelectedStudentIds([]);
       fetchStudents(activeClassId!);
@@ -1449,8 +1461,10 @@ const Classroom = () => {
   const handleDeleteStudent = async (studentId: string, studentName: string) => {
     if (!confirm(`"${studentName}" 학생의 정보를 삭제하시겠습니까? 기록된 모든 데이터가 사라집니다.`)) return;
     try {
+      const filePaths = await collectStudentResultPaths([studentId]);
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
+      await removeStoragePaths(filePaths);
       fetchStudents(activeClassId!);
     } catch (err) {
       console.error('Error deleting student:', err);
@@ -1824,7 +1838,7 @@ const Classroom = () => {
         const ext = privateMatForm.file.name.split('.').pop() || '';
         const path = `private-materials/${activeClassId}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from('student-attachments').upload(path, privateMatForm.file);
-        if (upErr) throw upErr;
+        if (upErr) throw toStorageUploadError(upErr);
         if (editingTarget?.file_path) {
           await supabase.storage.from('student-attachments').remove([editingTarget.file_path]);
         }
@@ -1862,7 +1876,7 @@ const Classroom = () => {
       showToast(editingPrivateMatId ? '자료가 수정되었습니다.' : '자료가 등록되었습니다.');
     } catch (err) {
       console.error('handleSavePrivateMat error:', err);
-      showToast(editingPrivateMatId ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.');
+      showToast(isStorageQuotaError(err) ? '저장 공간이 가득 찼습니다. 지난 자료를 정리하거나 Pro로 업그레이드해 주세요.' : editingPrivateMatId ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.');
     } finally {
       setSavingPrivateMat(false);
     }
@@ -1969,7 +1983,7 @@ const Classroom = () => {
         const ext = generalMatForm.file.name.split('.').pop() || '';
         const path = `general-materials/${activeClassId}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from('student-attachments').upload(path, generalMatForm.file);
-        if (upErr) throw upErr;
+        if (upErr) throw toStorageUploadError(upErr);
         if (editingTarget?.file_path) {
           await supabase.storage.from('student-attachments').remove([editingTarget.file_path]);
         }
@@ -2007,7 +2021,7 @@ const Classroom = () => {
       showToast(editingGeneralMatId ? '자료가 수정되었습니다.' : '자료가 등록되었습니다.');
     } catch (err) {
       console.error('handleAddGeneralMat error:', err);
-      showToast(editingGeneralMatId ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.');
+      showToast(isStorageQuotaError(err) ? '저장 공간이 가득 찼습니다. 지난 자료를 정리하거나 Pro로 업그레이드해 주세요.' : editingGeneralMatId ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.');
     } finally {
       setGeneralMatUploading(false);
     }

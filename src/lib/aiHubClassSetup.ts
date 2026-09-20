@@ -4,7 +4,7 @@
 // 두 곳에서 함께 쓴다.
 import { supabase } from './supabase';
 import { isDemoTeacher } from './demo';
-import { getClassLimit } from './auth';
+import { getClassLimit, countActiveClasses } from './auth';
 import type { AiApp } from './aiApps';
 
 export const PRIMARY_TOOL_AUTO_WEEKS = 4;
@@ -145,15 +145,9 @@ export async function createClassFromHubApp({
     return { ok: false, error: 'demo', message: '체험 계정에서는 새 학급을 만들 수 없어요. 무료로 가입하면 나만의 학급을 만들 수 있어요!' };
   }
 
-  if (profile?.plan !== 'admin') {
-    const classLimit = getClassLimit(profile);
-    const { count } = await supabase
-      .from('classes')
-      .select('*', { count: 'exact', head: true })
-      .eq('teacher_id', user.id);
-    if ((count ?? 0) >= classLimit) {
-      return { ok: false, error: 'class_limit', message: `현재 플랜에서는 클래스를 최대 ${classLimit}개까지 만들 수 있어요. 업그레이드하면 더 많은 클래스를 만들 수 있습니다.` };
-    }
+  const classLimit = getClassLimit(profile);
+  if (isFinite(classLimit) && (await countActiveClasses(user.id)) >= classLimit) {
+    return { ok: false, error: 'class_limit', message: `현재 플랜에서는 진행 중인 클래스를 최대 ${classLimit}개까지 만들 수 있어요. 끝난 클래스를 '종료'하면 새 클래스를 만들 수 있고, 업그레이드하면 더 많은 클래스를 동시에 운영할 수 있습니다.` };
   }
 
   const entryCode = Math.random().toString(36).substring(2, 8).toUpperCase();

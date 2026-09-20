@@ -6,7 +6,7 @@ import { Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, Arr
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
-import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft } from '../lib/auth';
+import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft, countActiveClasses } from '../lib/auth';
 import { isDemoTeacher } from '../lib/demo';
 import { chatWithCopilot, type CopilotModeId as CopilotEngineMode, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
@@ -1606,11 +1606,7 @@ ${contentSource}
     setLoading(true);
     try {
       const classLimit = getClassLimit(profile);
-      const { count } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true })
-        .eq('teacher_id', user.id);
-      if ((count ?? 0) >= classLimit) {
+      if (isFinite(classLimit) && (await countActiveClasses(user.id)) >= classLimit) {
         setUpgradeReason('class_limit');
         setUpgradeOpen(true);
         return;
@@ -1698,7 +1694,7 @@ ${contentSource}
         const remaining = Math.max(0, studentLimit - currentCount);
         setMessagesByMode(prev => ({
           ...prev,
-          class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: `현재 플랜에서는 한 학급에 최대 ${studentLimit}명까지 등록할 수 있어요.\n현재 ${currentCount}명 등록 중이라 ${remaining}명만 추가할 수 있어요. 플랜을 업그레이드하면 더 많은 학생을 추가할 수 있어요.` }],
+          class_manager: [...prev.class_manager, { id: crypto.randomUUID(), role: 'ai', text: `한 학급에는 최대 ${studentLimit}명까지 등록할 수 있어요.\n현재 ${currentCount}명 등록 중이라 ${remaining}명만 추가할 수 있어요. 학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.` }],
         }));
         return;
       }

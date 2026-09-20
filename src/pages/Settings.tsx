@@ -43,6 +43,7 @@ const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState<any>(null);
+  const [storageQuota, setStorageQuota] = useState<{ used: number; limit: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -204,6 +205,14 @@ const Settings = () => {
   // 페이지 진입 시 항상 최신 프로필(플랜 포함) 로드
   useEffect(() => {
     refreshProfile();
+  }, []);
+
+  // 저장 공간 사용량/한도 (한도 null = 무제한)
+  useEffect(() => {
+    supabase.rpc('get_my_storage_quota').then(({ data, error }) => {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!error && row) setStorageQuota({ used: Number(row.used_bytes), limit: row.limit_bytes == null ? null : Number(row.limit_bytes) });
+    });
   }, []);
 
   useEffect(() => {
@@ -443,15 +452,15 @@ const Settings = () => {
                 </p>
               ) : plan === 'pro' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  클래스 최대 10개 · 학생 최대 35명/반 · AI 넉넉하게 사용
+                  동시 진행 클래스 무제한 · 학생 최대 40명/반 · AI 넉넉하게 사용
                 </p>
               ) : plan === 'basic' ? (
                 <p className="text-xs text-blue-600 mt-0.5">
-                  클래스 최대 5개 · 학생 최대 35명/반 · AI 넉넉하게 사용
+                  동시 진행 클래스 최대 10개 · 학생 최대 40명/반 · AI 넉넉하게 사용
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  클래스 최대 1개 · 학생 최대 20명/반 · AI 세특 월 20회 체험
+                  동시 진행 클래스 최대 5개 · 학생 최대 40명/반 · AI 세특 월 20회 체험
                 </p>
               ) : null}
             </div>
@@ -496,8 +505,8 @@ const Settings = () => {
                 <p className="text-xs font-bold text-amber-600 mb-2">Pro 플랜에서 가능한 것</p>
                 <div className="space-y-1">
                   {(isBasicOnly
-                    ? ['AI 더 넉넉하게 (Pro)', '클래스 최대 10개 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', 'NAISS 내보내기 (Pro)', '학교 프로젝트 생성 (Pro)']
-                    : ['AI 넉넉하게 사용 (Pro)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Pro)']
+                    ? ['AI 더 넉넉하게 (Pro)', '동시 진행 클래스 무제한 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', 'NAISS 내보내기 (Pro)', '학교 프로젝트 생성 (Pro)']
+                    : ['AI 넉넉하게 사용 (Pro)', '동시 진행 클래스 무제한 (Pro)', '수업 도구 전체 (Pro)']
                   ).map(item => (
                     <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                       <Sparkles size={10} className="text-amber-400" /> {item}
@@ -511,7 +520,7 @@ const Settings = () => {
           <div className="mt-4 pt-4 border-t border-amber-200">
             <p className="text-xs font-bold text-amber-600 mb-2">Pro 플랜에서 가능한 것</p>
             <div className="space-y-1">
-              {['AI 넉넉하게 사용 (Pro)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Pro)'].map(item => (
+              {['AI 넉넉하게 사용 (Pro)', '동시 진행 클래스 무제한 (Pro)', '수업 도구 전체 (Pro)'].map(item => (
                 <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                   <Sparkles size={10} className="text-amber-400" /> {item}
                 </div>
@@ -519,6 +528,38 @@ const Settings = () => {
             </div>
           </div>
         )}
+
+        {storageQuota && (() => {
+          const fmt = (b: number) => b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)}GB` : `${Math.round(b / 1024 ** 2)}MB`;
+          const { used, limit } = storageQuota;
+          const ratio = limit ? Math.min(1, used / limit) : 0;
+          const full = !!limit && used >= limit;
+          const warn = !!limit && ratio >= 0.8;
+          return (
+            <div className="mt-4 pt-4 border-t border-amber-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-bold text-amber-600">저장 공간 (학생 제출물·수업 자료)</p>
+                <p className={`text-sm font-black ${full ? 'text-red-600' : warn ? 'text-orange-600' : 'text-amber-700'}`}>
+                  {fmt(used)}{limit ? ` / ${fmt(limit)}` : ' · 무제한'}
+                </p>
+              </div>
+              {limit && (
+                <div className="h-2 rounded-full bg-amber-100 overflow-hidden">
+                  <div className={`h-full rounded-full ${full ? 'bg-red-500' : warn ? 'bg-orange-500' : 'bg-amber-500'}`} style={{ width: `${Math.max(2, ratio * 100)}%` }} />
+                </div>
+              )}
+              {full ? (
+                <p className="mt-2 text-xs font-bold text-red-600">
+                  저장 공간이 가득 차서 새 파일을 올릴 수 없어요. 지난 자료를 정리하거나 Pro로 업그레이드해 주세요.
+                </p>
+              ) : warn ? (
+                <p className="mt-2 text-xs font-bold text-orange-600">
+                  저장 공간이 80%를 넘었어요. 끝난 수업의 큰 파일(PDF·SketchUp 등)을 정리하면 여유가 생겨요.
+                </p>
+              ) : null}
+            </div>
+          );
+        })()}
       </div>
 
       {/* 사용법 교육 신청 + 카카오톡 커뮤니티 (무료 플랜에게만 노출) */}

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
+import { compressImageForUpload } from '../lib/imageCompress';
+import { toStorageUploadError, isStorageQuotaError, removeStudentFiles } from '../lib/storageCleanup';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import AvatarPicker from '../components/AvatarPicker';
 import MicrobitPythonLab from './tools/MicrobitPythonLab';
@@ -1181,12 +1183,13 @@ const StudentLog = () => {
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
   };
 
-  const uploadFile = async (file: File, type: 'image' | 'file') => {
+  const uploadFile = async (original: File, type: 'image' | 'file') => {
+    const file = type === 'image' ? await compressImageForUpload(original) : original;
     const ext = file.name.split('.').pop() || '';
     const rand = Math.random().toString(36).slice(2, 8);
     const path = `results/${session.student_id}/${type}-${Date.now()}-${rand}.${ext}`;
     const { error } = await supabase.storage.from('student-attachments').upload(path, file);
-    if (error) throw error;
+    if (error) throw toStorageUploadError(error);
     return { path, displayName: file.name, fileSize: file.size, fileType: file.type };
   };
 
@@ -1254,7 +1257,6 @@ const StudentLog = () => {
         // ── 이미지 ──
         if (hasImage) {
           const oldPaths = existingImage?.storage_paths?.length ? existingImage.storage_paths : (existingImage?.storage_path ? [existingImage.storage_path] : []);
-          if (oldPaths.length > 0) await supabase.storage.from('student-attachments').remove(oldPaths);
           const ups = await uploadImageFiles(resultImageFiles);
           const imgPayload = { title: base.title, week_number: base.week_number, storage_paths: ups.map(u => u.path), storage_path: ups[0].path, display_name: ups[0].displayName, file_size: ups.reduce((s, u) => s + u.fileSize, 0), file_type: ups[0].fileType };
           if (existingImage) {
@@ -1264,6 +1266,8 @@ const StudentLog = () => {
             const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'image', ...imgPayload });
             if (error) throw error;
           }
+          // 새 파일이 DB에 저장된 뒤에 기존 파일 삭제 (저장 실패 시 기존 파일 보존)
+          if (oldPaths.length > 0) await removeStudentFiles(session.student_id, oldPaths);
         } else if (existingImage && keepImg) {
           // 기존 이미지 유지 — title, 주차만 반영
           await supabase.from('student_results').update({ title: base.title, week_number: base.week_number }).eq('id', existingImage.id);
@@ -1271,7 +1275,6 @@ const StudentLog = () => {
 
         // ── 파일 ──
         if (hasFile) {
-          if (existingFile?.storage_path) await supabase.storage.from('student-attachments').remove([existingFile.storage_path]);
           const up = await uploadFile(resultFileUpload!, 'file');
           if (existingFile) {
             const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingFile.id);
@@ -1280,6 +1283,8 @@ const StudentLog = () => {
             const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
             if (error) throw error;
           }
+          // 새 파일이 DB에 저장된 뒤에 기존 파일 삭제
+          if (existingFile?.storage_path) await removeStudentFiles(session.student_id, [existingFile.storage_path]);
         } else if (existingFile) {
           // 기존 파일 유지 — title, 주차만 반영
           await supabase.from('student_results').update({ title: base.title, week_number: base.week_number }).eq('id', existingFile.id);
@@ -1342,7 +1347,7 @@ const StudentLog = () => {
         resetResultForm();
         await fetchResults();
         showToast('수정되었습니다! ✅');
-      } catch { showToast('오류가 발생했습니다.', 'error'); }
+      } catch (e) { showToast(isStorageQuotaError(e) ? '선생님의 저장 공간이 가득 차서 파일을 제출할 수 없어요. 선생님께 알려주세요.' : '오류가 발생했습니다.', 'error'); }
       finally { setResultSubmitting(false); }
       return;
     }
@@ -1430,7 +1435,7 @@ const StudentLog = () => {
           }
         }
       }
-    } catch { showToast('오류가 발생했습니다.', 'error'); }
+    } catch (e) { showToast(isStorageQuotaError(e) ? '선생님의 저장 공간이 가득 차서 파일을 제출할 수 없어요. 선생님께 알려주세요.' : '오류가 발생했습니다.', 'error'); }
     finally { setResultSubmitting(false); }
   };
 
@@ -1493,7 +1498,7 @@ const StudentLog = () => {
     try {
       const storagePaths = Array.from(new Set(groupRows.flatMap(r => [r.storage_path, ...(r.storage_paths || [])].filter(Boolean))));
       if (storagePaths.length > 0) {
-        await supabase.storage.from('student-attachments').remove(storagePaths);
+        await removeStudentFiles(session.student_id, storagePaths);
       }
       if (result.submission_group && groupRows.length > 1) {
         // student_id 필터 필수 — 같은 submission_group을 가진 다른 조원의 행을 삭제하지 않음

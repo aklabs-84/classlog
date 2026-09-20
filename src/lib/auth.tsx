@@ -392,17 +392,37 @@ export function getAiUsageStatus(profile: any): AiUsageStatus | null {
   return { kind: 'count', used, limit, percent: Math.round((used / limit) * 100) };
 }
 
+// 클래스 한도는 "동시 진행 중" 클래스 수 기준이다 — 종료(수동 종료 또는 종료일 경과)한 클래스는 슬롯을 차지하지 않는다.
+// 서버 트리거 enforce_class_limit(Docs/FREE_POLICY_CLASS_STUDENT_LIMIT.sql)과 반드시 같은 값으로 유지할 것.
 export function getClassLimit(profile: any): number {
   if (profile?.plan === 'admin') return Infinity;
-  if (checkIsPro(profile)) return 10;
-  if (checkIsBasicOrAbove(profile)) return 5;
-  return 1;
+  if (checkIsPro(profile)) return Infinity;
+  if (checkIsBasicOrAbove(profile)) return 10;
+  return 5;
 }
+
+// 실제 학급 규모(30명 넘는 학급 포함)를 수용하도록 전 플랜 동일. 서버 트리거 enforce_student_limit과 동기화.
+export const STUDENT_LIMIT_PER_CLASS = 40;
 
 export function getStudentLimit(profile: any): number {
   if (profile?.plan === 'admin') return Infinity;
-  if (checkIsBasicOrAbove(profile)) return 35;
-  return 20;
+  return STUDENT_LIMIT_PER_CLASS;
+}
+
+// 동시 진행 중 클래스 수 — 보관함(is_archived)에 없고, ClassSelector.isClassClosed 기준으로 종료되지 않은 클래스.
+// 서버 함수 class_is_active(Docs/FREE_POLICY_CLASS_STUDENT_LIMIT.sql)와 같은 조건을 유지할 것.
+export async function countActiveClasses(teacherId: string): Promise<number> {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const { count } = await supabase
+    .from('classes')
+    .select('*', { count: 'exact', head: true })
+    .eq('teacher_id', teacherId)
+    .eq('is_demo', false)
+    .eq('is_closed', false)
+    .or('is_archived.is.null,is_archived.eq.false')
+    .or(`end_date.is.null,end_date.gte.${today}`);
+  return count ?? 0;
 }
 
 export function getBetaDaysLeft(profile: any): number | null {
