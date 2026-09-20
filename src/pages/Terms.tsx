@@ -15,7 +15,7 @@ const Terms = () => {
         </button>
 
         <h1 className="text-3xl font-black text-gray-900 mb-2">이용약관</h1>
-        <p className="text-sm text-gray-500 mb-10">최종 수정일: 2026년 7월 20일</p>
+        <p className="text-sm text-gray-500 mb-10">최종 수정일: 2026년 9월 20일</p>
 
         <div className="space-y-10 text-gray-700 text-sm leading-relaxed">
 
@@ -52,6 +52,17 @@ const Terms = () => {
               <li>회사는 학생 활동 기록 관리, AI 기반 세특·생기부 초안 생성, 수업 도구(퀴즈·설문·화이트보드 등), 나이스 내보내기 등의 기능을 서비스로 제공합니다.</li>
               <li>회사는 서비스의 내용, 운영상·기술상 필요에 따라 제공하는 서비스의 전부 또는 일부를 변경할 수 있으며, 변경 시 사전에 서비스 내 공지사항을 통해 고지합니다.</li>
               <li>회사는 서버 점검, 설비 장애, 통신 두절 등 부득이한 사유가 있는 경우 서비스 제공을 일시적으로 중단할 수 있습니다.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-black text-gray-900 mb-3">제4조의2 (학생 제출물의 보관 및 자동 삭제)</h2>
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              <li>무료 플랜 이용자의 종료된 수업에서 학생이 제출한 결과물(첨부 파일 포함)은 수업 종료일로부터 1개월 뒤 자동 삭제됩니다.</li>
+              <li>삭제된 자료는 복구할 수 없으며, 회사는 삭제 14일 전과 3일 전에 서비스 내 알림으로 안내합니다.</li>
+              <li>유료 플랜 이용자의 자료는 이용자가 직접 삭제하기 전까지 보관합니다.</li>
+              <li>유료 플랜에서 무료 플랜으로 변경된 경우, 변경된 날부터 30일 동안은 삭제하지 않고 유예합니다.</li>
+              <li>이 조항은 2026년 9월 20일 이후 종료되는 수업부터 적용합니다.</li>
             </ul>
           </section>
 

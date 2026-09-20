@@ -42,6 +42,7 @@ export const PLANS: Plan[] = [
     features: {
       classes: '동시 진행 5개',
       students: '학생 40명/반',
+      retention: '수업 종료 후 1개월',
       ai: '월 20회',
       editor: 'BYOK',
       quiz: '최대 5문항',
@@ -103,6 +104,7 @@ export const PLANS: Plan[] = [
     features: {
       classes: '동시 진행 무제한',
       students: '학생 40명/반',
+      retention: '직접 삭제 전까지',
       ai: '가장 넉넉하게',
       editor: true,
       quiz: '무제한',
@@ -120,6 +122,7 @@ export const PLANS: Plan[] = [
 export const FEATURE_ROWS: { label: string; key: string }[] = [
   { label: '클래스 생성', key: 'classes' },
   { label: '반당 학생 수', key: 'students' },
+  { label: '학생 제출물 보관', key: 'retention' },
   { label: '퀴즈', key: 'quiz' },
   { label: '설문', key: 'survey' },
   { label: '화이트보드', key: 'whiteboard' },
