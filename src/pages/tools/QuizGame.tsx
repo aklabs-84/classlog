@@ -16,6 +16,7 @@ import ConfettiEffect from '../../components/quiz/ConfettiEffect';
 import { playVictoryFanfare } from '../../lib/quizSound';
 import { useBackdropClose } from '../../hooks/useBackdropClose';
 import { uploadQuizImage } from '../../components/quiz/imageUpload';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -1058,6 +1059,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                 <p className="text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-xl">{aiError}</p>
               )}
 
+              <AiCreditCost feature="quiz_generator" />
               <button
                 onClick={handleAiGenerate}
                 disabled={!selectedMaterial || aiGenerating}

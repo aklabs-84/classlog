@@ -10,6 +10,7 @@ import {
   X, Sparkles, Loader2, RotateCcw, AlertCircle, Check, Copy, FileDown, Save, FileText, Pencil, Plus,
   GripVertical, Scissors, GitMerge, Trash2, Maximize2, Minimize2, Wand2,
 } from 'lucide-react';
+import AiCreditCost from './common/AiCreditCost';
 
 const SECTION_LABELS: Record<string, string> = {
   basicInfo: '기본정보',
@@ -421,7 +422,7 @@ export const LessonPlanModal = ({
     } catch (err: any) {
       setErrorMessage(
         err?.message === 'AI_LIMIT_EXCEEDED'
-          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
           : (err?.message || '계획서 생성 중 오류가 발생했습니다.')
       );
       setStep('error');
@@ -707,6 +708,7 @@ export const LessonPlanModal = ({
                   취소
                 </button>
                 <div className="flex-1" />
+                <AiCreditCost feature="lesson_plan_sections" />
                 <button
                   onClick={runGenerate}
                   disabled={selectedMaterialIds.length === 0}
@@ -770,6 +772,7 @@ export const LessonPlanModal = ({
                 <button onClick={() => sections && exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                   <FileDown size={14} /> PDF
                 </button>
+                <AiCreditCost feature="material_from_lesson_plan" />
                 <button
                   onClick={handleCreateMaterial}
                   disabled={creatingMaterial}

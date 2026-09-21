@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { X, FileText, Download, Sparkles, Printer, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { generateDetailedReport } from '../../lib/gemini';
+import { useAuth, isFreeCreditPlan } from '../../lib/auth';
+import { creditPriceOf } from '../../lib/aiCredits';
 
 interface AIReportModalProps {
   isOpen: boolean;
@@ -13,27 +15,30 @@ interface AIReportModalProps {
 }
 
 const AIReportModal = ({ isOpen, onClose, className, classId, students }: AIReportModalProps) => {
+  const { profile } = useAuth();
   const [report, setReport] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [started, setStarted] = useState(false);
 
+  // 모달을 열 때마다 처음 상태로 — 열자마자 AI가 실행되면 크레딧이 자동 차감되므로 버튼을 눌러야 시작한다.
   useEffect(() => {
-    if (isOpen) {
-      const fetchReport = async () => {
-        setLoading(true);
-        try {
-          const allObservations = students.flatMap(s => s.all_observations || []);
-          const result = await generateDetailedReport(className, allObservations, classId);
-          setReport(result);
-        } catch (error) {
-          console.error('AI Report Error:', error);
-          setReport('보고서 생성 중 오류가 발생했습니다. 학급 데이터가 너무 방대하거나 API 설정에 문제가 있을 수 있습니다.');
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchReport();
+    if (isOpen) { setStarted(false); setReport(''); setLoading(false); }
+  }, [isOpen, className]);
+
+  const handleStart = async () => {
+    setStarted(true);
+    setLoading(true);
+    try {
+      const allObservations = students.flatMap(s => s.all_observations || []);
+      const result = await generateDetailedReport(className, allObservations, classId);
+      setReport(result);
+    } catch (error) {
+      console.error('AI Report Error:', error);
+      setReport('보고서 생성 중 오류가 발생했습니다. 학급 데이터가 너무 방대하거나 API 설정에 문제가 있을 수 있습니다.');
+    } finally {
+      setLoading(false);
     }
-  }, [isOpen, className, students]);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -83,7 +88,19 @@ const AIReportModal = ({ isOpen, onClose, className, classId, students }: AIRepo
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-surface-container/10 print:overflow-visible print:p-0 print:bg-transparent">
-          {loading ? (
+          {!started ? (
+            <div className="h-full flex flex-col items-center justify-center space-y-6 print:hidden text-center">
+              <Sparkles size={40} className="text-primary" />
+              <div className="space-y-2">
+                <p className="text-xl font-black">AI 상세 분석 보고서를 만들까요?</p>
+                <p className="text-sm font-bold text-on-surface-variant">학급의 모든 활동 기록을 분석해 보고서를 작성합니다.</p>
+                {isFreeCreditPlan(profile) && (
+                  <p className="text-sm font-black text-amber-600">무료 플랜: 생성할 때 {creditPriceOf('detailed_report')}크레딧이 차감됩니다.</p>
+                )}
+              </div>
+              <button onClick={handleStart} className="px-8 py-3.5 bg-primary text-white rounded-2xl font-black hover:opacity-90 transition-all">보고서 만들기</button>
+            </div>
+          ) : loading ? (
             <div className="h-full flex flex-col items-center justify-center space-y-8 print:hidden">
               <div className="relative">
                 <div className="w-24 h-24 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />

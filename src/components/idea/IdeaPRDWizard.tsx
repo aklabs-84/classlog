@@ -10,6 +10,7 @@ import {
   type LessonPRD,
   type RelatedMaterialRef,
 } from '../../lib/gemini';
+import AiCreditCost from '../common/AiCreditCost';
 
 type QAPair = { question: string; answer: string };
 type Stage = 'question' | 'prd_loading' | 'prd' | 'generating';
@@ -97,7 +98,7 @@ export default function IdeaPRDWizard({ ideaContent, format, relatedMaterials, c
       const content = await generateContentFromPRD(ideaContent, prd, relatedMaterials, format, classId);
       onApprove(content, prd);
     } catch (err: any) {
-      setError(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : '생성 중 오류가 발생했습니다.');
+      setError(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : '생성 중 오류가 발생했습니다.');
       setStage('prd');
     }
   };
@@ -302,6 +303,7 @@ export default function IdeaPRDWizard({ ideaContent, format, relatedMaterials, c
                     >
                       <RefreshCw size={14} /> 다시 질문받기
                     </button>
+                    <AiCreditCost feature="idea_prd_draft" />
                     <button
                       onClick={handleApprove}
                       className="flex-1 flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl btn-gradient text-white shadow-lg text-sm font-black transition-all"

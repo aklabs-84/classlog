@@ -43,7 +43,7 @@ export const PLANS: Plan[] = [
       classes: '동시 진행 5개',
       students: '학생 40명/반',
       retention: '수업 종료 후 1개월',
-      ai: '월 20회',
+      ai: '월 400크레딧',
       editor: 'BYOK',
       quiz: '최대 15문항',
       survey: 'BYOK',

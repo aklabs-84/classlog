@@ -588,7 +588,7 @@ const Admin = () => {
     const [{ data, error }, { data: providerData }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, full_name, email, plan, school_name, is_admin, ai_monthly_count, ai_monthly_reset, beta_expires_at')
+        .select('id, full_name, email, plan, school_name, is_admin, ai_monthly_count, ai_monthly_credits, ai_monthly_reset, beta_expires_at')
         .order('full_name', { ascending: true }),
       supabase.rpc('get_user_auth_providers'),
     ]);
@@ -1695,7 +1695,7 @@ const Admin = () => {
                               onChange={e => setPlanSelects(prev => ({ ...prev, [req.id]: e.target.value }))}
                               className="w-full px-3 py-2 text-xs border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 bg-amber-50 font-bold text-amber-800 cursor-pointer"
                             >
-                              <option value="free">Free — AI 월 20회</option>
+                              <option value="free">Free — AI 월 400크레딧</option>
                               <option value="basic">Basic — AI $2 크레딧/월</option>
                               <option value="pro">Pro — AI $6 크레딧/월</option>
                               <option value="school">School — 열람 전용</option>
@@ -1785,7 +1785,7 @@ const Admin = () => {
                       </div>
                       <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
                       {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
-                      {u.plan === 'free'  && <p className="text-xs text-gray-400 mt-1">이번 달 AI 사용: {aiToday} / 20회</p>}
+                      {u.plan === 'free'  && <p className="text-xs text-gray-400 mt-1">이번 달 AI 사용: {u.ai_monthly_reset === thisMonth ? (u.ai_monthly_credits ?? 0) : 0} / 400크레딧</p>}
                       {u.plan === 'basic' && <p className="text-xs text-blue-400 mt-1">이번 달 AI 사용: {aiToday} / 100회</p>}
                       {u.plan === 'pro'   && <p className="text-xs text-amber-400 mt-1">이번 달 AI 사용: {aiToday} / 500회</p>}
                     </div>

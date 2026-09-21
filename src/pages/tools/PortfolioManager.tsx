@@ -6,6 +6,7 @@ import type { LessonPlanSections } from '../../lib/gemini';
 import {
   Loader2, Check, Link2, Eye, EyeOff, Globe, Lock, Sparkles, BookOpen, ExternalLink,
 } from 'lucide-react';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 const SLUG_PATTERN = /^[a-z0-9-]{3,32}$/;
 
@@ -272,6 +273,7 @@ const PortfolioManager = () => {
       <section className="glass rounded-2xl p-4 border border-white/40 space-y-2">
         <div className="flex items-center justify-between">
           <p className="font-black text-sm text-on-surface">소개글</p>
+          <AiCreditCost feature="portfolio_intro" />
           <button
             onClick={handleGenerateIntro}
             disabled={generatingIntro}

@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { chatWithClassData, fileToGenerativePart, extractTextFromFiles } from '../../lib/gemini';
 import CodeBlock from '../CodeBlock';
+import AiCreditCost from '../common/AiCreditCost';
 
 function normalizeMarkdown(text: string) {
   // AI가 표/문단 바로 뒤에 빈 줄 없이 제목(#)을 이어붙이면 헤딩으로 인식되지 않는 문제 보정
@@ -365,6 +366,7 @@ const AIChatModal = ({ isOpen, onClose, className, classId, students, focusStude
             </div>
           </form>
           <div className="mt-4 flex items-center justify-between px-4">
+             <AiCreditCost feature="ai_chat" />
              <p className="text-[10px] font-bold text-on-surface-variant/60 flex items-center gap-1.5 uppercase tracking-tighter">
                <span className="w-1 h-1 bg-primary/40 rounded-full" />
                Gemini 3.1 Pro + Flash-Lite 하이브리드 모드 가동 중

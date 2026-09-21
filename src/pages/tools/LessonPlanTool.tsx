@@ -11,6 +11,7 @@ import {
   Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save, RotateCcw,
   Maximize2, Minimize2, Wand2,
 } from 'lucide-react';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
 
@@ -254,7 +255,7 @@ const SavedPlanViewModal = ({
       setRegenerateInstruction('');
       onUpdated();
     } catch (err: any) {
-      window.alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : '재생성 중 오류가 발생했습니다.');
+      window.alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : '재생성 중 오류가 발생했습니다.');
     } finally {
       setRegenerating(false);
     }
@@ -453,6 +454,7 @@ const SavedPlanViewModal = ({
               <button onClick={() => exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                 <FileDown size={14} /> PDF
               </button>
+              <AiCreditCost feature="material_from_lesson_plan" />
               <button
                 onClick={handleCreateMaterial}
                 disabled={creatingMaterial}

@@ -52,6 +52,7 @@ import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPa
 import LimitToast, { useLimitToast, ActionToast, useActionToast } from '../../components/ui/LimitToast';
 import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
 import type { LessonPRD } from '../../lib/gemini';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 // 목차는 마크다운을 파싱하지 않고 헤딩 텍스트를 그대로 출력하므로, 저장 시 이스케이프된
 // 특수문자(\[, \] 등)와 강조 마크(**bold**, `code`)를 사람이 읽는 순수 텍스트로 되돌린다.
@@ -629,7 +630,7 @@ const AiReorganizeModal = ({
     } catch (err: any) {
       setErrorMessage(
         err?.message === 'AI_LIMIT_EXCEEDED'
-          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
           : (err?.message || 'AI 정리 중 오류가 발생했습니다.')
       );
       setStep('error');
@@ -787,6 +788,7 @@ const AiReorganizeModal = ({
                   취소
                 </button>
                 <div className="flex-1" />
+                <AiCreditCost feature="material_reorganize" />
                 <button
                   onClick={handleGenerate}
                   disabled={validating}
@@ -887,7 +889,7 @@ const CoverPickerModal = ({
     } catch (err: any) {
       setPromptError(
         err?.message === 'AI_LIMIT_EXCEEDED'
-          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
           : (err?.message || 'AI 프롬프트 생성 중 오류가 발생했습니다.')
       );
     } finally {
@@ -978,6 +980,7 @@ const CoverPickerModal = ({
           )}
 
           <div className="pt-1 border-t border-surface-container">
+            <AiCreditCost feature="cover_prompt_suggest" />
             <button
               onClick={handleGeneratePrompts}
               disabled={generatingPrompts}

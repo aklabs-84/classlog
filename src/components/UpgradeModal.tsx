@@ -26,16 +26,16 @@ const REASON_CONFIG: Record<Reason, {
   },
   ai_limit: {
     emoji: '✨',
-    title: 'AI 사용 한도 초과',
+    title: 'AI 크레딧 소진',
     desc: '이번 달 무료 체험 한도에 도달했습니다.\nPro는 넉넉한 사용량으로 계속 이용할 수 있어요.\n다음 달 1일에 자동으로 초기화됩니다.',
-    freeLimit: '무료 월 20회',
+    freeLimit: '무료 월 400크레딧',
     proGain: 'AI 넉넉하게 사용',
   },
   ai_free_block: {
     emoji: '✨',
-    title: 'AI 사용 한도 초과',
+    title: 'AI 크레딧 소진',
     desc: '이번 달 무료 체험 한도에 도달했습니다.\nPro는 넉넉한 사용량으로 계속 이용할 수 있어요.\n다음 달 1일에 자동으로 초기화됩니다.',
-    freeLimit: '무료 월 20회',
+    freeLimit: '무료 월 400크레딧',
     proGain: 'AI 넉넉하게 사용',
   },
   ai_bulk: {

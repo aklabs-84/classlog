@@ -20,6 +20,7 @@ import Pagination from '../components/Pagination';
 import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
 import { WeeklyTrendChart, type WeeklyTrendPoint } from '../components/share/ShareCharts';
+import AiCreditCost from '../components/common/AiCreditCost';
 
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const NOTE_MD_COMPONENTS: any = {
@@ -784,7 +785,7 @@ const StudentView = () => {
     try {
       const remaining = await fetchRemainingAiQuota(user?.id || '');
       if (remaining <= 0) {
-        showToast('이번 달 AI 사용 한도에 도달했습니다.', 'error');
+        showToast('이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.', 'error');
         return;
       }
       const content = await buildGradingContent(groupItems);
@@ -2087,7 +2088,7 @@ const StudentView = () => {
                               className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-[10px] font-black text-violet-500 bg-white border border-violet-200 hover:bg-violet-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                             >
                               {aiGradingKey === weekGroupId ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                              AI 채점 제안
+                              AI 채점 제안 <AiCreditCost feature="result_auto_grade" />
                             </button>
                           </div>
                         </div>

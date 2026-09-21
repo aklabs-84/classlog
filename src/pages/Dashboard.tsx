@@ -725,7 +725,7 @@ const Dashboard = () => {
               Pro로 업그레이드하면 AI를 더 넉넉하게 · 학급 전체 일괄 생성이 가능해요
             </p>
             <p className="text-xs text-amber-600 mt-0.5">
-              현재: 무료 플랜 (AI 월 20회)
+              현재: 무료 플랜 (AI 월 400크레딧)
             </p>
           </div>
           <NavLink

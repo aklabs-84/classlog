@@ -294,7 +294,7 @@ export const tools: Tool[] = [
     planRequired: 'limited',
     byokEligible: true,
     limits: {
-      freeDesc: '월 20회 AI 분석',
+      freeDesc: '월 400크레딧 안에서 AI 분석',
       basicDesc: 'AI 분석 가능',
       proDesc: 'AI 분석 가능',
       usesAi: true,

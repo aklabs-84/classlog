@@ -7,6 +7,7 @@ import {
   X, Sparkles, CheckCircle2, XCircle, Clock,
   AlertTriangle, Loader2, SkipForward, Link2, Paperclip,
 } from 'lucide-react';
+import AiCreditCost from '../common/AiCreditCost';
 
 interface ReviewItem {
   id: string;
@@ -515,7 +516,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
               >
                 {draftLoading
                   ? <><Loader2 size={15} className="animate-spin" /> AI 초안 생성 중...</>
-                  : <><Sparkles size={15} /> AI 피드백 초안 생성</>
+                  : <><Sparkles size={15} /> AI 피드백 초안 생성 <AiCreditCost feature="feedback_draft" /></>
                 }
               </button>
 

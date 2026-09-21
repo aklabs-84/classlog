@@ -11,6 +11,7 @@ import {
   History, Trash2, Clock, WifiOff, Save, X, KeyRound, Settings,
   GraduationCap, Target, Pause, Play,
 } from 'lucide-react';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1374,6 +1375,7 @@ ${transcriptText}
                     <RefreshCw size={14} />
                     다시 녹음
                   </button>
+                  <AiCreditCost feature="transcription_analysis" />
                   <button
                     onClick={startAnalysis}
                     className="btn-gradient flex items-center gap-2 px-8 py-3 rounded-2xl font-black text-base shadow-xl active:scale-95 transition-all"

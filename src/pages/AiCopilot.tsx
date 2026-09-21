@@ -6,6 +6,7 @@ import { Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, Arr
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
+import { creditPriceOf } from '../lib/aiCredits';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft, countActiveClasses } from '../lib/auth';
 import { isDemoTeacher } from '../lib/demo';
 import { chatWithCopilot, type CopilotModeId as CopilotEngineMode, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
@@ -17,6 +18,7 @@ import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } fr
 import { tools as TEACHING_TOOLS } from './TeachingTools';
 import { PLANS, FEATURE_ROWS } from './Pricing';
 import { stashCopilotReturn } from '../lib/copilotReturnState';
+import AiCreditCost from '../components/common/AiCreditCost';
 
 const DRAFT_MARKER = '[[LESSON_PLAN_DRAFT]]';
 const SLIDE_DECK_DRAFT_MARKER = '[[SLIDE_DECK_DRAFT]]';
@@ -714,6 +716,7 @@ const AiCopilot = () => {
     else if (betaDaysLeft != null) parts.push(`베타 체험 기간 중(${betaDaysLeft}일 남음) → 이 기간 동안 Pro 기능을 무제한으로 사용 가능`);
     else if (!usage) parts.push('이 플랜은 AI 사용량이 넉넉하거나 제한이 없음');
     else if (usage.kind === 'count') parts.push(`이번 달 AI 사용: ${usage.used}/${usage.limit}회 사용함(매월 1일 초기화)`);
+    else if (usage.kind === 'freeCredit') parts.push(`무료 AI 체험 크레딧: 이번 달 ${usage.used}/${usage.limit} 사용, 남은 크레딧 ${usage.remaining}(매월 1일 초기화). 기능마다 차감 크레딧이 다름`);
     else parts.push(`이번 달 AI 사용 예산 소진율: 약 ${usage.percent}%${usage.state === 'saving' ? ' → 현재 절약 모드(더 저렴한 모델)로 자동 전환된 상태' : usage.state === 'critical' ? ' → 한도에 근접' : ''}`);
     return parts.join('\n');
   })();
@@ -2651,6 +2654,7 @@ ${session.transcript_text}
               <Send size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </form>
+          <div className="mt-1.5 flex justify-center"><AiCreditCost feature="ai_chat" note="· 작업에 따라 15~60" /></div>
         </div>
       </div>
     );
@@ -2972,6 +2976,8 @@ ${session.transcript_text}
                 <div className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600">
                   {usage.kind === 'count'
                     ? `이번 달 AI 사용량 ${usage.used}/${usage.limit}회 (${usage.percent}%)`
+                    : usage.kind === 'freeCredit'
+                    ? `남은 크레딧 ${usage.remaining} / ${usage.limit} (세특 1명당 ${creditPriceOf('seatuk_draft')}크레딧, 총 약 ${creditPriceOf('seatuk_draft') * seatukPendingCount}크레딧 예상)`
                     : `이번 달 AI 사용률 ${usage.percent}%${usage.state !== 'normal' ? ' — 사용량이 많은 편이에요' : ''}`}
                 </div>
               )}

@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { surveyAnalysisAI } from '../../lib/gemini';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
@@ -1332,6 +1333,8 @@ export default function SurveyTool() {
                 </span>
                 <p className="basis-full sm:basis-0 sm:flex-1 min-w-0" style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>{q.text}</p>
                 {q.type === 'short_text' && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+<AiCreditCost feature="survey_analysis" />
                   <button
                     onClick={() => analyzeShortText(q.id, qAnswers)}
                     disabled={ai?.loading || qAnswers.length === 0}
@@ -1339,6 +1342,7 @@ export default function SurveyTool() {
                   >
                     <Sparkles size={12} /> {ai?.loading ? '분석 중...' : 'AI 분석'}
                   </button>
+</span>
                 )}
               </div>
               {q.type === 'multiple_choice' && <MultipleChoiceChart question={q} answers={qAnswers} />}

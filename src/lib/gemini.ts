@@ -4,6 +4,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from './supabase';
 import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
+import { announceAiCredits } from './aiCredits';
 
 export const SYSTEM_INSTRUCTIONS = {
   BASE: `
@@ -387,6 +388,7 @@ async function callProxy(body: object): Promise<string> {
     }
     throw new Error(data.error ?? 'AI API 오류');
   }
+  if (data.credits) announceAiCredits(data.credits);
   return data.result as string;
 }
 
@@ -448,6 +450,7 @@ export async function webSearchForIdea(query: string, classId?: string): Promise
     if (data.error === 'AI_LIMIT_EXCEEDED') throw new Error('AI_LIMIT_EXCEEDED');
     throw new Error(data.error ?? 'AI API 오류');
   }
+  if (data.credits) announceAiCredits(data.credits);
   return { summary: data.result as string, sources: (data.sources ?? []) as { title: string; uri: string }[] };
 }
 

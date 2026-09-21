@@ -18,6 +18,7 @@ import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
 import { parsePptxFile } from '../../components/slidedeck/utils/importPptx';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
+import AiCreditCost from '../../components/common/AiCreditCost';
 
 type View = 'list' | 'template' | 'planning' | 'editor';
 
@@ -243,7 +244,7 @@ export default function SlideDeckEditor() {
       const outline = await generateSlideOutline(sourceContent, importedMaterial.class_id ?? undefined);
       setPlanOutline(outline);
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || '슬라이드 구성 개요를 만드는 중 오류가 발생했습니다.'));
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드 구성 개요를 만드는 중 오류가 발생했습니다.'));
       setView('template');
       setPendingTemplateId(null);
     } finally {
@@ -316,7 +317,7 @@ export default function SlideDeckEditor() {
       setOpenReviseIndex(null);
       setSlideRevisePrompt('');
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || '슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
     } finally {
       setRevisingSlideIndex(null);
     }
@@ -338,7 +339,7 @@ export default function SlideDeckEditor() {
       setShowGlobalRevise(false);
       setGlobalRevisePrompt('');
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || '전체 슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '전체 슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
     } finally {
       setRevisingAllSlides(false);
     }
@@ -381,7 +382,7 @@ export default function SlideDeckEditor() {
           .then(({ error: linkError }) => { if (linkError) console.error('[SlideDeckEditor] linked_slide_id 기록 오류:', linkError); });
       }
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
     } finally {
       setAiGenerating(false);
       setImportedMaterial(null);
@@ -772,6 +773,7 @@ export default function SlideDeckEditor() {
         {importedMaterial && (
           <p style={{ fontSize: 13, color: '#3B82F6', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sparkles size={14} /> '{importedMaterial.title}' 자료로 AI 초안을 만듭니다
+            <AiCreditCost feature="slidedeck_ai_draft" note="(개요 생성)" />
           </p>
         )}
         <TemplateGallery onSelect={importedMaterial ? handlePickTemplateForMaterial : handleCreateFromTemplate} />
@@ -829,6 +831,7 @@ export default function SlideDeckEditor() {
                     disabled={revisingAllSlides}
                     style={{ flex: 1, fontSize: 13, border: '1px solid #93C5FD', borderRadius: 8, padding: '8px 12px', color: '#111827' }}
                   />
+                  <AiCreditCost feature="slidedeck_ai_draft" />
                   <button
                     onClick={handleReviseAllSlides}
                     disabled={revisingAllSlides || !globalRevisePrompt.trim()}
@@ -889,6 +892,7 @@ export default function SlideDeckEditor() {
                             disabled={revisingSlideIndex === i}
                             style={{ flex: 1, fontSize: 12.5, border: '1px solid #93C5FD', borderRadius: 6, padding: '6px 10px', color: '#111827' }}
                           />
+                          <AiCreditCost feature="slidedeck_ai_draft" />
                           <button
                             onClick={() => handleReviseSlide(i)}
                             disabled={revisingSlideIndex === i || !slideRevisePrompt.trim()}
@@ -924,6 +928,7 @@ export default function SlideDeckEditor() {
               >
                 <Check size={16} /> 이 구성대로 만들기
               </button>
+              <span style={{ display: 'flex', alignItems: 'center' }}><AiCreditCost feature="slidedeck_ai_draft" /></span>
               <button
                 onClick={() => { setView('template'); setPlanOutline(null); setPendingTemplateId(null); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}

@@ -14,6 +14,7 @@ import { analyzeIdea, generateLessonPlanDraft, embedText, webSearchForIdea, fetc
 import type { DeckSlide } from '../components/slidedeck/types';
 import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
 import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
+import AiCreditCost from '../components/common/AiCreditCost';
 
 const GUIDE_SEEN_KEY = 'idea_record_guide_seen';
 
@@ -658,7 +659,7 @@ export default function IdeaRecord() {
       setWebSearchResult(searchResult);
     } catch (err: any) {
       setWebSearchError(err?.message === 'AI_LIMIT_EXCEEDED'
-        ? '이번 달 AI 사용 한도에 도달했습니다.'
+        ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
         : '웹 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setWebSearchLoading(false);
@@ -851,7 +852,7 @@ export default function IdeaRecord() {
       setAnalysisResult(result);
     } catch (err: any) {
       setAnalysisError(err?.message === 'AI_LIMIT_EXCEEDED'
-        ? '이번 달 AI 사용 한도에 도달했습니다.'
+        ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
         : '분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setAnalysisLoading(false);
@@ -868,7 +869,7 @@ export default function IdeaRecord() {
       setAnalysisResult(result);
     } catch (err: any) {
       setAnalysisError(err?.message === 'AI_LIMIT_EXCEEDED'
-        ? '이번 달 AI 사용 한도에 도달했습니다.'
+        ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
         : '분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setAnalysisLoading(false);
@@ -973,7 +974,7 @@ export default function IdeaRecord() {
       });
     } catch (err: any) {
       alert(err?.message === 'AI_LIMIT_EXCEEDED'
-        ? '이번 달 AI 사용 한도에 도달했습니다.'
+        ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
         : '수업 계획안 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setCreatingMaterialLength(null);
@@ -1861,6 +1862,7 @@ export default function IdeaRecord() {
                   ) : analysisError ? (
                     <div className="py-8 text-center space-y-3">
                       <p className="text-xs font-bold text-error">{analysisError}</p>
+                      <AiCreditCost feature="idea_analysis" />
                       <button
                         onClick={() => runAnalysis(analysisNote)}
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-surface-container rounded-lg text-xs font-black hover:bg-surface-container-high"
@@ -2022,6 +2024,7 @@ export default function IdeaRecord() {
                                 <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary text-white">AI 추천</span>
                               )}
                             </div>
+                            <AiCreditCost feature="lesson_plan_draft" />
                             <div className="grid grid-cols-2 gap-2">
                               <button
                                 onClick={() => handleCreateMaterial('simple')}

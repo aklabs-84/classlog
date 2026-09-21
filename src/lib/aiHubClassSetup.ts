@@ -4,7 +4,7 @@
 // 두 곳에서 함께 쓴다.
 import { supabase } from './supabase';
 import { isDemoTeacher } from './demo';
-import { getClassLimit, countActiveClasses } from './auth';
+import { getClassLimit, countActiveClasses, isFreeCreditPlan } from './auth';
 import type { AiApp } from './aiApps';
 
 export const PRIMARY_TOOL_AUTO_WEEKS = 4;
@@ -168,7 +168,7 @@ export async function createClassFromHubApp({
         teacher_report_prompt: '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
         min_obs_chars: 0,
         blocked_keywords: [],
-        ai_review_enabled: true,
+        ai_review_enabled: !isFreeCreditPlan(profile),
         weekly_plan: [],
         entry_code: entryCode,
         start_date: toDateStr(today),

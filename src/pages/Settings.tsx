@@ -460,7 +460,7 @@ const Settings = () => {
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  동시 진행 클래스 최대 5개 · 학생 최대 40명/반 · AI 세특 월 20회 체험
+                  동시 진행 클래스 최대 5개 · 학생 최대 40명/반 · AI 월 400크레딧 체험
                 </p>
               ) : null}
             </div>

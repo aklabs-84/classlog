@@ -10,6 +10,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth, getAiUsageStatus } from '../../lib/auth';
+import { AI_CREDITS_EVENT, type AiCreditsInfo } from '../../lib/aiCredits';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useFontScale } from '../../hooks/useFontScale';
 import NotificationPermissionButton from '../NotificationPermissionButton';
@@ -23,18 +24,33 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const hasByokKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
-  const aiUsage = hasByokKey ? null : getAiUsageStatus(profile);
+  // AI를 쓸 때마다 서버가 알려주는 최신 크레딧 잔액(프로필 새로고침 전에도 바로 반영)
+  const [liveCredits, setLiveCredits] = useState<AiCreditsInfo | null>(null);
+  useEffect(() => {
+    const onCredits = (e: Event) => setLiveCredits((e as CustomEvent<AiCreditsInfo>).detail);
+    window.addEventListener(AI_CREDITS_EVENT, onCredits);
+    return () => window.removeEventListener(AI_CREDITS_EVENT, onCredits);
+  }, []);
+  const baseUsage = hasByokKey ? null : getAiUsageStatus(profile);
+  const aiUsage = baseUsage?.kind === 'freeCredit' && liveCredits
+    ? { ...baseUsage, remaining: liveCredits.remaining, used: liveCredits.limit - liveCredits.remaining,
+        percent: Math.round(((liveCredits.limit - liveCredits.remaining) / liveCredits.limit) * 100) }
+    : baseUsage;
   const aiUsageBarColor =
-    aiUsage?.kind === 'count'
+    aiUsage?.kind === 'count' || aiUsage?.kind === 'freeCredit'
       ? (aiUsage.percent >= 100 ? 'bg-error' : aiUsage.percent >= 80 ? 'bg-amber-400' : 'bg-primary')
       : aiUsage?.kind === 'credit'
       ? (aiUsage.state === 'critical' ? 'bg-error' : aiUsage.state === 'saving' ? 'bg-amber-400' : 'bg-primary')
       : 'bg-primary';
   const aiUsageRightLabel =
-    aiUsage?.kind === 'count' ? `${aiUsage.used} / ${aiUsage.limit}` : aiUsage?.kind === 'credit' ? `${aiUsage.percent}%` : '';
+    aiUsage?.kind === 'count' ? `${aiUsage.used} / ${aiUsage.limit}`
+      : aiUsage?.kind === 'freeCredit' ? `남은 ${aiUsage.remaining} / ${aiUsage.limit}`
+      : aiUsage?.kind === 'credit' ? `${aiUsage.percent}%` : '';
   const aiUsageSubLabel =
     aiUsage?.kind === 'count'
       ? (aiUsage.percent >= 100 ? '이번 달 AI 사용량을 모두 썼어요' : '매월 1일 자동 초기화')
+      : aiUsage?.kind === 'freeCredit'
+      ? (aiUsage.remaining <= 0 ? '이번 달 무료 크레딧을 모두 썼어요' : '무료 AI 크레딧 · 매월 1일 채워져요')
       : aiUsage?.kind === 'credit'
       ? (aiUsage.state === 'critical' ? '한도에 가까워지고 있어요' : aiUsage.state === 'saving' ? '절약 모드(Flash)로 자동 전환됨' : '이번 달 AI 정상 속도로 사용 중')
       : '';

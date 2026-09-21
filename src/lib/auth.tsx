@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { supabase } from './supabase';
 import type { User, Session, RealtimeChannel } from '@supabase/supabase-js';
 import { useIdleTimeout } from '../hooks/useIdleTimeout';
+import { FREE_MONTHLY_CREDITS, creditPriceOf } from './aiCredits';
 
 const IDLE_MS = 29 * 60 * 1000;   // 29분 무활동 → 경고
 const WARNING_MS = 60 * 1000;      // 1분 카운트다운 → 자동 로그아웃
@@ -320,7 +321,7 @@ export function getAiMonthlyLimit(profile: any): number {
   if (profile.plan === 'school') return 500; // school만 기존 횟수제 유지
   if (profile.plan === 'pro' || profile.plan === 'basic') return Infinity; // 크레딧(금액) 방식 — 소진 판단은 서버(소프트다운그레이드+하드블록)가 담당
   if (profile.project_pro_until && new Date(profile.project_pro_until) > new Date()) return Infinity;
-  return 20; // Free: 월 20회 체험
+  return Infinity; // Free: 횟수제 → 크레딧제로 전환. 소진 판단은 서버(api/gemini.ts)와 getAiUsageStatus가 담당
 }
 
 /** @deprecated getAiMonthlyLimit 으로 대체됨 */
@@ -333,13 +334,26 @@ export function getAiDailyLimit(profile: any): number {
 export async function fetchRemainingAiQuota(teacherId: string): Promise<number> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan, ai_monthly_reset, ai_monthly_count, beta_expires_at')
+    .select('plan, ai_monthly_reset, ai_monthly_count, ai_monthly_credits, beta_expires_at')
     .eq('id', teacherId)
     .single();
   const thisMonth = new Date().toISOString().slice(0, 7);
+  if (isFreeCreditPlan(profile)) {
+    // 무료는 크레딧제 — 자동 채점 1회 가격으로 환산한 남은 횟수를 돌려준다
+    const usedCredits = profile?.ai_monthly_reset === thisMonth ? (profile?.ai_monthly_credits ?? 0) : 0;
+    return Math.max(0, Math.floor((FREE_MONTHLY_CREDITS - usedCredits) / creditPriceOf('result_auto_grade')));
+  }
   const used = profile?.ai_monthly_reset === thisMonth ? (profile?.ai_monthly_count ?? 0) : 0;
   const limit = getAiMonthlyLimit(profile);
   return limit === Infinity ? Infinity : Math.max(0, limit - used);
+}
+
+// 무료 플랜(베타·학교 프로젝트 Pro 기간 제외) — 크레딧제 적용 대상
+export function isFreeCreditPlan(profile: any): boolean {
+  if (!profile || (profile.plan ?? 'free') !== 'free') return false;
+  if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return false;
+  if (profile.project_pro_until && new Date(profile.project_pro_until) > new Date()) return false;
+  return true;
 }
 
 export function checkCanUseAi(profile: any): boolean {
@@ -354,6 +368,7 @@ const BETA_TRIAL_HARD_STOP_USD = 3;
 
 export type AiUsageStatus =
   | { kind: 'count'; used: number; limit: number; percent: number }
+  | { kind: 'freeCredit'; used: number; limit: number; remaining: number; percent: number }
   | { kind: 'credit'; percent: number; state: 'normal' | 'saving' | 'critical' };
 
 // 사이드바 등에서 "지금 AI 사용량이 얼마나 남았는지"를 보여주기 위한 공용 계산.
@@ -384,6 +399,15 @@ export function getAiUsageStatus(profile: any): AiUsageStatus | null {
   const budget = AI_CREDIT_BUDGET_USD[profile.plan];
   if (budget) {
     return creditUsageStatus(usedCost, budget, AI_HARD_STOP_MULTIPLIER);
+  }
+
+  if (isFreeCreditPlan(profile)) {
+    const usedCredits = isCurrentMonth ? (profile.ai_monthly_credits ?? 0) : 0;
+    return {
+      kind: 'freeCredit', used: usedCredits, limit: FREE_MONTHLY_CREDITS,
+      remaining: Math.max(0, FREE_MONTHLY_CREDITS - usedCredits),
+      percent: Math.round((usedCredits / FREE_MONTHLY_CREDITS) * 100),
+    };
   }
 
   const limit = getAiMonthlyLimit(profile);

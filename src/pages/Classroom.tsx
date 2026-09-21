@@ -57,7 +57,7 @@ import {
   Wand2,
   Cpu,
 } from 'lucide-react';
-import { useAuth, getClassLimit, getStudentLimit, countActiveClasses } from '../lib/auth';
+import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
 import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -91,6 +91,7 @@ import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
+import AiCreditCost from '../components/common/AiCreditCost';
 
 type BreakGenSettings = {
   periodMinutes: number;
@@ -210,7 +211,7 @@ const Classroom = () => {
     weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
     min_obs_chars: 0,
     blocked_keywords: [] as string[],
-    ai_review_enabled: true,
+    ai_review_enabled: !isFreeCreditPlan(profile),
     start_date: '',
     end_date: '',
     class_start_time: '',
@@ -803,7 +804,7 @@ const Classroom = () => {
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
           blocked_keywords: newClassData.blocked_keywords || [],
-          ai_review_enabled: newClassData.ai_review_enabled ?? true,
+          ai_review_enabled: newClassData.ai_review_enabled ?? !isFreeCreditPlan(profile),
           weekly_plan: newClassData.weekly_plan.filter((item: any) => item.topic.trim()),
           entry_code: entryCode,
           start_date: newClassData.start_date || null,
@@ -831,7 +832,7 @@ const Classroom = () => {
         weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
         min_obs_chars: 0,
         blocked_keywords: [],
-        ai_review_enabled: true,
+        ai_review_enabled: !isFreeCreditPlan(profile),
         start_date: '',
         end_date: '',
         class_start_time: '',
@@ -3634,6 +3635,7 @@ const Classroom = () => {
                               <span className="font-black">ON</span> — 학생이 제출하면 AI가 내용의 구체성·관련성을 판단합니다.<br />
                               교사 지침에 맞지 않으면 자동으로 <span className="font-black">반려 플래그</span>가 붙어 교사 화면에 표시됩니다.<br />
                               <span className="text-primary/50">※ 글자수·금지어 차단은 AI와 무관하게 항상 작동합니다.</span>
+                              {isFreeCreditPlan(profile) && <><br /><span className="font-black text-amber-600">※ 무료 플랜: 학생 제출 1건마다 4크레딧이 내 AI 크레딧에서 차감됩니다. 크레딧이 없으면 AI 검토 없이 제출만 통과됩니다.</span></>}
                             </>
                           ) : (
                             <>
@@ -4214,6 +4216,7 @@ const Classroom = () => {
                           className="w-full h-32 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
                           placeholder="학생들에게 강조하고 싶은 기록 요령을 입력하세요..."
                         />
+                        <AiCreditCost feature="prompt_validate" />
                         <button
                           type="button"
                           disabled={isValidatingGuide || !updateClassData.student_guide_prompt?.trim()}
@@ -4257,6 +4260,7 @@ const Classroom = () => {
                           className="w-full h-32 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-secondary/40 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
                           placeholder="AI가 문구를 작성할 때 특별히 반영하길 원하는 스타일을 입력하세요..."
                         />
+                        <AiCreditCost feature="prompt_validate" />
                         <button
                           type="button"
                           disabled={isValidatingPrompt || !updateClassData.teacher_report_prompt?.trim()}
@@ -4342,6 +4346,7 @@ const Classroom = () => {
                               <span className="font-black">ON</span> — 학생이 제출하면 AI가 내용의 구체성·관련성을 판단합니다.<br />
                               교사 지침에 맞지 않으면 자동으로 <span className="font-black">반려 플래그</span>가 붙어 교사 화면에 표시됩니다.<br />
                               <span className="text-primary/50 text-[11px]">※ 글자수·금지어 차단은 AI와 무관하게 항상 작동합니다.</span>
+                              {isFreeCreditPlan(profile) && <><br /><span className="text-[11px] font-black text-amber-600">※ 무료 플랜: 학생 제출 1건마다 4크레딧이 내 AI 크레딧에서 차감됩니다. 크레딧이 없으면 AI 검토 없이 제출만 통과됩니다.</span></>}
                             </>
                           ) : (
                             <>

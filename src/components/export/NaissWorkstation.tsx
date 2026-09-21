@@ -12,6 +12,7 @@ import {
   Settings2, RefreshCw, Undo2, Maximize2, X, ExternalLink,
   ListChecks, Scissors,
 } from 'lucide-react';
+import AiCreditCost from '../common/AiCreditCost';
 
 interface ExportColumn {
   key: string;
@@ -798,6 +799,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                       >
                         <Scissors size={12} /> 문장 단위 자르기 ({selOver500})
                       </button>
+                      <AiCreditCost feature="seatuk_compress" />
                       <button
                         onClick={bulkAICompress}
                         disabled={bulkCompressing}
@@ -1027,6 +1029,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                                 {isGenerating ? <RotateCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
                                 AI 생성
                               </button>
+                              <AiCreditCost feature="achievement_suggest" />
                               <button
                                 onClick={() => suggestAchievement(row)}
                                 disabled={suggestingAchievementId === row.id}
@@ -1128,6 +1131,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                                   >
                                     <RefreshCw size={10} /> 문장 단위 자르기
                                   </button>
+                                  <AiCreditCost feature="seatuk_compress" />
                                   <button
                                     onClick={() => aiCompress(row)}
                                     disabled={compressingId === row.id}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ArrowRight, MessageSquare, RefreshCw, BarChart3 } from 'lucide-react';
 import { generateClassInsight } from '../../lib/gemini';
+import AiCreditCost from '../common/AiCreditCost';
 
 interface AIInsightBannerProps {
   className: string;
@@ -106,6 +107,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
             <Sparkles size={18} />
             인사이트 분석 시작
           </button>
+          <AiCreditCost feature="class_insight" className="relative z-10" />
 
           {/* 보조 버튼 */}
           <div className="flex gap-3 z-10 w-full max-w-sm">

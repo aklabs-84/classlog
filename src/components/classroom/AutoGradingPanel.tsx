@@ -8,6 +8,7 @@ import { fetchRemainingAiQuota } from '../../lib/auth';
 import { autoGradeResult, buildGradingContent, isResultGroupGradable, getLastRubric, setLastRubric } from '../../lib/gemini';
 import { getResultImagePublicUrls } from '../common/ImageCarousel';
 import LimitToastView, { useLimitToast } from '../ui/LimitToast';
+import AiCreditCost from '../common/AiCreditCost';
 
 const EVAL_TAGS = ['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'];
 
@@ -214,7 +215,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
     setSingleGradingKey(group.key);
     const remaining = await fetchRemainingAiQuota(teacherId);
     if (remaining <= 0) {
-      showLimitToast('이번 달 AI 사용 한도에 도달했습니다.');
+      showLimitToast('이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.');
       setSingleGradingKey(null);
       return;
     }
@@ -234,7 +235,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
     setCheckingLimit(false);
 
     if (remaining <= 0) {
-      showLimitToast('이번 달 AI 사용 한도에 도달했습니다.');
+      showLimitToast('이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.');
       return;
     }
     setConfirmState({ n: targets.length, m: remaining, targets });
@@ -310,6 +311,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
           {checkingLimit || grading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
           {grading ? `AI 자동 채점 중... (${gradeProgress.done}/${gradeProgress.total})` : 'AI 자동 채점'}
         </button>
+        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant">제출물 1건당 <AiCreditCost feature="result_auto_grade" /></p>
       </div>
 
       {/* 결과 카드 목록 */}

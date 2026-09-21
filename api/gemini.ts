@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import { creditPriceOf, FREE_MONTHLY_CREDITS, FREE_POOL_MONTHLY_CREDITS } from './_lib/aiCredits.js';
 
-// free/school: 횟수제 유지
+// school: 횟수제 유지 (free는 크레딧제로 전환 — api/_lib/aiCredits.ts)
 const PLAN_MONTHLY_LIMIT: Record<string, number> = {
   free:   20,
   school: 500,
@@ -195,6 +196,11 @@ export default async function handler(req: any, res: any) {
   let effectiveModel: string = model;
   // basic/pro 크레딧 소진 여부를 판단한 뒤, 실제 AI 호출 비용이 나오면 반영할 값
   let pendingCreditUpdate: { monthlyCostBefore: number; month: string } | null = null;
+  // 무료 플랜 크레딧 차감 결과(응답에 실어 화면에 보여주고, 호출 실패 시 환불에 사용)
+  let freeCredit: { charged: number; remaining: number; limit: number; before: number; month: string } | null = null;
+
+  // 학생(프로필 없는 로그인 사용자)이 호출할 수 있는 기능 — 담임 교사 크레딧으로 처리된다
+  const STUDENT_ALLOWED_FEATURES = new Set(['observation_review']);
 
   // 인증 없는 익명 AI 호출 차단
   if (!authHeader) {
@@ -212,12 +218,24 @@ export default async function handler(req: any, res: any) {
       }
 
       if (!authError && user) {
-        userId = user.id;
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('plan, beta_expires_at, ai_daily_count, ai_daily_date, ai_monthly_count, ai_monthly_cost_usd, ai_monthly_reset')
-          .eq('id', user.id)
-          .single();
+        // 과금 대상: 기본은 요청자 본인. 프로필이 없는 요청자(학생)는 학급 담임 교사에게 과금한다.
+        let billId = user.id;
+        const selfProfileCols = 'plan, beta_expires_at, ai_daily_count, ai_daily_date, ai_monthly_count, ai_monthly_cost_usd, ai_monthly_credits, ai_monthly_reset';
+        let { data: profile } = await supabase.from('profiles').select(selfProfileCols).eq('id', user.id).maybeSingle();
+
+        if (!profile) {
+          // 학생이 호출할 수 있는 기능은 허용 목록으로만 제한 (임의 기능·임의 학급으로 교사 크레딧 소진 방지)
+          if (!STUDENT_ALLOWED_FEATURES.has(feature) || !class_id) {
+            return res.status(403).json({ error: 'FORBIDDEN', message: '이 기능은 사용할 수 없습니다.' });
+          }
+          const { data: cls } = await supabase.from('classes').select('teacher_id').eq('id', class_id).maybeSingle();
+          if (!cls?.teacher_id) {
+            return res.status(403).json({ error: 'FORBIDDEN', message: '학급 정보를 확인할 수 없습니다.' });
+          }
+          billId = cls.teacher_id;
+          ({ data: profile } = await supabase.from('profiles').select(selfProfileCols).eq('id', billId).maybeSingle());
+        }
+        userId = billId;
 
         if (profile) {
           const plan = profile.plan ?? 'free';
@@ -266,8 +284,46 @@ export default async function handler(req: any, res: any) {
                 }
 
                 pendingCreditUpdate = { monthlyCostBefore, month: thisMonth };
+              } else if (plan === 'free') {
+                // free: 기능별 고정 크레딧제
+                const creditsBefore = isNewMonth ? 0 : (profile.ai_monthly_credits ?? 0);
+                const price = creditPriceOf(feature);
+
+                // 무료는 비용 상한을 지키기 위해 pro 요청도 flash로 처리 (lite는 그대로)
+                if (effectiveModel === 'pro') effectiveModel = 'flash';
+
+                if (creditsBefore + price > FREE_MONTHLY_CREDITS) {
+                  return res.status(402).json({
+                    error: 'AI_LIMIT_EXCEEDED',
+                    code: 'CREDITS_EXHAUSTED',
+                    message: '이번 달 무료 AI 체험 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워지고, Pro로 업그레이드하면 계속 쓸 수 있어요.',
+                    used: creditsBefore, limit: FREE_MONTHLY_CREDITS, price,
+                  });
+                }
+
+                // 무료 사용자 전체 월 상한(안전장치)
+                const { data: poolUsed } = await supabase.rpc('free_ai_pool_used', { p_month: thisMonth });
+                if (Number(poolUsed ?? 0) >= FREE_POOL_MONTHLY_CREDITS) {
+                  return res.status(402).json({
+                    error: 'AI_LIMIT_EXCEEDED',
+                    code: 'FREE_POOL_EXHAUSTED',
+                    message: '무료 AI 체험이 이번 달 한도에 도달해 일시적으로 제한돼요. 다음 달 1일에 다시 이용할 수 있어요.',
+                  });
+                }
+
+                const monthlyUsed = isNewMonth ? 0 : (profile.ai_monthly_count ?? 0);
+                await supabase.from('profiles').update({
+                  ai_monthly_credits: creditsBefore + price,
+                  ai_monthly_count: monthlyUsed + 1,
+                  ai_monthly_reset: thisMonth,
+                  ...(isNewMonth ? { ai_monthly_cost_usd: 0 } : {}),
+                }).eq('id', billId);
+                freeCredit = {
+                  charged: price, remaining: FREE_MONTHLY_CREDITS - creditsBefore - price,
+                  limit: FREE_MONTHLY_CREDITS, before: creditsBefore, month: thisMonth,
+                };
               } else {
-                // free/school: 기존 횟수제
+                // school: 기존 횟수제
                 const monthlyUsed = isNewMonth ? 0 : (profile.ai_monthly_count ?? 0);
                 const monthlyLimit = PLAN_MONTHLY_LIMIT[plan] ?? 20;
 
@@ -293,7 +349,7 @@ export default async function handler(req: any, res: any) {
                     })(),
                     ai_daily_date: new Date().toISOString().split('T')[0],
                   } : {}),
-                }).eq('id', user.id).then(() => {});
+                }).eq('id', billId).then(() => {});
               }
             }
           }
@@ -409,10 +465,20 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    return res.status(200).json({ result, ...(sources && { sources }) });
+    return res.status(200).json({
+      result, ...(sources && { sources }),
+      ...(freeCredit && { credits: { charged: freeCredit.charged, remaining: freeCredit.remaining, limit: freeCredit.limit } }),
+    });
 
   } catch (error: any) {
     console.error('[api/gemini] error:', error?.message);
+    // AI 호출이 실패하면 미리 차감한 무료 크레딧을 돌려준다
+    if (freeCredit && userId) {
+      try {
+        await createClient(supabaseUrl, serviceKey).from('profiles')
+          .update({ ai_monthly_credits: freeCredit.before }).eq('id', userId).eq('ai_monthly_reset', freeCredit.month);
+      } catch { /* 환불 실패는 응답에 영향 없음 */ }
+    }
     return res.status(500).json({ error: error?.message ?? 'AI 처리 중 오류가 발생했습니다.' });
   }
 }

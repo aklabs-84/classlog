@@ -27,6 +27,7 @@ import { NavLink, useSearchParams } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
 import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS, generateSeatukDraft } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
+import AiCreditCost from '../components/common/AiCreditCost';
 
 
 type HistoryEntry = { label: string; content: string; createdAt: string };
@@ -1013,6 +1014,8 @@ ${obsText}
                   </button>
                 </div>
               ) : (
+                <>
+                <AiCreditCost feature="seatuk_draft" />
                 <button onClick={handleGenerate}
                   disabled={obsCount === 0 || selectedStudentIds.length === 0 || (weekFilterMode === 'select' && selectedWeeks.length === 0)}
                   className="w-full btn-gradient py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
@@ -1022,6 +1025,7 @@ ${obsText}
                     {selectedStudentIds.length > 0 && ` (${selectedStudentIds.length}명)`}
                   </span>
                 </button>
+                </>
               )}
               {selectedStudentIds.length === 0 && <p className="text-center text-xs text-on-surface-variant/60">학생을 1명 이상 선택해주세요.</p>}
               {obsCount === 0 && selectedStudentIds.length > 0 && <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 합니다.</p>}
@@ -1188,12 +1192,14 @@ ${obsText}
                                 {label}
                               </button>
                             ))}
+                            <AiCreditCost feature="seatuk_refine" />
                             <button onClick={() => applyRefineForStudent(originalIndex, '더 구체적인 사례와 역량 중심으로 보완')}
                               disabled={isGenerating}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-[11px] font-bold transition-all disabled:opacity-40">
                               <Sparkles size={12} className="text-primary" />
                               구체화
                             </button>
+                            <AiCreditCost feature="seatuk_refine" note="(각 버튼)" />
                           </div>
 
                           {/* 히스토리 패널 */}

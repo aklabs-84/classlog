@@ -1987,7 +1987,7 @@ const RichEditor = ({
     } catch (err: any) {
       setAiSuggestError(
         err?.message === 'AI_LIMIT_EXCEEDED'
-          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
           : (err?.message || 'AI 제안 생성 중 오류가 발생했습니다.')
       );
     } finally {
