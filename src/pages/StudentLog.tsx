@@ -819,6 +819,7 @@ const StudentLog = () => {
     if (!session?.student_id || !session?.token) return;
     let stop = false;
     const tick = async () => {
+      fetchMyGroup(session.student_id, session.class_id);
       const { data } = await supabase.rpc('student_my_notifications', { p_token: session.token });
       if (stop || !data) return;
       const rows = data as any[];
@@ -833,23 +834,6 @@ const StudentLog = () => {
     const timer = setInterval(tick, 15000);
     return () => { stop = true; clearInterval(timer); };
   }, [session?.student_id, session?.token]);
-
-  // 조 편성 Realtime 구독 — 선생님이 배정/변경하면 자동 반영
-  useEffect(() => {
-    if (!session?.student_id || !session?.class_id) return;
-    const channel = supabase
-      .channel(`group-members-${session.student_id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'class_group_members',
-        filter: `student_id=eq.${session.student_id}`,
-      }, () => {
-        fetchMyGroup(session.student_id, session.class_id);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [session?.student_id, session?.class_id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -867,12 +851,9 @@ const StudentLog = () => {
     const groupId = (boardSelectedPost._group || []).find((r: any) => r.group_id)?.group_id;
     const fetchBoardGroupInfo = async () => {
       if (groupId) {
-        const [{ data: groupData }, { data: members }] = await Promise.all([
-          supabase.from('class_groups').select('name').eq('id', groupId).single(),
-          supabase.from('class_group_members').select('student_id, students(full_name)').eq('group_id', groupId),
-        ]);
-        const memberNames = (members || []).map((m: any) => m.students?.full_name).filter(Boolean);
-        setBoardGroupModalInfo({ name: groupData?.name || '조별 제출', memberNames });
+        const { data: info } = await supabase.rpc('group_public_info', { p_group_id: groupId });
+        const memberNames = ((info as any)?.members || []).filter(Boolean) as string[];
+        setBoardGroupModalInfo({ name: (info as any)?.name || '조별 제출', memberNames });
       } else {
         setBoardGroupModalInfo({ name: '조별 제출', memberNames: [] });
       }
@@ -880,32 +861,14 @@ const StudentLog = () => {
     fetchBoardGroupInfo();
   }, [boardSelectedPost]);
 
-  const fetchMyGroup = async (studentId: string, classId: string) => {
-    const { data: memberData } = await supabase
-      .from('class_group_members')
-      .select('group_id, class_groups(id, name, class_id, is_archived)')
-      .eq('student_id', studentId);
-
-    if (!memberData || memberData.length === 0) return;
-
-    // 현재 클래스에 해당하는 "활성" 조 찾기 (보관된 조는 현재 소속으로 표시하지 않음)
-    const matched = memberData.find(
-      (row: any) => row.class_groups?.class_id === classId && row.class_groups?.is_archived === false
-    );
-    const group = (matched as any)?.class_groups;
-    if (!group) return;
-
-    // 같은 조 멤버 이름 조회
-    const { data: allMembers } = await supabase
-      .from('class_group_members')
-      .select('students(full_name)')
-      .eq('group_id', group.id);
-
-    const memberNames = (allMembers || [])
-      .map((m: any) => m.students?.full_name)
-      .filter(Boolean) as string[];
-
-    setMyClassGroup({ id: group.id, name: group.name, memberNames });
+  const fetchMyGroup = async (_studentId: string, _classId: string) => {
+    let token = session?.token;
+    if (!token) { try { token = JSON.parse(sessionStorage.getItem('student_session') || '{}').token; } catch { /* noop */ } }
+    if (!token) return;
+    const { data } = await supabase.rpc('student_my_group', { p_token: token });
+    const g = data as any;
+    if (!g) return;
+    setMyClassGroup({ id: g.id, name: g.name, memberNames: (g.members || []).filter(Boolean) });
   };
 
   const fetchStudentNotifs = async (studentId: string) => {

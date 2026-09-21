@@ -197,12 +197,9 @@ const ClassBoard = () => {
     const groupId = selectedPost._group?.[0]?.group_id;
     const fetchGroupInfo = async () => {
       if (groupId) {
-        const [{ data: groupData }, { data: members }] = await Promise.all([
-          supabase.from('class_groups').select('name').eq('id', groupId).single(),
-          supabase.from('class_group_members').select('student_id, students(full_name)').eq('group_id', groupId),
-        ]);
-        const memberNames = (members || []).map((m: any) => m.students?.full_name).filter(Boolean);
-        setGroupModalInfo({ name: groupData?.name || '조별 제출', memberNames });
+        const { data: info } = await supabase.rpc('group_public_info', { p_group_id: groupId });
+        const memberNames = ((info as any)?.members || []).filter(Boolean) as string[];
+        setGroupModalInfo({ name: (info as any)?.name || '조별 제출', memberNames });
       } else {
         const uniqueIds = [...new Set((selectedPost._group || []).map((r: any) => r.student_id))] as string[];
         const memberNames = uniqueIds.map((id) => nameMap[id]).filter(Boolean);
