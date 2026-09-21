@@ -1995,12 +1995,7 @@ const StudentLog = () => {
     if (!session?.student_id || !session?.class_id) return;
     setNoteListLoading(true);
     try {
-      const { data } = await supabase
-        .from('student_notes')
-        .select('id, title, content, created_at, updated_at')
-        .eq('student_id', session.student_id)
-        .eq('class_id', session.class_id)
-        .order('created_at', { ascending: false });
+      const { data } = await supabase.rpc('student_my_notes', { p_token: session.token });
       setNoteList(data ?? []);
     } catch {
       // 조용히 실패
@@ -2013,12 +2008,9 @@ const StudentLog = () => {
     if (!session?.student_id || !session?.class_id) return;
     setNoteCreating(true);
     try {
-      const { data, error } = await supabase
-        .from('student_notes')
-        .insert({ student_id: session.student_id, class_id: session.class_id, title: '제목 없음', content: '' })
-        .select('id, title, content, created_at, updated_at')
-        .single();
+      const { data: created, error } = await supabase.rpc('student_note_create', { p_token: session.token });
       if (error) throw error;
+      const data = Array.isArray(created) ? created[0] : created;
       setNoteList(prev => [data, ...prev]);
       setSelectedNote(data);
       setNoteContent('');
@@ -2066,10 +2058,7 @@ const StudentLog = () => {
     if (content.includes('data:image/')) return;
     setNoteSaving(true);
     try {
-      await supabase
-        .from('student_notes')
-        .update({ content, title: noteTitleInput, updated_at: new Date().toISOString() })
-        .eq('id', selectedNote.id);
+      await supabase.rpc('student_note_update', { p_token: session!.token, p_id: selectedNote.id, p_title: noteTitleInput, p_content: content });
       setNoteHasUnsavedChanges(false);
       setNoteSaveStatus('saved');
       setTimeout(() => setNoteSaveStatus('idle'), 2500);
@@ -2133,7 +2122,7 @@ const StudentLog = () => {
 
   const deleteNote = async (id: string) => {
     try {
-      await supabase.from('student_notes').delete().eq('id', id);
+      await supabase.rpc('student_note_delete', { p_token: session!.token, p_id: id });
       setNoteList(prev => prev.filter(n => n.id !== id));
       setNoteDeleteId(null);
       showToast('노트가 삭제되었습니다.');
