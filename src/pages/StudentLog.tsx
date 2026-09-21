@@ -1334,12 +1334,11 @@ const StudentLog = () => {
 
       if (teacherId) {
         const groupLabel = isGroupSubmission && myClassGroup ? ` [${myClassGroup.name} 조별 제출]` : '';
-        await supabase.from('notifications').insert({
-          user_id: teacherId,
-          title: `📁 ${session.student_name}이(가) ${selectedWeek}주차 결과를 제출했습니다${groupLabel}`,
-          content: `${rows.map((r: any) => r.result_type).join('·')} — ${session.class_name}`,
-          type: 'result_submission',
-          link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
+        await supabase.rpc('student_notify_teacher', {
+          p_token: session.token,
+          p_title: `📁 ${session.student_name}이(가) ${selectedWeek}주차 결과를 제출했습니다${groupLabel}`,
+          p_content: `${rows.map((r: any) => r.result_type).join('·')} — ${session.class_name}`,
+          p_type: 'result_submission',
         });
       }
 
@@ -2183,13 +2182,11 @@ ${guidePrompt}
       if (aiReviewFlag !== 'review_needed') {
         // 승인된 제출만 일반 알림 전송
         supabase
-          .from('notifications')
-          .insert({
-            user_id: teacherId,
-            title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
-            content: `"${title}" — ${session.class_name}`,
-            type: 'student_submission',
-            link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
+          .rpc('student_notify_teacher', {
+            p_token: session.token,
+            p_title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
+            p_content: `"${title}" — ${session.class_name}`,
+            p_type: 'student_submission',
           })
           .then(({ error }) => {
             if (error) console.warn('[알림 전송 실패]', error.message);
@@ -2197,13 +2194,11 @@ ${guidePrompt}
       } else {
         // 자동 반려 → 선생님에게 "재검토 가능" 알림
         supabase
-          .from('notifications')
-          .insert({
-            user_id: teacherId,
-            title: `🔄 AI 자동 반려 · ${session.student_name} "${title}"`,
-            content: `반려 사유: ${aiConcern} (승인으로 변경 가능)`,
-            type: 'ai_review_needed',
-            link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
+          .rpc('student_notify_teacher', {
+            p_token: session.token,
+            p_title: `🔄 AI 자동 반려 · ${session.student_name} "${title}"`,
+            p_content: `반려 사유: ${aiConcern} (승인으로 변경 가능)`,
+            p_type: 'ai_review_needed',
           })
           .then(({ error }) => {
             if (error) console.warn('[자동반려 알림 실패]', error.message);
