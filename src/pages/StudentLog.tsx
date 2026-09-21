@@ -498,8 +498,8 @@ const StudentLog = () => {
         fetchMyGroup(parsed.student_id, parsed.class_id);
         fetchStudentNotifs(parsed.student_id);
         fetchQuizHistory(parsed.class_id, parsed.student_name);
-        supabase.from('class_enabled_tools').select('tool_id').eq('class_id', parsed.class_id).eq('is_published', true)
-          .then(({ data }) => setEnabledToolIds((data || []).map((t: any) => t.tool_id)));
+        supabase.rpc('student_class_content', { p_token: parsed.token })
+          .then(({ data }) => setEnabledToolIds((data?.enabled_tools || []) as string[]));
 
         // 가이드 모달 표시 여부 확인
         // PIN 재입장 여부와 무관하게 '오늘 하루 보지 않기' localStorage 값만으로 판단
@@ -919,11 +919,11 @@ const StudentLog = () => {
             .map((p: any) => p.material_id)
             .filter(Boolean);
           if (materialIds.length > 0) {
-            const { data: mats } = await supabase
-              .from('class_materials')
-              .select('*')
-              .in('id', materialIds);
-            if (mats) setClassMaterials(mats);
+            const { data: content } = await supabase.rpc('student_class_content', {
+              p_token: JSON.parse(sessionStorage.getItem('student_session') || '{}').token,
+              p_plan_ids: materialIds,
+            });
+            if (content?.plan_materials) setClassMaterials(content.plan_materials);
           }
         }
       }
@@ -972,19 +972,16 @@ const StudentLog = () => {
       const plan = classResources as any[];
       const materialIds = plan.map(p => p.material_id).filter(Boolean);
 
-      const [matsResult, generalResult, editorResult, toolsResult] = await Promise.all([
-        materialIds.length > 0
-          ? supabase.from('class_materials').select('*').in('id', materialIds)
-          : Promise.resolve({ data: [] }),
-        supabase.from('class_general_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('created_at', { ascending: false }),
-        supabase.from('class_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('week_number', { ascending: true }).order('created_at', { ascending: false }),
-        supabase.from('class_enabled_tools').select('tool_id').eq('class_id', session.class_id).eq('is_published', true),
-      ]);
+      const { data: content, error: contentError } = await supabase.rpc('student_class_content', {
+        p_token: session.token,
+        p_plan_ids: materialIds,
+      });
+      if (contentError) throw contentError;
 
-      setClassMaterials(matsResult.data || []);
-      setGeneralMaterials(generalResult.data || []);
-      setEditorMaterials(editorResult.data || []);
-      setEnabledToolIds((toolsResult.data || []).map((t: any) => t.tool_id));
+      setClassMaterials(content?.plan_materials || []);
+      setGeneralMaterials(content?.general || []);
+      setEditorMaterials(content?.editor || []);
+      setEnabledToolIds((content?.enabled_tools || []) as string[]);
     } catch (err) {
       console.error('Error fetching resources:', err);
     } finally {
@@ -1444,12 +1441,8 @@ const StudentLog = () => {
     setUnitsLoading(true);
     try {
       // 완료된 단원 목록 조회
-      const { data: units, error: unitsError } = await supabase
-        .from('units')
-        .select('*')
-        .eq('class_id', session.class_id)
-        .eq('status', 'completed')
-        .order('ended_at', { ascending: false });
+      const { data: contentData, error: unitsError } = await supabase.rpc('student_class_content', { p_token: session.token });
+      const units = (contentData?.units || []) as any[];
 
       if (unitsError) throw unitsError;
       if (!units || units.length === 0) {
