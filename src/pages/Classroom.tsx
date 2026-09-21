@@ -5507,7 +5507,7 @@ const Classroom = () => {
                                   }`}
                                 >
                                   <Link2 size={12} />
-                                  {isCopied ? '복사됨!' : '링크 복사'}
+                                  {isCopied ? '복사됨!' : '학교 페이지 링크'}
                                 </button>
                                 {!isEditing && (
                                   <button

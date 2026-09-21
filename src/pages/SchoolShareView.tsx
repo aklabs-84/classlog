@@ -134,10 +134,41 @@ const SchoolShareView = () => {
   const { schoolId } = useParams<{ schoolId: string }>();
 
   const sessionKey = `school_verified_${schoolId}`;
+  const codeSessionKey = `school_code_${schoolId}`;
   const [verified, setVerified] = useState(() => sessionStorage.getItem(`school_verified_${schoolId}`) === 'true');
   const [codeInput, setCodeInput] = useState('');
+  const [verifiedCode, setVerifiedCode] = useState(() => sessionStorage.getItem(`school_code_${schoolId}`) || '');
   const [codeError, setCodeError] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [lockUntilMs, setLockUntilMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const lockRemainingSec = lockUntilMs ? Math.max(0, Math.ceil((lockUntilMs - nowMs) / 1000)) : 0;
+  const isCodeLocked = lockRemainingSec > 0;
+
+  useEffect(() => {
+    if (!lockUntilMs) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (now >= lockUntilMs) {
+        setLockUntilMs(null);
+        setCodeError('');
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockUntilMs]);
+
+  // 서버가 코드를 거절하면(코드 변경 등) 입장 상태를 지우고 입력 화면으로 되돌린다
+  const resetVerification = useCallback(() => {
+    sessionStorage.removeItem(sessionKey);
+    sessionStorage.removeItem(codeSessionKey);
+    setVerifiedCode('');
+    setVerified(false);
+    setClassList([]);
+    setActiveClassId(null);
+    setClassDataMap({});
+    setCodeError('입장 코드를 다시 입력해 주세요.');
+  }, [sessionKey, codeSessionKey]);
 
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [classList, setClassList] = useState<{ id: string; name: string; subject: string; weekly_plan: any[]; show_learning_journey: boolean }[]>([]);
@@ -155,44 +186,41 @@ const SchoolShareView = () => {
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Step 1: 학교 메타 + 클래스 목록 로드
+  // Step 1: 학교 이름·공유 여부만 로드 (학급 목록은 입장 코드 확인 후 서버 창구에서 받음)
   useEffect(() => {
     if (!schoolId) return;
     (async () => {
       setMetaLoading(true);
-      const { data: school, error } = await supabase
-        .from('schools')
-        .select('id, name, entry_code, share_enabled')
-        .eq('id', schoolId)
-        .single();
+      const { data: rows, error } = await supabase.rpc('share_school_meta', { p_school_id: schoolId });
+      const school = Array.isArray(rows) ? rows[0] : null;
 
       if (error || !school) {
         setMetaError('공유 링크가 유효하지 않거나 접근할 수 없습니다.');
-        setMetaLoading(false);
-        return;
-      }
-      if (school.share_enabled === false) {
+      } else if (school.share_enabled === false) {
         setMetaError('이 공유 링크는 현재 비활성화되어 있습니다.\n담당 선생님께 문의해주세요.');
-        setMetaLoading(false);
-        return;
+      } else {
+        setSchoolInfo(school);
       }
-
-      setSchoolInfo(school);
-
-      const { data: classes } = await supabase
-        .from('classes')
-        .select('id, name, subject, weekly_plan, show_learning_journey')
-        .eq('school_id', schoolId)
-        .eq('is_archived', false)
-        .order('name', { ascending: true });
-
-      const loadedClasses = classes || [];
-      setClassList(loadedClasses);
-      if (loadedClasses.length > 0) setActiveClassId(loadedClasses[0].id);
-
       setMetaLoading(false);
     })();
   }, [schoolId]);
+
+  // Step 1-2: 입장 코드 확인 후 학급 목록 로드
+  useEffect(() => {
+    if (!schoolId || !verified || !schoolInfo) return;
+    if (!verifiedCode) { resetVerification(); return; }
+    (async () => {
+      setMetaLoading(true);
+      const { data, error } = await supabase.rpc('share_school_classes', { p_school_id: schoolId, p_code: verifiedCode });
+      if (error || !Array.isArray(data)) {
+        resetVerification();
+      } else {
+        setClassList(data);
+        if (data.length > 0) setActiveClassId(prev => prev ?? data[0].id);
+      }
+      setMetaLoading(false);
+    })();
+  }, [schoolId, verified, verifiedCode, schoolInfo, resetVerification]);
 
   // Step 2: 선택된 클래스 데이터 로드
   const fetchClassData = useCallback(async (classId: string) => {
@@ -202,45 +230,38 @@ const SchoolShareView = () => {
     setLoadingClassId(classId);
 
     try {
+      const { data: payload, error: payloadError } = await supabase.rpc('share_school_class_data', {
+        p_school_id: schoolId,
+        p_code: verifiedCode,
+        p_class_id: classId,
+      });
+      if (payloadError || !payload) {
+        if (payloadError?.message?.includes('SHARE_CODE_REJECTED')) resetVerification();
+        return;
+      }
+
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
       const topicWeekMap: Record<string, number> = {};
       ((cls.weekly_plan as any[]) || []).forEach((p: any) => {
-        if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
+        if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number((p as any).week);
       });
 
-      const { data: students } = await supabase
-        .from('students')
-        .select('id, full_name, student_number, avatar_url')
-        .eq('class_id', classId)
-        .order('student_number', { ascending: true });
-
-      const studentList = (students || []).sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'));
+      const studentList = [...(((payload as any).students || []) as StudentRow[])]
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'));
       const studentIds = studentList.map(s => s.id);
 
       let studentData: StudentData[] = [];
 
       if (studentIds.length > 0) {
-        const [{ data: obs }, { data: results }] = await Promise.all([
-          supabase
-            .from('observations')
-            .select('id, student_id, activity_name, content, created_at')
-            .in('student_id', studentIds)
-            .eq('is_student_record', true)
-            .eq('status', 'approved')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('student_results')
-            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths, teacher_eval_score')
-            .in('student_id', studentIds)
-            .order('created_at', { ascending: false }),
-        ]);
+        const obs = (payload as any).observations || [];
+        const results = (payload as any).results || [];
 
-        const obsWithWeek: ObsRow[] = (obs || []).map((o: any) => ({
+        const obsWithWeek: ObsRow[] = obs.map((o: any) => ({
           ...o,
           week_number: topicWeekMap[norm(o.activity_name)] ?? null,
         }));
 
-        const resultsWithUrls: ResultRow[] = (results || []).map((r: any) => {
+        const resultsWithUrls: ResultRow[] = results.map((r: any) => {
           let image_url: string | null = null;
           let file_url: string | null = null;
           let image_urls: string[] = [];
@@ -261,25 +282,12 @@ const SchoolShareView = () => {
         }));
       }
 
-      const [{ data: gallery }, driveResult] = await Promise.all([
-        supabase
-          .from('class_gallery_items')
-          .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-          .eq('class_id', classId)
-          .order('created_at', { ascending: false }),
-        fetchPublicDriveFolderItems(classId).catch(() => ({ items: [], folders: [] })),
-      ]);
+      const driveResult = await fetchPublicDriveFolderItems(classId).catch(() => ({ items: [], folders: [] }));
       const driveItems = driveResult.items;
 
       // 세특(학급 기록) 데이터
-      let evalMap: Record<string, EvalRow> = {};
-      if (studentIds.length > 0) {
-        const { data: evals } = await supabase
-          .from('student_evaluations')
-          .select('student_id, setech_content, achievement_level, status')
-          .in('student_id', studentIds);
-        (evals || []).forEach((e: any) => { evalMap[e.student_id] = e; });
-      }
+      const evalMap: Record<string, EvalRow> = {};
+      ((payload as any).evaluations || []).forEach((e: any) => { evalMap[e.student_id] = e; });
 
       setClassDataMap(prev => ({
         ...prev,
@@ -290,7 +298,7 @@ const SchoolShareView = () => {
           weekly_plan: cls.weekly_plan,
           show_learning_journey: cls.show_learning_journey ?? true,
           studentData,
-          galleryItems: [...(gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)],
+          galleryItems: [...((payload as any).gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)],
           evalMap,
           loaded: true,
         },
@@ -298,7 +306,7 @@ const SchoolShareView = () => {
     } finally {
       setLoadingClassId(null);
     }
-  }, [classList]);
+  }, [classList, schoolId, verifiedCode, resetVerification]);
 
   // 탭 전환 시 미로드 클래스 자동 로드
   useEffect(() => {
@@ -321,13 +329,22 @@ const SchoolShareView = () => {
   }, [verified]);
 
   const handleVerify = async () => {
-    if (!schoolInfo) return;
+    if (!schoolInfo || isCodeLocked) return;
     setVerifying(true);
     setCodeError('');
-    await new Promise(r => setTimeout(r, 300));
-    if (codeInput.trim().toUpperCase() === schoolInfo.entry_code) {
+    const code = codeInput.trim().toUpperCase();
+    const { data, error } = await supabase.rpc('share_school_verify', { p_school_id: schoolInfo.id, p_code: code });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!error && row?.ok) {
       sessionStorage.setItem(sessionKey, 'true');
+      sessionStorage.setItem(codeSessionKey, code);
+      setVerifiedCode(code);
       setVerified(true);
+    } else if (row?.lock_until) {
+      setNowMs(Date.now());
+      setLockUntilMs(new Date(row.lock_until).getTime());
+    } else if (row && typeof row.attempts_left === 'number') {
+      setCodeError(`입장 코드가 올바르지 않습니다 (남은 시도 ${row.attempts_left}번). 담당 선생님께 확인해 주세요.`);
     } else {
       setCodeError('입장 코드가 올바르지 않습니다. 담당 선생님께 확인해 주세요.');
     }
@@ -695,10 +712,19 @@ const SchoolShareView = () => {
                       : 'border-gray-200 focus:border-indigo-400 bg-gray-50 text-gray-900'
                   }`}
                 />
-                {codeError && <p className="text-xs text-red-500 font-semibold text-center">{codeError}</p>}
+                {isCodeLocked && (
+                  <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-center">
+                    <p className="text-xs text-red-600 font-semibold">코드를 5번 틀려서 잠시 잠겼어요</p>
+                    <p className="text-2xl font-black text-red-600 tabular-nums mt-1">
+                      {String(Math.floor(lockRemainingSec / 60)).padStart(2, '0')}:{String(lockRemainingSec % 60).padStart(2, '0')}
+                    </p>
+                    <p className="text-[11px] text-red-500 mt-1">시간이 지나면 다시 입력할 수 있어요</p>
+                  </div>
+                )}
+                {codeError && !isCodeLocked && <p className="text-xs text-red-500 font-semibold text-center">{codeError}</p>}
                 <button
                   onClick={handleVerify}
-                  disabled={!codeInput.trim() || verifying}
+                  disabled={!codeInput.trim() || verifying || isCodeLocked}
                   className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 disabled:opacity-40 text-white font-black rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-200"
                 >
                   {verifying

@@ -159,151 +159,70 @@ const SchoolProjectShareView = () => {
   const fetchProjectMeta = async () => {
     setLoading(true);
     try {
-      const { data: proj, error: projErr } = await supabase
-        .from('school_projects')
-        .select('id, name, school_name, status, end_date, created_at, banner_color')
-        .eq('share_token', shareToken)
-        .single();
+      // 공유 링크(토큰)를 서버 창구에 내밀고, 개요 묶음을 한 번에 받는다
+      const { data: ov, error: projErr } = await supabase.rpc('share_project_overview', { p_token: shareToken });
+      const proj = (ov as any)?.project;
 
-      if (projErr || !proj) {
+      if (projErr || !ov || !proj) {
         setError('공유 링크가 유효하지 않거나 존재하지 않습니다.');
         return;
       }
       setProject(proj);
 
-      const { data: subClasses } = await supabase
-        .from('classes')
-        .select('id, name, subject, assigned_teacher_id, weekly_plan, show_learning_journey, show_attendance_summary, shared_survey_form_id')
-        .eq('school_project_id', proj.id)
-        .not('parent_class_id', 'is', null)
-        .order('created_at', { ascending: true });
-
-      if (!subClasses || subClasses.length === 0) { setClassList([]); return; }
-
-      const teacherIds = [...new Set(subClasses.map((c: any) => c.assigned_teacher_id).filter(Boolean))];
-      const teacherMap: Record<string, string> = {};
-      if (teacherIds.length > 0) {
-        const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', teacherIds);
-        (profiles || []).forEach((p: any) => { teacherMap[p.id] = p.full_name; });
-      }
-      const classIds = subClasses.map((c: any) => c.id);
-      const { data: allStudents } = await supabase.from('students').select('id, class_id, full_name').in('class_id', classIds);
-      const allStudentIds = (allStudents || []).map((s: any) => s.id);
-      const studentInfoMap: Record<string, { class_id: string; full_name: string }> = {};
-      (allStudents || []).forEach((s: any) => { studentInfoMap[s.id] = { class_id: s.class_id, full_name: s.full_name }; });
-      const classNameMap: Record<string, string> = {};
-      subClasses.forEach((c: any) => { classNameMap[c.id] = c.name; });
-      const studentCountByClass: Record<string, number> = {};
-      (allStudents || []).forEach((s: any) => { studentCountByClass[s.class_id] = (studentCountByClass[s.class_id] || 0) + 1; });
+      const subClasses: any[] = (ov as any).classes || [];
+      if (subClasses.length === 0) { setClassList([]); return; }
 
       setClassList(subClasses.map((c: any) => ({
         id: c.id, name: c.name, subject: c.subject || '',
-        teacher_name: c.assigned_teacher_id ? (teacherMap[c.assigned_teacher_id] || null) : null,
+        teacher_name: c.teacher_name || null,
         weekly_plan: c.weekly_plan || [],
         show_learning_journey: c.show_learning_journey ?? true,
         show_attendance_summary: c.show_attendance_summary ?? true,
         shared_survey_form_id: c.shared_survey_form_id || null,
-        studentCount: studentCountByClass[c.id] || 0,
+        studentCount: Number(c.student_count) || 0,
       })));
-
-      const attendanceClassIds = subClasses.filter((c: any) => c.show_attendance_summary ?? true).map((c: any) => c.id);
-
-      const [obsCountRes, resultsCountRes, galleryCountRes, setechDoneCountRes, highlightRes, spotlightObsRes, snapshotResultRes, attendanceRes] = await Promise.all([
-        allStudentIds.length > 0
-          ? supabase.from('observations').select('id', { count: 'exact', head: true })
-              .in('student_id', allStudentIds).eq('is_student_record', true).eq('status', 'approved')
-          : Promise.resolve({ count: 0 }),
-        allStudentIds.length > 0
-          ? supabase.from('student_results').select('id', { count: 'exact', head: true }).in('student_id', allStudentIds)
-          : Promise.resolve({ count: 0 }),
-        supabase.from('class_gallery_items').select('id', { count: 'exact', head: true }).in('class_id', classIds),
-        allStudentIds.length > 0
-          ? supabase.from('student_evaluations').select('id', { count: 'exact', head: true })
-              .in('student_id', allStudentIds).in('status', ['final', 'done'])
-          : Promise.resolve({ count: 0 }),
-        supabase.from('class_gallery_items')
-          .select('id, file_url, caption, class_id')
-          .in('class_id', classIds).eq('file_type', 'image')
-          .order('created_at', { ascending: false }).limit(8),
-        allStudentIds.length > 0
-          ? supabase.from('observations').select('id, student_id, content, created_at')
-              .in('student_id', allStudentIds).eq('is_student_record', true).eq('status', 'approved')
-              .order('created_at', { ascending: false }).limit(40)
-          : Promise.resolve({ data: [] }),
-        allStudentIds.length > 0
-          ? supabase.from('student_results').select('id, student_id, title, result_type, created_at, link_url, storage_path')
-              .in('student_id', allStudentIds).order('created_at', { ascending: false }).limit(1)
-          : Promise.resolve({ data: [] }),
-        attendanceClassIds.length > 0
-          ? supabase.from('attendance').select('class_id, status').in('class_id', attendanceClassIds)
-          : Promise.resolve({ data: [] }),
-      ]);
 
       // 학급별 출석 요약 (학급 전체 통계만, 학생별 상세는 노출하지 않음)
       const attendanceByClass: Record<string, { total: number; byStatus: Record<string, number> }> = {};
-      (attendanceRes.data || []).forEach((r: any) => {
-        if (!attendanceByClass[r.class_id]) attendanceByClass[r.class_id] = { total: 0, byStatus: {} };
-        attendanceByClass[r.class_id].total += 1;
-        attendanceByClass[r.class_id].byStatus[r.status] = (attendanceByClass[r.class_id].byStatus[r.status] || 0) + 1;
+      Object.entries((ov as any).attendance_by_class || {}).forEach(([classId, v]: [string, any]) => {
+        attendanceByClass[classId] = { total: v.total, byStatus: v.by_status || {} };
       });
       setAttendanceByClass(attendanceByClass);
 
       // 학급별 공개 설문 결과 (교사가 지정한 설문 1개씩, 응답자 식별 없이 집계만)
-      const surveyFormIds = [...new Set(subClasses.map((c: any) => c.shared_survey_form_id).filter(Boolean))] as string[];
-      if (surveyFormIds.length > 0) {
-        const [{ data: forms }, { data: questions }, { data: answers }, { data: responses }] = await Promise.all([
-          supabase.from('survey_forms').select('id, title').in('id', surveyFormIds),
-          supabase.from('survey_questions').select('id, form_id, order_index, type, text, options').in('form_id', surveyFormIds).order('order_index', { ascending: true }),
-          supabase.from('survey_answers').select('id, response_id, question_id, form_id, value').in('form_id', surveyFormIds),
-          supabase.from('survey_responses').select('id, form_id').in('form_id', surveyFormIds),
-        ]);
-        const formTitleMap: Record<string, string> = {};
-        (forms || []).forEach((f: any) => { formTitleMap[f.id] = f.title; });
-        const responseCountByForm: Record<string, number> = {};
-        (responses || []).forEach((r: any) => { responseCountByForm[r.form_id] = (responseCountByForm[r.form_id] || 0) + 1; });
-        const questionsByForm: Record<string, SurveyQuestion[]> = {};
-        (questions || []).forEach((q: any) => {
-          if (!questionsByForm[q.form_id]) questionsByForm[q.form_id] = [];
-          questionsByForm[q.form_id].push(q);
+      const surveyDataByForm: Record<string, { formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }> = {};
+      ((ov as any).surveys || []).forEach((f: any) => {
+        const answersByQuestion: Record<string, SurveyAnswer[]> = {};
+        (f.answers || []).forEach((a: any) => {
+          if (!answersByQuestion[a.question_id]) answersByQuestion[a.question_id] = [];
+          answersByQuestion[a.question_id].push(a);
         });
-        const answersByFormAndQuestion: Record<string, Record<string, SurveyAnswer[]>> = {};
-        (answers || []).forEach((a: any) => {
-          if (!answersByFormAndQuestion[a.form_id]) answersByFormAndQuestion[a.form_id] = {};
-          if (!answersByFormAndQuestion[a.form_id][a.question_id]) answersByFormAndQuestion[a.form_id][a.question_id] = [];
-          answersByFormAndQuestion[a.form_id][a.question_id].push(a);
-        });
-        const surveyDataByForm: Record<string, { formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }> = {};
-        surveyFormIds.forEach(formId => {
-          surveyDataByForm[formId] = {
-            formTitle: formTitleMap[formId] || '설문',
-            questions: questionsByForm[formId] || [],
-            answersByQuestion: answersByFormAndQuestion[formId] || {},
-            responseCount: responseCountByForm[formId] || 0,
-          };
-        });
-        setSurveyDataByForm(surveyDataByForm);
-      } else {
-        setSurveyDataByForm({});
-      }
-
-      setProjectStats({
-        studentCount: allStudentIds.length,
-        obsCount: obsCountRes.count || 0,
-        resultCount: resultsCountRes.count || 0,
-        galleryCount: galleryCountRes.count || 0,
-        setechDoneCount: setechDoneCountRes.count || 0,
+        surveyDataByForm[f.form_id] = {
+          formTitle: f.title || '설문',
+          questions: (f.questions || []) as SurveyQuestion[],
+          answersByQuestion,
+          responseCount: f.response_count || 0,
+        };
       });
-      setHighlightGallery(highlightRes.data || []);
+      setSurveyDataByForm(surveyDataByForm);
+
+      const stats = (ov as any).stats || {};
+      setProjectStats({
+        studentCount: stats.student_count || 0,
+        obsCount: stats.obs_count || 0,
+        resultCount: stats.result_count || 0,
+        galleryCount: stats.gallery_count || 0,
+        setechDoneCount: stats.setech_done_count || 0,
+      });
+      setHighlightGallery((ov as any).highlight_gallery || []);
 
       // 스포트라이트 인용구: 20~220자 관찰기록 중 학생별로 하나씩 골라 매번 랜덤 3개 선택
       const quoteByStudent = new Map<string, { content: string; studentName: string; className: string }[]>();
-      (spotlightObsRes.data || []).forEach((o: any) => {
+      ((ov as any).spotlight_obs || []).forEach((o: any) => {
         const text = (o.content || '').trim();
         if (text.length < 20 || text.length > 220) return;
-        const info = studentInfoMap[o.student_id];
-        if (!info) return;
         const arr = quoteByStudent.get(o.student_id) ?? [];
-        arr.push({ content: text, studentName: info.full_name, className: classNameMap[info.class_id] || '' });
+        arr.push({ content: text, studentName: o.student_name, className: o.class_name || '' });
         quoteByStudent.set(o.student_id, arr);
       });
       const perStudentQuotes = Array.from(quoteByStudent.values()).map(arr => arr[Math.floor(Math.random() * arr.length)]);
@@ -314,22 +233,21 @@ const SchoolProjectShareView = () => {
       setSpotlightQuotes(perStudentQuotes.slice(0, 3));
 
       // 결과물 스냅샷: 가장 최근 결과물 1건
-      const snapRow = (snapshotResultRes.data || [])[0] as any;
+      const snapRow = (ov as any).snapshot as any;
       if (snapRow) {
-        const info = studentInfoMap[snapRow.student_id];
         const snapUrl = snapRow.result_type === 'link'
           ? (snapRow.link_url || null)
           : (snapRow.result_type === 'image' || snapRow.result_type === 'file') && snapRow.storage_path
             ? supabase.storage.from('student-attachments').getPublicUrl(snapRow.storage_path).data?.publicUrl || null
             : null;
-        setSnapshotResult(info ? {
+        setSnapshotResult({
           title: snapRow.title,
           resultType: snapRow.result_type,
           createdAt: snapRow.created_at,
-          studentName: info.full_name,
-          className: classNameMap[info.class_id] || '',
+          studentName: snapRow.student_name,
+          className: snapRow.class_name || '',
           url: snapUrl,
-        } : null);
+        });
       } else {
         setSnapshotResult(null);
       }
@@ -348,36 +266,24 @@ const SchoolProjectShareView = () => {
         if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
       });
 
-      const { data: students } = await supabase
-        .from('students').select('id, full_name, student_number, avatar_url')
-        .eq('class_id', classId).order('student_number', { ascending: true });
+      const { data: payload } = await supabase.rpc('share_project_class_data', {
+        p_token: shareToken,
+        p_class_id: classId,
+        p_g_off: 0,
+        p_g_lim: GALLERY_PAGE_SIZE,
+      });
+      const students: any[] = (payload as any)?.students || [];
 
-      if (!students || students.length === 0) {
+      if (!payload || students.length === 0) {
         setClassStudents(prev => ({ ...prev, [classId]: [] }));
         setClassGallery(prev => ({ ...prev, [classId]: [] }));
         setActiveClassId(classId);
         return;
       }
-      const studentIds = students.map(s => s.id);
-
-      const [obsRes, resultsRes, galleryRes, evalRes] = await Promise.all([
-        supabase.from('observations')
-          .select('id, student_id, activity_name, content, created_at')
-          .in('student_id', studentIds)
-          .eq('is_student_record', true)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false }),
-        supabase.from('student_results')
-          .select('id, student_id, submission_group, is_group_submission, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths')
-          .in('student_id', studentIds).order('created_at', { ascending: false }),
-        supabase.from('class_gallery_items')
-          .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-          .eq('class_id', classId).order('created_at', { ascending: false })
-          .range(0, GALLERY_PAGE_SIZE - 1),
-        supabase.from('student_evaluations')
-          .select('student_id, setech_content, achievement_level, status')
-          .in('student_id', studentIds),
-      ]);
+      const obsRes = { data: (payload as any).observations || [] };
+      const resultsRes = { data: (payload as any).results || [] };
+      const galleryRes = { data: (payload as any).gallery || [] };
+      const evalRes = { data: (payload as any).evaluations || [] };
 
       // 결과물 URL 처리
       const resultsWithUrls: ResultRow[] = (resultsRes.data || []).map((r: any) => {
@@ -452,12 +358,13 @@ const SchoolProjectShareView = () => {
     setGalleryLoadingMore(classId);
     try {
       const offset = galleryOffsetRef.current[classId] || 0;
-      const { data } = await supabase
-        .from('class_gallery_items')
-        .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-        .eq('class_id', classId).order('created_at', { ascending: false })
-        .range(offset, offset + GALLERY_PAGE_SIZE - 1);
-      const page = data || [];
+      const { data } = await supabase.rpc('share_project_gallery_page', {
+        p_token: shareToken,
+        p_class_id: classId,
+        p_off: offset,
+        p_lim: GALLERY_PAGE_SIZE,
+      });
+      const page: any[] = Array.isArray(data) ? data : [];
       setClassGallery(prev => ({ ...prev, [classId]: [...(prev[classId] || []), ...page] }));
       galleryOffsetRef.current[classId] = offset + page.length;
       setClassGalleryHasMore(prev => ({ ...prev, [classId]: page.length === GALLERY_PAGE_SIZE }));

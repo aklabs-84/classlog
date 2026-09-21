@@ -461,6 +461,13 @@ const StudentLog = () => {
       navigate('/classroom-entry');
       return;
     }
+    // 보안 업데이트 이후 입장 기록만 유효 — PIN 통과 표가 없으면 다시 입장
+    if (!parsed.token) {
+      sessionStorage.removeItem('student_session');
+      alert('보안 업데이트로 PIN을 한 번 더 입력해야 해요. 다시 입장해 주세요.');
+      navigate('/classroom-entry');
+      return;
+    }
 
     // 세션 무결성 서버 검증 — student_id + class_id 조합이 실제로 유효한지 확인
     (async () => {
@@ -477,12 +484,12 @@ const StudentLog = () => {
         const effectiveClassId = classData.linked_class_id || classData.id;
 
         // student가 해당 class에 실제로 속하는지 서버에서 확인
-        const { data: studentExists } = await supabase
-          .from('students')
-          .select('id, avatar_url')
-          .eq('id', parsed.student_id)
-          .eq('class_id', effectiveClassId)
-          .maybeSingle();
+        // (통과 표로 서버 창구에 확인 — students 표를 직접 읽지 않음)
+        const { data: infoRows } = await supabase.rpc('student_session_info', { p_token: parsed.token });
+        const info = Array.isArray(infoRows) ? infoRows[0] : infoRows;
+        const studentExists = info && info.student_id === parsed.student_id && info.class_id === effectiveClassId
+          ? { id: info.student_id, avatar_url: info.avatar_url }
+          : null;
 
         if (!studentExists) throw new Error('student not in class');
 
@@ -526,12 +533,8 @@ const StudentLog = () => {
     // 마운트 시 이미 반려/승인된 항목을 seen으로 등록 (알림 없이)
     const initSeen = async () => {
       try {
-        const { data: processedObs } = await supabase
-          .from('observations')
-          .select('id, status')
-          .eq('student_id', session.student_id)
-          .in('status', ['rejected', 'approved'])
-          .eq('is_student_record', true);
+        const { data: myObsAll } = await supabase.rpc('student_my_observations', { p_token: session.token });
+        const processedObs = (myObsAll || []).filter((o: any) => o.status === 'rejected' || o.status === 'approved');
         // 현재 상태에 맞는 set에만 추가 (cross-오염 방지)
         for (const obs of (processedObs || [])) {
           if (obs.status === 'rejected') seenRejectionIds.current.add(`obs-${obs.id}`);
@@ -647,10 +650,7 @@ const StudentLog = () => {
     const check = async () => {
       try {
         const [{ data: obsData }, { data: resultsData }] = await Promise.all([
-          supabase.from('observations')
-            .select('id, activity_name, status, teacher_feedback')
-            .eq('student_id', session.student_id)
-            .eq('is_student_record', true),
+          supabase.rpc('student_my_observations', { p_token: session.token }),
           supabase.from('student_results')
             .select('id, submission_group, week_number, title, status, rejection_feedback')
             .eq('student_id', session.student_id),
@@ -734,7 +734,7 @@ const StudentLog = () => {
           }
         } else {
           // 첫 폴링: 현재 상태 기록만 (팝업 없음)
-          (obsData || []).forEach(obs => statusTrackMap.current.set(`obs-${obs.id}`, obs.status));
+          (obsData || []).forEach((obs: any) => statusTrackMap.current.set(`obs-${obs.id}`, obs.status));
           const seenGroups = new Set<string>();
           (resultsData || []).forEach(r => {
             const gId = r.submission_group || r.id;
@@ -1024,12 +1024,7 @@ const StudentLog = () => {
     if (!session?.student_id) return;
     setHistoryLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('observations')
-        .select('*')
-        .eq('student_id', session.student_id)
-        .eq('is_student_record', true)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.rpc('student_my_observations', { p_token: session.token });
 
       if (error) {
         console.error('fetchHistory RLS/DB 오류:', error);
@@ -1098,11 +1093,11 @@ const StudentLog = () => {
     setSavingLogId(logId);
     try {
       const editWeekNumber = editWeekMatch?.week ?? null;
-      const { error } = await supabase
-        .from('observations')
-        .update({ activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim(), week_number: editWeekNumber })
-        .eq('id', logId);
-      if (error) throw error;
+      const { data: updated, error } = await supabase.rpc('student_update_observation', {
+        p_token: session.token, p_id: logId,
+        p_activity_name: editLogForm.activity_name.trim(), p_content: editLogForm.content.trim(), p_week_number: editWeekNumber,
+      });
+      if (error || !updated) throw error || new Error('update failed');
       setHistoryLogs(prev => prev.map(l =>
         l.id === logId ? { ...l, activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim(), week_number: editWeekNumber } : l
       ));
@@ -1119,8 +1114,8 @@ const StudentLog = () => {
     if (!confirm('이 기록을 삭제하시겠습니까?')) return;
     setDeletingLogId(logId);
     try {
-      const { error } = await supabase.from('observations').delete().eq('id', logId);
-      if (error) throw error;
+      const { data: deleted, error } = await supabase.rpc('student_delete_observation', { p_token: session.token, p_id: logId });
+      if (error || !deleted) throw error || new Error('delete failed');
       setHistoryLogs(prev => prev.filter(l => l.id !== logId));
       showToast('삭제되었습니다.');
     } catch {
@@ -1892,10 +1887,7 @@ const StudentLog = () => {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
       // 1. 학생 목록 조회
-      const { data: studentList } = await supabase
-        .from('students')
-        .select('id, full_name')
-        .eq('class_id', session.class_id);
+      const { data: studentList } = await supabase.rpc('student_class_names', { p_token: session.token });
       const studentIds = (studentList || []).map((s: any) => s.id);
       const nameMap: Record<string, string> = Object.fromEntries(
         (studentList || []).map((s: any) => [s.id, s.full_name])
@@ -1911,14 +1903,7 @@ const StudentLog = () => {
 
       // 2. 관찰기록 + 결과 병렬 조회 (최신 100건씩 제한 — 학생 뷰)
       const [{ data: obs }, { data: results }] = await Promise.all([
-        supabase
-          .from('observations')
-          .select('id, student_id, activity_name, content, created_at, status')
-          .in('student_id', studentIds)
-          .eq('is_student_record', true)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(100),
+        supabase.rpc('student_class_approved_observations', { p_token: session.token }),
         supabase
           .from('student_results')
           .select('id, student_id, week_number, title, text_content, storage_path, storage_paths, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
@@ -2303,22 +2288,19 @@ ${guidePrompt}
       // review_needed → rejected 자동 반려 (teacher_feedback = AI 사유)
       const obsStatus = aiReviewFlag === 'review_needed' ? 'rejected' : 'approved';
       const weekMatch = titleWeekMatch ?? (classResources as any[]).find(r => normTitle(r.topic) === normTitle(title));
-      const { error: obsError } = await supabase
-        .from('observations')
-        .insert({
-          teacher_id: teacherId,
-          student_id: session.student_id,
-          activity_name: title,
-          content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
-          is_student_record: true,
-          status: obsStatus,
-          ai_concern: aiConcern || null,
-          teacher_feedback: aiReviewFlag === 'review_needed' ? aiConcern : null,
-          category: session?.subject || '학생 제출',
-          week_number: weekMatch?.week ?? null,
-        });
+      const { data: newObsId, error: obsError } = await supabase.rpc('student_save_observation', {
+        p_token: session.token,
+        p_class_id: session.class_id,
+        p_activity_name: title,
+        p_content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
+        p_category: session?.subject || '학생 제출',
+        p_week_number: weekMatch?.week ?? null,
+        p_status: obsStatus,
+        p_ai_concern: aiConcern || null,
+        p_teacher_feedback: aiReviewFlag === 'review_needed' ? aiConcern : null,
+      });
 
-      if (obsError) throw new Error(`기록 저장 오류: ${obsError.message}`);
+      if (obsError || !newObsId) throw new Error(`기록 저장 오류: ${obsError?.message || '저장에 실패했어요. 다시 입장해 주세요.'}`);
 
       // ── 2. 교사 알림 전송 (실패해도 제출 성공으로 처리) ───────────────────
       if (aiReviewFlag !== 'review_needed') {
@@ -2589,7 +2571,7 @@ ${guidePrompt}
         description="헤어, 눈, 입, 안경까지 세세하게 다시 골라보세요."
         currentAvatarUrl={studentAvatar}
         onSelect={async (url) => {
-          await supabase.from('students').update({ avatar_url: url }).eq('id', session.student_id);
+          await supabase.rpc('student_set_avatar', { p_token: session.token, p_avatar_url: url });
           setStudentAvatar(url);
           setShowAvatarPicker(false);
         }}

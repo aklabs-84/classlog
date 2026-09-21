@@ -46,21 +46,21 @@ const ClassroomFabMenu = ({
 
   const actions: FabAction[] = [
     onOpenStudentPreview && { key: 'studentPreview', label: '학생 화면 미리보기', icon: Smartphone, onClick: onOpenStudentPreview },
-    onOpenQR && { key: 'qr', label: '학생 입장 QR', icon: QrCode, onClick: onOpenQR },
+    onOpenQR && { key: 'qr', label: '학생 입장용 QR', icon: QrCode, onClick: onOpenQR },
     onOpenResources && { key: 'resources', label: '수업 자료실', icon: BookOpen, onClick: onOpenResources },
     onCopyLink && {
       key: 'copyLink',
-      label: copySuccess ? '복사됨!' : '링크 복사',
+      label: copySuccess ? '복사됨!' : '학생 페이지 링크',
       icon: copySuccess ? Check : LinkIcon,
       onClick: onCopyLink,
     },
     onShareTeacher && {
       key: 'share',
-      label: shareTeacherSuccess ? '복사됨!' : '선생님 공유',
+      label: shareTeacherSuccess ? '복사됨!' : '교사용 결과 링크',
       icon: shareTeacherSuccess ? Check : Share2,
       onClick: onShareTeacher,
     },
-    onOpenTeacherShareQR && { key: 'shareQr', label: '결과 공유 QR', icon: QrCode, onClick: onOpenTeacherShareQR },
+    onOpenTeacherShareQR && { key: 'shareQr', label: '교사용 결과 QR', icon: QrCode, onClick: onOpenTeacherShareQR },
     onExport && { key: 'export', label: '내보내기', icon: Download, onClick: onExport },
   ].filter((action): action is FabAction => Boolean(action));
 

@@ -181,8 +181,25 @@ const ShareClassView = () => {
   const [verified, setVerified] = useState(() => sessionStorage.getItem(`share_verified_${classId}`) === 'true');
   const [codeInput, setCodeInput] = useState('');
   // 새로고침 후에도 인증된 세션이면 업로드 검증에 쓸 입장 코드를 유지해야 함
-  const [, setVerifiedCode] = useState(() => sessionStorage.getItem(`share_code_${classId}`) || '');
+  const [verifiedCode, setVerifiedCode] = useState(() => sessionStorage.getItem(`share_code_${classId}`) || '');
   const [codeError, setCodeError] = useState('');
+  const [lockUntilMs, setLockUntilMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const lockRemainingSec = lockUntilMs ? Math.max(0, Math.ceil((lockUntilMs - nowMs) / 1000)) : 0;
+  const isCodeLocked = lockRemainingSec > 0;
+
+  useEffect(() => {
+    if (!lockUntilMs) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (now >= lockUntilMs) {
+        setLockUntilMs(null);
+        setCodeError('');
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockUntilMs]);
   const [verifying, setVerifying] = useState(false);
 
   // ── 클래스 메타 ────────────────────────────────────────────────────────────
@@ -225,11 +242,9 @@ const ShareClassView = () => {
     if (!classId) return;
     (async () => {
       setMetaLoading(true);
-      const { data: cls, error } = await supabase
-        .from('classes')
-        .select('id, name, subject, weekly_plan, share_enabled, teacher_id, show_attendance_summary, shared_survey_form_id')
-        .eq('id', classId)
-        .single();
+      // 이름·과목·공유 여부만 받아온다 (학생 자료는 입장 코드 확인 후 서버 창구에서 받음)
+      const { data: metaRows, error } = await supabase.rpc('share_class_meta', { p_class_id: classId });
+      const cls = Array.isArray(metaRows) ? metaRows[0] : null;
 
       if (error || !cls) {
         setMetaError('공유 링크가 유효하지 않거나 접근할 수 없습니다.');
@@ -248,43 +263,42 @@ const ShareClassView = () => {
     setDataLoading(true);
 
     try {
+      // 입장 코드를 서버가 확인한 뒤에만 자료 묶음을 받는다
+      const { data: payload, error: payloadError } = await supabase.rpc('share_class_data', {
+        p_class_id: classId,
+        p_code: verifiedCode,
+      });
+      if (payloadError || !payload) {
+        if (!verifiedCode || payloadError?.message?.includes('SHARE_CODE_REJECTED')) {
+          sessionStorage.removeItem(sessionKey);
+          sessionStorage.removeItem(codeSessionKey);
+          setVerifiedCode('');
+          setVerified(false);
+          setCodeError('입장 코드를 다시 입력해 주세요.');
+        }
+        return;
+      }
+      const cls: any = (payload as any).class || {};
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
       const topicWeekMap: Record<string, number> = {};
-      ((classInfo.weekly_plan as any[]) || []).forEach((p: any) => {
+      ((cls.weekly_plan as any[]) || []).forEach((p: any) => {
         if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
       });
 
-      const { data: students } = await supabase
-        .from('students')
-        .select('id, full_name, student_number, avatar_url')
-        .eq('class_id', classId)
-        .order('student_number', { ascending: true });
-
-      const studentList = (students || []).sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'));
+      const students = ((payload as any).students || []) as StudentRow[];
+      const studentList = [...students].sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'));
       const studentIds = studentList.map((s) => s.id);
 
       if (studentIds.length > 0) {
-        const [{ data: obs }, { data: results }] = await Promise.all([
-          supabase
-            .from('observations')
-            .select('id, student_id, activity_name, content, created_at')
-            .in('student_id', studentIds)
-            .eq('is_student_record', true)
-            .eq('status', 'approved')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('student_results')
-            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths, group_id, is_group_submission')
-            .in('student_id', studentIds)
-            .order('created_at', { ascending: false }),
-        ]);
+        const obs = (payload as any).observations || [];
+        const results = (payload as any).results || [];
 
-        const obsWithWeek: ObsRow[] = (obs || []).map((o: any) => ({
+        const obsWithWeek: ObsRow[] = obs.map((o: any) => ({
           ...o,
           week_number: topicWeekMap[norm(o.activity_name)] ?? null,
         }));
 
-        const resultsWithUrls: ResultRow[] = (results || []).map((r: any) => {
+        const resultsWithUrls: ResultRow[] = results.map((r: any) => {
           let image_url: string | null = null;
           let file_url: string | null = null;
           let image_urls: string[] = [];
@@ -298,7 +312,7 @@ const ShareClassView = () => {
           return { ...r, image_url, image_urls, file_url };
         });
 
-          setStudentData(
+        setStudentData(
           studentList.map((student) => ({
             student,
             obs: obsWithWeek.filter((o) => o.student_id === student.id),
@@ -307,12 +321,8 @@ const ShareClassView = () => {
         );
 
         // 세특 (student_evaluations)
-        const { data: evals } = await supabase
-          .from('student_evaluations')
-          .select('student_id, setech_content, achievement_level, status')
-          .in('student_id', studentIds);
         const newEvalMap: Record<string, EvalRow> = {};
-        (evals || []).forEach((e: any) => { newEvalMap[e.student_id] = e; });
+        ((payload as any).evaluations || []).forEach((e: any) => { newEvalMap[e.student_id] = e; });
         setEvalMap(newEvalMap);
       } else {
         setStudentData([]);
@@ -320,73 +330,46 @@ const ShareClassView = () => {
       }
 
       // 조(그룹) 목록 + 조원 매핑
-      const { data: grps } = await supabase
-        .from('class_groups')
-        .select('id, name, color, sort_order')
-        .eq('class_id', classId)
-        .eq('is_archived', false)
-        .order('sort_order', { ascending: true });
-      const groupList: GroupRow[] = grps || [];
+      const groupList: GroupRow[] = (payload as any).groups || [];
       setGroups(groupList);
 
       const newGroupMembersMap: Record<string, string[]> = {};
-      if (groupList.length > 0) {
-        const { data: groupMembers } = await supabase
-          .from('class_group_members')
-          .select('group_id, student_id')
-          .in('group_id', groupList.map((g) => g.id));
-        (groupMembers || []).forEach((m: any) => {
-          if (!newGroupMembersMap[m.group_id]) newGroupMembersMap[m.group_id] = [];
-          newGroupMembersMap[m.group_id].push(m.student_id);
-        });
-      }
+      ((payload as any).group_members || []).forEach((m: any) => {
+        if (!newGroupMembersMap[m.group_id]) newGroupMembersMap[m.group_id] = [];
+        newGroupMembersMap[m.group_id].push(m.student_id);
+      });
       setGroupMembersMap(newGroupMembersMap);
 
       // 갤러리 (업로드된 사진 + 구글 드라이브 연동 폴더)
-      const [{ data: gallery }, driveResult] = await Promise.all([
-        supabase
-          .from('class_gallery_items')
-          .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-          .eq('class_id', classId)
-          .order('created_at', { ascending: false }),
-        fetchPublicDriveFolderItems(classId).catch(() => ({ items: [], folders: [] })),
-      ]);
-      setGalleryItems([...(gallery || []), ...driveResult.items.map(driveItemToPublicGalleryItem)]);
+      const driveResult = await fetchPublicDriveFolderItems(classId).catch(() => ({ items: [], folders: [] }));
+      setGalleryItems([...((payload as any).gallery || []), ...driveResult.items.map(driveItemToPublicGalleryItem)]);
       setDriveFolders(driveResult.folders);
 
-      // 출석 요약 (교사가 공유페이지 노출을 켠 경우에만 집계)
-      if (classInfo.show_attendance_summary ?? true) {
-        const { data: attendanceRows } = await supabase
-          .from('attendance')
-          .select('status')
-          .eq('class_id', classId);
+      // 출석 요약 (교사가 공유페이지 노출을 켠 경우에만 서버가 내려줌)
+      const attendanceStatuses = (payload as any).attendance_statuses as string[] | null;
+      if (attendanceStatuses) {
         const byStatus: Record<string, number> = {};
-        (attendanceRows || []).forEach((r: any) => {
-          byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+        attendanceStatuses.forEach((status) => {
+          byStatus[status] = (byStatus[status] || 0) + 1;
         });
-        setAttendanceSummary({ total: (attendanceRows || []).length, byStatus });
+        setAttendanceSummary({ total: attendanceStatuses.length, byStatus });
       } else {
         setAttendanceSummary(null);
       }
 
       // 설문 결과 (교사가 지정한 설문 1개, 응답자 식별 없이 집계만)
-      if (classInfo.shared_survey_form_id) {
-        const [{ data: form }, { data: questions }, { data: answers }, { count: responseCount }] = await Promise.all([
-          supabase.from('survey_forms').select('title').eq('id', classInfo.shared_survey_form_id).single(),
-          supabase.from('survey_questions').select('id, form_id, order_index, type, text, options').eq('form_id', classInfo.shared_survey_form_id).order('order_index', { ascending: true }),
-          supabase.from('survey_answers').select('id, response_id, question_id, form_id, value').eq('form_id', classInfo.shared_survey_form_id),
-          supabase.from('survey_responses').select('id', { count: 'exact', head: true }).eq('form_id', classInfo.shared_survey_form_id),
-        ]);
+      const survey = (payload as any).survey;
+      if (survey) {
         const answersByQuestion: Record<string, SurveyAnswer[]> = {};
-        (answers || []).forEach((a: any) => {
+        (survey.answers || []).forEach((a: any) => {
           if (!answersByQuestion[a.question_id]) answersByQuestion[a.question_id] = [];
           answersByQuestion[a.question_id].push(a);
         });
         setSurveyResult({
-          formTitle: form?.title || '설문',
-          questions: (questions || []) as SurveyQuestion[],
+          formTitle: survey.title || '설문',
+          questions: (survey.questions || []) as SurveyQuestion[],
           answersByQuestion,
-          responseCount: responseCount || 0,
+          responseCount: survey.response_count || 0,
         });
       } else {
         setSurveyResult(null);
@@ -398,7 +381,7 @@ const ShareClassView = () => {
     } finally {
       setDataLoading(false);
     }
-  }, [classId, classInfo]);
+  }, [classId, classInfo, verifiedCode, sessionKey, codeSessionKey]);
 
   useEffect(() => {
     if (verified && classInfo) fetchData();
@@ -406,18 +389,25 @@ const ShareClassView = () => {
 
   // ── 입장 코드 확인 (서버 RPC로 검증) ─────────────────────────────────────
   const handleVerify = async () => {
-    if (!classInfo) return;
+    if (!classInfo || isCodeLocked) return;
     setVerifying(true);
     setCodeError('');
-    const { data: isValid } = await supabase.rpc('verify_class_entry_code', {
+    const { data, error } = await supabase.rpc('share_class_verify', {
       p_class_id: classInfo.id,
       p_code:     codeInput.trim(),
     });
-    if (isValid) {
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!error && row?.ok) {
       sessionStorage.setItem(sessionKey, 'true');
       sessionStorage.setItem(codeSessionKey, codeInput.trim());
       setVerifiedCode(codeInput.trim());
       setVerified(true);
+    } else if (row?.lock_until) {
+      setNowMs(Date.now());
+      setLockUntilMs(new Date(row.lock_until).getTime());
+      setCodeError('');
+    } else if (row && typeof row.attempts_left === 'number') {
+      setCodeError(`입장 코드가 올바르지 않습니다 (남은 시도 ${row.attempts_left}번). 담당 선생님께 확인해 주세요.`);
     } else {
       setCodeError('입장 코드가 올바르지 않습니다. 담당 선생님께 확인해 주세요.');
     }
@@ -804,13 +794,22 @@ const ShareClassView = () => {
                       : 'border-gray-200 focus:border-indigo-400 bg-gray-50 text-gray-900'
                   }`}
                 />
-                {codeError && (
+                {isCodeLocked && (
+                  <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-center">
+                    <p className="text-xs text-red-600 font-semibold">코드를 5번 틀려서 잠시 잠겼어요</p>
+                    <p className="text-2xl font-black text-red-600 tabular-nums mt-1">
+                      {String(Math.floor(lockRemainingSec / 60)).padStart(2, '0')}:{String(lockRemainingSec % 60).padStart(2, '0')}
+                    </p>
+                    <p className="text-[11px] text-red-500 mt-1">시간이 지나면 다시 입력할 수 있어요</p>
+                  </div>
+                )}
+                {codeError && !isCodeLocked && (
                   <p className="text-xs text-red-500 font-semibold text-center">{codeError}</p>
                 )}
 
                 <button
                   onClick={handleVerify}
-                  disabled={!codeInput.trim() || verifying}
+                  disabled={!codeInput.trim() || verifying || isCodeLocked}
                   className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:opacity-40 text-white font-black rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-200"
                 >
                   {verifying

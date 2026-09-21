@@ -36,6 +36,26 @@ const ClassroomEntry = () => {
   const [pinLoading, setPinLoading] = useState(false);
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const pinConfirmRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const studentTokenRef = useRef<string | null>(null); // 서버가 PIN 통과 후 발급하는 통과 표
+  // PIN 5회 실패 시 서버가 알려주는 잠금 해제 시각(ms)과, 카운트다운 표시용 현재 시각
+  const [lockUntilMs, setLockUntilMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const lockRemainingSec = lockUntilMs ? Math.max(0, Math.ceil((lockUntilMs - nowMs) / 1000)) : 0;
+  const isPinLocked = lockRemainingSec > 0;
+
+  useEffect(() => {
+    if (!lockUntilMs) return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (now >= lockUntilMs) {
+        setLockUntilMs(null);
+        setPinError('');
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockUntilMs]);
 
   // 최초 PIN 설정 직후 아바타 선택 모달
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -105,14 +125,9 @@ const ClassroomEntry = () => {
 
       setTargetClass(data);
       
-      const targetClassId = data.linked_class_id || data.id;
-
-      // 해당 학급의 학생 명단 가져오기 (PIN 컬럼 제외 — 클라이언트 노출 방지)
+      // 학급 명단은 서버 창구로만 가져온다 (이름·번호·아바타·PIN 설정 여부만 받음, PIN 값은 받지 않음)
       const { data: studentData, error: stuError } = await supabase
-        .from('students')
-        .select('id, full_name, student_number, class_id')
-        .eq('class_id', targetClassId)
-        .order('full_name');
+        .rpc('student_list_class', { p_entry_code: fullCode });
 
       if (stuError) throw stuError;
       
@@ -180,13 +195,8 @@ const ClassroomEntry = () => {
   const handleFinalEnter = async () => {
     if (!selectedStudent || !targetClass) return;
     setLoading(true);
-    // PIN 존재 여부만 서버에서 확인 — 실제 PIN 값은 클라이언트에 가져오지 않음
-    const { count } = await supabase
-      .from('students')
-      .select('id', { count: 'exact', head: true })
-      .eq('id', selectedStudent.id)
-      .not('pin', 'is', null);
-    setHasPinSet((count ?? 0) > 0);
+    // PIN 설정 여부는 서버 창구가 명단과 함께 알려준 값을 사용 (PIN 값은 받지 않음)
+    setHasPinSet(!!selectedStudent.has_pin);
     setPinDigits(['', '', '', '']);
     setPinConfirmDigits(['', '', '', '']);
     setPinError('');
@@ -224,12 +234,14 @@ const ClassroomEntry = () => {
       class_id: targetClass!.id,
       class_name: targetClass!.name,
       subject: targetClass!.subject,
+      token: studentTokenRef.current,
       is_fresh_entry: true
     }));
     navigate('/student-log');
   };
 
   const handlePinSubmit = async () => {
+    if (isPinLocked) return;
     const pin = pinDigits.join('');
     if (pin.length < 4) { setPinError('4자리 PIN을 모두 입력해주세요.'); return; }
 
@@ -238,37 +250,45 @@ const ClassroomEntry = () => {
       const confirm = pinConfirmDigits.join('');
       if (pin !== confirm) { setPinError('PIN이 일치하지 않습니다. 다시 확인해주세요.'); return; }
       setPinLoading(true);
-      const { data: saved, error } = await supabase
-        .from('students')
-        .update({ pin })
-        .eq('id', selectedStudent!.id)
-        .is('pin', null) // 안전장치: PIN 없을 때만 설정
-        .select('id');
+      // 서버가 "PIN이 비어 있을 때만" 저장하고 통과 표를 돌려준다
+      const { data: newToken, error } = await supabase.rpc('student_set_pin', {
+        p_student_id: selectedStudent!.id,
+        p_pin: pin,
+      });
       setPinLoading(false);
-      if (error || !saved?.length) {
+      if (error || !newToken) {
         setPinError('PIN 저장에 실패했습니다. 선생님께 문의하세요.');
         return;
       }
+      studentTokenRef.current = newToken as string;
       setShowAvatarPicker(true);
       return;
     }
 
     // PIN 확인 — 서버에서 검증 (PIN 값을 클라이언트로 가져오지 않음)
     setPinLoading(true);
-    const { data: verified } = await supabase
-      .from('students')
-      .select('id')
-      .eq('id', selectedStudent!.id)
-      .eq('pin', pin)
-      .maybeSingle();
+    const { data: verifyRows } = await supabase.rpc('student_verify_pin', {
+      p_student_id: selectedStudent!.id,
+      p_pin: pin,
+    });
     setPinLoading(false);
+    const verified = Array.isArray(verifyRows) ? verifyRows[0] : verifyRows;
 
-    if (!verified) {
-      setPinError('PIN이 올바르지 않습니다. 다시 시도해주세요.');
+    if (!verified?.ok) {
+      const lockUntil = verified?.lock_until ? new Date(verified.lock_until) : null;
+      if (lockUntil && lockUntil.getTime() > Date.now()) {
+        setPinError('');
+        setLockUntilMs(lockUntil.getTime());
+      } else if (typeof verified?.attempts_left === 'number') {
+        setPinError(`PIN이 올바르지 않습니다. (남은 시도 ${verified.attempts_left}번)`);
+      } else {
+        setPinError('PIN이 올바르지 않습니다. 다시 시도해주세요.');
+      }
       setPinDigits(['', '', '', '']);
       setTimeout(() => pinRefs.current[0]?.focus(), 50);
       return;
     }
+    studentTokenRef.current = verified.session_token as string;
     enterSession();
   };
 
@@ -520,20 +540,29 @@ const ClassroomEntry = () => {
               </div>
             )}
 
-            {pinError && (
+            {isPinLocked && (
+              <div className="rounded-2xl bg-error/10 px-5 py-4 space-y-1" role="alert">
+                <p className="text-error text-sm font-black">PIN을 5번 틀려서 잠시 잠겼어요</p>
+                <p className="text-error text-3xl font-black font-manrope tabular-nums">
+                  {String(Math.floor(lockRemainingSec / 60)).padStart(2, '0')}:{String(lockRemainingSec % 60).padStart(2, '0')}
+                </p>
+                <p className="text-error/80 text-xs font-bold">시간이 끝나면 다시 시도할 수 있어요</p>
+              </div>
+            )}
+            {pinError && !isPinLocked && (
               <p className="text-error text-sm font-black">{pinError}</p>
             )}
 
             <div className="flex gap-4 pt-2">
               <button
-                onClick={() => { setStep(2); setPinError(''); }}
+                onClick={() => { setStep(2); setPinError(''); setLockUntilMs(null); }}
                 className="flex-1 py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all"
               >
                 뒤로가기
               </button>
               <button
                 onClick={handlePinSubmit}
-                disabled={pinLoading}
+                disabled={pinLoading || isPinLocked}
                 className="flex-[2] btn-gradient py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
               >
                 {pinLoading ? <Loader2 className="animate-spin" size={22} /> : (
@@ -613,7 +642,7 @@ const ClassroomEntry = () => {
         description="지금 고른 아바타는 학급 목록과 내 화면에 표시돼요. 나중에 언제든 바꿀 수 있어요."
         onSkip={() => { setShowAvatarPicker(false); enterSession(); }}
         onSelect={async (url) => {
-          await supabase.from('students').update({ avatar_url: url }).eq('id', selectedStudent!.id);
+          await supabase.rpc('student_set_avatar', { p_token: studentTokenRef.current, p_avatar_url: url });
           setShowAvatarPicker(false);
           enterSession();
         }}
