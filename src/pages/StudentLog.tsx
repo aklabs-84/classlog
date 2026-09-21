@@ -541,11 +541,8 @@ const StudentLog = () => {
           else if (obs.status === 'approved') seenApprovalIds.current.add(`obs-${obs.id}`);
         }
 
-        const { data: processedResults } = await supabase
-          .from('student_results')
-          .select('id, submission_group, status')
-          .eq('student_id', session.student_id)
-          .in('status', ['rejected', 'approved']);
+        const { data: allMyStatus } = await supabase.rpc('student_my_result_status', { p_token: session.token });
+        const processedResults = (allMyStatus || []).filter((r: any) => r.status === 'rejected' || r.status === 'approved');
         const seenGroups = new Set<string>();
         for (const r of (processedResults || [])) {
           const gId = r.submission_group || r.id;
@@ -651,9 +648,7 @@ const StudentLog = () => {
       try {
         const [{ data: obsData }, { data: resultsData }] = await Promise.all([
           supabase.rpc('student_my_observations', { p_token: session.token }),
-          supabase.from('student_results')
-            .select('id, submission_group, week_number, title, status, rejection_feedback')
-            .eq('student_id', session.student_id),
+          supabase.rpc('student_my_result_status', { p_token: session.token }),
         ]);
 
         if (!isFirstStatusPoll.current) {
@@ -736,7 +731,7 @@ const StudentLog = () => {
           // 첫 폴링: 현재 상태 기록만 (팝업 없음)
           (obsData || []).forEach((obs: any) => statusTrackMap.current.set(`obs-${obs.id}`, obs.status));
           const seenGroups = new Set<string>();
-          (resultsData || []).forEach(r => {
+          (resultsData || []).forEach((r: any) => {
             const gId = r.submission_group || r.id;
             if (!seenGroups.has(gId)) { seenGroups.add(gId); statusTrackMap.current.set(`result-${gId}`, r.status); }
           });
@@ -1129,12 +1124,7 @@ const StudentLog = () => {
     if (!session?.student_id || !session?.class_id) return;
     setResultsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('student_results')
-        .select('*')
-        .eq('student_id', session.student_id)
-        .eq('class_id', session.class_id)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.rpc('student_my_results', { p_token: session.token });
       if (!error && data) setResults(data);
     } catch (err) {
       console.error('Error fetching results:', err);
@@ -1176,6 +1166,22 @@ const StudentLog = () => {
     setEditingResult(null); setEditingGroupResults([]); setIsGroupSubmission(false);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
+  };
+
+  // 결과물 저장/수정/삭제 창구 — 서버가 통과표로 본인 확인 (student_id 등은 서버가 결정)
+  const srInsert = async (rows: any[]) => {
+    const { data, error } = await supabase.rpc('student_result_insert', { p_token: session!.token, p_rows: rows });
+    return { data, error };
+  };
+  const srUpdate = async (id: string | null, patch: Record<string, any>, opts: { group?: string | null; resetReview?: boolean } = {}) => {
+    const { error } = await supabase.rpc('student_result_update', {
+      p_token: session!.token, p_id: id, p_group: opts.group ?? null, p_patch: patch, p_reset_review: !!opts.resetReview,
+    });
+    return { error };
+  };
+  const srDelete = async (id: string | null, group: string | null = null) => {
+    const { error } = await supabase.rpc('student_result_delete', { p_token: session!.token, p_id: id, p_group: group });
+    return { error };
   };
 
   const uploadFile = async (original: File, type: 'image' | 'file') => {
@@ -1225,28 +1231,28 @@ const StudentLog = () => {
         // ── 텍스트 ──
         if (hasText) {
           if (existingText) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, text_content: resultText.trim() }).eq('id', existingText.id);
+            const { error } = await srUpdate(existingText.id, { title: base.title, week_number: base.week_number, text_content: resultText.trim() });
             if (error) throw error;
           } else {
-            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'text', text_content: resultText.trim() });
+            const { error } = await srInsert([{ ...base, result_type: 'text', text_content: resultText.trim() }]);
             if (error) throw error;
           }
         } else if (existingText) {
           // 텍스트 비움 → 삭제
-          await supabase.from('student_results').delete().eq('id', existingText.id);
+          await srDelete(existingText.id);
         }
 
         // ── 링크 ──
         if (hasLink) {
           if (existingLink) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, link_url: resultUrl.trim() }).eq('id', existingLink.id);
+            const { error } = await srUpdate(existingLink.id, { title: base.title, week_number: base.week_number, link_url: resultUrl.trim() });
             if (error) throw error;
           } else {
-            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'link', link_url: resultUrl.trim() });
+            const { error } = await srInsert([{ ...base, result_type: 'link', link_url: resultUrl.trim() }]);
             if (error) throw error;
           }
         } else if (existingLink) {
-          await supabase.from('student_results').delete().eq('id', existingLink.id);
+          await srDelete(existingLink.id);
         }
 
         // ── 이미지 ──
@@ -1255,42 +1261,39 @@ const StudentLog = () => {
           const ups = await uploadImageFiles(resultImageFiles);
           const imgPayload = { title: base.title, week_number: base.week_number, storage_paths: ups.map(u => u.path), storage_path: ups[0].path, display_name: ups[0].displayName, file_size: ups.reduce((s, u) => s + u.fileSize, 0), file_type: ups[0].fileType };
           if (existingImage) {
-            const { error } = await supabase.from('student_results').update(imgPayload).eq('id', existingImage.id);
+            const { error } = await srUpdate(existingImage.id, imgPayload);
             if (error) throw error;
           } else {
-            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'image', ...imgPayload });
+            const { error } = await srInsert([{ ...base, result_type: 'image', ...imgPayload }]);
             if (error) throw error;
           }
           // 새 파일이 DB에 저장된 뒤에 기존 파일 삭제 (저장 실패 시 기존 파일 보존)
           if (oldPaths.length > 0) await removeStudentFiles(session.student_id, oldPaths);
         } else if (existingImage && keepImg) {
           // 기존 이미지 유지 — title, 주차만 반영
-          await supabase.from('student_results').update({ title: base.title, week_number: base.week_number }).eq('id', existingImage.id);
+          await srUpdate(existingImage.id, { title: base.title, week_number: base.week_number });
         }
 
         // ── 파일 ──
         if (hasFile) {
           const up = await uploadFile(resultFileUpload!, 'file');
           if (existingFile) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingFile.id);
+            const { error } = await srUpdate(existingFile.id, { title: base.title, week_number: base.week_number, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
             if (error) throw error;
           } else {
-            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
+            const { error } = await srInsert([{ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }]);
             if (error) throw error;
           }
           // 새 파일이 DB에 저장된 뒤에 기존 파일 삭제
           if (existingFile?.storage_path) await removeStudentFiles(session.student_id, [existingFile.storage_path]);
         } else if (existingFile) {
           // 기존 파일 유지 — title, 주차만 반영
-          await supabase.from('student_results').update({ title: base.title, week_number: base.week_number }).eq('id', existingFile.id);
+          await srUpdate(existingFile.id, { title: base.title, week_number: base.week_number });
         }
 
         // 반려 상태였으면 승인 상태로 초기화 — student_id 필터로 본인 행만 처리
         if (editingResult.submission_group) {
-          await supabase.from('student_results')
-            .update({ status: 'approved', rejection_feedback: null })
-            .eq('submission_group', editingResult.submission_group)
-            .eq('student_id', session!.student_id);
+          await srUpdate(null, {}, { group: editingResult.submission_group, resetReview: true });
         }
 
         // 조별 제출 상태 전환 처리 (SECURITY DEFINER RPC)
@@ -1299,27 +1302,23 @@ const StudentLog = () => {
 
         if (nowGroup) {
           // 본인 row에 조 정보 반영
-          await supabase.from('student_results')
-            .update({ group_id: myClassGroup!.id, is_group_submission: true })
-            .eq('submission_group', groupId)
-            .eq('student_id', session!.student_id);
+          await srUpdate(null, { group_id: myClassGroup!.id, is_group_submission: true }, { group: groupId });
 
           if (wasGroup) {
             // 기존 조원들과 내용 동기화
-            const { error: syncErr } = await supabase.rpc('sync_group_submission', {
+            const { error: syncErr } = await supabase.rpc('student_sync_group_submission', {
+              p_token: session!.token,
               p_submission_group: editingResult.submission_group,
-              p_submitter_id: session!.student_id,
             });
             if (syncErr) console.error('[sync_group_submission 오류]', syncErr);
           } else {
             // 개별 제출 → 조별 제출 전환: 다른 조원에게 새로 복사
-            const { data: myRows } = await supabase
-              .from('student_results').select('*')
-              .eq('submission_group', groupId).eq('student_id', session!.student_id);
+            const { data: groupRowsAll } = await supabase.rpc('student_result_group_rows', { p_token: session!.token, p_submission_group: groupId });
+            const myRows = (groupRowsAll || []).filter((r: any) => r.student_id === session!.student_id);
             if (myRows && myRows.length > 0) {
-              const { error: rpcError } = await supabase.rpc('submit_group_results', {
+              const { error: rpcError } = await supabase.rpc('student_submit_group_results', {
+                p_token: session!.token,
                 p_group_id: myClassGroup!.id,
-                p_submitter_id: session!.student_id,
                 p_rows: myRows,
               });
               if (rpcError) console.error('[submit_group_results 오류]', rpcError);
@@ -1327,14 +1326,11 @@ const StudentLog = () => {
           }
         } else if (wasGroup) {
           // 조별 제출 → 개별 제출 전환: 본인 row 조 정보 해제 + 다른 조원 row 삭제
-          await supabase.from('student_results')
-            .update({ group_id: null, is_group_submission: false })
-            .eq('submission_group', editingResult.submission_group)
-            .eq('student_id', session!.student_id);
+          await srUpdate(null, { group_id: null, is_group_submission: false }, { group: editingResult.submission_group });
 
-          const { error: unlinkErr } = await supabase.rpc('unlink_group_submission', {
+          const { error: unlinkErr } = await supabase.rpc('student_unlink_group_submission', {
+            p_token: session!.token,
             p_submission_group: editingResult.submission_group,
-            p_requester_id: session!.student_id,
           });
           if (unlinkErr) console.error('[unlink_group_submission 오류]', unlinkErr);
         }
@@ -1381,14 +1377,14 @@ const StudentLog = () => {
         ? rows.map((r: any) => ({ ...r, group_id: myClassGroup!.id, is_group_submission: true }))
         : rows;
 
-      const { error } = await supabase.from('student_results').insert(finalRows);
+      const { error } = await srInsert(finalRows);
       if (error) throw error;
 
       // 조별 제출: SECURITY DEFINER RPC로 다른 조원에게 동일 결과 복사 (RLS 우회)
       if (isGroupSubmission && myClassGroup) {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('submit_group_results', {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('student_submit_group_results', {
+          p_token: session.token,
           p_group_id: myClassGroup.id,
-          p_submitter_id: session.student_id,
           p_rows: finalRows,
         });
         if (rpcError) {
@@ -1445,10 +1441,7 @@ const StudentLog = () => {
     // submission_group으로 같은 그룹의 모든 row 조회
     let groupResults: any[] = [result];
     if (result.submission_group) {
-      const { data } = await supabase
-        .from('student_results')
-        .select('*')
-        .eq('submission_group', result.submission_group);
+      const { data } = await supabase.rpc('student_result_group_rows', { p_token: session!.token, p_submission_group: result.submission_group });
       if (data && data.length > 0) groupResults = data;
     }
     setEditingGroupResults(groupResults);
@@ -1497,13 +1490,11 @@ const StudentLog = () => {
       }
       if (result.submission_group && groupRows.length > 1) {
         // student_id 필터 필수 — 같은 submission_group을 가진 다른 조원의 행을 삭제하지 않음
-        const { error } = await supabase.from('student_results').delete()
-          .eq('submission_group', result.submission_group)
-          .eq('student_id', session!.student_id);
+        const { error } = await srDelete(null, result.submission_group);
         if (error) throw error;
         setResults(prev => prev.filter(r => r.submission_group !== result.submission_group));
       } else {
-        const { error } = await supabase.from('student_results').delete().eq('id', result.id);
+        const { error } = await srDelete(result.id);
         if (error) throw error;
         setResults(prev => prev.filter(r => r.id !== result.id));
       }
@@ -1904,12 +1895,7 @@ const StudentLog = () => {
       // 2. 관찰기록 + 결과 병렬 조회 (최신 100건씩 제한 — 학생 뷰)
       const [{ data: obs }, { data: results }] = await Promise.all([
         supabase.rpc('student_class_approved_observations', { p_token: session.token }),
-        supabase
-          .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, storage_paths, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
-          .in('student_id', studentIds)
-          .order('created_at', { ascending: false })
-          .limit(300),
+        supabase.rpc('student_class_approved_results', { p_token: session.token }),
       ]);
 
       // 3. student_name 매핑 + 이미지 URL 변환(썸네일) + 관찰기록에 week_number 부여
@@ -2349,12 +2335,7 @@ ${guidePrompt}
       const normR = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
       const matchedWeekPlan = (classResources as any[]).find(r => normR(r.topic) === normR(title));
       if (matchedWeekPlan && matchedWeekPlan.requires_result !== false) {
-        const { count } = await supabase
-          .from('student_results')
-          .select('*', { count: 'exact', head: true })
-          .eq('student_id', session.student_id)
-          .eq('class_id', session.class_id)
-          .eq('week_number', matchedWeekPlan.week);
+        const { data: count } = await supabase.rpc('student_week_result_count', { p_token: session.token, p_week: matchedWeekPlan.week });
         if ((count ?? 0) === 0) {
           setTimeout(() => setReminderModal({
             type: 'need_result',
