@@ -931,14 +931,12 @@ const StudentLog = () => {
   };
 
   const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
-    const { count } = await supabase
-      .from('student_suggestions')
-      .select('*', { count: 'exact', head: true })
-      .eq('student_id', studentId)
-      .eq('class_id', classId)
-      .eq('is_reply_read', false)
-      .not('teacher_reply', 'is', null);
-    if (count !== null) setUnreadReplyCount(count);
+    void studentId; void classId;
+    let token = session?.token;
+    if (!token) { try { token = JSON.parse(sessionStorage.getItem('student_session') || '{}').token; } catch { /* noop */ } }
+    if (!token) return;
+    const { data: count } = await supabase.rpc('student_suggestion_unread_count', { p_token: token });
+    if (typeof count === 'number') setUnreadReplyCount(count);
   };
 
   const fetchClassDetails = async (classId: string) => {
@@ -1610,13 +1608,9 @@ const StudentLog = () => {
     if (!session?.student_id || !session?.class_id) return;
     setSuggestionsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('student_suggestions')
-        .select('*')
-        .eq('student_id', session.student_id)
-        .eq('class_id', session.class_id)
-        .order('created_at', { ascending: false });
+      const { data: rawData, error } = await supabase.rpc('student_my_suggestions', { p_token: session.token });
       if (error) throw error;
+      const data = (rawData as any[] | null)?.filter(s => s.class_id === session.class_id) ?? null;
       if (data) {
         setSuggestions(data);
         // 읽지 않은 답변이 있으면 읽음 처리
@@ -1624,9 +1618,7 @@ const StudentLog = () => {
           .filter(s => s.teacher_reply && !s.is_reply_read)
           .map(s => s.id);
         if (unreadIds.length > 0) {
-          await supabase.from('student_suggestions')
-            .update({ is_reply_read: true })
-            .in('id', unreadIds);
+          await supabase.rpc('student_suggestion_mark_read', { p_token: session.token });
           setUnreadReplyCount(0);
         }
       }
@@ -1644,24 +1636,11 @@ const StudentLog = () => {
     if (!session?.student_id || !session?.class_id || !teacherId) return;
     setSuggestionSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('student_suggestions')
-        .insert({
-          student_id: session.student_id,
-          class_id: session.class_id,
-          teacher_id: teacherId,
-          student_name: session.student_name,
-          content: suggestionContent.trim()
-        });
-      if (error) throw error;
-
-      await supabase.from('notifications').insert({
-        user_id: teacherId,
-        title: `💬 ${session.student_name}이(가) 질문·건의함에 등록했습니다`,
-        content: suggestionContent.trim().slice(0, 80),
-        type: 'student_submission',
-        link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
+      const { error } = await supabase.rpc('student_suggestion_create', {
+        p_token: session.token,
+        p_content: suggestionContent.trim()
       });
+      if (error) throw error;
 
       setSuggestionContent('');
       showToast('질문·건의함에 등록되었습니다! ✅');
@@ -1689,10 +1668,9 @@ const StudentLog = () => {
     }
     setSavingSuggestionId(id);
     try {
-      const { error } = await supabase
-        .from('student_suggestions')
-        .update({ content: editSuggestionContent.trim() })
-        .eq('id', id);
+      const { error } = await supabase.rpc('student_suggestion_update', {
+        p_token: session?.token, p_id: id, p_content: editSuggestionContent.trim()
+      });
       if (error) throw error;
       setSuggestions(prev => prev.map(s =>
         s.id === id ? { ...s, content: editSuggestionContent.trim() } : s
@@ -1710,7 +1688,7 @@ const StudentLog = () => {
     if (!confirm('이 내용을 삭제하시겠습니까?')) return;
     setDeletingSuggestionId(id);
     try {
-      const { error } = await supabase.from('student_suggestions').delete().eq('id', id);
+      const { error } = await supabase.rpc('student_suggestion_delete', { p_token: session?.token, p_id: id });
       if (error) throw error;
       setSuggestions(prev => prev.filter(s => s.id !== id));
       showToast('삭제되었습니다.');
