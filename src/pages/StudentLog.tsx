@@ -787,17 +787,9 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     fetchActiveMeeting();
 
-    const channel = supabase
-      .channel(`class-meeting-rt-${session.class_id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'class_meetings',
-        filter: `class_id=eq.${session.class_id}`,
-      }, () => { fetchActiveMeeting(); })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    // 공개 조회를 막았으므로 Realtime 대신 15초마다 확인
+    const timer = setInterval(fetchActiveMeeting, 15000);
+    return () => clearInterval(timer);
   }, [session?.class_id]);
 
   // 화이트보드에서 돌아올 때 보드 탭 자동 복원
@@ -952,15 +944,12 @@ const StudentLog = () => {
 
   const fetchAnnouncements = async (classId: string) => {
     try {
-      const { data } = await supabase
-        .from('class_announcements')
-        .select('*')
-        .eq('class_id', classId)
-        .eq('is_visible', true)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setAnnouncements(data || []);
+      void classId;
+      let token = session?.token;
+      if (!token) { try { token = JSON.parse(sessionStorage.getItem('student_session') || '{}').token; } catch { /* noop */ } }
+      if (!token) return;
+      const { data } = await supabase.rpc('student_announcements', { p_token: token });
+      setAnnouncements((data as any[]) || []);
     } catch (err) {
       console.error('fetchAnnouncements error:', err);
     }
@@ -1014,10 +1003,7 @@ const StudentLog = () => {
   // 수업 자료 열람 기록 (학생별 1회)
   const recordMaterialView = async (materialId: string) => {
     if (!session?.student_id) return;
-    await supabase.from('student_material_views').upsert(
-      { material_id: materialId, student_id: session.student_id },
-      { onConflict: 'material_id,student_id', ignoreDuplicates: true }
-    );
+    await supabase.rpc('student_material_view_record', { p_token: session.token, p_material_id: materialId });
   };
 
   const handleStartEditLog = (log: any) => {
@@ -1776,13 +1762,8 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     setMeetingLoading(true);
     try {
-      const { data } = await supabase
-        .from('class_meetings')
-        .select('id, title, platform, meeting_url, scheduled_at, is_active, created_at')
-        .eq('class_id', session.class_id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      const all = data || [];
+      const { data } = await supabase.rpc('student_class_meetings', { p_token: session.token });
+      const all = (data as any[]) || [];
       setMeetingHistory(all);
       setActiveMeeting(all.find(m => m.is_active) ?? null);
     } catch (err) {
