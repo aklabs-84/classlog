@@ -312,12 +312,8 @@ export default function SurveyStudent() {
     if (needsClassPicker) {
       setErrorMsg('');
       setLoading(true);
-      const { data: schools } = await supabase
-        .from('school_projects')
-        .select('id, name, school_name')
-        .eq('parent_project_id', form.school_project_id!)
-        .order('name');
-      setSchoolOptions(schools ?? []);
+      const { data: schools } = await supabase.rpc('survey_school_options', { p_project_id: form.school_project_id! });
+      setSchoolOptions((schools as any[]) ?? []);
       setLoading(false);
       setStep('select-class');
       return;
