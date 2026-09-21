@@ -200,6 +200,21 @@ const QuizStudentView = () => {
     };
   }, []);
 
+  // 문제 목록 다시 받기 — 입장 후 교사가 문제를 고치거나 추가해도 학생 화면이 어긋나지 않게 한다.
+  // quiz_join은 같은 이름이면 기존 참가자를 그대로 돌려주므로 여러 번 불러도 안전하다.
+  const lastQuestionsRefreshRef = useRef(0);
+  const refreshQuestions = useCallback(async (force = false) => {
+    const pin = session?.pin_code;
+    const name = participant?.student_name;
+    if (!pin || !name) return;
+    const now = Date.now();
+    if (!force && now - lastQuestionsRefreshRef.current < 3000) return;
+    lastQuestionsRefreshRef.current = now;
+    const { data } = await supabase.rpc('quiz_join', { p_pin: pin, p_name: name });
+    if (data?.questions) setQuestions(prev => (prev.length === 0 && data.questions.length === 0 ? prev : data.questions));
+  }, [session?.pin_code, participant?.student_name]);
+
+  const lastPollOkRef = useRef(0);
   useEffect(() => {
     if (step !== 'game' || !participant?.id) return;
     const participantId = participant.id;
@@ -208,11 +223,27 @@ const QuizStudentView = () => {
       const { data, error } = await supabase.rpc('quiz_poll', { p_participant_id: participantId, p_answer_id: pendingAnswerIdRef.current });
       if (!alive) return;
       if (error) { setIsConnected(false); return; }
+      lastPollOkRef.current = Date.now();
       applyPoll(data);
     };
+    lastPollOkRef.current = Date.now();
     poll();
-    const t = setInterval(poll, 2000);
-    return () => { alive = false; clearInterval(t); };
+    const t = setInterval(() => {
+      poll();
+      // 6초 넘게 응답이 없으면(기기가 잠겼다 깨어난 경우 등) 연결 끊김으로 표시
+      if (Date.now() - lastPollOkRef.current > 6000) setIsConnected(false);
+    }, 2000);
+    // 휴대폰 화면이 꺼졌다 켜지거나 네트워크가 돌아오면 2초를 기다리지 않고 즉시 확인
+    const wake = () => { if (document.visibilityState === 'visible') poll(); };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('focus', wake);
+    window.addEventListener('online', wake);
+    return () => {
+      alive = false; clearInterval(t);
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('focus', wake);
+      window.removeEventListener('online', wake);
+    };
   }, [step, participant?.id, applyPoll]);
 
   // 타이머 동기화 (서버 시간 기준)
@@ -240,8 +271,15 @@ const QuizStudentView = () => {
     if (session.current_question_index !== prevQuestionIndex.current) {
       prevQuestionIndex.current = session.current_question_index;
       fetchParticipants(session.id);
+      refreshQuestions(true);
     }
   }, [session?.current_question_index]);
+
+  // 현재 문제가 목록에 없으면(교사가 문제를 추가한 경우 등) 목록을 다시 받는다
+  useEffect(() => {
+    if (step !== 'game' || !session || session.state !== 'QUIZ') return;
+    if (!questions[session.current_question_index]) refreshQuestions();
+  }, [step, session?.state, session?.current_question_index, questions.length, refreshQuestions]);
 
   // 랭킹/파이널 → 참가자 최신화
   useEffect(() => {
