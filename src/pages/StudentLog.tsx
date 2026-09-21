@@ -769,17 +769,9 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     fetchActiveQuizSessions();
 
-    const channel = supabase
-      .channel(`quiz-session-rt-${session.class_id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'quiz_sessions',
-        filter: `class_id=eq.${session.class_id}`,
-      }, () => { fetchActiveQuizSessions(); })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    // 공개 조회를 막았으므로 Realtime 대신 10초마다 확인
+    const timer = setInterval(fetchActiveQuizSessions, 10000);
+    return () => clearInterval(timer);
   }, [session?.class_id]);
 
   // 온라인 수업 미팅 Realtime 구독 — 선생님이 등록/종료 시 즉시 반영
@@ -1644,18 +1636,13 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     setQuizLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('quiz_sessions')
-        .select('id, pin_code, state, created_at, quiz_sets(title)')
-        .eq('class_id', session.class_id)
-        .neq('state', 'FINAL')
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.rpc('student_active_quiz', { p_token: session.token });
 
       if (!error && data) {
         setActiveQuizSessions(data);
         // 새 퀴즈 세션 팝업 알림 (최초 로드 제외)
         if (!isFirstQuizPoll.current) {
-          const newSession = data.find(s => !seenQuizSessionIds.current.has(s.id));
+          const newSession = data.find((s: any) => !seenQuizSessionIds.current.has(s.id));
           if (newSession && session?.student_id) {
             const title = (newSession.quiz_sets as any)?.title ?? '퀴즈';
             setQuizSessionAlert({ id: newSession.id, pin_code: newSession.pin_code, title });
@@ -1670,7 +1657,7 @@ const StudentLog = () => {
             }, ...prev]);
           }
         }
-        data.forEach(s => seenQuizSessionIds.current.add(s.id));
+        data.forEach((s: any) => seenQuizSessionIds.current.add(s.id));
         isFirstQuizPoll.current = false;
       }
     } catch (err) {
@@ -1685,13 +1672,7 @@ const StudentLog = () => {
     const sName = studentName ?? session?.student_name;
     if (!cId || !sName) return;
     setQuizHistoryLoading(true);
-    const { data } = await supabase
-      .from('quiz_score_history')
-      .select('id, quiz_set_title, rank, score, played_at')
-      .eq('class_id', cId)
-      .eq('student_name', sName)
-      .order('played_at', { ascending: false })
-      .limit(20);
+    const { data } = await supabase.rpc('student_quiz_history', { p_token: session?.token ?? JSON.parse(sessionStorage.getItem('student_session') || '{}').token });
     if (data) setQuizHistory(data);
     setQuizHistoryLoading(false);
   };

@@ -31,7 +31,7 @@ interface Question {
   option_2: string;
   option_3: string;
   option_4: string;
-  correct_answer: number;
+  correct_answer?: number;
   time_limit: number;
   explanation?: string;
   question_type: 'multiple_choice' | 'short_answer';
@@ -113,12 +113,7 @@ const QuizStudentView = () => {
     if (p.length !== 6) { setErrorMsg('6자리 PIN을 입력하세요'); return; }
     setLoading(true);
     setErrorMsg('');
-    const { data, error } = await supabase
-      .from('quiz_sessions')
-      .select('*')
-      .eq('pin_code', p)
-      .neq('state', 'FINAL')
-      .single();
+    const { data, error } = await supabase.rpc('quiz_session_by_pin', { p_pin: p });
     if (error || !data) {
       setErrorMsg('유효하지 않은 PIN이거나 종료된 퀴즈입니다');
       setLoading(false);
@@ -147,52 +142,16 @@ const QuizStudentView = () => {
     // 서버-기기 시간 오프셋 조회 (백그라운드, 실패해도 0으로 폴백되어 진행에 영향 없음)
     getServerTimeOffsetMs().then(ms => { offsetMsRef.current = ms; });
 
-    // PIN으로 세션 다시 조회 (URL에서 온 경우)
-    let sess = session;
-    if (!sess) {
-      const { data } = await supabase
-        .from('quiz_sessions')
-        .select('*')
-        .eq('pin_code', pinInput.trim())
-        .neq('state', 'FINAL')
-        .single();
-      if (!data) { setErrorMsg('세션을 찾을 수 없습니다'); setLoading(false); return; }
-      sess = data;
-      setSession(data);
-    }
-
-    // 중복 입장 체크: 동일 세션 + 동일 이름 참가자가 이미 있으면 재사용
-    const { data: existing } = await supabase
-      .from('quiz_participants')
-      .select('*')
-      .eq('session_id', sess!.id)
-      .eq('student_name', name)
-      .maybeSingle();
-
-    let pData;
-    if (existing) {
-      pData = existing;
-    } else {
-      const { data: newP, error: pErr } = await supabase
-        .from('quiz_participants')
-        .insert({ session_id: sess!.id, student_name: name, score: 0 })
-        .select()
-        .single();
-      if (pErr || !newP) { setErrorMsg('참가 등록에 실패했습니다'); setLoading(false); return; }
-      pData = newP;
-    }
-    setParticipant(pData);
-
-    // 문제 로드
-    const { data: qData } = await supabase
-      .from('quiz_questions')
-      .select('*')
-      .eq('quiz_set_id', sess!.quiz_set_id)
-      .order('order_index', { ascending: true });
-    if (qData) setQuestions(qData);
-
+    // 서버 창구로 입장 (세션 확인 + 참가자 등록 + 문제 목록[정답 제외])
+    const { data: joined, error: joinErr } = await supabase.rpc('quiz_join', {
+      p_pin: (session?.pin_code ?? pinInput).trim(),
+      p_name: name,
+    });
+    if (joinErr || !joined) { setErrorMsg('참가 등록에 실패했습니다'); setLoading(false); return; }
+    setSession(joined.session);
+    setParticipant(joined.participant);
+    setQuestions(joined.questions ?? []);
     setStep('game');
-    startRealtimeSync(sess!.id, pData.id);
     setLoading(false);
   };
 
@@ -210,112 +169,51 @@ const QuizStudentView = () => {
     });
   }, []);
 
-  // ── Realtime 구독 ──────────────────────────────────────────────────────────
-  const startRealtimeSync = useCallback((sessionId: string, participantId: string) => {
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
+  // ── 폴링 동기화 (공개 조회를 막아 Realtime 대신 2초마다 서버 창구 확인) ──
+  const applyPoll = useCallback((d: any) => {
+    if (!d) return;
+    setIsConnected(true);
+    applySessionUpdate(d.session as Session);
+    setParticipant(prev => (prev ? { ...prev, ...d.participant } : (d.participant as Participant)));
+    if (d.participants) setAllParticipants(d.participants);
+    if (d.reveal) {
+      setQuestions(prev => prev.map(q => q.id === d.reveal.question_id
+        ? { ...q, correct_answer: d.reveal.correct_answer, correct_answers: d.reveal.correct_answers, explanation: d.reveal.explanation }
+        : q));
+    }
+    const ans = d.answer;
+    if (ans && !ans.needs_review && pendingAnswerIdRef.current === ans.id) {
+      setLastResult(prev => prev ? { ...prev, isCorrect: ans.is_correct, score: ans.score, pending: false } : prev);
+      pendingAnswerIdRef.current = null;
+    }
+  }, [applySessionUpdate]);
 
-    const channel = supabase
-      .channel(`quiz-student-${sessionId}-${participantId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'quiz_sessions', filter: `id=eq.${sessionId}` },
-        (payload) => {
-          applySessionUpdate(payload.new as Session);
-          setIsConnected(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'quiz_participants', filter: `id=eq.${participantId}` },
-        (payload) => {
-          setParticipant(prev => prev ? { ...prev, ...payload.new } : payload.new as Participant);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'quiz_participants', filter: `session_id=eq.${sessionId}` },
-        () => {
-          fetchParticipants(sessionId);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'quiz_answers', filter: `participant_id=eq.${participantId}` },
-        (payload) => {
-          const updated = payload.new as { id: string; is_correct: boolean; score: number };
-          if (pendingAnswerIdRef.current && updated.id === pendingAnswerIdRef.current) {
-            setLastResult(prev => prev ? { ...prev, isCorrect: updated.is_correct, score: updated.score, pending: false } : prev);
-            pendingAnswerIdRef.current = null;
-          }
-        }
-      )
-      .subscribe((status) => {
-        setIsConnected(status === 'SUBSCRIBED');
-      });
-
-    channelRef.current = channel;
-
-    // 참가자 목록 초기 로드
-    fetchParticipants(sessionId);
-  }, []);
-
-  const fetchParticipants = async (sessionId: string) => {
-    const { data } = await supabase
-      .from('quiz_participants')
-      .select('id, student_name, score')
-      .eq('session_id', sessionId)
-      .order('score', { ascending: false });
-    if (data) setAllParticipants(data);
+  const fetchParticipants = async (_sessionId?: string) => {
+    if (!participant?.id) return;
+    const { data } = await supabase.rpc('quiz_poll', { p_participant_id: participant.id, p_answer_id: pendingAnswerIdRef.current });
+    applyPoll(data);
   };
 
   useEffect(() => {
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
   }, []);
 
-  // Realtime 유실 대비 폴백 폴링 — postgres_changes는 웹소켓이 잠깐 끊기면
-  // 유실된 이벤트를 재전송하지 않으므로, 주기적으로 직접 재조회해 어긋난 상태를 복구한다.
-  // (참가자가 많을수록 웹소켓 순간 끊김 확률이 높아져 특정 학생만 타이머가 멈추거나
-  //  응답시간이 비정상적으로 누적되는 원인이었음)
   useEffect(() => {
-    if (step !== 'game' || !session?.id || !participant?.id) return;
-    const sessionId = session.id;
+    if (step !== 'game' || !participant?.id) return;
     const participantId = participant.id;
-
+    let alive = true;
     const poll = async () => {
-      const { data: sessData } = await supabase
-        .from('quiz_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single();
-      if (sessData) applySessionUpdate(sessData as Session);
-
-      const { data: pData } = await supabase
-        .from('quiz_participants')
-        .select('id, student_name, score')
-        .eq('id', participantId)
-        .single();
-      if (pData) setParticipant(prev => (prev ? { ...prev, ...pData } : (pData as Participant)));
-
-      // 주관식 채점 결과 realtime 유실 대비 폴백
-      if (pendingAnswerIdRef.current) {
-        const { data: ansData } = await supabase
-          .from('quiz_answers')
-          .select('id, is_correct, score, needs_review')
-          .eq('id', pendingAnswerIdRef.current)
-          .single();
-        if (ansData && !ansData.needs_review) {
-          setLastResult(prev => prev ? { ...prev, isCorrect: ansData.is_correct, score: ansData.score, pending: false } : prev);
-          pendingAnswerIdRef.current = null;
-        }
-      }
+      const { data, error } = await supabase.rpc('quiz_poll', { p_participant_id: participantId, p_answer_id: pendingAnswerIdRef.current });
+      if (!alive) return;
+      if (error) { setIsConnected(false); return; }
+      applyPoll(data);
     };
-
-    const t = setInterval(poll, 4000);
-    return () => clearInterval(t);
-  }, [step, session?.id, participant?.id, applySessionUpdate]);
+    poll();
+    const t = setInterval(poll, 2000);
+    return () => { alive = false; clearInterval(t); };
+  }, [step, participant?.id, applyPoll]);
 
   // 타이머 동기화 (서버 시간 기준)
   useEffect(() => {
@@ -410,56 +308,18 @@ const QuizStudentView = () => {
     const currentQuestion = questions[session.current_question_index];
     if (!currentQuestion) return;
 
-    const started = session.question_started_at
-      ? new Date(session.question_started_at).getTime()
-      : serverNow();
-    const responseTime = (serverNow() - started) / 1000;
-
-    const isCorrect = optionIdx === currentQuestion.correct_answer;
-    const BASE = 500;
-    const MAX_BONUS = 500;
-    // responseTime이 세션 동기화 지연 등으로 time_limit의 2배를 넘으면 점수가 음수가 되어
-    // 아래 "score > 0" 체크에 걸려 DB 반영 자체가 통째로 스킵되는 문제가 있었음 → 0으로 클램프
-    const score = isCorrect
-      ? Math.max(0, BASE + Math.floor((1 - responseTime / currentQuestion.time_limit) * MAX_BONUS))
-      : 0;
-
-    setLastResult({ questionType: 'multiple_choice', isCorrect, score, correctAnswer: currentQuestion.correct_answer, pending: false });
-
-    // DB에 답변 저장
-    await supabase.from('quiz_answers').insert({
-      session_id: session.id,
-      participant_id: participant.id,
-      question_id: currentQuestion.id,
-      selected_option: optionIdx,
-      is_correct: isCorrect,
-      score,
-      response_time: responseTime,
-      needs_review: false,
+    const { data: res, error: ansErr } = await supabase.rpc('quiz_submit_answer', {
+      p_participant_id: participant.id,
+      p_question_id: currentQuestion.id,
+      p_option: optionIdx,
     });
-
-    // 참가자 점수 업데이트
-    if (score > 0) {
-      const { error: rpcError } = await supabase.rpc('update_participant_score', {
-        p_participant_id: participant.id,
-        p_score_delta: score,
-      });
-
-      if (rpcError) {
-        console.error('[QuizScore] RPC 실패, 직접 UPDATE 시도:', rpcError);
-        // RPC 실패 시 직접 UPDATE로 폴백
-        const { error: updateError } = await supabase
-          .from('quiz_participants')
-          .update({ score: (participant.score ?? 0) + score })
-          .eq('id', participant.id);
-        if (updateError) {
-          console.error('[QuizScore] 직접 UPDATE도 실패:', updateError);
-        }
-      }
-
-      // 로컬 state 즉시 반영 (Realtime 이벤트 도착 전 UX용)
-      setParticipant(prev => prev ? { ...prev, score: prev.score + score } : prev);
+    if (ansErr || !res || res.error) {
+      // 시간 초과·이미 제출 등 — 화면을 원래 상태로 되돌림
+      if (res?.error !== 'ALREADY_ANSWERED') setMyAnswer(null);
+      return;
     }
+    setLastResult({ questionType: 'multiple_choice', isCorrect: res.is_correct, score: res.score, correctAnswer: res.correct_answer, pending: false });
+    if (res.score > 0) setParticipant(prev => prev ? { ...prev, score: prev.score + res.score } : prev);
   };
 
   // ── 주관식 답변 제출 ──────────────────────────────────────────────────────────
@@ -476,30 +336,15 @@ const QuizStudentView = () => {
     const currentQuestion = questions[session.current_question_index];
     if (!currentQuestion) return;
 
-    const started = session.question_started_at
-      ? new Date(session.question_started_at).getTime()
-      : serverNow();
-    const responseTime = (serverNow() - started) / 1000;
-
     setLastResult({ questionType: 'short_answer', isCorrect: false, score: 0, correctAnswer: -1, answerText: text, pending: true });
 
-    const { data: inserted } = await supabase
-      .from('quiz_answers')
-      .insert({
-        session_id: session.id,
-        participant_id: participant.id,
-        question_id: currentQuestion.id,
-        selected_option: null,
-        answer_text: text,
-        is_correct: false,
-        score: 0,
-        response_time: responseTime,
-        needs_review: true,
-      })
-      .select()
-      .single();
-
-    if (inserted) pendingAnswerIdRef.current = inserted.id;
+    const { data: res, error: shortErr } = await supabase.rpc('quiz_submit_short', {
+      p_participant_id: participant.id,
+      p_question_id: currentQuestion.id,
+      p_text: text,
+    });
+    if (shortErr || !res || res.error) { setMyAnswer(null); setLastResult(null); return; }
+    pendingAnswerIdRef.current = res.answer_id;
   };
 
   // ── 현재 정보 ──────────────────────────────────────────────────────────────
@@ -903,7 +748,7 @@ const QuizStudentView = () => {
                           <p className="text-white font-black text-lg leading-snug break-words">
                             {currentQuestion.question_type === 'short_answer'
                               ? (currentQuestion.correct_answers?.join(', ') || '(정답 미등록)')
-                              : [currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
+                              : [currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer ?? 0]}
                           </p>
                         </motion.div>
                       </div>
