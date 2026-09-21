@@ -29,6 +29,9 @@ import {
   X,
   Lightbulb,
   MessageCircle,
+  Lock,
+  UserX,
+  ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth, isAnonymousUser } from '../lib/auth';
@@ -68,20 +71,16 @@ const features = [
     icon: BookOpen,
     title: '학생 활동 기록 관리',
     desc: '참여 코드 하나로 학생이 직접 제출. 승인·반려·피드백·파일 첨부까지 한 화면에서.',
-    image: '/illustrations/icon-notebook.webp',
   },
   {
     icon: Sparkles,
     title: 'AI 세특 자동 생성',
     desc: '쌓인 관찰기록을 Gemini AI가 분석해 학생별 세특 초안을 한 번에 완성합니다.',
-    accent: true,
-    image: '/illustrations/icon-ai-draft.webp',
   },
   {
     icon: FileDown,
     title: '나이스 엑셀 바로 내보내기',
     desc: '500자 편집 후 나이스 엑셀로 내보내기. 행동특성·종합의견도 AI가 초안을 씁니다.',
-    image: '/illustrations/icon-nice-submit.webp',
   },
   {
     icon: Lightbulb,
@@ -97,6 +96,30 @@ const features = [
     icon: Mic,
     title: '수업 전사 + AI 분석',
     desc: '수업 음성을 텍스트로 전사하고, AI가 학생별 관찰 기록을 자동으로 정리합니다.',
+  },
+];
+
+const trustPoints = [
+  {
+    icon: Lock,
+    title: '볼 수 있는 사람만',
+    tag: '접근 제어',
+    tagColor: 'bg-slate-100 text-writer-slate border-slate-200',
+    desc: '학생 이름과 기록은 로그인한 담당 선생님과, 수업 코드로 입장한 학생 본인만 안전하게 열어볼 수 있어요.',
+  },
+  {
+    icon: UserX,
+    title: 'AI에는 필요한 만큼만',
+    tag: '세특 초안은 익명',
+    tagColor: 'bg-writer-lavender text-writer-iris border-writer-iris/20',
+    desc: '세특 초안을 쓸 때는 학생 이름 없이 활동 내용만 AI에 보내요. AI 채팅은 질문에 답하기 위해 학생 이름이 함께 전달될 수 있어요.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'AI 학습에 절대 쓰이지 않아요',
+    tag: 'No Training',
+    tagColor: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    desc: '선생님이 입력하신 관찰 기록과 AI가 만든 초안은 AI 모델의 학습·개선에 사용되지 않아요.',
   },
 ];
 
@@ -165,29 +188,28 @@ const pricingPlans = [
       { text: '수업 전사 (Groq 키 필요, AI 분석은 월 400크레딧 안에서)', ok: true },
     ],
   },
-  // Basic 플랜은 화면 노출만 잠시 끔(코드는 남겨둠 — 얼리버드 설문 결과 보고 재노출 여부 결정).
-  // {
-  //   name: 'Basic',
-  //   badge: 'BASIC',
-  //   category: 'individual',
-  //   desc: '꾸준히 활용하는 선생님',
-  //   price: '9,900',
-  //   periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
-  //   waitlistPlan: 'basic',
-  //   features: [
-  //     { text: '클래스 최대 5개', ok: true },
-  //     { text: '학생 최대 35명/클래스', ok: true },
-  //     { text: '학생 관찰 기록 · 교사 메모', ok: true },
-  //     { text: '퀴즈 · 설문 무제한', ok: true },
-  //     { text: '화이트보드 (3개)', ok: true },
-  //     { text: '일괄 AI 생성', ok: false },
-  //     { text: 'NAISS 내보내기', ok: false },
-  //     { text: '학교 프로젝트 참여', ok: true },
-  //     { text: '수업 자료 에디터', ok: true },
-  //     { text: '수업 전사 (Groq API 필요)', ok: true },
-  //     { text: 'AI 사용 넉넉하게', ok: true },
-  //   ],
-  // },
+  {
+    name: 'Basic',
+    badge: 'BASIC',
+    category: 'individual',
+    desc: '꾸준히 활용하는 선생님',
+    price: '9,900',
+    periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
+    waitlistPlan: 'basic',
+    features: [
+      { text: '동시 진행 클래스 10개', ok: true },
+      { text: '학생 최대 40명/클래스', ok: true },
+      { text: '학생 관찰 기록 · 교사 메모', ok: true },
+      { text: '퀴즈 · 설문 무제한 · 화이트보드 10개', ok: true },
+      { text: '일괄 AI 생성', ok: false },
+      { text: 'NAISS 내보내기', ok: false },
+      { text: '학교 프로젝트 참여', ok: true },
+      { text: '수업 자료 에디터', ok: true },
+      { text: '수업 전사 & AI 분석 (Groq 키 필요)', ok: true },
+      { text: 'AI 월 약 2,000크레딧', ok: true },
+      { text: 'AI 코파일럿 포함', ok: true },
+    ],
+  },
   {
     name: 'Pro',
     badge: 'PRO',
@@ -208,7 +230,8 @@ const pricingPlans = [
       { text: '학교 프로젝트 생성 · 관리', ok: true },
       { text: '수업 자료 에디터', ok: true },
       { text: '수업 전사 & AI 분석 (Groq 키 필요)', ok: true },
-      { text: 'AI 사용 가장 넉넉하게', ok: true },
+      { text: 'AI 월 약 6,000크레딧', ok: true },
+      { text: 'AI 코파일럿 포함', ok: true },
     ],
   },
   {
@@ -414,7 +437,7 @@ const Landing = () => {
                 <h2 className="text-xl font-black text-writer-obsidian mb-2 leading-snug">
                   유료 플랜 오픈 전,
                   <br />
-                  지금 신청하면 <span className="text-amber-600">첫 달 30% 할인</span>
+                  지금 신청하면 <span className="text-amber-600">첫 달 50% 할인</span>
                 </h2>
                 <p className="text-sm text-writer-obsidian/60 leading-relaxed">
                   이메일만 남겨두시면 오픈 즉시 가장 먼저 안내드려요.
@@ -454,7 +477,7 @@ const Landing = () => {
             </span>
             <p className="text-xs sm:text-sm font-medium">
               유료 플랜 곧 오픈! 지금 얼리버드 신청하면{' '}
-              <span className="text-amber-300 font-bold">첫 달 30% 할인</span>
+              <span className="text-amber-300 font-bold">첫 달 50% 할인</span>
             </p>
             <Link
               to="/waitlist"
@@ -692,7 +715,7 @@ const Landing = () => {
             <p className="text-writer-slate text-base">활동 기록부터 나이스 내보내기까지 — 선생님의 모든 반복 업무를 대신합니다</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {features.map(({ icon: Icon, title, desc, accent, image }, i) => (
+            {features.map(({ icon: Icon, title, desc }, i) => (
               <motion.div
                 key={title}
                 initial={{ opacity: 0, y: 20 }}
@@ -701,13 +724,9 @@ const Landing = () => {
                 transition={{ delay: i * 0.08 }}
                 className="bg-white rounded-[12px] p-7 border border-writer-mist hover:border-writer-iris/30 transition-colors"
               >
-                {image ? (
-                  <img src={image} alt="" className="w-14 h-14 object-contain mb-5" />
-                ) : (
-                  <div className={`w-12 h-12 rounded-[10px] flex items-center justify-center mb-5 ${accent ? 'bg-writer-iris text-white' : 'bg-writer-mist/60 text-writer-obsidian'}`}>
-                    <Icon size={22} strokeWidth={2} />
-                  </div>
-                )}
+                <div className="w-12 h-12 rounded-[10px] flex items-center justify-center mb-5 bg-writer-lavender text-writer-iris">
+                  <Icon size={22} strokeWidth={2} />
+                </div>
                 <h3 className="text-lg font-black mb-2">{title}</h3>
                 <p className="text-sm text-writer-slate leading-relaxed">{desc}</p>
               </motion.div>
@@ -803,7 +822,7 @@ const Landing = () => {
       <section className="py-20 bg-writer-obsidian">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <Eyebrow dark>🤖 AI 코파일럿</Eyebrow>
+            <Eyebrow dark>🤖 AI 코파일럿 · Basic · Pro 전용</Eyebrow>
             <h2 className="text-3xl font-black mb-3 text-white">10명의 AI 동료가 <span className="text-writer-orchid">함께 일합니다</span></h2>
             <p className="text-white/60 text-base">각자 전문 분야를 가진 AI 캐릭터와 대화하듯 요청하면, 결과물까지 바로 만들어 드려요</p>
           </div>
@@ -835,14 +854,107 @@ const Landing = () => {
           </div>
           <div className="text-center">
             <button
-              onClick={() => navigate('/ai-copilot')}
+              onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
               className={`${btnAccent} px-6 py-3 text-sm`}
             >
               <MessageCircle size={16} strokeWidth={2.5} />
-              AI 코파일럿과 대화하기
+              요금제 보고 시작하기
               <ChevronRight size={16} strokeWidth={2.5} />
             </button>
+            <p className="mt-3 text-xs text-white/50">무료 회원은 다른 AI 기능을 월 400크레딧까지 쓸 수 있어요</p>
           </div>
+        </div>
+      </section>
+
+      {/* ── 보안·신뢰 ── */}
+      <section className="py-24 bg-gradient-to-b from-white via-slate-50/60 to-white relative overflow-hidden">
+        {/* 배경 은은한 오로라 블러 원형 레이어 */}
+        <div className="absolute top-1/2 left-10 -translate-y-1/2 w-96 h-96 bg-writer-lavender/50 rounded-full blur-3xl pointer-events-none -z-10" />
+        <div className="absolute top-1/3 right-10 w-80 h-80 bg-writer-orchid/10 rounded-full blur-3xl pointer-events-none -z-10" />
+
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <Eyebrow>🔒 개인정보 보호</Eyebrow>
+            <h2 className="text-3xl sm:text-4xl font-black mb-3">학생 정보, 이렇게 지킵니다</h2>
+            <p className="text-writer-slate text-base sm:text-lg">편리함 때문에 민감한 정보를 함부로 다루지 않아요</p>
+          </div>
+
+          <div className="grid lg:grid-cols-12 gap-8 items-stretch">
+            {/* 좌측: 대형 3D 보안 엠블럼 카드 (5 cols) */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="lg:col-span-5 bg-white rounded-[20px] p-6 sm:p-8 border border-writer-mist shadow-lg shadow-writer-iris/5 flex flex-col items-center justify-between text-center relative group"
+            >
+              <div className="w-full flex flex-col items-center">
+                <div className="relative w-full max-w-[280px] aspect-square mb-6 rounded-2xl overflow-hidden shadow-xl shadow-writer-iris/15 ring-1 ring-black/5 bg-slate-50">
+                  <img
+                    src="/illustrations/security-shield-3d.jpg"
+                    alt="클래스로그 데이터 보안 쉴드 엠블럼"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                  <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-md rounded-xl p-2.5 text-left border border-white/60 shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-writer-iris text-white flex items-center justify-center shrink-0">
+                      <ShieldCheck size={18} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-writer-obsidian">학생 정보 비공개 접근</div>
+                      <div className="text-[10px] text-writer-slate font-medium">AI 학습에는 사용되지 않아요</div>
+                    </div>
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-black text-writer-obsidian mb-1.5">선생님과 학생만을 위한 안심 울타리</h3>
+                <p className="text-xs text-writer-slate leading-relaxed">
+                  학생 이름과 기록은 서버에서 접근 권한을 확인해, 담당 선생님과 수업에 입장한 학생 본인에게만 보여 드려요.
+                </p>
+              </div>
+
+              <div className="w-full mt-6 pt-4 border-t border-writer-mist/60 flex items-center justify-around text-[11px] font-semibold text-writer-slate">
+                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />전송 구간 암호화</span>
+                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-writer-iris" />AI 학습 미사용</span>
+                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" />교사 전용 제어</span>
+              </div>
+            </motion.div>
+
+            {/* 우측: 3단 인터랙티브 보안 카드 리스트 (7 cols) */}
+            <div className="lg:col-span-7 flex flex-col justify-between gap-4">
+              {trustPoints.map(({ icon: Icon, title, tag, tagColor, desc }, i) => (
+                <motion.div
+                  key={title}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.4 }}
+                  className="bg-white rounded-[18px] p-6 sm:p-7 border border-writer-mist hover:border-writer-iris hover:shadow-md transition-all group flex items-start gap-4 sm:gap-5"
+                >
+                  <div className="w-12 h-12 rounded-[12px] bg-writer-lavender text-writer-iris flex items-center justify-center shrink-0 group-hover:bg-writer-iris group-hover:text-white transition-colors">
+                    <Icon size={22} strokeWidth={2} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <h3 className="text-lg font-black text-writer-obsidian">{title}</h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tagColor}`}>
+                        {tag}
+                      </span>
+                    </div>
+                    <p className="text-sm text-writer-slate leading-relaxed">{desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-xs text-writer-slate">
+            학생이 직접 쓴 글에 이름이 들어 있으면 그대로 전달될 수 있어요. 자세한 내용은{' '}
+            <Link to="/privacy" className="underline underline-offset-2 font-semibold hover:text-writer-iris">
+              개인정보처리방침
+            </Link>
+            에서 확인하세요.
+          </p>
         </div>
       </section>
 
@@ -1018,12 +1130,12 @@ const Landing = () => {
       </section>
 
       {/* ── Pricing Section ── */}
-      <section className="py-20 bg-writer-lavender/30">
+      <section id="pricing-section" className="py-20 bg-writer-lavender/30">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
             <Eyebrow>💳 플랜 안내</Eyebrow>
             <h2 className="text-3xl font-black mb-3">역할에 맞는 플랜을 선택하세요</h2>
-            <p className="text-writer-slate text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 오픈 예정입니다. 지금 얼리버드로 신청하면 첫 달 30% 할인!</p>
+            <p className="text-writer-slate text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 오픈 예정입니다. 지금 얼리버드로 신청하면 첫 달 50% 할인!</p>
           </motion.div>
 
           {/* 공유 링크 안내 */}
@@ -1054,7 +1166,7 @@ const Landing = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
             {pricingPlans.map((plan, i) => {
               const isDark = !!(plan as any).highlight;
               return (
@@ -1127,7 +1239,7 @@ const Landing = () => {
                             : `${btnGhost}`
                         }`}
                       >
-                        얼리버드 신청 (첫 달 30%↓)
+                        얼리버드 신청 (첫 달 50%↓)
                       </Link>
                     )}
                   </div>
@@ -1140,7 +1252,7 @@ const Landing = () => {
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-writer-slate mt-2"
           >
-            유료 플랜 결제는 준비 중이며, 얼리버드 신청자에게는 첫 달 30% 할인이 제공됩니다 · 플랜 문의: aklabs84@naver.com
+            유료 플랜 결제는 준비 중이며, 얼리버드 신청자에게는 첫 달 50% 할인이 제공됩니다 · 플랜 문의: aklabs84@naver.com
           </motion.p>
         </div>
       </section>
@@ -1553,7 +1665,7 @@ const Landing = () => {
               <p className="text-white/60 text-sm leading-relaxed max-w-md mx-auto">
                 Pro·학교/학원 플랜은 준비 중입니다.<br />
                 얼리버드로 신청해 주시면 정식 오픈 소식과 함께<br />
-                <strong className="text-white">첫 달 30% 할인</strong>을 가장 먼저 안내해 드립니다.
+                <strong className="text-white">첫 달 50% 할인</strong>을 가장 먼저 안내해 드립니다.
               </p>
             </div>
 
@@ -1563,7 +1675,7 @@ const Landing = () => {
                 className={`${btnAccent} w-full py-4 text-base justify-center`}
               >
                 <Send size={18} strokeWidth={2.5} />
-                얼리버드 신청하기 (첫 달 30%↓)
+                얼리버드 신청하기 (첫 달 50%↓)
               </Link>
               <p className="text-xs text-writer-slate">
                 여러 선생님이 함께 쓰는 학교·학원 단위 도입 문의는{' '}

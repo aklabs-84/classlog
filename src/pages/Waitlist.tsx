@@ -3,9 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-// Basic 옵션은 화면 노출만 잠시 끔(코드는 남겨둠 — 재노출 시 주석 해제).
 const PLAN_OPTIONS = [
-  // { value: 'basic', label: 'Basic (9,900원/월 예정)' },
+  { value: 'basic', label: 'Basic (9,900원/월 예정)' },
   { value: 'pro', label: 'Pro (19,900원/월 예정)' },
   { value: 'school', label: 'School (학교·학원 단위)' },
   { value: 'unsure', label: '아직 잘 모르겠어요' },

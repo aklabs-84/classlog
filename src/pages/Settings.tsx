@@ -452,11 +452,11 @@ const Settings = () => {
                 </p>
               ) : plan === 'pro' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  동시 진행 클래스 무제한 · 학생 최대 40명/반 · AI 넉넉하게 사용
+                  동시 진행 클래스 무제한 · 학생 최대 40명/반 · AI 월 약 6,000크레딧
                 </p>
               ) : plan === 'basic' ? (
                 <p className="text-xs text-blue-600 mt-0.5">
-                  동시 진행 클래스 최대 10개 · 학생 최대 40명/반 · AI 넉넉하게 사용
+                  동시 진행 클래스 최대 10개 · 학생 최대 40명/반 · AI 월 약 2,000크레딧
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">

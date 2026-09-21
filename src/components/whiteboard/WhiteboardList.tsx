@@ -41,7 +41,7 @@ interface ClassSession {
 const ALL_TAB = '__all__';
 const NO_CLASS_TAB = '__noclass__';
 
-const BASIC_BOARD_LIMIT = 3;
+const BASIC_BOARD_LIMIT = 10;
 const FREE_BOARD_LIMIT = 4;
 const STALE_DAYS = 90;
 

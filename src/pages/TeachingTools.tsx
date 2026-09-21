@@ -319,7 +319,7 @@ export const tools: Tool[] = [
     available: true,
     category: 'teaching',
     planRequired: 'limited',
-    limits: { freeDesc: '보드 4개까지', basicDesc: '클래스당 보드 3개', proDesc: '보드 수 무제한' },
+    limits: { freeDesc: '보드 4개까지', basicDesc: '보드 10개까지', proDesc: '보드 수 무제한' },
     component: <WhiteboardList />,
     quickGuide: {
       steps: [
