@@ -814,25 +814,25 @@ const StudentLog = () => {
     }
   }, [session?.class_id]);
 
-  // 학생 알림 Realtime 구독
+  // 학생 알림 — 공개 조회를 막았으므로 Realtime 대신 15초마다 서버 창구에서 가져옴
   useEffect(() => {
-    if (!session?.student_id) return;
-    const channel = supabase
-      .channel(`student-notifs-${session.student_id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'student_notifications',
-        filter: `student_id=eq.${session.student_id}`,
-      }, (payload: any) => {
-        setStudentNotifs(prev => [payload.new, ...prev]);
-        if (payload.new?.type === 'group_assignment') {
+    if (!session?.student_id || !session?.token) return;
+    let stop = false;
+    const tick = async () => {
+      const { data } = await supabase.rpc('student_my_notifications', { p_token: session.token });
+      if (stop || !data) return;
+      const rows = data as any[];
+      setStudentNotifs(prev => {
+        const known = new Set(prev.map(n => n.id));
+        if (rows.some(n => !known.has(n.id) && n.type === 'group_assignment')) {
           fetchMyGroup(session.student_id, session.class_id);
         }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [session?.student_id]);
+        return rows;
+      });
+    };
+    const timer = setInterval(tick, 15000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [session?.student_id, session?.token]);
 
   // 조 편성 Realtime 구독 — 선생님이 배정/변경하면 자동 반영
   useEffect(() => {
@@ -909,13 +909,12 @@ const StudentLog = () => {
   };
 
   const fetchStudentNotifs = async (studentId: string) => {
-    const { data, error: _error } = await supabase
-      .from('student_notifications')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (data) setStudentNotifs(data);
+    void studentId;
+    let token = session?.token;
+    if (!token) { try { token = JSON.parse(sessionStorage.getItem('student_session') || '{}').token; } catch { /* noop */ } }
+    if (!token) return;
+    const { data } = await supabase.rpc('student_my_notifications', { p_token: token });
+    if (data) setStudentNotifs(data as any[]);
   };
 
   const markAllNotifsRead = async (_studentId: string) => {
@@ -926,7 +925,7 @@ const StudentLog = () => {
   const deleteReadNotifs = async () => {
     const readIds = studentNotifs.filter(n => n.is_read).map(n => n.id);
     if (readIds.length === 0) return;
-    await supabase.from('student_notifications').delete().in('id', readIds);
+    await supabase.rpc('student_notifications_delete', { p_token: session?.token, p_ids: readIds });
     setStudentNotifs(prev => prev.filter(n => !n.is_read));
   };
 
@@ -1522,10 +1521,7 @@ const StudentLog = () => {
       // 이미 제출한 단원 ID 조회
       const unitIds = units.map((u: any) => u.id);
       const { data: submittedData, error: subError } = await supabase
-        .from('unit_submissions')
-        .select('unit_id')
-        .eq('student_id', session.student_id)
-        .in('unit_id', unitIds);
+        .rpc('student_submitted_unit_ids', { p_token: session.token, p_unit_ids: unitIds });
 
       if (subError) throw subError;
 
@@ -1579,19 +1575,16 @@ const StudentLog = () => {
 
     setUnitSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('unit_submissions')
-        .insert({
-          unit_id: unitId,
-          student_id: session.student_id,
-          class_id: session.class_id,
-          self_eval: unitForm[`${unitId}_self_eval`] || null,
-          inquiry_reflection: unitForm[`${unitId}_inquiry_reflection`] || null,
-          performance_record: unitForm[`${unitId}_performance_record`] || null,
-          reading_record_title: unitForm[`${unitId}_reading_title`] || null,
-          reading_record_author: unitForm[`${unitId}_reading_author`] || null,
-          reading_record_reflection: unitForm[`${unitId}_reading_reflection`] || null
-        });
+      const { error } = await supabase.rpc('student_unit_submit', {
+        p_token: session.token,
+        p_unit_id: unitId,
+        p_self_eval: unitForm[`${unitId}_self_eval`] || null,
+        p_inquiry_reflection: unitForm[`${unitId}_inquiry_reflection`] || null,
+        p_performance_record: unitForm[`${unitId}_performance_record`] || null,
+        p_reading_title: unitForm[`${unitId}_reading_title`] || null,
+        p_reading_author: unitForm[`${unitId}_reading_author`] || null,
+        p_reading_reflection: unitForm[`${unitId}_reading_reflection`] || null
+      });
       if (error) throw error;
 
       showToast('단원 마무리 서식이 제출되었습니다! 선생님이 세특 초안 작성 시 활용됩니다. ✅');
