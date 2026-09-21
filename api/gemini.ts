@@ -220,7 +220,7 @@ export default async function handler(req: any, res: any) {
       if (!authError && user) {
         // 과금 대상: 기본은 요청자 본인. 프로필이 없는 요청자(학생)는 학급 담임 교사에게 과금한다.
         let billId = user.id;
-        const selfProfileCols = 'plan, beta_expires_at, ai_daily_count, ai_daily_date, ai_monthly_count, ai_monthly_cost_usd, ai_monthly_credits, ai_monthly_reset';
+        const selfProfileCols = 'plan, beta_expires_at, project_pro_until, ai_daily_count, ai_daily_date, ai_monthly_count, ai_monthly_cost_usd, ai_monthly_credits, ai_monthly_reset';
         let { data: profile } = await supabase.from('profiles').select(selfProfileCols).eq('id', user.id).maybeSingle();
 
         if (!profile) {
@@ -285,6 +285,15 @@ export default async function handler(req: any, res: any) {
 
                 pendingCreditUpdate = { monthlyCostBefore, month: thisMonth };
               } else if (plan === 'free') {
+                // AI 코파일럿은 유료 회원(학교 프로젝트 Pro 기간 포함) 전용 — 화면 차단을 우회한 직접 호출도 여기서 막는다.
+                const isProjectPro = profile.project_pro_until && new Date(profile.project_pro_until) > new Date();
+                if (feature.endsWith('_copilot') && !isProjectPro) {
+                  return res.status(403).json({
+                    error: 'COPILOT_PAID_ONLY',
+                    message: 'AI 코파일럿은 유료 회원 전용 기능이에요. 요금제를 확인해 주세요.',
+                  });
+                }
+
                 // free: 기능별 고정 크레딧제
                 const creditsBefore = isNewMonth ? 0 : (profile.ai_monthly_credits ?? 0);
                 const price = creditPriceOf(feature);

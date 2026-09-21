@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
   Images, Download, Share, MoreVertical, Gift, Lightbulb, Users,
-  ChevronLeft, ChevronRight, Minus, Bot, Zap, BookOpen,
+  ChevronLeft, ChevronRight, ChevronDown, Minus, Bot, Zap, BookOpen, Type,
 } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { useAuth, getAiUsageStatus } from '../../lib/auth';
+import { useAuth, getAiUsageStatus, isFreeCreditPlan } from '../../lib/auth';
 import { AI_CREDITS_EVENT, type AiCreditsInfo } from '../../lib/aiCredits';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useFontScale } from '../../hooks/useFontScale';
@@ -58,6 +58,19 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
   const { scale: fontScale, canDecrease: canDecreaseFont, canIncrease: canIncreaseFont, decrease: decreaseFont, increase: increaseFont } = useFontScale();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showFontMenu, setShowFontMenu] = useState(false);
+  const fontMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showFontMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (fontMenuRef.current && !fontMenuRef.current.contains(e.target as Node)) {
+        setShowFontMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showFontMenu]);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNavIOSGuide, setShowNavIOSGuide] = useState(false);
@@ -149,19 +162,98 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
     return `${days}일 전`;
   };
 
-  const navItems = [
-    { label: '아이디어 기록', path: '/dashboard', icon: Lightbulb },
-    { label: 'AI 코파일럿', path: '/ai-copilot', icon: Bot },
-    { label: '학급 관리', path: '/classes', icon: LayoutDashboard },
-    { label: '클래스룸', path: '/classroom', icon: School },
-    { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
-    { label: '갤러리', path: '/gallery', icon: Images },
-    { label: 'AI 세특 초안', path: '/ai-assistant', icon: Sparkles },
-    { label: '보고서', path: '/export', icon: FileBarChart2 },
-    { label: '아카이브', path: '/archive', icon: Archive },
+  const navGroups = [
+    {
+      title: '기록하고 만들기',
+      items: [
+        { label: '아이디어 기록', path: '/dashboard', icon: Lightbulb },
+        { label: 'AI 세특 초안', path: '/ai-assistant', icon: Sparkles },
+        { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
+      ],
+    },
+    {
+      title: '수업 운영',
+      items: [
+        { label: '학급 관리', path: '/classes', icon: LayoutDashboard },
+        { label: '클래스룸', path: '/classroom', icon: School },
+        { label: '갤러리', path: '/gallery', icon: Images },
+      ],
+    },
+    {
+      title: '정리하고 내보내기',
+      items: [
+        { label: '보고서', path: '/export', icon: FileBarChart2 },
+        { label: '아카이브', path: '/archive', icon: Archive },
+      ],
+    },
+  ];
+  const moreItems: { label: string; path: string; icon: typeof Bot; paidOnly?: boolean }[] = [
+    { label: 'AI 코파일럿', path: '/ai-copilot', icon: Bot, paidOnly: true },
     { label: '커뮤니티', path: '/community', icon: Users },
     { label: '활용 가이드', path: '/stories', icon: BookOpen },
   ];
+  const showPaidBadge = isFreeCreditPlan(profile);
+
+  // 더보기 안의 페이지를 보고 있으면 자동으로 펼쳐 현재 위치가 메뉴에서 보이게 함
+  const { pathname } = useLocation();
+  const inMore = moreItems.some((m) => pathname.startsWith(m.path));
+  const [moreOpen, setMoreOpen] = useState(inMore);
+  useEffect(() => { if (inMore) setMoreOpen(true); }, [inMore]);
+
+  const renderNavItem = (tab: { label: string; path: string; icon: typeof Bot; paidOnly?: boolean }, mobile: boolean) => (
+    <NavLink key={tab.path} to={tab.path} end={tab.path === '/'}
+      title={!mobile && isCollapsed ? tab.label : ''}
+      onClick={mobile ? () => setMobileMenuOpen(false) : undefined}
+      className={({ isActive }) => mobile
+        ? `flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-black transition-all ${
+            isActive ? 'text-primary bg-primary/8' : 'text-on-surface-variant/70 hover:text-on-surface hover:bg-white/60'
+          }`
+        : `
+          flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-black transition-all relative group shrink-0
+          ${isActive ? 'text-primary bg-primary/5' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
+          ${isCollapsed ? 'justify-center' : ''}
+        `}
+    >
+      {({ isActive }) => (
+        <>
+          <tab.icon size={mobile ? 17 : 18} strokeWidth={!mobile && isActive ? 2.5 : 2}
+            className={mobile ? (isActive ? 'text-primary' : 'text-on-surface-variant/40') : 'shrink-0'} />
+          {(mobile || !isCollapsed) && tab.label}
+          {tab.paidOnly && showPaidBadge && (mobile || !isCollapsed) && (
+            <span className="ml-auto text-[9px] font-black px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">유료</span>
+          )}
+        </>
+      )}
+    </NavLink>
+  );
+
+  const renderNavGroups = (mobile: boolean) => (
+    <>
+      {navGroups.map((g, gi) => (
+        <div key={g.title} className="flex flex-col gap-1">
+          {(mobile || !isCollapsed) ? (
+            <p className={`text-[10px] font-black text-on-surface-variant/40 px-3 ${gi === 0 ? 'mt-0' : 'mt-3'} mb-0.5`}>{g.title}</p>
+          ) : (
+            gi > 0 && <div className="h-px bg-on-surface/10 mx-2 my-1.5" />
+          )}
+          {g.items.map((t) => renderNavItem(t, mobile))}
+        </div>
+      ))}
+      {(mobile || !isCollapsed) ? (
+        <button onClick={() => setMoreOpen((v) => !v)}
+          className="flex items-center gap-2 px-3 py-2.5 mt-2 border-t border-on-surface/5 pt-3 text-[13px] font-black text-on-surface-variant/60 hover:text-on-surface transition-colors shrink-0">
+          <ChevronDown size={16} className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+          더보기
+        </button>
+      ) : (
+        <button onClick={() => setMoreOpen((v) => !v)} title="더보기"
+          className="flex justify-center py-2.5 mt-2 border-t border-on-surface/5 text-on-surface-variant/60 hover:text-on-surface shrink-0">
+          <ChevronDown size={16} className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+      {moreOpen && moreItems.map((t) => renderNavItem(t, mobile))}
+    </>
+  );
 
   const renderNotificationsList = () => (
     <>
@@ -250,23 +342,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
 
       {/* 메뉴 */}
       <nav className="flex-1 flex flex-col gap-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
-        {navItems.map((tab) => (
-          <NavLink key={tab.path} to={tab.path} end={tab.path === '/'}
-            title={isCollapsed ? tab.label : ''}
-            className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-black transition-all relative group shrink-0
-              ${isActive ? 'text-primary bg-primary/5' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
-              ${isCollapsed ? 'justify-center' : ''}
-            `}
-          >
-            {({ isActive }) => (
-              <>
-                <tab.icon size={18} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
-                {!isCollapsed && tab.label}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {renderNavGroups(false)}
       </nav>
 
       {/* AI 사용량 위젯 — 무제한(admin/베타/BYOK)이면 숨김 */}
@@ -308,45 +384,69 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
         <NotificationPermissionButton variant="desktop" />
       </div>
 
-      {/* 글자 크기 조절 (펼침 상태 전용 — 접힘 상태는 아래 아이콘 묶음에 통합) */}
-      {!isCollapsed && (
-        <div className="shrink-0 flex items-center justify-center gap-0.5 p-0.5 mt-3 mb-2 rounded-xl bg-surface-container-low/50 border border-on-surface/5">
+      {/* 아이콘 액션 묶음 (글자 크기, 다운로드, 알림, 친구초대) */}
+      <div className={`shrink-0 flex items-center gap-1 flex-wrap ${isCollapsed ? 'flex-col pt-3 mt-1 border-t border-on-surface/5' : 'justify-center pt-2.5 mt-2 border-t border-on-surface/5'}`}>
+        
+        {/* 글자 크기 조절 팝오버 (다운로드 아이콘 좌측 배치) */}
+        <div className="relative" ref={fontMenuRef}>
           <button
-            onClick={decreaseFont}
-            disabled={!canDecreaseFont}
-            title="글자 작게"
-            className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/50 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
+            onClick={() => {
+              setShowFontMenu(prev => !prev);
+              setShowNotifications(false);
+              setShowMoreMenu(false);
+            }}
+            title="글자 크기 조절"
+            className={`w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all relative flex items-center justify-center ${
+              showFontMenu ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40 hover:text-primary'
+            }`}
           >
-            <Minus size={14} strokeWidth={2.5} />
+            <Type size={16} strokeWidth={2.3} />
           </button>
-          <span className="text-[10px] font-black text-on-surface-variant/40 tabular-nums w-8 text-center select-none">{fontScale}%</span>
-          <button
-            onClick={increaseFont}
-            disabled={!canIncreaseFont}
-            title="글자 크게"
-            className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/50 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
-          >
-            <Plus size={14} strokeWidth={2.5} />
-          </button>
-        </div>
-      )}
+          <AnimatePresence>
+            {showFontMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: isCollapsed ? 0 : 8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: isCollapsed ? 0 : 8, scale: 0.95 }}
+                className={`absolute ${
+                  isCollapsed ? 'left-full ml-3 bottom-0' : 'bottom-full mb-2 left-1/2 -translate-x-1/2'
+                } glass rounded-2xl shadow-elevated p-3 z-50 border border-white/70 min-w-[170px] flex flex-col items-center gap-2`}
+              >
+                <div className="flex items-center justify-between w-full px-1">
+                  <span className="text-[11px] font-black text-on-surface-variant/70 flex items-center gap-1">
+                    <Type size={12} className="text-primary" /> 글자 크기
+                  </span>
+                  <span className="text-[10px] font-black text-primary px-1.5 py-0.5 rounded-full bg-primary/10 tabular-nums">
+                    {fontScale}%
+                  </span>
+                </div>
 
-      {/* 아이콘 액션 묶음 */}
-      <div className={`shrink-0 flex items-center gap-1 flex-wrap ${isCollapsed ? 'flex-col pt-3 mt-1 border-t border-on-surface/5' : 'justify-center pt-2'}`}>
-        {isCollapsed && (
-          <>
-            <button onClick={decreaseFont} disabled={!canDecreaseFont} title="글자 작게"
-              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
-            >
-              <Minus size={16} strokeWidth={2.5} />
-            </button>
-            <button onClick={increaseFont} disabled={!canIncreaseFont} title="글자 크게"
-              className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-            </button>
-          </>
-        )}
+                <div className="flex items-center justify-center gap-1.5 w-full bg-surface-container-low/60 p-1 rounded-xl border border-on-surface/5">
+                  <button
+                    onClick={decreaseFont}
+                    disabled={!canDecreaseFont}
+                    title="글자 작게"
+                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/60 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center bg-white/40"
+                  >
+                    <Minus size={14} strokeWidth={2.5} />
+                  </button>
+                  <div className="flex-1 text-center font-black text-xs text-on-surface select-none tabular-nums">
+                    {fontScale}%
+                  </div>
+                  <button
+                    onClick={increaseFont}
+                    disabled={!canIncreaseFont}
+                    title="글자 크게"
+                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/60 hover:text-primary disabled:opacity-25 disabled:pointer-events-none flex items-center justify-center bg-white/40"
+                  >
+                    <Plus size={14} strokeWidth={2.5} />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {showInstallBtn && (
           <button onClick={handleNavInstall} title="앱 설치"
             className="w-9 h-9 rounded-xl hover:bg-primary/8 transition-all text-primary/60 hover:text-primary flex items-center justify-center"
@@ -357,7 +457,10 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
 
         <div className="relative">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => {
+              setShowNotifications(!showNotifications);
+              setShowFontMenu(false);
+            }}
             title="알림"
             className={`w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all relative flex items-center justify-center ${showNotifications ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40'}`}
           >
@@ -605,23 +708,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
 
             {/* 네비 메뉴 */}
             <nav className="flex flex-col p-2 gap-0.5">
-              {navItems.map((tab) => (
-                <NavLink key={tab.path} to={tab.path} end={tab.path === '/'}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-black transition-all ${
-                      isActive ? 'text-primary bg-primary/8' : 'text-on-surface-variant/70 hover:text-on-surface hover:bg-white/60'
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <tab.icon size={17} className={isActive ? 'text-primary' : 'text-on-surface-variant/40'} />
-                      {tab.label}
-                    </>
-                  )}
-                </NavLink>
-              ))}
+              {renderNavGroups(true)}
             </nav>
 
             {/* 하단 액션 */}

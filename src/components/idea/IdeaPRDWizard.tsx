@@ -167,6 +167,7 @@ export default function IdeaPRDWizard({ ideaContent, format, relatedMaterials, c
                       </p>
                     )}
                     <p className="text-lg font-black text-on-surface leading-relaxed">{currentQuestion.question}</p>
+                    <AiCreditCost feature="idea_clarify_question" note="· 답변할 때마다 다음 질문 생성" />
                     {!customMode ? (
                       <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

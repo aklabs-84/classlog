@@ -7,7 +7,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
 import { creditPriceOf } from '../lib/aiCredits';
-import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft, countActiveClasses } from '../lib/auth';
+import { useAuth, isFreeCreditPlan, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft, countActiveClasses } from '../lib/auth';
+import CopilotIntro from '../components/copilot/CopilotIntro';
 import { isDemoTeacher } from '../lib/demo';
 import { chatWithCopilot, type CopilotModeId as CopilotEngineMode, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
@@ -497,7 +498,7 @@ const HANDOFF_TARGETS: Partial<Record<CopilotModeId, CopilotModeId[]>> = {
   slide_deck_maker: ['quiz_maker', 'survey_maker'],
 };
 
-const AiCopilot = () => {
+const AiCopilotChat = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
@@ -3010,6 +3011,13 @@ ${session.transcript_text}
       )}
     </motion.div>
   );
+};
+
+// 무료 회원(체험·학교 프로젝트 Pro 기간 제외)에게는 소개 화면만 보여준다. 실제 차단은 서버(api/gemini.ts)가 맡는다.
+const AiCopilot = () => {
+  const { profile } = useAuth();
+  if (isFreeCreditPlan(profile)) return <CopilotIntro />;
+  return <AiCopilotChat />;
 };
 
 export default AiCopilot;

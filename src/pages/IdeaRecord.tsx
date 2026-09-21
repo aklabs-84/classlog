@@ -15,6 +15,7 @@ import type { DeckSlide } from '../components/slidedeck/types';
 import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
 import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
 import AiCreditCost from '../components/common/AiCreditCost';
+import { SLIDE_AI_ENABLED } from '../lib/featureFlags';
 
 const GUIDE_SEEN_KEY = 'idea_record_guide_seen';
 
@@ -677,6 +678,7 @@ export default function IdeaRecord() {
             className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant/70 hover:text-primary transition-colors"
           >
             <Globe size={13} /> 웹에서 더 찾아보기
+            <AiCreditCost feature="idea_web_search" />
           </button>
         )}
         {webSearchLoading && (
@@ -1707,12 +1709,15 @@ export default function IdeaRecord() {
                       {deletingId === viewingNote.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} 삭제
                     </button>
                   </div>
-                  <button
-                    onClick={() => { const n = viewingNote; setViewingNote(null); handleOpenAnalysis(n); }}
-                    className="flex items-center gap-1.5 px-4 py-2 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20"
-                  >
-                    <Sparkles size={13} /> {viewingNote.ai_summary ? 'AI 분석 보기' : 'AI로 발전시키기'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {!viewingNote.ai_summary && <AiCreditCost feature="idea_analysis" />}
+                    <button
+                      onClick={() => { const n = viewingNote; setViewingNote(null); handleOpenAnalysis(n); }}
+                      className="flex items-center gap-1.5 px-4 py-2 btn-gradient rounded-xl font-bold text-xs shadow-lg shadow-primary/20"
+                    >
+                      <Sparkles size={13} /> {viewingNote.ai_summary ? 'AI 분석 보기' : 'AI로 발전시키기'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -2020,7 +2025,7 @@ export default function IdeaRecord() {
                             <div className="flex items-center gap-1.5 mb-2.5">
                               <FileText size={13} className="text-on-surface-variant/50" />
                               <span className="text-xs font-bold text-on-surface-variant/70">수업 계획서로 만들기</span>
-                              {analysisResult.suggestedFormat !== 'slide' && (
+                              {!(SLIDE_AI_ENABLED && analysisResult.suggestedFormat === 'slide') && (
                                 <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary text-white">AI 추천</span>
                               )}
                             </div>
@@ -2030,7 +2035,7 @@ export default function IdeaRecord() {
                                 onClick={() => handleCreateMaterial('simple')}
                                 disabled={creatingMaterialLength !== null}
                                 className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-60 ${
-                                  analysisResult.suggestedFormat !== 'slide'
+                                  !(SLIDE_AI_ENABLED && analysisResult.suggestedFormat === 'slide')
                                     ? 'bg-primary text-white shadow-md shadow-primary/20'
                                     : 'bg-white text-on-surface-variant border border-on-surface/10 hover:bg-surface-container'
                                 }`}
@@ -2042,7 +2047,7 @@ export default function IdeaRecord() {
                                 onClick={() => handleCreateMaterial('detailed')}
                                 disabled={creatingMaterialLength !== null}
                                 className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-60 ${
-                                  analysisResult.suggestedFormat !== 'slide'
+                                  !(SLIDE_AI_ENABLED && analysisResult.suggestedFormat === 'slide')
                                     ? 'bg-primary text-white shadow-md shadow-primary/20'
                                     : 'bg-white text-on-surface-variant border border-on-surface/10 hover:bg-surface-container'
                                 }`}
@@ -2053,18 +2058,19 @@ export default function IdeaRecord() {
                             </div>
                           </div>
 
+                          {SLIDE_AI_ENABLED && (
                           <div className="rounded-2xl border border-on-surface/[0.08] bg-surface-container/30 p-3.5">
                             <div className="flex items-center gap-1.5 mb-2.5">
                               <Presentation size={13} className="text-on-surface-variant/50" />
                               <span className="text-xs font-bold text-on-surface-variant/70">슬라이드로 만들기</span>
-                              {analysisResult.suggestedFormat === 'slide' && (
+                              {(SLIDE_AI_ENABLED && analysisResult.suggestedFormat === 'slide') && (
                                 <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary text-white">AI 추천</span>
                               )}
                             </div>
                             <button
                               onClick={handleCreateSlide}
                               className={`w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                                analysisResult.suggestedFormat === 'slide'
+                                (SLIDE_AI_ENABLED && analysisResult.suggestedFormat === 'slide')
                                   ? 'bg-primary text-white shadow-md shadow-primary/20'
                                   : 'bg-white text-on-surface-variant border border-on-surface/10 hover:bg-surface-container'
                               }`}
@@ -2072,13 +2078,14 @@ export default function IdeaRecord() {
                               <Presentation size={14} /> 슬라이드 생성
                             </button>
                           </div>
+                          )}
                         </div>
 
                         {/* 그룹 B: AI와 대화하며 구체화 (다른 성격의 흐름) */}
                         <button
                           onClick={() => {
                             setWizardOrigin('create');
-                            setWizardFormat(analysisResult.suggestedFormat === 'slide' ? 'slide' : 'material');
+                            setWizardFormat((SLIDE_AI_ENABLED && analysisResult.suggestedFormat === 'slide') ? 'slide' : 'material');
                           }}
                           className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
                         >

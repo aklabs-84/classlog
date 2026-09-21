@@ -3,6 +3,10 @@ import { Sparkles } from 'lucide-react';
 import { useAuth, isFreeCreditPlan, getAiUsageStatus } from '../../lib/auth';
 import { AI_CREDITS_EVENT, creditPriceOf, type AiCreditsInfo } from '../../lib/aiCredits';
 
+// 이 가격 이상인 '큰 작업'에만 버튼 옆 표시를 보여준다. 작은 기능마다 붙이면 쓸 때마다 계산하게 돼 부담이 되므로,
+// 잔액은 상단바에서 항상 보이게 하고 작은 기능은 잔액이 모자랄 때만 알려준다.
+const SHOW_COST_FROM = 40;
+
 // AI 버튼 옆에 "이 기능은 N크레딧 · 남은 M"을 보여준다. 무료(크레딧제) 플랜에서만 나타난다.
 // 잔액은 서버가 AI 호출 때마다 알려주는 값(AI_CREDITS_EVENT)으로 바로 갱신된다.
 export function useFreeCreditBalance(): { isFree: boolean; remaining: number } {
@@ -29,6 +33,7 @@ export default function AiCreditCost({ feature, className = '', note }: { featur
 
   const price = creditPriceOf(feature);
   const short = remaining < price;
+  if (!short && price < SHOW_COST_FROM) return null;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black whitespace-nowrap ${

@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import type { Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { suggestAlternativeContent } from '../lib/gemini';
+import AiCreditCost from './common/AiCreditCost';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
@@ -2240,6 +2241,7 @@ const RichEditor = ({
                   {aiSuggestLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                   {aiSuggestResults ? '다시 제안' : '제안받기'}
                 </button>
+                <AiCreditCost feature="material_reorganize" />
               </div>
 
               {aiSuggestLoading && (

@@ -1,3 +1,4 @@
+import { SLIDE_AI_ENABLED } from '../../lib/featureFlags';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Lightbulb, Sparkles, FileText, Presentation, MessageCircleQuestion, ArrowRight, PenLine, Link2, Layers } from 'lucide-react';
@@ -13,7 +14,7 @@ const WHY_ITEMS: { icon: typeof Sparkles; text: string }[] = [
 
 type ActionKey = 'simple' | 'detailed' | 'slide' | 'wizard';
 
-const ACTIONS: { key: ActionKey; icon: typeof Sparkles; label: string; desc: string; sample: string }[] = [
+const ALL_ACTIONS: { key: ActionKey; icon: typeof Sparkles; label: string; desc: string; sample: string }[] = [
   {
     key: 'simple',
     icon: Sparkles,
@@ -43,6 +44,8 @@ const ACTIONS: { key: ActionKey; icon: typeof Sparkles; label: string; desc: str
     sample: 'Q1. 이 수업은 몇 명 정도의 학생과 함께하나요?\n → 25~30명\nQ2. 수업 기간은 어느 정도인가요?\n → 1차시(45분)\nQ3. 학생들의 참여 성향은 어떤가요?\n → 실습 활동을 좋아하는 편\n...\n\n→ 답변을 종합해 "실험 중심 1차시 수업 기획서" 생성 → 검토 후 승인하면 계획서/슬라이드로 완성',
   },
 ];
+
+const ACTIONS = ALL_ACTIONS.filter(a => SLIDE_AI_ENABLED || a.key !== 'slide');
 
 export default function IdeaRecordGuideModal({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState<ActionKey>('simple');

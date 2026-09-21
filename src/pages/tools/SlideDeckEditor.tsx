@@ -19,6 +19,7 @@ import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
 import { parsePptxFile } from '../../components/slidedeck/utils/importPptx';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import { SLIDE_AI_ENABLED } from '../../lib/featureFlags';
 
 type View = 'list' | 'template' | 'planning' | 'editor';
 
@@ -703,12 +704,14 @@ export default function SlideDeckEditor() {
             >
               {importingPptx ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />} PPT 불러오기
             </button>
+            {SLIDE_AI_ENABLED && (
             <button
               onClick={() => setShowImportModal(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
             >
               <Sparkles size={16} /> AI로 자료 가져오기
             </button>
+            )}
             <button
               onClick={() => setView('template')}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
