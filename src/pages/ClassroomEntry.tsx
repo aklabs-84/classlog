@@ -112,11 +112,8 @@ const ClassroomEntry = () => {
     setLoading(true);
     setError('');
     try {
-      const { data, error: classError } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('entry_code', fullCode)
-        .single();
+      const { data: classRows, error: classError } = await supabase.rpc('class_entry_lookup', { p_code: fullCode });
+      const data = Array.isArray(classRows) ? classRows[0] : classRows;
 
       if (classError || !data) {
         setError('유효하지 않은 입장 코드입니다. 다시 확인해 주세요.');

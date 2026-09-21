@@ -473,11 +473,7 @@ const StudentLog = () => {
     (async () => {
       try {
         // class의 linked_class_id 확인 (연결 학급 구조 대응)
-        const { data: classData } = await supabase
-          .from('classes')
-          .select('id, linked_class_id')
-          .eq('id', parsed.class_id)
-          .maybeSingle();
+        const { data: classData } = await supabase.rpc('student_class_settings', { p_token: parsed.token, p_class_id: parsed.class_id });
 
         if (!classData) throw new Error('class not found');
 
@@ -947,11 +943,7 @@ const StudentLog = () => {
 
   const fetchClassDetails = async (classId: string) => {
     try {
-      const { data } = await supabase
-        .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed, parent_class_id, today_started_at, active_week, entry_code')
-        .eq('id', classId)
-        .single();
+      const { data } = await supabase.rpc('student_class_settings', { p_token: session?.token ?? JSON.parse(sessionStorage.getItem('student_session') || '{}').token, p_class_id: classId });
 
       if (data) {
         setTeacherId(data.teacher_id);
@@ -971,8 +963,8 @@ const StudentLog = () => {
         // 하위 클래스인 경우 부모 클래스의 weekly_plan 사용
         let resolvedWeeklyPlan = data.weekly_plan;
         if (data.parent_class_id && (!resolvedWeeklyPlan || resolvedWeeklyPlan.length === 0)) {
-          const { data: parentData } = await supabase.from('classes').select('weekly_plan').eq('id', data.parent_class_id).single();
-          if (parentData?.weekly_plan?.length > 0) resolvedWeeklyPlan = parentData?.weekly_plan;
+          const parentPlan = data.parent_weekly_plan;
+          if (parentPlan?.length > 0) resolvedWeeklyPlan = parentPlan;
         }
 
         if (resolvedWeeklyPlan && Array.isArray(resolvedWeeklyPlan) && resolvedWeeklyPlan.length > 0) {
