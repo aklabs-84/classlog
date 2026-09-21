@@ -1752,12 +1752,7 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     setSurveyLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('survey_forms')
-        .select('id, title, pin_code, status, created_at')
-        .eq('class_id', session.class_id)
-        .eq('status', 'open')
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.rpc('student_active_surveys', { p_token: session.token });
       if (!error && data) setActiveSurveyForms(data);
     } catch (err) {
       console.error('Error fetching survey forms:', err);

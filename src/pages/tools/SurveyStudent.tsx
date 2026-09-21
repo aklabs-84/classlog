@@ -286,11 +286,12 @@ export default function SurveyStudent() {
 
   const loadFormByPin = async (p: string) => {
     setLoading(true);
-    const { data, error } = await supabase.from('survey_forms').select('*').eq('pin_code', p.trim()).single();
+    const { data: bundle, error } = await supabase.rpc('survey_by_pin', { p_pin: p.trim() });
+    const data = (bundle as any)?.form;
     if (error || !data) { setErrorMsg('설문을 찾을 수 없어요. PIN을 다시 확인해주세요.'); setLoading(false); return; }
     if (data.status !== 'open') { setErrorMsg('이 설문은 현재 진행 중이 아닙니다.'); setLoading(false); return; }
     setForm(data);
-    const { data: qs } = await supabase.from('survey_questions').select('*').eq('form_id', data.id).order('order_index');
+    const qs = (bundle as any).questions as any[];
     setQuestions((qs ?? []).map((q: any) => ({ ...q, options: q.options ?? [] })));
     setLoading(false);
   };
@@ -343,14 +344,22 @@ export default function SurveyStudent() {
   const submitResponse = async (classId: string | null) => {
     if (!form) return;
     setLoading(true);
-    const { data, error } = await supabase.from('survey_responses').insert({
-      form_id: form.id,
-      respondent_name: form.is_anonymous ? '익명' : nameInput.trim(),
-      student_id: sessionStudentId,
-      class_id: classId,
-    }).select().single();
-    if (error || !data) { setErrorMsg('참여 중 오류가 발생했습니다.'); setLoading(false); return; }
-    setResponseId(data.id);
+    // 학생 화면에서 넘어온 경우에만 학생 통과표를 사용 (서버가 학생·학급을 결정)
+    let token: string | null = null;
+    if (sessionStudentId) {
+      try {
+        const st = JSON.parse(sessionStorage.getItem('student_session') || '{}');
+        if (st.student_id === sessionStudentId) token = st.token ?? null;
+      } catch { /* noop */ }
+    }
+    const { data: newId, error } = await supabase.rpc('survey_start', {
+      p_pin: form.pin_code,
+      p_name: nameInput.trim(),
+      p_token: token,
+      p_class_id: classId,
+    });
+    if (error || !newId) { setErrorMsg('참여 중 오류가 발생했습니다.'); setLoading(false); return; }
+    setResponseId(newId as string);
     setStep('survey');
     setLoading(false);
   };
@@ -358,11 +367,10 @@ export default function SurveyStudent() {
   const handleAnswer = async (value: unknown) => {
     if (!responseId || !form) return;
     const q = questions[currentIdx];
-    await supabase.from('survey_answers').insert({
-      response_id: responseId,
-      question_id: q.id,
-      form_id: form.id,
-      value,
+    await supabase.rpc('survey_answer', {
+      p_response_id: responseId,
+      p_question_id: q.id,
+      p_value: value as any,
     });
     if (currentIdx + 1 < questions.length) {
       setCurrentIdx(i => i + 1);
