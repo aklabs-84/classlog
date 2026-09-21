@@ -330,11 +330,7 @@ export default function SurveyStudent() {
     setClassOptions([]);
     if (!schoolId) return;
     setClassPickerLoading(true);
-    const { data } = await supabase
-      .from('classes')
-      .select('id, name')
-      .eq('school_project_id', schoolId)
-      .order('name');
+    const { data } = await supabase.rpc('survey_project_classes', { p_project_id: schoolId });
     setClassOptions(data ?? []);
     setClassPickerLoading(false);
   };

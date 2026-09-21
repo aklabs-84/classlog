@@ -34,12 +34,8 @@ export default function StudentBoardViewer() {
 
     // 클래스명 조회 (있을 때만)
     if (boardData.class_id) {
-      const { data: classData } = await supabase
-        .from('classes')
-        .select('name')
-        .eq('id', boardData.class_id)
-        .single();
-      if (classData) setClassName(classData.name);
+      const { data: boardClassName } = await supabase.rpc('board_class_name', { p_board_id: boardId });
+      if (boardClassName) setClassName(boardClassName);
     }
 
     const { data: objData } = await supabase
