@@ -35,6 +35,18 @@ interface InstructorPoolRow {
   instructor_note: string | null;
 }
 
+interface InstructorApplicationRow {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  region: string | null;
+  experience: string | null;
+  motivation: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
+
 interface TeacherActivityRow {
   id: string;
   full_name: string | null;
@@ -468,6 +480,9 @@ const Admin = () => {
   const [editingInstructorId, setEditingInstructorId]       = useState<string | null>(null);
   const [instructorNoteDraft, setInstructorNoteDraft]       = useState('');
   const [instructorChecklistDraft, setInstructorChecklistDraft] = useState<Record<string, boolean>>({});
+  const [instructorApplications, setInstructorApplications]     = useState<InstructorApplicationRow[]>([]);
+  const [instructorApplicationsLoading, setInstructorApplicationsLoading] = useState(false);
+  const [decidingApplicationId, setDecidingApplicationId]       = useState<string | null>(null);
 
   // ── 쿠폰 ────────────────────────────────────────────────────────────────────
   const [coupons, setCoupons]             = useState<CouponRow[]>([]);
@@ -538,7 +553,7 @@ const Admin = () => {
     if (activeTab === 'ai_cost')       { fetchAiCost('daily'); fetchAiCreditUsage(); }
     if (activeTab === 'waitlist')      fetchWaitlist();
     if (activeTab === 'training_requests') fetchTrainingRequests();
-    if (activeTab === 'instructor_pool') fetchInstructorPool();
+    if (activeTab === 'instructor_pool') { fetchInstructorPool(); fetchInstructorApplications(); }
   }, [activeTab, authLoading, profile]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -1035,6 +1050,33 @@ const Admin = () => {
     { key: 'demo_class',     label: '시범 수업 완료' },
     { key: 'contract_signed', label: '계약서 작성 완료' },
   ];
+
+  const fetchInstructorApplications = async () => {
+    setInstructorApplicationsLoading(true);
+    try {
+      const { data } = await supabase
+        .from('instructor_applications')
+        .select('id, name, phone, email, region, experience, motivation, status, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      setInstructorApplications(data || []);
+    } finally {
+      setInstructorApplicationsLoading(false);
+    }
+  };
+
+  const decideInstructorApplication = async (id: string, status: 'approved' | 'rejected') => {
+    setDecidingApplicationId(id);
+    try {
+      await supabase
+        .from('instructor_applications')
+        .update({ status, reviewed_at: new Date().toISOString() })
+        .eq('id', id);
+      setInstructorApplications(prev => prev.filter(a => a.id !== id));
+    } finally {
+      setDecidingApplicationId(null);
+    }
+  };
 
   const fetchAiCost = async (view: AiCostView = aiCostView) => {
     setAiCostLoading(true);
@@ -2684,6 +2726,52 @@ const Admin = () => {
         {/* ── 강사 풀 (사업 전체를 넘나드는 강사 현황) ────────────────────────── */}
         {activeTab === 'instructor_pool' && (
           <>
+            {instructorApplicationsLoading ? null : instructorApplications.length > 0 && (
+              <div className="mb-8 p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-3">
+                <p className="text-xs font-black text-amber-800 uppercase tracking-widest">
+                  지원 검토 대기 ({instructorApplications.length})
+                </p>
+                <div className="space-y-3">
+                  {instructorApplications.map(app => (
+                    <div key={app.id} className="p-4 bg-white rounded-xl border border-amber-100 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-black text-amber-900">{app.name}</p>
+                          <p className="text-xs text-amber-600">{app.phone}{app.email ? ` · ${app.email}` : ''}</p>
+                          {app.region && <p className="text-xs text-amber-500 mt-0.5">희망: {app.region}</p>}
+                        </div>
+                        <span className="text-[10px] text-amber-400 shrink-0">
+                          {new Date(app.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                      {app.experience && (
+                        <p className="text-xs text-amber-800 bg-amber-50 rounded-lg p-2 whitespace-pre-wrap">경력: {app.experience}</p>
+                      )}
+                      {app.motivation && (
+                        <p className="text-xs text-amber-800 bg-amber-50 rounded-lg p-2 whitespace-pre-wrap">지원동기: {app.motivation}</p>
+                      )}
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => decideInstructorApplication(app.id, 'rejected')}
+                          disabled={decidingApplicationId === app.id}
+                          className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
+                        >
+                          거절
+                        </button>
+                        <button
+                          onClick={() => decideInstructorApplication(app.id, 'approved')}
+                          disabled={decidingApplicationId === app.id}
+                          className="px-3 py-1.5 text-xs font-black text-white bg-primary hover:bg-primary-dim rounded-xl transition-colors disabled:opacity-40"
+                        >
+                          승인
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between mb-6">
               <p className="text-sm text-amber-700 font-bold">활동 중인 강사 {instructorPool.length}명</p>
               <button onClick={fetchInstructorPool} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">

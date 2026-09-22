@@ -57,6 +57,7 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Waitlist = lazy(() => import('./pages/Waitlist'));
 const TrainingRequest = lazy(() => import('./pages/TrainingRequest'));
+const InstructorApplication = lazy(() => import('./pages/InstructorApplication'));
 const Gallery = lazy(() => import('./pages/Gallery'));
 const VideoGuide = lazy(() => import('./pages/VideoGuide'));
 const Pricing = lazy(() => import('./pages/Pricing'));
@@ -274,6 +275,7 @@ function App() {
               <Route path="/demo" element={<Demo />} />
               <Route path="/waitlist" element={<Waitlist />} />
               <Route path="/training-request" element={<TrainingRequest />} />
+              <Route path="/instructor-application" element={<InstructorApplication />} />
 
               {/* 관리자 라우트 */}
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
