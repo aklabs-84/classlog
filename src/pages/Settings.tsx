@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   GraduationCap,
   MessageCircle,
+  Trash2,
 } from 'lucide-react';
 
 const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
@@ -155,6 +156,39 @@ const Settings = () => {
       setInstructorChecklist(prev => ({ ...(prev || {}), [key]: true }));
       setInstructorChecklistSource(prev => ({ ...prev, [key]: 'self' }));
       setInstructorChecklistEvidence(prev => ({ ...prev, [key]: { file_path: filePath, file_name: file.name, uploaded_at: new Date().toISOString() } }));
+    } finally {
+      setInstructorUploadingKey(null);
+    }
+  };
+
+  const handleDeleteInstructorEvidence = async (key: string, filePath: string) => {
+    if (!user) return;
+    if (!window.confirm('올린 이수증 파일을 삭제할까요? 체크 표시도 함께 해제돼요.')) return;
+    setInstructorEvidenceError(null);
+    setInstructorUploadingKey(key);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('self_delete_instructor_evidence', { p_key: key });
+      if (rpcError || data?.error) {
+        setInstructorEvidenceError('삭제에 실패했어요. 다시 시도해주세요.');
+        return;
+      }
+      // 스토리지 파일 정리는 베스트 에포트로 시도 (실패해도 체크리스트 갱신은 이미 완료된 상태)
+      await supabase.storage.from('instructor-evidence').remove([filePath]);
+      setInstructorChecklist(prev => {
+        const next = { ...(prev || {}) };
+        delete next[key];
+        return next;
+      });
+      setInstructorChecklistSource(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setInstructorChecklistEvidence(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     } finally {
       setInstructorUploadingKey(null);
     }
@@ -746,23 +780,35 @@ const Settings = () => {
                       <p className="text-[11px] text-gray-400">이수증 파일이 아직 없어요</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => {
-                      if (instructorFileInputRef.current) {
-                        instructorFileInputRef.current.dataset.targetKey = item.key;
-                        instructorFileInputRef.current.click();
-                      }
-                    }}
-                    disabled={uploading}
-                    className="shrink-0 text-xs font-bold px-3 py-2 rounded-xl border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {uploading ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Upload size={12} />
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        if (instructorFileInputRef.current) {
+                          instructorFileInputRef.current.dataset.targetKey = item.key;
+                          instructorFileInputRef.current.click();
+                        }
+                      }}
+                      disabled={uploading}
+                      className="text-xs font-bold px-3 py-2 rounded-xl border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {uploading ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Upload size={12} />
+                      )}
+                      {evidence ? '다시 올리기' : '이수증 올리기'}
+                    </button>
+                    {evidence && (
+                      <button
+                        onClick={() => handleDeleteInstructorEvidence(item.key, evidence.file_path)}
+                        disabled={uploading}
+                        title="파일 삭제"
+                        className="p-2 rounded-xl border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     )}
-                    {evidence ? '다시 올리기' : '이수증 올리기'}
-                  </button>
+                  </div>
                 </div>
               );
             })}

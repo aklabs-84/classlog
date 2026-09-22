@@ -1295,6 +1295,14 @@ const Classroom = () => {
       return;
     }
 
+    // 동명 학생 중복 등록 경고
+    const trimmedName = newStudentData.name.trim();
+    const isDuplicateName = students.some(s => (s.full_name || '').trim() === trimmedName);
+    if (isDuplicateName) {
+      const proceed = window.confirm(`'${trimmedName}' 학생이 이미 이 반에 등록되어 있어요.\n그래도 추가하시겠어요?`);
+      if (!proceed) return;
+    }
+
     try {
       const { error } = await supabase
         .from('students')
@@ -1365,6 +1373,22 @@ const Classroom = () => {
           tag: '학생'
         };
       });
+
+      // 동명 학생 중복 등록 경고 (기존 등록 학생 + 이번 배치 내부)
+      const existingNames = new Set(students.map(s => (s.full_name || '').trim()));
+      const seenInBatch = new Set<string>();
+      const duplicateNames = new Set<string>();
+      for (const s of newStudents) {
+        const n = (s.full_name || '').trim();
+        if (existingNames.has(n) || seenInBatch.has(n)) {
+          duplicateNames.add(n);
+        }
+        seenInBatch.add(n);
+      }
+      if (duplicateNames.size > 0) {
+        const proceed = window.confirm(`같은 이름이 중복돼요: ${Array.from(duplicateNames).join(', ')}\n그래도 등록하시겠어요?`);
+        if (!proceed) return;
+      }
 
       const { error } = await supabase.from('students').insert(newStudents);
       if (error) throw error;
