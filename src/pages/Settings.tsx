@@ -85,12 +85,47 @@ const Settings = () => {
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   const [showGeminiKey, setShowGeminiKey]   = useState(false);
 
+  // 강사 온보딩 셀프 체크리스트 (강사 풀 소속일 때만 노출)
+  const [instructorChecklist, setInstructorChecklist] = useState<Record<string, boolean> | null>(null);
+  const [instructorChecklistSource, setInstructorChecklistSource] = useState<Record<string, 'self' | 'admin'>>({});
+  const [demoClassAuto, setDemoClassAuto] = useState(false);
+  const [instructorChecklistSaving, setInstructorChecklistSaving] = useState<string | null>(null);
+
   useEffect(() => {
     const saved = localStorage.getItem('groq_api_key') || '';
     setGroqKey(saved);
     const savedGemini = localStorage.getItem('gemini_api_key') || '';
     setGeminiKey(savedGemini);
   }, []);
+
+  // 강사 풀 소속 여부 + 온보딩 체크리스트 로드 (해당 없으면 조용히 섹션 숨김)
+  useEffect(() => {
+    if (!user) return;
+    supabase.rpc('get_my_instructor_checklist').maybeSingle().then(({ data }: { data: any }) => {
+      if (!data) return;
+      setInstructorChecklist(data.instructor_checklist || {});
+      setInstructorChecklistSource(data.instructor_checklist_source || {});
+      setDemoClassAuto(!!data.demo_class_auto);
+    });
+  }, [user]);
+
+  const INSTRUCTOR_SELF_CHECK_ITEMS: { key: string; label: string }[] = [
+    { key: 'orientation',     label: '오리엔테이션 이수' },
+    { key: 'safety_training', label: '안전 교육 이수' },
+    { key: 'contract_signed', label: '계약서 작성 완료' },
+  ];
+
+  const toggleMyChecklistItem = async (key: string) => {
+    if (!instructorChecklist) return;
+    const nextValue = !instructorChecklist[key];
+    setInstructorChecklistSaving(key);
+    const { data } = await supabase.rpc('self_update_instructor_checklist', { p_updates: { [key]: nextValue } });
+    if (data?.success) {
+      setInstructorChecklist(prev => ({ ...(prev || {}), [key]: nextValue }));
+      setInstructorChecklistSource(prev => ({ ...prev, [key]: 'self' }));
+    }
+    setInstructorChecklistSaving(null);
+  };
 
   // 내 추천 코드 + 추천 횟수 로드
   useEffect(() => {
@@ -596,6 +631,56 @@ const Settings = () => {
               <MessageCircle size={14} /> 카카오톡 커뮤니티
             </a>
           </div>
+        </div>
+      )}
+
+      {/* 강사 온보딩 셀프 체크리스트 (강사 풀 소속일 때만 노출) */}
+      {instructorChecklist !== null && (
+        <div className="layered-card rounded-3xl p-6 border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+              <GraduationCap size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="font-black text-base text-amber-900">강사 온보딩 체크리스트</p>
+              <p className="text-xs text-amber-600">완료한 항목을 스스로 체크해두면 관리자가 더 빠르게 확인할 수 있어요</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span
+              className={`text-xs font-bold px-3 py-2 rounded-xl border ${
+                demoClassAuto ? 'bg-sky-100 border-sky-200 text-sky-700' : 'bg-white border-amber-200 text-gray-400'
+              }`}
+              title="배정된 반에서 출석·활동 기록이 1건 이상 생기면 자동으로 완료 처리돼요"
+            >
+              {demoClassAuto ? '✓ ' : ''}시범 수업 완료 (자동)
+            </span>
+            {INSTRUCTOR_SELF_CHECK_ITEMS.map(item => (
+              <button
+                key={item.key}
+                onClick={() => toggleMyChecklistItem(item.key)}
+                disabled={instructorChecklistSaving === item.key}
+                className={`text-xs font-bold px-3 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
+                  instructorChecklist[item.key]
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'
+                }`}
+              >
+                {instructorChecklistSaving === item.key ? (
+                  <Loader2 size={12} className="inline animate-spin mr-1" />
+                ) : instructorChecklist[item.key] ? '✓ ' : ''}
+                {item.label}
+                {instructorChecklist[item.key] && instructorChecklistSource[item.key] === 'self' && (
+                  <span className="ml-1 opacity-70">(관리자 확인 전)</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <p className="text-[11px] text-amber-500 leading-relaxed">
+            체크는 참고용이에요. 실제 이수·서명 여부는 관리자가 강사 풀 화면에서 다시 확인해요.
+          </p>
         </div>
       )}
 

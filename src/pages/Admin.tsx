@@ -32,6 +32,7 @@ interface InstructorPoolRow {
   last_activity_at: string | null;
   pending_request_count: number;
   instructor_checklist: Record<string, boolean> | null;
+  instructor_checklist_source: Record<string, 'self' | 'admin'> | null;
   instructor_note: string | null;
   demo_class_auto: boolean;
 }
@@ -2991,6 +2992,9 @@ const Admin = () => {
                             {INSTRUCTOR_CHECKLIST_ITEMS.filter(it => row.instructor_checklist?.[it.key]).map(it => (
                               <span key={it.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                                 ✓ {it.label}
+                                {row.instructor_checklist_source?.[it.key] === 'self' && (
+                                  <span className="ml-1 text-amber-600" title="강사 본인이 체크했어요. 확인 후 필요하면 다시 체크해 관리자 확인으로 바꿔주세요.">(셀프체크)</span>
+                                )}
                               </span>
                             ))}
                           </div>
@@ -3031,6 +3035,9 @@ const Admin = () => {
                               }`}
                             >
                               {instructorChecklistDraft[item.key] ? '✓ ' : ''}{item.label}
+                              {instructorChecklistDraft[item.key] && row.instructor_checklist_source?.[item.key] === 'self' && (
+                                <span className="ml-1 opacity-80" title="강사 본인이 셀프 체크했어요. 저장하면 관리자 확인으로 바뀝니다.">(셀프체크)</span>
+                              )}
                             </button>
                           ))}
                         </div>
