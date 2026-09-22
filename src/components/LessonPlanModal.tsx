@@ -525,6 +525,7 @@ export const LessonPlanModal = ({
               content,
               classId: classId ?? null,
               expansionGuide: expansionSuggestions,
+              fromLessonPlan: true,
             },
           },
         });

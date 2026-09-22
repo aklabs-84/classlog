@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
-import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText } from '../../lib/gemini';
+import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText, proofreadMaterialContent, type ProofreadIssue } from '../../lib/gemini';
 import { LessonPlanModal } from '../../components/LessonPlanModal';
 import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
 import ActivityLinksButton, { type ActivityLink } from '../../components/ActivityLinksButton';
@@ -40,7 +40,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -601,16 +601,19 @@ type ReorganizeStep = 'configure' | 'loading' | 'preview' | 'error';
 const AiReorganizeModal = ({
   rawContent,
   classId,
+  fromLessonPlan = false,
   onApply,
   onClose,
 }: {
   rawContent: string;
   classId?: string;
+  /** 학습 계획서에서 이미 한 번 AI가 정리해 넘어온 자료인지 — 맞다면 "학습 가이드" 모드는 중복이라 숨긴다 */
+  fromLessonPlan?: boolean;
   onApply: (newContent: string, mode: 'guide' | 'presentation') => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<ReorganizeStep>('configure');
-  const [mode, setMode] = useState<'guide' | 'presentation'>('guide');
+  const [mode, setMode] = useState<'guide' | 'presentation'>(fromLessonPlan ? 'presentation' : 'guide');
   const [userInstruction, setUserInstruction] = useState('');
   const [showBasePrompt, setShowBasePrompt] = useState(false);
   const [result, setResult] = useState('');
@@ -692,13 +695,23 @@ const AiReorganizeModal = ({
         <div className="flex-1 overflow-y-auto p-5">
           {step === 'configure' && (
             <div className="space-y-3">
+              {fromLessonPlan && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-2xl bg-surface-container-low text-on-surface-variant">
+                  <BookOpen size={14} className="shrink-0 mt-0.5" />
+                  <p className="text-xs font-bold leading-relaxed">
+                    학습 계획서에서 이미 한 번 정리된 내용이라 "학습 가이드" 모드는 생략했어요. 발표 자료로만 다듬을 수 있어요.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2 p-1 rounded-2xl bg-surface-container-low">
-                <button
-                  onClick={() => { setMode('guide'); setValidationWarning(null); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${mode === 'guide' ? 'bg-white text-primary shadow' : 'text-on-surface-variant hover:text-on-surface'}`}
-                >
-                  <BookOpen size={14} /> 학습 가이드
-                </button>
+                {!fromLessonPlan && (
+                  <button
+                    onClick={() => { setMode('guide'); setValidationWarning(null); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${mode === 'guide' ? 'bg-white text-primary shadow' : 'text-on-surface-variant hover:text-on-surface'}`}
+                  >
+                    <BookOpen size={14} /> 학습 가이드
+                  </button>
+                )}
                 <button
                   onClick={() => { setMode('presentation'); setValidationWarning(null); }}
                   className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${mode === 'presentation' ? 'bg-white text-primary shadow' : 'text-on-surface-variant hover:text-on-surface'}`}
@@ -709,7 +722,7 @@ const AiReorganizeModal = ({
               <p className="text-xs text-on-surface-variant leading-relaxed px-0.5">
                 {mode === 'guide'
                   ? '학생이 순서대로 따라가는 STEP 단계 구조로 정리합니다.'
-                  : '16:9 슬라이드 화면 단위로 나눠 정리합니다. 정리 후 "슬라이드로 보기"에서 장면별로 넘겨볼 수 있어요.'}
+                  : '이미 쓴 내용을 바꾸지 않고, 16:9 슬라이드 화면 크기에 맞게 나눠 다듬어드려요. 정리 후 "슬라이드로 보기"에서 장면별로 넘겨볼 수 있어요.'}
               </p>
               <button
                 onClick={() => setShowBasePrompt(s => !s)}
@@ -840,6 +853,167 @@ const AiReorganizeModal = ({
                 </button>
               </>
             )}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+// ── 오탈자 검수 모달 ──────────────────────────────────────────────────────
+// AI로 정리(재구성)와 달리 문서 구조를 바꾸지 않고, 맞춤법·띄어쓰기·오탈자만 짚어 목록으로 보여준다.
+// 선생님이 항목별로 골라서 적용하면 그 부분만 원문에 find&replace로 반영된다.
+type ProofreadStep = 'idle' | 'loading' | 'result' | 'error';
+
+const ProofreadModal = ({
+  rawContent,
+  classId,
+  onApply,
+  onClose,
+}: {
+  rawContent: string;
+  classId?: string;
+  onApply: (newContent: string) => void;
+  onClose: () => void;
+}) => {
+  const [step, setStep] = useState<ProofreadStep>('idle');
+  const [issues, setIssues] = useState<ProofreadIssue[]>([]);
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      setStep('loading');
+      try {
+        const found = await proofreadMaterialContent(rawContent, classId);
+        setIssues(found);
+        setChecked(new Set(found.map((_, i) => i)));
+        setStep('result');
+      } catch (err: any) {
+        setErrorMessage(
+          err?.message === 'AI_LIMIT_EXCEEDED'
+            ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
+            : (err?.message || '오탈자 검수 중 오류가 발생했습니다.')
+        );
+        setStep('error');
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggle = (i: number) => {
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+
+  const handleApply = () => {
+    let next = rawContent;
+    issues.forEach((issue, i) => {
+      if (checked.has(i)) next = next.replace(issue.original, issue.corrected);
+    });
+    onApply(next);
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4" onClick={step === 'loading' ? undefined : onClose}>
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <SpellCheck2 size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-on-surface">오탈자 검수</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {step === 'loading' && 'AI가 맞춤법·오탈자를 찾는 중입니다...'}
+              {step === 'result' && (issues.length > 0 ? `${issues.length}건을 찾았어요. 적용할 항목을 고르세요.` : '틀린 곳을 찾지 못했어요.')}
+              {step === 'error' && '오류가 발생했습니다'}
+            </p>
+          </div>
+          {step !== 'loading' && (
+            <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
+              <XIcon size={16} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {step === 'loading' && (
+            <div className="flex flex-col items-center py-16 gap-3">
+              <Loader2 size={28} className="animate-spin text-primary" />
+              <p className="text-sm font-bold text-on-surface-variant">문서를 꼼꼼히 읽는 중이에요...</p>
+            </div>
+          )}
+
+          {step === 'result' && issues.length === 0 && (
+            <div className="flex flex-col items-center py-12 gap-2 text-center">
+              <Check size={28} className="text-emerald-500" />
+              <p className="text-sm font-bold text-on-surface-variant">맞춤법·오탈자가 발견되지 않았어요.</p>
+            </div>
+          )}
+
+          {step === 'result' && issues.length > 0 && (
+            <div className="space-y-2">
+              {issues.map((issue, i) => (
+                <label
+                  key={i}
+                  className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-colors ${checked.has(i) ? 'border-primary/30 bg-primary/5' : 'border-surface-container bg-surface-container-low/50'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked.has(i)}
+                    onChange={() => toggle(i)}
+                    className="mt-1 accent-primary shrink-0"
+                  />
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="leading-relaxed">
+                      <span className="line-through text-on-surface-variant">{issue.original}</span>
+                      {' → '}
+                      <span className="font-black text-primary">{issue.corrected}</span>
+                    </p>
+                    <p className="text-xs text-on-surface-variant mt-1">{issue.reason}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {step === 'error' && (
+            <div className="flex flex-col items-center py-12 gap-3 text-center">
+              <AlertCircle size={32} className="text-red-400" />
+              <p className="text-sm font-bold text-on-surface-variant">{errorMessage}</p>
+            </div>
+          )}
+        </div>
+
+        {step !== 'loading' && (
+          <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
+            <div className="flex-1" />
+            {step === 'result' && issues.length > 0 && (
+              <>
+                <button onClick={onClose} className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
+                  취소
+                </button>
+                <button
+                  onClick={handleApply}
+                  disabled={checked.size === 0}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition-all"
+                >
+                  <Save size={15} /> 선택한 {checked.size}건 적용
+                </button>
+              </>
+            )}
+            {(step === 'result' && issues.length === 0) || step === 'error' ? (
+              <button onClick={onClose} className="px-4 py-2 rounded-xl font-black text-sm text-white bg-primary hover:opacity-90 transition-colors">
+                닫기
+              </button>
+            ) : null}
           </div>
         )}
       </div>
@@ -1109,8 +1283,12 @@ const MaterialEditor = () => {
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
   const [importedSourceMaterialId, setImportedSourceMaterialId] = useState<string | null>(null);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
+  const [showProofread, setShowProofread] = useState(false);
   const [showLessonPlan, setShowLessonPlan] = useState(false);
   const [aiVersions, setAiVersions] = useState<AiVersion[]>([]);
+  // 학습 계획서 → "수업 자료 만들기"로 넘어온 자료인지. 이 경우 내용이 이미 AI가 한 번 정리해서 만든 것이라
+  // "AI로 정리 → 학습 가이드" 모드는 기본으로 숨긴다(직접 쓴 자료는 그대로 노출).
+  const [fromLessonPlan, setFromLessonPlan] = useState(false);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   // 목록 화면에서 자료별로 "원본" 또는 AI 정리 버전 중 어떤 걸 보고 있는지 (null = 원본)
   const [selectedVersionId, setSelectedVersionId] = useState<Record<string, string | null>>({});
@@ -1242,12 +1420,13 @@ const MaterialEditor = () => {
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
     setActivityLinks([]); setNewLinkUrl('');
     setExpansionGuide(null); setShowExpansionGuide(false);
+    setFromLessonPlan(false);
   };
 
   // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
   useEffect(() => {
     if (draftHandledRef.current) return;
-    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null; expansionGuide?: string[] } } | null)?.draftMaterial;
+    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null; expansionGuide?: string[]; fromLessonPlan?: boolean } } | null)?.draftMaterial;
     if (!draft) return;
     draftHandledRef.current = true;
     resetForm();
@@ -1259,6 +1438,7 @@ const MaterialEditor = () => {
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
+    setFromLessonPlan(!!draft.fromLessonPlan);
     if (draft.expansionGuide && draft.expansionGuide.length > 0) {
       setExpansionGuide(draft.expansionGuide);
       setShowExpansionGuide(true);
@@ -1886,6 +2066,7 @@ const MaterialEditor = () => {
       <AiReorganizeModal
         rawContent={content}
         classId={selectedClass?.id}
+        fromLessonPlan={fromLessonPlan}
         onApply={(newContent, mode) => {
           const newVersion: AiVersion = {
             id: crypto.randomUUID(),
@@ -1915,6 +2096,18 @@ const MaterialEditor = () => {
           });
         }}
         onClose={() => setShowAiReorganize(false)}
+      />
+    )}
+    {showProofread && (
+      <ProofreadModal
+        rawContent={content}
+        classId={selectedClass?.id}
+        onApply={(newContent) => {
+          setContent(newContent);
+          setShowProofread(false);
+          showActionToast('오탈자를 반영했어요.');
+        }}
+        onClose={() => setShowProofread(false)}
       />
     )}
     {showLessonPlan && editingMaterial && (
@@ -2118,6 +2311,15 @@ const MaterialEditor = () => {
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Sparkles size={11} /> AI로 정리
+              </button>
+              {/* 오탈자 검수 */}
+              <button
+                onClick={() => setShowProofread(true)}
+                disabled={!content.trim()}
+                title={content.trim() ? 'AI로 맞춤법·오탈자만 검수' : '내용을 먼저 작성해주세요'}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <SpellCheck2 size={11} /> 오탈자 검수
               </button>
               {/* AI 정리 히스토리 */}
               {aiVersions.length > 0 && (

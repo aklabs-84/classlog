@@ -327,6 +327,7 @@ const SavedPlanViewModal = ({
               content,
               classId: plan.class_id ?? null,
               expansionGuide: expansionSuggestions,
+              fromLessonPlan: true,
             },
           },
         });

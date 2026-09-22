@@ -15,6 +15,7 @@ const PRICES: Record<string, number> = {
   // 가벼움
   idea_clarify_question: LIGHT, prompt_validate: LIGHT, cover_prompt_suggest: LIGHT,
   portfolio_intro: LIGHT, survey_generator: LIGHT, observation_review: LIGHT,
+  material_proofread: LIGHT,
   // 보통
   idea_analysis: NORMAL, student_analysis: NORMAL,
   feedback_draft: NORMAL, survey_analysis: NORMAL,

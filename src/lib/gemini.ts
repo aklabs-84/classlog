@@ -550,6 +550,7 @@ export const observationReviewAI  = makeModelWrapper('flash', 'observation_revie
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
 export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade', true);
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
+export const materialProofreadAI  = makeModelWrapper('lite',  'material_proofread', true);
 export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
 export const coverPromptAI         = makeModelWrapper('lite',  'cover_prompt_suggest', true);
 export const ideaAnalysisAI        = makeModelWrapper('flash', 'idea_analysis', true);
@@ -1464,6 +1465,50 @@ export async function reorganizeMaterialContent(
   const bodyRaw = feedbackMatch ? raw.slice(feedbackMatch[0].length) : raw;
 
   return { content: restoreImagePlaceholders(bodyRaw.trim(), map), feedback };
+}
+
+// 수업 자료 에디터 "오탈자 검수" — 전체를 다시 쓰는 reorganizeMaterialContent와 달리,
+// 맞춤법·띄어쓰기·오타처럼 명백히 틀린 부분만 콕 집어 원문/수정안/이유 목록으로 돌려준다.
+// 선생님이 목록에서 하나씩(또는 한꺼번에) 적용 여부를 고를 수 있도록 전체 문서를 고치지 않고 "제안"만 한다.
+export type ProofreadIssue = { original: string; corrected: string; reason: string };
+
+export async function proofreadMaterialContent(
+  rawContent: string,
+  classId?: string
+): Promise<ProofreadIssue[]> {
+  const { replaced, map } = extractImagePlaceholders(rawContent);
+  const { replaced: replaced2, blocks } = extractCodePlaceholders(replaced);
+  void map; void blocks; // 이미지·코드 자리는 검수 대상에서 제외되도록 치환만 하고 복원은 하지 않음(전체 재작성이 아니므로 불필요)
+
+  const prompt = `당신은 수업 자료의 맞춤법·띄어쓰기·오탈자만 콕 집어주는 검수 AI입니다.
+- 명백한 오탈자, 띄어쓰기 오류, 잘못된 맞춤법, 중복된 조사/단어 같은 "확실히 틀린 것"만 찾습니다.
+- 문체·어휘 선택·표현 방식처럼 취향의 영역은 절대 지적하지 않습니다(예: "더 좋은 표현으로 바꿔라" 금지).
+- 내용을 재구성하거나 문장을 새로 쓰지 않습니다. 오직 틀린 부분만 최소 범위로 고칩니다.
+- "original"은 원문에 실제로 있는 문자열 그대로(공백 포함) 정확히 옮겨 적어야 합니다. 없는 문장을 지어내지 않습니다.
+- {{IMG:n}}, {{CODE:n}} 같은 자리표시자는 절대 건드리지 않습니다.
+- 틀린 곳이 없으면 빈 배열을 반환합니다.
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"issues":[{"original":"원문 그대로의 문자열","corrected":"수정된 문자열","reason":"무엇이 왜 틀렸는지 한 문장"}]}
+
+[검수할 원문]
+${replaced2}`;
+
+  const result = await materialProofreadAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  try {
+    const parsed = JSON.parse(raw);
+    const issues: ProofreadIssue[] = Array.isArray(parsed?.issues) ? parsed.issues : [];
+    // 원문에 실제로 존재하지 않는 제안은 화면에서 찾아 바꿀 수 없으므로 걸러낸다
+    return issues.filter(
+      it => typeof it.original === 'string' && it.original.length > 0 && rawContent.includes(it.original)
+    );
+  } catch {
+    return [];
+  }
 }
 
 // 수업 자료 에디터에서 선생님이 드래그로 선택한 일부분만 다른 표현/구성으로 바꿔주는 AI 제안

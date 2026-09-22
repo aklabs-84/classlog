@@ -11,6 +11,7 @@ const BIG = 60;
 const PRICES: Record<string, number> = {
   idea_clarify_question: LIGHT, prompt_validate: LIGHT, cover_prompt_suggest: LIGHT,
   portfolio_intro: LIGHT, survey_generator: LIGHT, observation_review: LIGHT,
+  material_proofread: LIGHT,
   idea_analysis: NORMAL, student_analysis: NORMAL,
   feedback_draft: NORMAL, survey_analysis: NORMAL,
   class_insight: NORMAL, survey_copilot: NORMAL,
