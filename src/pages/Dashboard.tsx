@@ -287,7 +287,7 @@ const Dashboard = () => {
       const { data } = await supabase
         .from('school_projects')
         .select(`id, name, school_name, share_token, classes!school_project_id(id, name, assigned_teacher_id, parent_class_id)`)
-        .eq('share_token', joinCode.trim())
+        .eq('entry_code', joinCode.trim().toUpperCase())
         .single();
       if (!data) { alert('코드를 다시 확인해주세요.'); return; }
       const unassigned = (data.classes || []).filter(
@@ -1433,7 +1433,7 @@ const Dashboard = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <School size={20} />
-                    <h2 className="text-xl font-black">학교 프로젝트 참여</h2>
+                    <h2 className="text-xl font-black text-white">학교 프로젝트 참여</h2>
                   </div>
                   <p className="text-sm text-white/70">담임 선생님에게 받은 코드를 입력하세요</p>
                 </div>

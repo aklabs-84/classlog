@@ -128,7 +128,7 @@ const SchoolProjectSchoolsPage = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [program, setProgram] = useState<{ id: string; name: string; school_name: string | null; share_token: string | null; start_date: string | null; end_date: string | null } | null>(null);
+  const [program, setProgram] = useState<{ id: string; name: string; school_name: string | null; share_token: string | null; entry_code: string | null; start_date: string | null; end_date: string | null } | null>(null);
   const [copiedProjectShare, setCopiedProjectShare] = useState<'code' | 'url' | null>(null);
   const [schools, setSchools] = useState<SchoolRow[]>([]);
 
@@ -411,7 +411,7 @@ const SchoolProjectSchoolsPage = () => {
     try {
       const { data: proj } = await supabase
         .from('school_projects')
-        .select('id, name, school_name, share_token, start_date, end_date')
+        .select('id, name, school_name, share_token, entry_code, start_date, end_date')
         .eq('id', projectId)
         .single();
       setProgram(proj || null);
@@ -699,51 +699,55 @@ const SchoolProjectSchoolsPage = () => {
         )}
       </div>
 
-      {program?.share_token && (
+      {(program?.share_token || program?.entry_code) && (
         <div className="grid sm:grid-cols-2 gap-3">
-          <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
-            <div className="flex items-center gap-2">
-              <UserPlus size={14} className="text-secondary" />
-              <p className="text-xs font-black text-on-surface uppercase tracking-widest">선생님 참여 코드</p>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-sm font-black font-mono text-secondary border-2 border-secondary/20 tracking-widest text-center">
-                {program.share_token}
+          {program?.entry_code && (
+            <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
+              <div className="flex items-center gap-2">
+                <UserPlus size={14} className="text-secondary" />
+                <p className="text-xs font-black text-on-surface uppercase tracking-widest">선생님 참여 코드</p>
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(program.share_token!);
-                  setCopiedProjectShare('code');
-                  setTimeout(() => setCopiedProjectShare(null), 2000);
-                }}
-                className="px-3 py-2.5 bg-secondary hover:bg-secondary-dim text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
-              >
-                {copiedProjectShare === 'code' ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
-              </button>
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-sm font-black font-mono text-secondary border-2 border-secondary/20 tracking-widest text-center">
+                  {program.entry_code}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(program.entry_code!);
+                    setCopiedProjectShare('code');
+                    setTimeout(() => setCopiedProjectShare(null), 2000);
+                  }}
+                  className="px-3 py-2.5 bg-secondary hover:bg-secondary-dim text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                >
+                  {copiedProjectShare === 'code' ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="p-4 bg-surface-container rounded-2xl border border-surface-container-high space-y-2">
-            <div className="flex items-center gap-2">
-              <LinkIcon size={14} className="text-on-surface-variant" />
-              <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">학교 담당자 공유 URL</p>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-[11px] font-mono text-on-surface-variant border border-surface-container-high truncate">
-                {window.location.origin}/school-project/{program.share_token}
+          {program?.share_token && (
+            <div className="p-4 bg-surface-container rounded-2xl border border-surface-container-high space-y-2">
+              <div className="flex items-center gap-2">
+                <LinkIcon size={14} className="text-on-surface-variant" />
+                <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">학교 담당자 공유 URL</p>
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/school-project/${program.share_token}`);
-                  setCopiedProjectShare('url');
-                  setTimeout(() => setCopiedProjectShare(null), 2000);
-                }}
-                className="px-3 py-2.5 bg-primary hover:bg-primary-dim text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
-              >
-                {copiedProjectShare === 'url' ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
-              </button>
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-[11px] font-mono text-on-surface-variant border border-surface-container-high truncate">
+                  {window.location.origin}/school-project/{program.share_token}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/school-project/${program.share_token}`);
+                    setCopiedProjectShare('url');
+                    setTimeout(() => setCopiedProjectShare(null), 2000);
+                  }}
+                  className="px-3 py-2.5 bg-primary hover:bg-primary-dim text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                >
+                  {copiedProjectShare === 'url' ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

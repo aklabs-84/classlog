@@ -36,6 +36,7 @@ const SchoolProjectNewPage = () => {
           start_date: startDate || null,
           end_date: endDate || null,
           banner_color: bannerColor,
+          entry_code: generateEntryCode(),
         })
         .select('id')
         .single();
