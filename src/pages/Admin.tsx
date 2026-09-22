@@ -18,7 +18,22 @@ import {
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'activity' | 'classes'
   | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'refund_calc' | 'ai_cost' | 'video_guides'
-  | 'waitlist' | 'training_requests';
+  | 'waitlist' | 'training_requests' | 'instructor_pool';
+
+interface InstructorPoolRow {
+  teacher_id: string;
+  full_name: string | null;
+  email: string;
+  project_count: number;
+  class_count: number;
+  student_count: number;
+  session_days: number;
+  result_count: number;
+  last_activity_at: string | null;
+  pending_request_count: number;
+  instructor_checklist: Record<string, boolean> | null;
+  instructor_note: string | null;
+}
 
 interface TeacherActivityRow {
   id: string;
@@ -199,6 +214,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'requests',      label: '사용 신청',  icon: ShieldCheck },
   { id: 'waitlist',      label: '웨이팅리스트', icon: Sparkles },
   { id: 'training_requests', label: '교육신청', icon: GraduationCap },
+  { id: 'instructor_pool', label: '강사 풀',    icon: Users },
   { id: 'users',         label: '사용자',     icon: Users },
   { id: 'activity',      label: '활동 현황',  icon: Activity },
   { id: 'classes',       label: '학급',       icon: BookOpen },
@@ -447,6 +463,11 @@ const Admin = () => {
   // ── 교육신청 ────────────────────────────────────────────────────────────────
   const [trainingRequests, setTrainingRequests]             = useState<TrainingRequestRow[]>([]);
   const [trainingRequestsLoading, setTrainingRequestsLoading] = useState(false);
+  const [instructorPool, setInstructorPool]                 = useState<InstructorPoolRow[]>([]);
+  const [instructorPoolLoading, setInstructorPoolLoading]   = useState(false);
+  const [editingInstructorId, setEditingInstructorId]       = useState<string | null>(null);
+  const [instructorNoteDraft, setInstructorNoteDraft]       = useState('');
+  const [instructorChecklistDraft, setInstructorChecklistDraft] = useState<Record<string, boolean>>({});
 
   // ── 쿠폰 ────────────────────────────────────────────────────────────────────
   const [coupons, setCoupons]             = useState<CouponRow[]>([]);
@@ -517,6 +538,7 @@ const Admin = () => {
     if (activeTab === 'ai_cost')       { fetchAiCost('daily'); fetchAiCreditUsage(); }
     if (activeTab === 'waitlist')      fetchWaitlist();
     if (activeTab === 'training_requests') fetchTrainingRequests();
+    if (activeTab === 'instructor_pool') fetchInstructorPool();
   }, [activeTab, authLoading, profile]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -980,6 +1002,39 @@ const Admin = () => {
     await supabase.from('training_requests').update({ notified_at }).eq('id', id);
     setTrainingRequests(prev => prev.map(t => t.id === id ? { ...t, notified_at } : t));
   };
+
+  const fetchInstructorPool = async () => {
+    setInstructorPoolLoading(true);
+    try {
+      const { data } = await supabase.rpc('get_instructor_pool_overview');
+      setInstructorPool(data || []);
+    } finally {
+      setInstructorPoolLoading(false);
+    }
+  };
+
+  const startEditInstructor = (row: InstructorPoolRow) => {
+    setEditingInstructorId(row.teacher_id);
+    setInstructorNoteDraft(row.instructor_note || '');
+    setInstructorChecklistDraft(row.instructor_checklist || {});
+  };
+
+  const saveInstructorProfile = async (teacherId: string) => {
+    await supabase.rpc('admin_update_instructor_profile', {
+      p_teacher_id: teacherId,
+      p_checklist: instructorChecklistDraft,
+      p_note: instructorNoteDraft || null,
+    });
+    setEditingInstructorId(null);
+    fetchInstructorPool();
+  };
+
+  const INSTRUCTOR_CHECKLIST_ITEMS: { key: string; label: string }[] = [
+    { key: 'orientation',    label: '오리엔테이션 이수' },
+    { key: 'safety_training', label: '안전 교육 이수' },
+    { key: 'demo_class',     label: '시범 수업 완료' },
+    { key: 'contract_signed', label: '계약서 작성 완료' },
+  ];
 
   const fetchAiCost = async (view: AiCostView = aiCostView) => {
     setAiCostLoading(true);
@@ -2622,6 +2677,105 @@ const Admin = () => {
             )}
             {!trainingRequestsLoading && trainingRequests.length > 0 && (
               <Pager page={page} totalPages={Math.ceil(trainingRequests.length / PAGE_SIZE)} onChange={setPage} />
+            )}
+          </>
+        )}
+
+        {/* ── 강사 풀 (사업 전체를 넘나드는 강사 현황) ────────────────────────── */}
+        {activeTab === 'instructor_pool' && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-amber-700 font-bold">활동 중인 강사 {instructorPool.length}명</p>
+              <button onClick={fetchInstructorPool} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
+            {instructorPoolLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+            ) : instructorPool.length === 0 ? (
+              <div className="text-center py-20 text-amber-400">
+                <Users size={40} className="mx-auto mb-3 opacity-40" />
+                <p>사업에 배정된 강사가 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {instructorPool.map((row, i) => (
+                  <motion.div key={row.teacher_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                    className="bg-white rounded-2xl border border-amber-100 p-5 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-black text-amber-900">{row.full_name || '이름 없음'}</p>
+                          <span className="text-[10px] text-amber-400">{row.email}</span>
+                          {row.pending_request_count > 0 && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                              신청 대기 {row.pending_request_count}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-amber-700">
+                          사업 {row.project_count} · 반 {row.class_count} · 학생 {row.student_count} · 활동일 {row.session_days} · 결과물 {row.result_count}
+                        </p>
+                        {row.last_activity_at && (
+                          <p className="text-[10px] text-amber-400 mt-0.5">
+                            최근 활동: {new Date(row.last_activity_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </p>
+                        )}
+                        {!!row.instructor_checklist && Object.values(row.instructor_checklist).some(Boolean) && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {INSTRUCTOR_CHECKLIST_ITEMS.filter(it => row.instructor_checklist?.[it.key]).map(it => (
+                              <span key={it.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                ✓ {it.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {row.instructor_note && (
+                          <p className="text-xs text-amber-800 mt-2 bg-amber-50 rounded-lg p-2 whitespace-pre-wrap">{row.instructor_note}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => startEditInstructor(row)}
+                        className="shrink-0 px-3 py-1.5 text-[10px] font-black rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                      >
+                        체크리스트·메모
+                      </button>
+                    </div>
+
+                    {editingInstructorId === row.teacher_id && (
+                      <div className="pt-3 border-t border-amber-100 space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {INSTRUCTOR_CHECKLIST_ITEMS.map(item => (
+                            <button
+                              key={item.key}
+                              onClick={() => setInstructorChecklistDraft(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors ${
+                                instructorChecklistDraft[item.key]
+                                  ? 'bg-emerald-500 border-emerald-500 text-white'
+                                  : 'bg-white border-amber-200 text-amber-600 hover:bg-amber-50'
+                              }`}
+                            >
+                              {instructorChecklistDraft[item.key] ? '✓ ' : ''}{item.label}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={instructorNoteDraft}
+                          onChange={e => setInstructorNoteDraft(e.target.value)}
+                          placeholder="강사 관련 메모 (연락처, 특이사항 등)"
+                          rows={3}
+                          className="w-full px-3 py-2 text-sm border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setEditingInstructorId(null)} className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">취소</button>
+                          <button onClick={() => saveInstructorProfile(row.teacher_id)} className="px-3 py-1.5 text-xs font-black text-white bg-primary hover:bg-primary-dim rounded-xl transition-colors">저장</button>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
             )}
           </>
         )}

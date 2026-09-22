@@ -181,6 +181,11 @@ const SchoolProjectSchoolsPage = () => {
   const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
   const [projectTeachers, setProjectTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null }[]>([]);
 
+  // 가입 신청 대기 목록
+  const [joinRequests, setJoinRequests] = useState<{ id: string; class_id: string; class_name: string; teacher_id: string; teacher_name: string; teacher_email: string; requested_at: string }[]>([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
+  const [decidingRequestId, setDecidingRequestId] = useState<string | null>(null);
+
   useEffect(() => {
     if (projectId) fetchData();
   }, [projectId]);
@@ -660,6 +665,45 @@ const SchoolProjectSchoolsPage = () => {
     fetchData();
   };
 
+  const fetchJoinRequests = async () => {
+    if (!projectId) return;
+    setJoinRequestsLoading(true);
+    try {
+      const { data } = await supabase.rpc('get_project_join_requests', { p_project_id: projectId });
+      setJoinRequests(data || []);
+    } finally {
+      setJoinRequestsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (projectId) fetchJoinRequests();
+  }, [projectId]);
+
+  const handleApproveJoinRequest = async (requestId: string) => {
+    setDecidingRequestId(requestId);
+    try {
+      const { data } = await supabase.rpc('approve_teacher_join_request', { p_request_id: requestId });
+      if (data?.error) {
+        alert(data.error === 'ALREADY_ASSIGNED' ? '이미 다른 선생님이 배정된 반입니다.' : '승인에 실패했습니다.');
+      }
+      fetchJoinRequests();
+      fetchData();
+    } finally {
+      setDecidingRequestId(null);
+    }
+  };
+
+  const handleRejectJoinRequest = async (requestId: string) => {
+    setDecidingRequestId(requestId);
+    try {
+      await supabase.rpc('reject_teacher_join_request', { p_request_id: requestId });
+      fetchJoinRequests();
+    } finally {
+      setDecidingRequestId(null);
+    }
+  };
+
   const handleDeleteClass = async (classId: string) => {
     if (!confirm('이 반을 삭제하시겠습니까? 소속 학생과 출결 기록도 함께 삭제됩니다.')) return;
     await supabase.from('classes').delete().eq('id', classId);
@@ -748,6 +792,41 @@ const SchoolProjectSchoolsPage = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {joinRequests.length > 0 && (
+        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-3">
+          <div className="flex items-center gap-2">
+            <UserPlus size={14} className="text-amber-600" />
+            <p className="text-xs font-black text-amber-800 uppercase tracking-widest">
+              가입 신청 대기 {joinRequestsLoading ? '' : `(${joinRequests.length})`}
+            </p>
+          </div>
+          <div className="space-y-2">
+            {joinRequests.map(req => (
+              <div key={req.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-amber-100">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black truncate">{req.teacher_name || req.teacher_email}</p>
+                  <p className="text-xs text-on-surface-variant truncate">{req.class_name} · 신청</p>
+                </div>
+                <button
+                  onClick={() => handleApproveJoinRequest(req.id)}
+                  disabled={decidingRequestId === req.id}
+                  className="px-3 py-2 bg-primary hover:bg-primary-dim text-white rounded-lg text-xs font-black disabled:opacity-40 transition-all active:scale-95 shrink-0"
+                >
+                  승인
+                </button>
+                <button
+                  onClick={() => handleRejectJoinRequest(req.id)}
+                  disabled={decidingRequestId === req.id}
+                  className="px-3 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-lg text-xs font-black disabled:opacity-40 transition-all active:scale-95 shrink-0"
+                >
+                  거절
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

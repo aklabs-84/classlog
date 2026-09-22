@@ -304,21 +304,21 @@ const Dashboard = () => {
     if (!user || !joinProject) return;
     setJoiningClassId(classId);
     try {
-      const { error } = await supabase.rpc('assign_teacher_to_subclass', {
+      const { data, error } = await supabase.rpc('request_join_subclass', {
         p_class_id: classId,
-        p_teacher_id: user.id,
         p_project_id: joinProject.id,
       });
-      if (!error) {
+      if (!error && data && !data.error) {
         setJoinDone(true);
-        fetchAssignedClasses();
         setTimeout(() => {
           setJoinModalOpen(false);
           setJoinCode('');
           setJoinProject(null);
           setJoinSubClasses([]);
           setJoinDone(false);
-        }, 1500);
+        }, 1800);
+      } else {
+        alert('신청에 실패했습니다. 다시 시도해주세요.');
       }
     } finally {
       setJoiningClassId(null);
@@ -1448,8 +1448,8 @@ const Dashboard = () => {
                     <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto">
                       <Check size={28} className="text-green-500" />
                     </div>
-                    <p className="font-black text-lg">참여 완료!</p>
-                    <p className="text-sm text-gray-500">담당 학급이 대시보드에 추가됩니다.</p>
+                    <p className="font-black text-lg">참여 신청 완료!</p>
+                    <p className="text-sm text-gray-500">사업 관리자의 승인 후 담당 학급이 대시보드에 추가됩니다.</p>
                   </div>
                 ) : (
                   <>
@@ -1489,7 +1489,7 @@ const Dashboard = () => {
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <p className="text-xs font-black text-gray-500 uppercase tracking-widest">담당할 반을 선택하세요</p>
+                            <p className="text-xs font-black text-gray-500 uppercase tracking-widest">담당하고 싶은 반을 선택하면 신청됩니다</p>
                             {joinSubClasses.map((cls: any) => (
                               <button
                                 key={cls.id}
@@ -1502,10 +1502,10 @@ const Dashboard = () => {
                                 </div>
                                 <div className="flex-1">
                                   <p className="text-sm font-black">{cls.name}</p>
-                                  <p className="text-xs text-gray-400">담당 선생님 없음 · 참여 가능</p>
+                                  <p className="text-xs text-gray-400">담당 선생님 없음 · 신청 가능</p>
                                 </div>
                                 {joiningClassId === cls.id
-                                  ? <span className="text-xs text-indigo-400 font-bold">참여 중...</span>
+                                  ? <span className="text-xs text-indigo-400 font-bold">신청 중...</span>
                                   : <ArrowRight size={16} className="text-gray-300 group-hover:text-indigo-400 transition-colors" />
                                 }
                               </button>
