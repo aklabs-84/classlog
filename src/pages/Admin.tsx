@@ -33,6 +33,7 @@ interface InstructorPoolRow {
   pending_request_count: number;
   instructor_checklist: Record<string, boolean> | null;
   instructor_note: string | null;
+  demo_class_auto: boolean;
 }
 
 interface InstructorApplicationRow {
@@ -45,6 +46,7 @@ interface InstructorApplicationRow {
   motivation: string | null;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
+  teacher_id: string | null;
 }
 
 interface TeacherActivityRow {
@@ -483,6 +485,10 @@ const Admin = () => {
   const [instructorApplications, setInstructorApplications]     = useState<InstructorApplicationRow[]>([]);
   const [instructorApplicationsLoading, setInstructorApplicationsLoading] = useState(false);
   const [decidingApplicationId, setDecidingApplicationId]       = useState<string | null>(null);
+  const [linkQuery, setLinkQuery]         = useState<Record<string, string>>({});
+  const [linkResults, setLinkResults]     = useState<Record<string, { id: string; full_name: string | null; email: string }[]>>({});
+  const [linkEmailDraft, setLinkEmailDraft] = useState<Record<string, string>>({});
+  const [linkBusyId, setLinkBusyId]       = useState<string | null>(null);
 
   // ── 쿠폰 ────────────────────────────────────────────────────────────────────
   const [coupons, setCoupons]             = useState<CouponRow[]>([]);
@@ -1044,20 +1050,22 @@ const Admin = () => {
     fetchInstructorPool();
   };
 
+  // '시범 수업 완료'는 get_instructor_pool_overview의 demo_class_auto로 자동 판정되므로
+  // 관리자가 직접 켜고 끄는 체크리스트에서는 제외한다.
   const INSTRUCTOR_CHECKLIST_ITEMS: { key: string; label: string }[] = [
     { key: 'orientation',    label: '오리엔테이션 이수' },
     { key: 'safety_training', label: '안전 교육 이수' },
-    { key: 'demo_class',     label: '시범 수업 완료' },
     { key: 'contract_signed', label: '계약서 작성 완료' },
   ];
 
   const fetchInstructorApplications = async () => {
     setInstructorApplicationsLoading(true);
     try {
+      // 검토 대기(pending) + 승인됐지만 아직 계정 연결이 안 된 건(approved & teacher_id 없음)만 노출
       const { data } = await supabase
         .from('instructor_applications')
-        .select('id, name, phone, email, region, experience, motivation, status, created_at')
-        .eq('status', 'pending')
+        .select('id, name, phone, email, region, experience, motivation, status, created_at, teacher_id')
+        .or('status.eq.pending,and(status.eq.approved,teacher_id.is.null)')
         .order('created_at', { ascending: false });
       setInstructorApplications(data || []);
     } finally {
@@ -1065,16 +1073,105 @@ const Admin = () => {
     }
   };
 
+  // 이메일로 계정 초대(생성 또는 기존 계정 확인) 후 지원서에 teacher_id로 연결
+  const inviteAndLinkApplication = async (appId: string, name: string, email: string) => {
+    const { data: { session: adminSession } } = await supabase.auth.getSession();
+    const res = await fetch('/api/invite-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(adminSession?.access_token ? { 'Authorization': `Bearer ${adminSession.access_token}` } : {}),
+      },
+      body: JSON.stringify({ email, name, plan: 'free' }),
+    });
+    const resData = await res.json();
+    if (!res.ok || !resData.userId) {
+      throw new Error(resData.error || '계정 생성/초대에 실패했습니다.');
+    }
+    await supabase
+      .from('instructor_applications')
+      .update({ teacher_id: resData.userId, status: 'approved', reviewed_at: new Date().toISOString() })
+      .eq('id', appId);
+    return resData.userId as string;
+  };
+
   const decideInstructorApplication = async (id: string, status: 'approved' | 'rejected') => {
     setDecidingApplicationId(id);
     try {
-      await supabase
-        .from('instructor_applications')
-        .update({ status, reviewed_at: new Date().toISOString() })
-        .eq('id', id);
-      setInstructorApplications(prev => prev.filter(a => a.id !== id));
+      if (status === 'rejected') {
+        await supabase
+          .from('instructor_applications')
+          .update({ status, reviewed_at: new Date().toISOString() })
+          .eq('id', id);
+        setInstructorApplications(prev => prev.filter(a => a.id !== id));
+        return;
+      }
+
+      const app = instructorApplications.find(a => a.id === id);
+      if (app?.email) {
+        // 이메일이 있으면 자동으로 계정 생성+초대메일 발송 후 바로 연결
+        try {
+          await inviteAndLinkApplication(id, app.name, app.email);
+          setInstructorApplications(prev => prev.filter(a => a.id !== id));
+        } catch (e: any) {
+          alert(`자동 계정 생성에 실패했습니다: ${e.message}\n지원서는 "승인" 상태로 남기고, 목록 아래에서 이메일을 다시 확인해 수동으로 연결해주세요.`);
+          await supabase
+            .from('instructor_applications')
+            .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+            .eq('id', id);
+          setInstructorApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' } : a));
+        }
+      } else {
+        // 이메일 없음 → 승인 상태로만 바꾸고, 계정 연결은 관리자가 아래에서 수동 처리
+        await supabase
+          .from('instructor_applications')
+          .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+          .eq('id', id);
+        setInstructorApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'approved' } : a));
+      }
     } finally {
       setDecidingApplicationId(null);
+    }
+  };
+
+  // 승인됐지만 계정 미연결인 지원서 → 기존 회원 검색해서 연결
+  const searchProfilesToLink = async (appId: string, query: string) => {
+    setLinkQuery(prev => ({ ...prev, [appId]: query }));
+    if (query.trim().length < 2) {
+      setLinkResults(prev => ({ ...prev, [appId]: [] }));
+      return;
+    }
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+      .limit(5);
+    setLinkResults(prev => ({ ...prev, [appId]: data || [] }));
+  };
+
+  const linkApplicationToProfile = async (appId: string, profileId: string) => {
+    setLinkBusyId(appId);
+    try {
+      await supabase.from('instructor_applications').update({ teacher_id: profileId }).eq('id', appId);
+      setInstructorApplications(prev => prev.filter(a => a.id !== appId));
+    } finally {
+      setLinkBusyId(null);
+    }
+  };
+
+  // 승인됐지만 이메일이 없던 지원자 → 관리자가 전화/카톡으로 이메일을 받아온 뒤 여기 입력하면 자동 초대와 동일하게 처리
+  const inviteWithManualEmail = async (appId: string) => {
+    const app = instructorApplications.find(a => a.id === appId);
+    const email = (linkEmailDraft[appId] || '').trim();
+    if (!app || !email) return;
+    setLinkBusyId(appId);
+    try {
+      await inviteAndLinkApplication(appId, app.name, email);
+      setInstructorApplications(prev => prev.filter(a => a.id !== appId));
+    } catch (e: any) {
+      alert(`계정 생성 실패: ${e.message}`);
+    } finally {
+      setLinkBusyId(null);
     }
   };
 
@@ -2729,15 +2826,22 @@ const Admin = () => {
             {instructorApplicationsLoading ? null : instructorApplications.length > 0 && (
               <div className="mb-8 p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-3">
                 <p className="text-xs font-black text-amber-800 uppercase tracking-widest">
-                  지원 검토 대기 ({instructorApplications.length})
+                  지원 검토 / 계정 연결 대기 ({instructorApplications.length})
                 </p>
                 <div className="space-y-3">
                   {instructorApplications.map(app => (
                     <div key={app.id} className="p-4 bg-white rounded-xl border border-amber-100 space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-black text-amber-900">{app.name}</p>
-                          <p className="text-xs text-amber-600">{app.phone}{app.email ? ` · ${app.email}` : ''}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-amber-900">{app.name}</p>
+                            {app.status === 'approved' && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                승인됨 · 계정 연결 대기
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-amber-600">{app.phone}{app.email ? ` · ${app.email}` : ' · 이메일 없음'}</p>
                           {app.region && <p className="text-xs text-amber-500 mt-0.5">희망: {app.region}</p>}
                         </div>
                         <span className="text-[10px] text-amber-400 shrink-0">
@@ -2750,22 +2854,89 @@ const Admin = () => {
                       {app.motivation && (
                         <p className="text-xs text-amber-800 bg-amber-50 rounded-lg p-2 whitespace-pre-wrap">지원동기: {app.motivation}</p>
                       )}
-                      <div className="flex justify-end gap-2 pt-1">
-                        <button
-                          onClick={() => decideInstructorApplication(app.id, 'rejected')}
-                          disabled={decidingApplicationId === app.id}
-                          className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
-                        >
-                          거절
-                        </button>
-                        <button
-                          onClick={() => decideInstructorApplication(app.id, 'approved')}
-                          disabled={decidingApplicationId === app.id}
-                          className="px-3 py-1.5 text-xs font-black text-white bg-primary hover:bg-primary-dim rounded-xl transition-colors disabled:opacity-40"
-                        >
-                          승인
-                        </button>
-                      </div>
+
+                      {app.status === 'pending' ? (
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            onClick={() => decideInstructorApplication(app.id, 'rejected')}
+                            disabled={decidingApplicationId === app.id}
+                            className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
+                          >
+                            거절
+                          </button>
+                          <button
+                            onClick={() => decideInstructorApplication(app.id, 'approved')}
+                            disabled={decidingApplicationId === app.id}
+                            className="px-3 py-1.5 text-xs font-black text-white bg-primary hover:bg-primary-dim rounded-xl transition-colors disabled:opacity-40"
+                          >
+                            {app.email ? '승인 (자동 계정 생성)' : '승인'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="pt-2 border-t border-amber-100 space-y-2">
+                          {app.email ? (
+                            <button
+                              onClick={async () => {
+                                setLinkBusyId(app.id);
+                                try {
+                                  await inviteAndLinkApplication(app.id, app.name, app.email!);
+                                  setInstructorApplications(prev => prev.filter(a => a.id !== app.id));
+                                } catch (e: any) {
+                                  alert(`계정 생성 실패: ${e.message}`);
+                                } finally {
+                                  setLinkBusyId(null);
+                                }
+                              }}
+                              disabled={linkBusyId === app.id}
+                              className="w-full px-3 py-2 text-xs font-black text-white bg-primary hover:bg-primary-dim rounded-xl transition-colors disabled:opacity-40"
+                            >
+                              {linkBusyId === app.id ? '처리 중...' : '이 이메일로 계정 생성/초대 다시 시도'}
+                            </button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <input
+                                type="email"
+                                value={linkEmailDraft[app.id] || ''}
+                                onChange={e => setLinkEmailDraft(prev => ({ ...prev, [app.id]: e.target.value }))}
+                                placeholder="전화/카톡으로 받은 이메일 입력"
+                                className="flex-1 px-3 py-2 text-xs border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400"
+                              />
+                              <button
+                                onClick={() => inviteWithManualEmail(app.id)}
+                                disabled={linkBusyId === app.id || !(linkEmailDraft[app.id] || '').trim()}
+                                className="px-3 py-2 text-xs font-black text-white bg-primary hover:bg-primary-dim rounded-xl transition-colors disabled:opacity-40 shrink-0"
+                              >
+                                이메일로 초대
+                              </button>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-amber-400 text-center">또는 이미 가입된 회원이라면 아래에서 검색해 바로 연결하세요</p>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={linkQuery[app.id] || ''}
+                              onChange={e => searchProfilesToLink(app.id, e.target.value)}
+                              placeholder="기존 회원 이름/이메일로 검색"
+                              className="w-full px-3 py-2 text-xs border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400"
+                            />
+                            {(linkResults[app.id]?.length ?? 0) > 0 && (
+                              <div className="mt-1 border border-amber-100 rounded-xl overflow-hidden divide-y divide-amber-50">
+                                {linkResults[app.id]!.map(p => (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => linkApplicationToProfile(app.id, p.id)}
+                                    disabled={linkBusyId === app.id}
+                                    className="w-full text-left px-3 py-2 text-xs bg-white hover:bg-amber-50 transition-colors disabled:opacity-40"
+                                  >
+                                    <span className="font-bold text-amber-900">{p.full_name || '이름 없음'}</span>
+                                    <span className="text-amber-400 ml-2">{p.email}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2810,8 +2981,13 @@ const Admin = () => {
                             최근 활동: {new Date(row.last_activity_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}
                           </p>
                         )}
-                        {!!row.instructor_checklist && Object.values(row.instructor_checklist).some(Boolean) && (
+                        {(row.demo_class_auto || (!!row.instructor_checklist && Object.values(row.instructor_checklist).some(Boolean))) && (
                           <div className="flex flex-wrap gap-1 mt-2">
+                            {row.demo_class_auto && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                                ✓ 시범 수업 완료 (자동)
+                              </span>
+                            )}
                             {INSTRUCTOR_CHECKLIST_ITEMS.filter(it => row.instructor_checklist?.[it.key]).map(it => (
                               <span key={it.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                                 ✓ {it.label}
@@ -2834,6 +3010,16 @@ const Admin = () => {
                     {editingInstructorId === row.teacher_id && (
                       <div className="pt-3 border-t border-amber-100 space-y-3">
                         <div className="flex flex-wrap gap-2">
+                          <span
+                            className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${
+                              row.demo_class_auto
+                                ? 'bg-sky-100 border-sky-200 text-sky-700'
+                                : 'bg-gray-50 border-gray-200 text-gray-400'
+                            }`}
+                            title="배정된 반 1개 이상 + 출석/활동 기록 1건 이상이면 자동으로 완료 처리됩니다"
+                          >
+                            {row.demo_class_auto ? '✓ ' : ''}시범 수업 완료 (자동)
+                          </span>
                           {INSTRUCTOR_CHECKLIST_ITEMS.map(item => (
                             <button
                               key={item.key}

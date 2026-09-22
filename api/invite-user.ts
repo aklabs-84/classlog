@@ -130,7 +130,7 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Email send failed. Check Gmail credentials in Vercel env vars.' });
   }
 
-  return res.status(200).json({ ok: true, type: 'invite' });
+  return res.status(200).json({ ok: true, type: 'invite', userId });
 }
 
 // ── 이메일 HTML 템플릿 ────────────────────────────────────────────────────────
