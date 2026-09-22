@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
+import ProjectTeacherStatus from '../components/classroom/ProjectTeacherStatus';
+import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import {
   ArrowLeft,
   School,
@@ -70,6 +72,7 @@ const PAGE_TABS = [
   { key: 'materials', label: '수업 자료' },
   { key: 'plan', label: '주차별 계획' },
   { key: 'survey', label: '설문' },
+  { key: 'summary', label: '결과 요약' },
 ] as const;
 type PageTabKey = (typeof PAGE_TABS)[number]['key'];
 
@@ -125,7 +128,7 @@ const SchoolProjectSchoolsPage = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
-  const [program, setProgram] = useState<{ id: string; name: string; school_name: string | null; share_token: string | null } | null>(null);
+  const [program, setProgram] = useState<{ id: string; name: string; school_name: string | null; share_token: string | null; start_date: string | null; end_date: string | null } | null>(null);
   const [copiedProjectShare, setCopiedProjectShare] = useState<'code' | 'url' | null>(null);
   const [schools, setSchools] = useState<SchoolRow[]>([]);
 
@@ -408,7 +411,7 @@ const SchoolProjectSchoolsPage = () => {
     try {
       const { data: proj } = await supabase
         .from('school_projects')
-        .select('id, name, school_name, share_token')
+        .select('id, name, school_name, share_token, start_date, end_date')
         .eq('id', projectId)
         .single();
       setProgram(proj || null);
@@ -485,6 +488,19 @@ const SchoolProjectSchoolsPage = () => {
       setLoading(false);
     }
   };
+
+  // 강사별 현황 표용: 이미 불러온 반 목록에서 강사 이름표와 "배정이 바뀌었는지" 신호를 만든다
+  const teacherNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    schools.forEach(s => s.classes.forEach(c => {
+      if (c.assigned_teacher_id && c.teacherName) map[c.assigned_teacher_id] = c.teacherName;
+    }));
+    return map;
+  }, [schools]);
+  const teacherAssignKey = useMemo(
+    () => schools.flatMap(s => s.classes.map(c => `${c.id}:${c.assigned_teacher_id ?? ''}`)).join('|'),
+    [schools],
+  );
 
   const regions = useMemo(
     () => [...new Set(schools.map(s => s.region).filter(Boolean))] as string[],
@@ -925,6 +941,7 @@ const SchoolProjectSchoolsPage = () => {
 
       {activeTab === 'teachers' && (
         <div className="space-y-4">
+          {projectId && <ProjectTeacherStatus projectId={projectId} teacherNames={teacherNames} refreshKey={teacherAssignKey} />}
           <div className="flex items-center justify-between">
             <p className="text-xs text-on-surface-variant">
               이 사업의 모든 학교에 걸쳐 반을 만들고 담당 강사를 배정합니다. 강사에게는 참가코드를 전달하거나, 직접 강사를 검색해 배정할 수 있습니다.
@@ -1270,6 +1287,14 @@ const SchoolProjectSchoolsPage = () => {
 
       {activeTab === 'survey' && projectId && (
         <SchoolProjectSurveyTab projectId={projectId} schools={schools} />
+      )}
+
+      {activeTab === 'summary' && projectId && (
+        <ProjectResultSummary
+          projectId={projectId}
+          program={program ? { name: program.name, school_name: program.school_name, start_date: program.start_date, end_date: program.end_date } : null}
+          totals={totals}
+        />
       )}
 
       {/* 학교 추가 모달 */}
