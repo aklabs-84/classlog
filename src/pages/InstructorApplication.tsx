@@ -139,7 +139,7 @@ const InstructorApplication = () => {
                 <textarea
                   value={experience}
                   onChange={(e) => setExperience(e.target.value)}
-                  rows={3}
+                  rows={5}
                   placeholder="관련 경력이나 자격증을 자유롭게 적어주세요"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
@@ -150,7 +150,7 @@ const InstructorApplication = () => {
                 <textarea
                   value={motivation}
                   onChange={(e) => setMotivation(e.target.value)}
-                  rows={3}
+                  rows={5}
                   placeholder="지원하시는 이유나 하고 싶은 말을 남겨주세요"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
