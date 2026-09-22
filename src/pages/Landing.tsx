@@ -157,10 +157,54 @@ const useCases = [
 ];
 
 const steps = [
-  { num: '01', title: '학급 생성', desc: '교과반·담임반 구분해서 학급을 만들면 학생들이 코드로 바로 참여합니다.' },
-  { num: '02', title: '틈틈이 기록', desc: '학생이 직접 제출하거나, 선생님이 수업 중 메모를 남깁니다. 기록이 쌓일수록 세특이 정확해집니다.' },
-  { num: '03', title: 'AI 세특 생성', desc: 'AI가 기록을 분석해 학생별 세특 초안을 자동 완성. 수정 후 저장합니다.' },
-  { num: '04', title: '나이스 엑셀 내보내기', desc: '500자 맞춤 편집 후 나이스 엑셀로 바로 내보냅니다.' },
+  {
+    num: '01',
+    title: '학급 생성',
+    desc: '교과반·담임반 구분해서 학급을 만들면 학생들이 6자리 코드로 1초 만에 바로 입장합니다.',
+    img: '/illustrations/steps/step1-class-3d.jpg',
+    tag: '#코드_입장',
+    tagColor: 'bg-white/90 text-writer-iris',
+    numColor: 'bg-writer-obsidian/85 text-white',
+    footerLabel: '수업 코드 배포',
+    footerBadge: '원클릭',
+    footerBadgeColor: 'text-emerald-600 font-bold',
+  },
+  {
+    num: '02',
+    title: '틈틈이 기록',
+    desc: '학생이 직접 과제를 제출하거나, 선생님이 수업 중 메모를 남깁니다. 기록이 쌓일수록 세특이 정확해집니다.',
+    img: '/illustrations/steps/step2-record-3d.jpg',
+    tag: '수업 관찰 메모',
+    tagColor: 'bg-white/90 text-writer-iris',
+    numColor: 'bg-writer-obsidian/85 text-white',
+    footerLabel: '활동 데이터 축적',
+    footerBadge: '실시간 동기화',
+    footerBadgeColor: 'text-writer-iris font-bold',
+  },
+  {
+    num: '03',
+    title: 'AI 세특 생성',
+    desc: 'AI가 누적된 기록을 심층 분석하여 학생별 역량 중심 세특 초안을 500자 맞춤으로 자동 완성합니다.',
+    img: '/illustrations/steps/step3-ai-draft-3d.jpg',
+    tag: '500자 자동 초안',
+    tagColor: 'bg-writer-iris/90 text-white',
+    numColor: 'bg-writer-iris text-white shadow-md',
+    footerLabel: '기재요령 준수',
+    footerBadge: 'AI 어시스턴트',
+    footerBadgeColor: 'text-purple-600 font-bold',
+  },
+  {
+    num: '04',
+    title: '나이스 엑셀 내보내기',
+    desc: '바이트(Byte) 수 검증 후 교육행정정보시스템(NEIS) 양식 엑셀 파일로 즉시 다운로드합니다.',
+    img: '/illustrations/steps/step4-export-3d.jpg',
+    tag: 'NEIS 엑셀 양식',
+    tagColor: 'bg-emerald-500 text-white',
+    numColor: 'bg-writer-obsidian/85 text-white',
+    footerLabel: '나이스 붙여넣기',
+    footerBadge: '완벽 호환',
+    footerBadgeColor: 'text-emerald-600 font-bold',
+  },
 ];
 
 // 유료 고객 확보 전까지 선결제 할인 노출을 잠시 끔 — 켤 때는 true로.
@@ -1006,30 +1050,67 @@ const Landing = () => {
       </section>
 
       {/* ── How it works ── */}
-      <section className="py-20 bg-writer-lavender/30">
+      <section className="py-24 bg-gradient-to-b from-writer-lavender/40 via-writer-lavender/20 to-white relative overflow-hidden">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-black mb-3">이렇게 사용해요</h2>
-            <p className="text-writer-slate text-base">기록만 하면 AI가 나머지를 합니다</p>
+            <Eyebrow>✨ How it works</Eyebrow>
+            <h2 className="text-3xl sm:text-4xl font-black mb-3 text-writer-obsidian">이렇게 사용해요</h2>
+            <p className="text-writer-slate text-base sm:text-lg">기록만 차곡차곡 쌓이면, 복잡한 세특은 AI가 순식간에 완성합니다</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {steps.map(({ num, title, desc }, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {steps.map(({ num, title, desc, img, tag, tagColor, numColor, footerLabel, footerBadge, footerBadgeColor }, i) => (
               <motion.div
                 key={num}
-                initial={{ opacity: 0, x: -10 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.12 }}
-                className="flex flex-col items-center text-center"
+                transition={{ delay: i * 0.1, duration: 0.4 }}
+                className="bg-white rounded-[20px] p-5 border border-writer-mist shadow-sm hover:shadow-xl hover:border-writer-iris/40 transition-all duration-300 flex flex-col justify-between group"
               >
-                <div className="w-14 h-14 border border-writer-obsidian rounded-full flex items-center justify-center font-poppins font-semibold text-lg mb-5">
-                  {num}
+                <div>
+                  <div className="relative w-full aspect-square rounded-[14px] overflow-hidden mb-4 bg-slate-50 border border-slate-100 shadow-inner">
+                    <img
+                      src={img}
+                      alt={title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    <span className={`absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full font-mono font-bold text-xs backdrop-blur-sm ${numColor}`}>
+                      {num}
+                    </span>
+                    <span className={`absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md font-bold text-[10px] shadow-sm ${tagColor}`}>
+                      {tag}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-black text-writer-obsidian mb-1.5 group-hover:text-writer-iris transition-colors">{title}</h3>
+                  <p className="text-xs text-writer-slate leading-relaxed">{desc}</p>
                 </div>
-                <h3 className="text-lg font-black mb-2">{title}</h3>
-                <p className="text-sm text-writer-slate leading-relaxed">{desc}</p>
+                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-writer-slate font-medium">
+                  <span>{footerLabel}</span>
+                  <span className={footerBadgeColor}>{footerBadge}</span>
+                </div>
               </motion.div>
             ))}
           </div>
+
+          {/* 하단 안내 띠 배너 */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-10 p-4 sm:p-5 rounded-2xl bg-white border border-writer-mist/80 shadow-sm flex items-center justify-between flex-wrap gap-4 text-xs text-writer-slate"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-writer-iris animate-pulse shrink-0" />
+              <span className="font-medium">선생님은 평소처럼 수업만 진행하세요. 학기 말 세특 작성의 부담을 획기적으로 줄여드립니다.</span>
+            </div>
+            <button
+              onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
+              className="font-bold text-writer-iris hover:text-writer-iris-dim transition-colors flex items-center gap-1 shrink-0"
+            >
+              무료로 시작해보기 <ChevronRight size={14} strokeWidth={2.5} />
+            </button>
+          </motion.div>
         </div>
       </section>
 
