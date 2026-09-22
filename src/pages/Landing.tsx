@@ -1521,7 +1521,7 @@ const Landing = () => {
 
       {/* ── 사용법 교육 신청 + 카카오톡 커뮤니티 ── */}
       <section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto px-6 grid md:grid-cols-2 gap-5">
+        <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-3 gap-5">
           <div className="rounded-[16px] border border-writer-mist bg-writer-lavender/20 p-8 flex flex-col">
             <GraduationCap size={28} className="text-writer-iris mb-3" />
             <h3 className="text-lg font-black mb-2">사용법 교육이 필요하신가요?</h3>
@@ -1548,6 +1548,20 @@ const Landing = () => {
               <MessageCircle size={16} />
               카카오톡 오픈채팅 참여하기
             </a>
+          </div>
+          <div className="rounded-[16px] border border-writer-mist bg-amber-50 p-8 flex flex-col">
+            <Users size={28} className="text-amber-600 mb-3" />
+            <h3 className="text-lg font-black mb-2">학생들을 직접 만나는 강사로 함께해요</h3>
+            <p className="text-sm text-writer-slate leading-relaxed mb-5 flex-1">
+              AKLABS가 운영하는 교육 프로그램에서 수업을 진행할 강사님을 찾고 있어요. 경력이 없어도 괜찮습니다. 간단한 정보만 남기면 검토 후 연락드려요.
+            </p>
+            <Link
+              to="/instructor-application?source=landing"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors px-6 py-3 text-sm whitespace-nowrap"
+            >
+              <Users size={16} />
+              강사 지원하기
+            </Link>
           </div>
         </div>
       </section>
