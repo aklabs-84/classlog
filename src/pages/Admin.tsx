@@ -33,6 +33,7 @@ interface InstructorPoolRow {
   pending_request_count: number;
   instructor_checklist: Record<string, boolean> | null;
   instructor_checklist_source: Record<string, 'self' | 'admin'> | null;
+  instructor_checklist_evidence: Record<string, { file_path: string; file_name: string; uploaded_at: string }> | null;
   instructor_note: string | null;
   demo_class_auto: boolean;
 }
@@ -1033,6 +1034,14 @@ const Admin = () => {
     } finally {
       setInstructorPoolLoading(false);
     }
+  };
+
+  const viewInstructorEvidenceAdmin = async (filePath: string) => {
+    const { data, error } = await supabase.storage
+      .from('instructor-evidence')
+      .createSignedUrl(filePath, 60 * 5);
+    if (error || !data?.signedUrl) return;
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   const startEditInstructor = (row: InstructorPoolRow) => {
@@ -2989,14 +2998,26 @@ const Admin = () => {
                                 ✓ 시범 수업 완료 (자동)
                               </span>
                             )}
-                            {INSTRUCTOR_CHECKLIST_ITEMS.filter(it => row.instructor_checklist?.[it.key]).map(it => (
-                              <span key={it.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                                ✓ {it.label}
-                                {row.instructor_checklist_source?.[it.key] === 'self' && (
-                                  <span className="ml-1 text-amber-600" title="강사 본인이 체크했어요. 확인 후 필요하면 다시 체크해 관리자 확인으로 바꿔주세요.">(셀프체크)</span>
-                                )}
-                              </span>
-                            ))}
+                            {INSTRUCTOR_CHECKLIST_ITEMS.filter(it => row.instructor_checklist?.[it.key]).map(it => {
+                              const evidence = row.instructor_checklist_evidence?.[it.key];
+                              return (
+                                <span key={it.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                  ✓ {it.label}
+                                  {row.instructor_checklist_source?.[it.key] === 'self' && (
+                                    <span className="ml-1 text-amber-600" title="강사 본인이 체크했어요. 확인 후 필요하면 다시 체크해 관리자 확인으로 바꿔주세요.">(셀프체크)</span>
+                                  )}
+                                  {evidence && (
+                                    <button
+                                      onClick={() => viewInstructorEvidenceAdmin(evidence.file_path)}
+                                      className="ml-1 underline underline-offset-2 text-emerald-800 hover:text-emerald-900"
+                                      title={evidence.file_name}
+                                    >
+                                      이수증 보기
+                                    </button>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                         {row.instructor_note && (

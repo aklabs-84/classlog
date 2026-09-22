@@ -88,8 +88,11 @@ const Settings = () => {
   // 강사 온보딩 셀프 체크리스트 (강사 풀 소속일 때만 노출)
   const [instructorChecklist, setInstructorChecklist] = useState<Record<string, boolean> | null>(null);
   const [instructorChecklistSource, setInstructorChecklistSource] = useState<Record<string, 'self' | 'admin'>>({});
+  const [instructorChecklistEvidence, setInstructorChecklistEvidence] = useState<Record<string, { file_path: string; file_name: string; uploaded_at: string }>>({});
   const [demoClassAuto, setDemoClassAuto] = useState(false);
-  const [instructorChecklistSaving, setInstructorChecklistSaving] = useState<string | null>(null);
+  const [instructorEvidenceError, setInstructorEvidenceError] = useState<string | null>(null);
+  const instructorFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [instructorUploadingKey, setInstructorUploadingKey] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('groq_api_key') || '';
@@ -105,6 +108,7 @@ const Settings = () => {
       if (!data) return;
       setInstructorChecklist(data.instructor_checklist || {});
       setInstructorChecklistSource(data.instructor_checklist_source || {});
+      setInstructorChecklistEvidence(data.instructor_checklist_evidence || {});
       setDemoClassAuto(!!data.demo_class_auto);
     });
   }, [user]);
@@ -115,16 +119,56 @@ const Settings = () => {
     { key: 'contract_signed', label: '계약서 작성 완료' },
   ];
 
-  const toggleMyChecklistItem = async (key: string) => {
-    if (!instructorChecklist) return;
-    const nextValue = !instructorChecklist[key];
-    setInstructorChecklistSaving(key);
-    const { data } = await supabase.rpc('self_update_instructor_checklist', { p_updates: { [key]: nextValue } });
-    if (data?.success) {
-      setInstructorChecklist(prev => ({ ...(prev || {}), [key]: nextValue }));
-      setInstructorChecklistSource(prev => ({ ...prev, [key]: 'self' }));
+  // 이수증 파일 선택 → 스토리지 업로드 → RPC로 체크+증빙 저장
+  const handleInstructorEvidenceFile = async (key: string, file: File) => {
+    if (!user) return;
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setInstructorEvidenceError('PDF, JPG, PNG, WEBP 파일만 올릴 수 있어요.');
+      return;
     }
-    setInstructorChecklistSaving(null);
+    if (file.size > 10 * 1024 * 1024) {
+      setInstructorEvidenceError('파일 용량은 10MB 이하만 가능해요.');
+      return;
+    }
+    setInstructorEvidenceError(null);
+    setInstructorUploadingKey(key);
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const filePath = `${user.id}/${key}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('instructor-evidence')
+        .upload(filePath, file, { upsert: false });
+      if (uploadError) {
+        setInstructorEvidenceError('업로드에 실패했어요. 다시 시도해주세요.');
+        return;
+      }
+      const { data, error: rpcError } = await supabase.rpc('self_upload_instructor_evidence', {
+        p_key: key,
+        p_file_path: filePath,
+        p_file_name: file.name,
+      });
+      if (rpcError || data?.error) {
+        setInstructorEvidenceError('저장에 실패했어요. 다시 시도해주세요.');
+        return;
+      }
+      setInstructorChecklist(prev => ({ ...(prev || {}), [key]: true }));
+      setInstructorChecklistSource(prev => ({ ...prev, [key]: 'self' }));
+      setInstructorChecklistEvidence(prev => ({ ...prev, [key]: { file_path: filePath, file_name: file.name, uploaded_at: new Date().toISOString() } }));
+    } finally {
+      setInstructorUploadingKey(null);
+    }
+  };
+
+  const viewInstructorEvidence = async (filePath: string) => {
+    const { data, error } = await supabase.storage
+      .from('instructor-evidence')
+      .createSignedUrl(filePath, 60 * 5);
+    if (error || !data?.signedUrl) {
+      setInstructorEvidenceError('파일을 여는 데 실패했어요.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   // 내 추천 코드 + 추천 횟수 로드
@@ -656,30 +700,80 @@ const Settings = () => {
             >
               {demoClassAuto ? '✓ ' : ''}시범 수업 완료 (자동)
             </span>
-            {INSTRUCTOR_SELF_CHECK_ITEMS.map(item => (
-              <button
-                key={item.key}
-                onClick={() => toggleMyChecklistItem(item.key)}
-                disabled={instructorChecklistSaving === item.key}
-                className={`text-xs font-bold px-3 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
-                  instructorChecklist[item.key]
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'
-                }`}
-              >
-                {instructorChecklistSaving === item.key ? (
-                  <Loader2 size={12} className="inline animate-spin mr-1" />
-                ) : instructorChecklist[item.key] ? '✓ ' : ''}
-                {item.label}
-                {instructorChecklist[item.key] && instructorChecklistSource[item.key] === 'self' && (
-                  <span className="ml-1 opacity-70">(관리자 확인 전)</span>
-                )}
-              </button>
-            ))}
           </div>
 
+          <input
+            ref={instructorFileInputRef}
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              const key = instructorFileInputRef.current?.dataset.targetKey;
+              if (file && key) handleInstructorEvidenceFile(key, file);
+              e.target.value = '';
+            }}
+          />
+
+          <div className="space-y-2 mb-3">
+            {INSTRUCTOR_SELF_CHECK_ITEMS.map(item => {
+              const checked = !!instructorChecklist[item.key];
+              const evidence = instructorChecklistEvidence[item.key];
+              const uploading = instructorUploadingKey === item.key;
+              return (
+                <div
+                  key={item.key}
+                  className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border ${
+                    checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-amber-200'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold ${checked ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {checked ? '✓ ' : ''}{item.label}
+                      {checked && instructorChecklistSource[item.key] === 'self' && (
+                        <span className="ml-1 font-normal opacity-70">(관리자 확인 전)</span>
+                      )}
+                    </p>
+                    {evidence ? (
+                      <button
+                        onClick={() => viewInstructorEvidence(evidence.file_path)}
+                        className="text-[11px] text-emerald-600 underline underline-offset-2 truncate max-w-[200px] inline-block"
+                        title={evidence.file_name}
+                      >
+                        📎 {evidence.file_name}
+                      </button>
+                    ) : (
+                      <p className="text-[11px] text-gray-400">이수증 파일이 아직 없어요</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (instructorFileInputRef.current) {
+                        instructorFileInputRef.current.dataset.targetKey = item.key;
+                        instructorFileInputRef.current.click();
+                      }
+                    }}
+                    disabled={uploading}
+                    className="shrink-0 text-xs font-bold px-3 py-2 rounded-xl border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {uploading ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Upload size={12} />
+                    )}
+                    {evidence ? '다시 올리기' : '이수증 올리기'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {instructorEvidenceError && (
+            <p className="text-[11px] text-red-500 mb-2">{instructorEvidenceError}</p>
+          )}
+
           <p className="text-[11px] text-amber-500 leading-relaxed">
-            체크는 참고용이에요. 실제 이수·서명 여부는 관리자가 강사 풀 화면에서 다시 확인해요.
+            이수증(PDF/이미지, 10MB 이하)을 올리면 자동으로 체크돼요. 실제 이수·서명 여부는 관리자가 강사 풀 화면에서 파일을 열어 다시 확인해요.
           </p>
         </div>
       )}
