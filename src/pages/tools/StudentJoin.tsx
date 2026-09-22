@@ -81,14 +81,9 @@ export default function StudentJoin() {
     setLoading(true);
     setError('');
 
-    const { data: sessionData } = await supabase
-      .from('class_board_sessions')
-      .select('id, class_id, class_name, group_count, group_size, session_code, status')
-      .eq('session_code', c)
-      .in('status', ['active', 'ended'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: rpcData } = await supabase
+      .rpc('get_board_session_by_code', { p_code: c });
+    const sessionData = rpcData?.[0] ?? null;
 
     if (!sessionData) {
       setError('유효한 코드가 아닙니다. 선생님께 확인해주세요.');
