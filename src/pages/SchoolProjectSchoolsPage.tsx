@@ -179,7 +179,8 @@ const SchoolProjectSchoolsPage = () => {
   const [savingClass, setSavingClass] = useState(false);
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
   const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
-  const [projectTeachers, setProjectTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null }[]>([]);
+  const [projectTeachers, setProjectTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null; school_code?: string | null }[]>([]);
+  const [searchedTeachers, setSearchedTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null; school_code: string | null }[]>([]);
 
   // 가입 신청 대기 목록
   const [joinRequests, setJoinRequests] = useState<{ id: string; class_id: string; class_name: string; teacher_id: string; teacher_name: string; teacher_email: string; requested_at: string }[]>([]);
@@ -620,11 +621,25 @@ const SchoolProjectSchoolsPage = () => {
     })();
   }, [profile?.school_code]);
 
-  const filteredTeachers = useMemo(() => {
-    const q = teacherSearchQuery.trim().toLowerCase();
-    if (!q) return projectTeachers;
-    return projectTeachers.filter(t => t.full_name?.toLowerCase().includes(q));
-  }, [projectTeachers, teacherSearchQuery]);
+  // 이름을 입력하면 소속과 무관하게 가입된 모든 강사에서 검색
+  useEffect(() => {
+    const q = teacherSearchQuery.trim();
+    if (!assigningClassId || !q) { setSearchedTeachers([]); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const escaped = q.replace(/[%_\\]/g, m => '\\' + m);
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, school_code')
+        .eq('role', 'teacher')
+        .ilike('full_name', `%${escaped}%`)
+        .limit(20);
+      if (!cancelled) setSearchedTeachers(data || []);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [teacherSearchQuery, assigningClassId]);
+
+  const filteredTeachers = teacherSearchQuery.trim() ? searchedTeachers : projectTeachers;
 
   const handleAddClass = async () => {
     const targetSchool = schools.find(s => s.id === newClassSchoolId);
@@ -1712,7 +1727,7 @@ const SchoolProjectSchoolsPage = () => {
             <div className="overflow-y-auto -mx-2">
               {filteredTeachers.length === 0 ? (
                 <p className="text-xs text-on-surface-variant/50 text-center py-6">
-                  {projectTeachers.length === 0 ? '같은 소속 선생님이 없습니다' : '검색 결과 없음'}
+                  {teacherSearchQuery.trim() ? '검색 결과 없음' : '같은 소속 선생님이 없습니다. 이름으로 검색해 보세요'}
                 </p>
               ) : (
                 filteredTeachers.map(t => {
@@ -1729,6 +1744,9 @@ const SchoolProjectSchoolsPage = () => {
                         className="w-8 h-8 rounded-full object-cover shrink-0"
                       />
                       <p className="text-sm font-bold text-on-surface">{t.full_name} 선생님</p>
+                      {teacherSearchQuery.trim() && t.school_code !== profile?.school_code && (
+                        <span className="ml-auto text-[10px] font-bold text-on-surface-variant/60">{t.school_code ? '다른 소속' : '소속 없음'}</span>
+                      )}
                     </button>
                   );
                 })
