@@ -1172,6 +1172,12 @@ const Classroom = () => {
     }
   };
 
+  // 담당 선생님은 로그인 상태로 열면 명단·PIN 없이 바로 학생 페이지로 입장된다
+  const handleOpenStudentPage = () => {
+    if (!classInfo?.entry_code) return;
+    window.open(`${window.location.origin}/classroom-entry?code=${classInfo.entry_code}`, '_blank', 'noopener');
+  };
+
   const handleShareTeacher = () => {
     if (!activeClassId) return;
     const url = `${window.location.origin}/share/${activeClassId}`;
@@ -4477,8 +4483,7 @@ const Classroom = () => {
               if (activeClassId) fetchResources(activeClassId);
               setIsResourceModalOpen(true);
             }}
-            onCopyLink={handleCopyLink}
-            copySuccess={copySuccess}
+            onOpenStudentPage={classInfo.entry_code ? handleOpenStudentPage : undefined}
             onShareTeacher={handleShareTeacher}
             shareTeacherSuccess={shareTeacherSuccess}
             onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}

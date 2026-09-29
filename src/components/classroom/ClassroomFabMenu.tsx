@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, QrCode, BookOpen, Link as LinkIcon, Share2, Download, Check, Smartphone } from 'lucide-react';
+import { Plus, QrCode, BookOpen, ExternalLink, Share2, Download, Check, Smartphone } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ClassroomFabMenuProps {
   onOpenQR?: () => void;
   onOpenResources?: () => void;
-  onCopyLink?: () => void;
-  copySuccess?: boolean;
+  onOpenStudentPage?: () => void;
   onShareTeacher?: () => void;
   shareTeacherSuccess?: boolean;
   onOpenTeacherShareQR?: () => void;
@@ -25,8 +24,7 @@ interface FabAction {
 const ClassroomFabMenu = ({
   onOpenQR,
   onOpenResources,
-  onCopyLink,
-  copySuccess,
+  onOpenStudentPage,
   onShareTeacher,
   shareTeacherSuccess,
   onOpenTeacherShareQR,
@@ -48,12 +46,7 @@ const ClassroomFabMenu = ({
     onOpenStudentPreview && { key: 'studentPreview', label: '학생 화면 미리보기', icon: Smartphone, onClick: onOpenStudentPreview },
     onOpenQR && { key: 'qr', label: '학생 입장용 QR', icon: QrCode, onClick: onOpenQR },
     onOpenResources && { key: 'resources', label: '수업 자료실', icon: BookOpen, onClick: onOpenResources },
-    onCopyLink && {
-      key: 'copyLink',
-      label: copySuccess ? '복사됨!' : '학생 페이지 링크',
-      icon: copySuccess ? Check : LinkIcon,
-      onClick: onCopyLink,
-    },
+    onOpenStudentPage && { key: 'openStudentPage', label: '학생 페이지 이동', icon: ExternalLink, onClick: onOpenStudentPage },
     onShareTeacher && {
       key: 'share',
       label: shareTeacherSuccess ? '복사됨!' : '교사용 결과 링크',
