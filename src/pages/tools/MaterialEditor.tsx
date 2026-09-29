@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
+import { AnswerPreviewMarkdown } from '../../components/StudentMaterialPage';
 import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal, { renderCallout } from '../../components/PresentationModal';
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
@@ -514,9 +515,10 @@ const PreviewFullscreenModal = ({
       {/* 본문 */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-10">
-          <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-            {highlightFillPlaceholders(content)}
-          </ReactMarkdown>
+          <p className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-bold text-emerald-800">
+            ✍ 학생 입력칸(표 빈 칸·체크·밑줄)은 눌러서 써볼 수 있어요. 미리보기라서 적은 내용은 저장되지 않아요.
+          </p>
+          <AnswerPreviewMarkdown content={highlightFillPlaceholders(content)} mdComponents={mdComponents} />
         </div>
       </div>
     </div>,
@@ -2847,26 +2849,31 @@ const MaterialEditor = () => {
           <details className="group mx-5 mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60">
             <summary className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer list-none select-none">
               <PenLine size={14} className="shrink-0 text-emerald-700" />
-              <span className="flex-1 text-xs font-black text-emerald-900">학생이 직접 입력할 수 있는 요소 쓰는 법</span>
+              <span className="flex-1 text-xs font-black text-emerald-900">학생이 직접 적는 칸 만드는 법</span>
               <ChevronDown size={14} className="shrink-0 text-emerald-700 transition-transform group-open:rotate-180" />
             </summary>
             <div className="px-3.5 pb-3.5 pt-1 space-y-2.5 text-xs font-bold text-emerald-900/90 leading-relaxed">
-              <p>아래 3가지를 자료에 넣으면 학생 화면에서 <span className="font-black">입력칸</span>으로 바뀌고, 학생이 적은 내용은 자동 저장돼요.</p>
+              <p>
+                글 쓰는 곳에서 <code className="px-1 rounded bg-white/80">/</code> 를 누르고 <span className="font-black">"학생 입력"</span>이라고 검색해 보세요.
+                아래 3가지 중 하나를 고르면 자료에 바로 들어가고, 학생 화면에서는 <span className="font-black">직접 적는 칸</span>이 돼요. 표는 필요할 때만 쓰면 돼요.
+              </p>
               <ul className="space-y-2">
                 <li>
-                  <span className="font-black">① 표의 빈 칸</span> — <code className="px-1 rounded bg-white/80">/</code>를 눌러 <span className="font-black">표</span>를 넣고, 학생이 적을 칸은 <span className="font-black">비워 두세요</span>. 글자가 적힌 칸(번호·제목 등)은 그대로 보여요. 머리글 줄은 입력칸이 되지 않아요.
+                  <span className="font-black">✍ 메모 표</span> — 번호와 빈 칸이 있는 표가 들어가요. 학생은 <span className="font-black">비어 있는 칸</span>에 글을 적어요. 이미 글자가 적힌 칸은 그대로 보여요.
                 </li>
                 <li>
-                  <span className="font-black">② 체크박스</span> — 문장 맨 앞에 <code className="px-1 rounded bg-white/80">[ ]</code>(대괄호 사이 띄어쓰기)를 쓰세요. 예) <code className="px-1 rounded bg-white/80">[ ] 불편함을 3개 적었어요.</code> 학생이 눌러서 체크해요.
+                  <span className="font-black">☑ 체크 항목</span> — 학생이 눌러서 체크하는 네모 칸이 들어가요. 뒤에 문장을 이어서 쓰세요. 예) 불편함을 3개 적었어요.
                 </li>
                 <li>
-                  <span className="font-black">③ 밑줄 빈칸</span> — 밑줄(<code className="px-1 rounded bg-white/80">_</code>)을 <span className="font-black">3개 이상</span> 이어 쓰세요. 예) <code className="px-1 rounded bg-white/80">이 중 하나를 골라요: ______</code> 그 자리에 한 줄 입력칸이 생겨요.
+                  <span className="font-black">＿ 밑줄 빈칸</span> — "답: ______" 이 들어가요. 학생은 밑줄 자리에 한 줄을 적어요. "답:" 대신 원하는 질문으로 바꿔 쓰세요. 예) 좋아하는 장르는 ______
                 </li>
               </ul>
               <ul className="list-disc pl-4 space-y-1 text-emerald-900/80">
-                <li>편집·미리보기 화면에서는 입력되지 않아요. <span className="font-black">반에 연결·공개된 자료</span>를 학생이 열었을 때만 입력할 수 있어요.</li>
-                <li>학생이 적은 답은 자료 목록의 <PenLine size={11} className="inline -mt-0.5" /> <span className="font-black">학생 답변 보기</span> 버튼에서 학생별로 확인해요.</li>
-                <li>학생이 답한 뒤에는 입력칸을 <span className="font-black">중간에 추가·삭제하지 마세요</span>. 입력칸 순서로 답을 저장하기 때문에 그 뒤 칸들의 답이 한 칸씩 밀릴 수 있어요. (글을 고치거나 줄을 추가하는 건 괜찮아요)</li>
+                <li>편집 화면에서는 그냥 기호로 보여요. 위쪽 <span className="font-black">미리보기</span>를 누르면 학생 화면처럼 적어볼 수 있어요. (미리보기에서 적은 내용은 저장되지 않아요)</li>
+                <li>학생이 실제로 적으려면 <span className="font-black">반에 연결하고 공개</span>한 자료여야 해요.</li>
+                <li>학생이 적은 답은 자료 목록의 <PenLine size={11} className="inline -mt-0.5" /> <span className="font-black">학생 답변 보기</span> 버튼에서 학생별로 볼 수 있어요.</li>
+                <li>학생이 답을 적기 시작한 뒤에는 적는 칸을 <span className="font-black">중간에 넣거나 지우지 마세요.</span> 위에서부터 순서대로 답을 저장해서, 뒤쪽 칸의 답이 한 칸씩 밀릴 수 있어요. (글 고치기, 줄 추가는 괜찮아요)</li>
+                <li>직접 쓰고 싶다면: 체크 칸은 문장 맨 앞에 <code className="px-1 rounded bg-white/80">[ ]</code>, 밑줄 칸은 <code className="px-1 rounded bg-white/80">_</code> 를 3개 이상 이어서 쓰면 돼요. (밑줄만 한 줄에 혼자 쓰면 구분선이 되니 앞에 글을 꼭 붙이세요)</li>
               </ul>
             </div>
           </details>
@@ -2893,7 +2900,10 @@ const MaterialEditor = () => {
                   >
                     <Maximize2 size={15} />
                   </button>
-                  <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{highlightFillPlaceholders(content)}</ReactMarkdown>
+                  <p className="mb-5 mr-10 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-bold text-emerald-800">
+                    ✍ 학생 입력칸(표 빈 칸·체크·밑줄)은 눌러서 써볼 수 있어요. 미리보기라서 적은 내용은 저장되지 않아요.
+                  </p>
+                  <AnswerPreviewMarkdown content={highlightFillPlaceholders(content)} mdComponents={mdComponents} />
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">

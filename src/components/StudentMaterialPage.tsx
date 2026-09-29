@@ -183,6 +183,25 @@ const buildAnswerComponents = (base: any) => {
   return { ...base, p: P, td: Td, li: Li, input: Input };
 };
 
+// 에디터 미리보기용 — 학생 화면과 똑같이 입력칸을 보여주되 저장은 하지 않고, 화면을 닫으면 사라진다
+export const AnswerPreviewMarkdown = ({ content, mdComponents }: { content: string; mdComponents: any }) => {
+  const valuesRef = useRef<Record<string, string>>({});
+  const ctx = useMemo<AnswerCtx>(() => ({
+    readOnly: false,
+    version: 0,
+    get: (k) => valuesRef.current[k] ?? '',
+    set: (k, v) => { valuesRef.current[k] = v; },
+  }), []);
+  const components = useMemo(() => buildAnswerComponents(mdComponents), [mdComponents]);
+  return (
+    <AnswerContext.Provider value={ctx}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
+        {content}
+      </ReactMarkdown>
+    </AnswerContext.Provider>
+  );
+};
+
 const RELATED_ID = 'student-material-related';
 const TOC_PREF_KEY = 'studentMaterialTocOpen';
 
