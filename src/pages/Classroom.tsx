@@ -4471,7 +4471,7 @@ const Classroom = () => {
 
         {classInfo && (
           <ClassroomFabMenu
-            onOpenStudentPreview={students.length > 0 ? () => setIsStudentPreviewOpen(true) : undefined}
+            onOpenStudentPreview={() => setIsStudentPreviewOpen(true)}
             onOpenQR={classInfo.class_type !== 'homeroom' ? () => setIsQRModalOpen(true) : undefined}
             onOpenResources={() => {
               if (activeClassId) fetchResources(activeClassId);
@@ -4486,10 +4486,9 @@ const Classroom = () => {
           />
         )}
 
-        {isStudentPreviewOpen && activeClassId && students.length > 0 && (
+        {isStudentPreviewOpen && activeClassId && (
           <StudentPreviewModal
             classId={activeClassId}
-            students={students.map(s => ({ id: s.id, name: s.name, number: s.number }))}
             onClose={() => setIsStudentPreviewOpen(false)}
           />
         )}

@@ -172,7 +172,7 @@ const ANNOUNCEMENT_MD_COMPONENTS = {
   p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed text-sm font-bold text-on-surface-variant">{children}</p>,
   h1: ({ children }: any) => <h1 className="text-sm font-black mb-1.5 mt-2">{children}</h1>,
   h2: ({ children }: any) => <h2 className="text-sm font-black mb-1.5 mt-2">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="text-xs font-black mb-1 mt-2">{children}</h3>,
+  h3: ({ children }: any) => <h3 className="text-sm font-black mb-1 mt-2">{children}</h3>,
   ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2 space-y-0.5 text-sm">{children}</ul>,
   ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2 space-y-0.5 text-sm">{children}</ol>,
   li: ({ children }: any) => <li className="text-sm text-on-surface-variant">{children}</li>,
@@ -180,7 +180,7 @@ const ANNOUNCEMENT_MD_COMPONENTS = {
     <blockquote className="border-l-4 border-amber-400 pl-3 italic text-on-surface-variant my-2 bg-amber-50 py-1.5 rounded-r-lg text-sm">{children}</blockquote>
   ),
   code: ({ children, className }: any) => {
-    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
+    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
     return <code className={className}>{children}</code>;
   },
   pre: ({ children }: any) => {
@@ -193,7 +193,7 @@ const ANNOUNCEMENT_MD_COMPONENTS = {
   img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow" />,
   hr: () => <hr className="border-amber-200 my-3" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
-  table: ({ children }: any) => <div className="overflow-auto mb-2"><table className="w-full border-collapse text-xs">{children}</table></div>,
+  table: ({ children }: any) => <div className="overflow-auto mb-2"><table className="w-full border-collapse text-sm">{children}</table></div>,
   th: ({ children }: any) => <th className="border border-surface-container px-2 py-1.5 bg-surface-container font-black text-left">{children}</th>,
   td: ({ children }: any) => <td className="border border-surface-container px-2 py-1.5">{children}</td>,
 };
@@ -2269,7 +2269,7 @@ ${guidePrompt}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-primary transition-all"
           >
             <GraduationCap size={20} />
-            <span className="hidden sm:inline text-xs font-black">교육 신청하기</span>
+            <span className="hidden sm:inline text-sm font-black">교육 신청하기</span>
           </button>
 
           {/* Bell 알림 버튼 */}
@@ -2290,7 +2290,7 @@ ${guidePrompt}
             >
               <Bell size={20} />
               {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-xs font-black rounded-full flex items-center justify-center shadow">
                   {unreadNotifCount}
                 </span>
               )}
@@ -2315,12 +2315,12 @@ ${guidePrompt}
                     <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
                       <span className="font-black text-sm">알림</span>
                       {studentNotifs.length > 0 && (
-                        <span className="text-[10px] font-bold text-neutral-400">{studentNotifs.length}개</span>
+                        <span className="text-xs font-bold text-neutral-400">{studentNotifs.length}개</span>
                       )}
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {studentNotifs.length === 0 ? (
-                        <div className="py-10 text-center text-neutral-400 text-xs font-bold">알림이 없습니다</div>
+                        <div className="py-10 text-center text-neutral-400 text-sm font-bold">알림이 없습니다</div>
                       ) : studentNotifs.map(n => {
                         const iconMap: Record<string, string> = {
                           rejection: '🚨',
@@ -2353,10 +2353,10 @@ ${guidePrompt}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   {!n.is_read && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />}
-                                  <p className="text-xs font-black text-on-surface leading-snug">{n.title}</p>
+                                  <p className="text-sm font-black text-on-surface leading-snug">{n.title}</p>
                                 </div>
-                                {n.content && <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">{n.content}</p>}
-                                <p className="text-[10px] text-neutral-400 mt-1">{new Date(n.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                {n.content && <p className="text-sm text-neutral-500 mt-0.5 leading-snug">{n.content}</p>}
+                                <p className="text-xs text-neutral-400 mt-1">{new Date(n.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                               </div>
                             </div>
                           </div>
@@ -2371,10 +2371,10 @@ ${guidePrompt}
 
           <div className="flex items-center gap-4 pl-4 border-l border-surface-container">
             <div className="text-right">
-              <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-0.5">STUDENT LOG</p>
+              <p className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-0.5">STUDENT LOG</p>
               <p className="text-sm font-black">{session?.student_name}</p>
               {myClassGroup && (
-                <p className="text-[10px] font-bold text-on-surface-variant/60 mt-0.5">{myClassGroup.name}</p>
+                <p className="text-xs font-bold text-on-surface-variant/60 mt-0.5">{myClassGroup.name}</p>
               )}
             </div>
             <button
@@ -2416,7 +2416,7 @@ ${guidePrompt}
             <div className="relative z-10 space-y-4">
               <div className="flex items-center gap-3">
                 <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                <p className="text-primary font-black text-[11px] uppercase tracking-[0.3em]">Current Active Session</p>
+                <p className="text-primary font-black text-sm uppercase tracking-[0.3em]">Current Active Session</p>
               </div>
               <h2 className="text-5xl font-black font-manrope tracking-tighter leading-[0.9]">{session?.class_name}</h2>
               <h3 className="text-3xl font-bold text-on-surface-variant/40 font-manrope">{session?.subject} 과목</h3>
@@ -2430,7 +2430,7 @@ ${guidePrompt}
             <div className="absolute -top-10 -left-10 text-primary/5"><User size={120} /></div>
             <div className="relative z-10 space-y-6">
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] opacity-60">Verified Participant</p>
+                <p className="text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] opacity-60">Verified Participant</p>
                 <h3 className="text-3xl font-black font-manrope">{session?.student_name}</h3>
               </div>
               <div className="pt-4 space-y-2">
@@ -2438,12 +2438,12 @@ ${guidePrompt}
                   <CheckCircle size={16} className="text-secondary" />
                   <span>{session?.class_name} 참여 중</span>
                 </div>
-                <p className="text-[11px] text-on-surface-variant/60 font-bold ml-6">{new Date().toLocaleDateString('ko-KR')} 기록 활성화</p>
+                <p className="text-sm text-on-surface-variant/60 font-bold ml-6">{new Date().toLocaleDateString('ko-KR')} 기록 활성화</p>
                 {myClassGroup && (
                   <div className="mt-3 ml-0 p-3 rounded-2xl bg-white/30 border border-white/20 backdrop-blur-sm">
-                    <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest mb-1.5">My Group</p>
+                    <p className="text-xs font-black text-on-surface-variant/50 uppercase tracking-widest mb-1.5">My Group</p>
                     <p className="text-lg font-black text-on-surface">{myClassGroup.name}</p>
-                    <p className="text-[11px] font-bold text-on-surface-variant/60 mt-1">
+                    <p className="text-sm font-bold text-on-surface-variant/60 mt-1">
                       {myClassGroup.memberNames.join(' · ')}
                     </p>
                   </div>
@@ -2521,16 +2521,16 @@ ${guidePrompt}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-black text-sm">지금 온라인 수업이 진행 중이에요</p>
-                        <p className="text-white/80 text-xs font-bold truncate">{activeMeeting.title}</p>
+                        <p className="text-white/80 text-sm font-bold truncate">{activeMeeting.title}</p>
                       </div>
-                      <span className="text-white text-xs font-black shrink-0 bg-white/20 px-3 py-1.5 rounded-full">입장하기 →</span>
+                      <span className="text-white text-sm font-black shrink-0 bg-white/20 px-3 py-1.5 rounded-full">입장하기 →</span>
                     </motion.button>
                   )}
 
                   {/* 공지사항 */}
                   {announcements.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest flex items-center gap-1.5">
+                      <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest flex items-center gap-1.5">
                         <Megaphone size={11} /> 공지사항
                       </p>
                       {announcements.map(a => (
@@ -2544,10 +2544,10 @@ ${guidePrompt}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                {a.is_pinned && <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded-full">📌 고정</span>}
+                                {a.is_pinned && <span className="text-xs font-black px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded-full">📌 고정</span>}
                                 <p className="text-sm font-black truncate">{a.title}</p>
                               </div>
-                              <p className="text-[10px] text-on-surface-variant/50 font-bold mt-0.5">
+                              <p className="text-xs text-on-surface-variant/50 font-bold mt-0.5">
                                 {new Date(a.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                               </p>
                             </div>
@@ -2591,14 +2591,14 @@ ${guidePrompt}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-white font-black text-base">{badge.label}</span>
-                            <span className="text-white/70 text-xs font-bold">· {quizHistory.length}회 참여</span>
+                            <span className="text-white/70 text-sm font-bold">· {quizHistory.length}회 참여</span>
                           </div>
                           <p className="text-white/80 text-sm font-bold mt-0.5">
                             누적 <span className="text-white font-black">{totalScore.toLocaleString()}점</span>
                             {bestRank <= 3 && <span className="ml-2">· 최고 {bestRank}위 달성!</span>}
                           </p>
                         </div>
-                        <span className="text-white/60 text-xs font-bold shrink-0">기록 보기 →</span>
+                        <span className="text-white/60 text-sm font-bold shrink-0">기록 보기 →</span>
                       </button>
                     );
                   })()}
@@ -2606,7 +2606,7 @@ ${guidePrompt}
                   {/* 주차 선택 */}
                   {weeklyPlan.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
+                      <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
                       <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                         {weeklyPlan.map(p => {
                           const isActive = p.week === displayWeek;
@@ -2629,7 +2629,7 @@ ${guidePrompt}
                             >
                               {allDone && <CheckCircle2 size={14} className={isActive ? 'text-white/80' : 'text-emerald-500'} />}
                               {p.week}주차
-                              <span className={`text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>· {p.topic}</span>
+                              <span className={`text-xs font-bold ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>· {p.topic}</span>
                             </button>
                           );
                         })}
@@ -2641,10 +2641,10 @@ ${guidePrompt}
                   {displayWeek !== null ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest">
+                        <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">
                           {displayWeek}주차 할 일
                         </p>
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500">
+                        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500">
                           {steps.filter(s => s.done).length}/{steps.length} 완료
                         </span>
                       </div>
@@ -2667,14 +2667,14 @@ ${guidePrompt}
                             <p className={`font-black text-sm ${s.done ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-on-surface'}`}>
                               Step {s.step} · {s.label}
                             </p>
-                            <p className="text-xs font-bold text-on-surface-variant/60 mt-0.5">{s.desc}</p>
+                            <p className="text-sm font-bold text-on-surface-variant/60 mt-0.5">{s.desc}</p>
                           </div>
 
                           {/* 버튼 */}
                           {s.done ? (
-                            <span className="text-[11px] font-black text-emerald-600 shrink-0">완료 ✓</span>
+                            <span className="text-sm font-black text-emerald-600 shrink-0">완료 ✓</span>
                           ) : isClassClosed ? (
-                            <span className="flex items-center gap-1 text-[11px] font-black text-slate-400 shrink-0">
+                            <span className="flex items-center gap-1 text-sm font-black text-slate-400 shrink-0">
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
                               종료됨
                             </span>
@@ -2684,7 +2684,7 @@ ${guidePrompt}
                                 if (s.tab === 'results') setSelectedWeek(displayWeek);
                                 handleTabChange(s.tab);
                               }}
-                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-black hover:bg-primary/80 active:scale-95 transition-all shrink-0 shadow-sm"
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-sm font-black hover:bg-primary/80 active:scale-95 transition-all shrink-0 shadow-sm"
                             >
                               시작하기 <ArrowRight size={13} />
                             </button>
@@ -2701,7 +2701,7 @@ ${guidePrompt}
 
                   {/* 바로가기 */}
                   <div className="pt-2 border-t border-neutral-100">
-                    <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest mb-3">바로가기</p>
+                    <p className="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest mb-3">바로가기</p>
                     <div className="grid grid-cols-3 gap-3">
                       {[
                         { key: 'materials' as const,   label: '수업 자료', icon: BookOpen,  iconColor: 'text-cyan-600',   bg: 'bg-cyan-50',   border: 'border-cyan-200',   hoverBg: 'hover:bg-cyan-100' },
@@ -2713,7 +2713,7 @@ ${guidePrompt}
                           <div className={`w-10 h-10 rounded-xl bg-white/70 flex items-center justify-center shadow-sm`}>
                             <item.icon size={20} className={item.iconColor} strokeWidth={2} />
                           </div>
-                          <span className={`text-[12px] font-black ${item.iconColor}`}>{item.label}</span>
+                          <span className={`text-sm font-black ${item.iconColor}`}>{item.label}</span>
                         </button>
                       ))}
                     </div>
@@ -2739,7 +2739,7 @@ ${guidePrompt}
                     </div>
                     <div>
                       <p className="text-sm font-black text-white">수업이 종료되었습니다</p>
-                      <p className="text-xs font-bold text-slate-400 mt-0.5">활동 기록 작성은 더 이상 이용할 수 없습니다. 나의 기록에서 이전 기록을 확인할 수 있습니다.</p>
+                      <p className="text-sm font-bold text-slate-400 mt-0.5">활동 기록 작성은 더 이상 이용할 수 없습니다. 나의 기록에서 이전 기록을 확인할 수 있습니다.</p>
                     </div>
                   </div>
                 )}
@@ -2749,23 +2749,23 @@ ${guidePrompt}
                 <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-violet-50 border border-violet-200">
                   <div className="w-8 h-8 rounded-xl bg-violet-500 text-white flex items-center justify-center font-black text-sm shrink-0">1</div>
                   <div>
-                    <p className="text-xs font-black text-violet-700">Step 1 · 활동 기록 작성</p>
-                    <p className="text-[11px] font-bold text-violet-500/80">수업에서 한 활동, 배운 점, 느낀 점을 기록하고 제출하세요.</p>
+                    <p className="text-sm font-black text-violet-700">Step 1 · 활동 기록 작성</p>
+                    <p className="text-sm font-bold text-violet-500/80">수업에서 한 활동, 배운 점, 느낀 점을 기록하고 제출하세요.</p>
                   </div>
-                  <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-violet-400 hover:text-violet-600 shrink-0">홈으로 →</button>
+                  <button onClick={() => handleTabChange('home')} className="ml-auto text-sm font-black text-violet-400 hover:text-violet-600 shrink-0">홈으로 →</button>
                 </div>
                 )}
 
                 {!isClassClosed && classResources && classResources.length > 0 && classResources[0]?.topic ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between ml-2">
-                      <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">
+                      <label className="text-sm font-black text-primary uppercase tracking-[0.2em]">
                         주차별 주제 선택 <span className="text-red-400 ml-0.5">*</span>
                       </label>
-                      <span className="text-[12px] font-bold text-on-surface-variant">주제를 선택해야 제출할 수 있습니다</span>
+                      <span className="text-sm font-bold text-on-surface-variant">주제를 선택해야 제출할 수 있습니다</span>
                     </div>
                     {activeWeekTopic && (
-                      <p className="text-[11px] font-bold text-primary/60 ml-2">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
+                      <p className="text-sm font-bold text-primary/60 ml-2">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
                     )}
                     <div className="relative">
                       <select
@@ -2793,8 +2793,8 @@ ${guidePrompt}
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between ml-2">
-                      <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">활동 주제</label>
-                      <span className="text-[12px] font-bold text-on-surface-variant">* 명확한 핵심 활동명을 입력하세요</span>
+                      <label className="text-sm font-black text-primary uppercase tracking-[0.2em]">활동 주제</label>
+                      <span className="text-sm font-bold text-on-surface-variant">* 명확한 핵심 활동명을 입력하세요</span>
                     </div>
                     <input
                       type="text"
@@ -2808,7 +2808,7 @@ ${guidePrompt}
 
                 {!isClassClosed && (<><div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-4">
-                    <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em] ml-2">주요 활동 내용</label>
+                    <label className="text-sm font-black text-primary uppercase tracking-[0.2em] ml-2">주요 활동 내용</label>
                     <textarea
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
@@ -2824,7 +2824,7 @@ ${guidePrompt}
                     {minObsChars > 0 && (
                       <div className="mt-3 px-2 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs font-black ${
+                          <span className={`text-sm font-black ${
                             content.trim().length === 0 ? 'text-neutral-400' :
                             content.trim().length < minObsChars ? 'text-amber-500' : 'text-emerald-600'
                           }`}>
@@ -2834,7 +2834,7 @@ ${guidePrompt}
                               ? `${minObsChars - content.trim().length}자 더 작성해야 제출할 수 있어요`
                               : '✓ 충분히 작성됐어요!'}
                           </span>
-                          <span className={`text-xs font-black tabular-nums ${
+                          <span className={`text-sm font-black tabular-nums ${
                             content.trim().length < minObsChars ? 'text-amber-500' : 'text-emerald-600'
                           }`}>
                             {content.trim().length} / {minObsChars}자
@@ -2854,7 +2854,7 @@ ${guidePrompt}
 
                   <div className="flex flex-col gap-10">
                     <div className="space-y-4 flex-1">
-                      <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em] ml-2">배운 점 및 느낀 점</label>
+                      <label className="text-sm font-black text-primary uppercase tracking-[0.2em] ml-2">배운 점 및 느낀 점</label>
                       <textarea 
                         value={feeling}
                         onChange={(e) => setFeeling(e.target.value)}
@@ -2972,7 +2972,7 @@ ${guidePrompt}
                         <button
                           key={f.key}
                           onClick={() => setHistoryFilter(f.key)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all whitespace-nowrap ${
+                          className={`px-3 py-1.5 rounded-xl text-sm font-black border-2 transition-all whitespace-nowrap ${
                             historyFilter === f.key
                               ? 'bg-primary text-white border-primary'
                               : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
@@ -3011,7 +3011,7 @@ ${guidePrompt}
                                 <div className="space-y-3">
                                   {classResources.length > 0 && (
                                     <div className="space-y-1.5">
-                                      <label className="text-[10px] font-black text-primary uppercase tracking-widest">주차 선택</label>
+                                      <label className="text-xs font-black text-primary uppercase tracking-widest">주차 선택</label>
                                       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                                         {(classResources as {week: number; topic: string}[]).map(p => {
                                           const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
@@ -3025,8 +3025,8 @@ ${guidePrompt}
                                                 }
                                               }}
                                               onClick={() => setEditLogForm(prev => ({ ...prev, activity_name: p.topic }))}
-                                              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
-                                              {p.week}주차<span className={`ml-1 text-[9px] ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
+                                              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-sm font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
+                                              {p.week}주차<span className={`ml-1 text-xs ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
                                             </button>
                                           );
                                         })}
@@ -3034,24 +3034,24 @@ ${guidePrompt}
                                     </div>
                                   )}
                                   <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-primary uppercase tracking-widest">활동 제목 *</label>
+                                    <label className="text-xs font-black text-primary uppercase tracking-widest">활동 제목 *</label>
                                     <input type="text" value={editLogForm.activity_name}
                                       onChange={e => setEditLogForm(prev => ({ ...prev, activity_name: e.target.value }))}
                                       className="w-full px-5 py-3 bg-white rounded-2xl font-bold text-sm border-2 border-primary/10 focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all" />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</label>
+                                    <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest">활동 내용</label>
                                     <textarea value={editLogForm.content} rows={5}
                                       onChange={e => setEditLogForm(prev => ({ ...prev, content: e.target.value }))}
                                       className="w-full px-5 py-3 bg-white rounded-2xl font-medium text-sm leading-relaxed border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 resize-none transition-all" />
                                   </div>
                                   <div className="flex gap-3">
                                     <button onClick={() => handleSaveEditLog(log.id)} disabled={savingLogId === log.id}
-                                      className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm">
+                                      className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-sm hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm">
                                       {savingLogId === log.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
                                     </button>
                                     <button onClick={handleCancelEditLog}
-                                      className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all">
+                                      className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-sm hover:bg-surface-container-high active:scale-95 transition-all">
                                       <X size={13} /> 취소
                                     </button>
                                   </div>
@@ -3065,8 +3065,8 @@ ${guidePrompt}
                                       </div>
                                       <div className="space-y-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-[10px] font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">📝 활동 기록</span>
-                                          {log.category && <span className="text-[10px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-md">{log.category}</span>}
+                                          <span className="text-xs font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">📝 활동 기록</span>
+                                          {log.category && <span className="text-xs font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-md">{log.category}</span>}
                                         </div>
                                         <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
                                         <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
@@ -3074,7 +3074,7 @@ ${guidePrompt}
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                       <div className="text-right space-y-1">
-                                        <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
+                                        <p className="text-sm text-on-surface-variant font-bold flex items-center gap-1 justify-end">
                                           <Clock size={10} />{formatRelativeTime(log.created_at)}
                                         </p>
                                       </div>
@@ -3083,19 +3083,19 @@ ${guidePrompt}
                                           <div className="w-8 h-8 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center">
                                             <X size={14} className="text-red-500" />
                                           </div>
-                                          <span className="text-[9px] font-black text-red-500">반려됨</span>
+                                          <span className="text-xs font-black text-red-500">반려됨</span>
                                         </div>
                                       ) : log.status === 'pending' ? (
                                         <div className="flex flex-col items-center gap-1">
                                           <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
                                             <Clock size={14} className="text-amber-500" />
                                           </div>
-                                          <span className="text-[9px] font-black text-amber-500">대기중</span>
+                                          <span className="text-xs font-black text-amber-500">대기중</span>
                                         </div>
                                       ) : (
                                         <div className="flex flex-col items-center gap-1">
                                           <CheckCircle2 size={18} className="text-secondary" />
-                                          <span className="text-[9px] font-black text-secondary">승인됨</span>
+                                          <span className="text-xs font-black text-secondary">승인됨</span>
                                         </div>
                                       )}
                                     </div>
@@ -3103,8 +3103,8 @@ ${guidePrompt}
                                   {/* 선생님 피드백 (반려 시) */}
                                   {log.status === 'rejected' && log.teacher_feedback && (
                                     <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl">
-                                      <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
-                                      <p className="text-xs font-bold text-red-700 leading-relaxed">{log.teacher_feedback}</p>
+                                      <p className="text-xs font-black text-red-500 mb-1">선생님 피드백</p>
+                                      <p className="text-sm font-bold text-red-700 leading-relaxed">{log.teacher_feedback}</p>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -3113,7 +3113,7 @@ ${guidePrompt}
                                           setFeeling('');
                                           setActiveTab('record');
                                         }}
-                                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-black transition-all"
+                                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-black transition-all"
                                       >
                                         <RefreshCw size={10} /> 수정 후 재제출
                                       </button>
@@ -3121,11 +3121,11 @@ ${guidePrompt}
                                   )}
                                   <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={(e) => { e.stopPropagation(); handleStartEditLog(log); }}
-                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all">
+                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-sm transition-all">
                                       <Pencil size={12} /> 수정
                                     </button>
                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteLog(log.id); }} disabled={isDeleting}
-                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50">
+                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-sm transition-all disabled:opacity-50">
                                       {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} 삭제
                                     </button>
                                   </div>
@@ -3160,29 +3160,29 @@ ${guidePrompt}
                               </div>
                               <div className="flex-1 min-w-0 space-y-1.5">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">📁 결과 제출</span>
+                                  <span className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">📁 결과 제출</span>
                                   {/* 포함된 타입 뱃지 */}
                                   {(r._types as string[])?.map((t: string) => {
                                     const tc = resultTypeConfig[t];
                                     if (!tc) return null;
                                     return (
-                                      <span key={t} className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md ${tc.color}`}>
+                                      <span key={t} className={`flex items-center gap-1 text-xs font-black px-2 py-0.5 rounded-md ${tc.color}`}>
                                         {tc.icon}{tc.label}
                                       </span>
                                     );
                                   })}
                                   {/* 조별 제출 뱃지 */}
                                   {r._isGroupSubmission && (
-                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                    <span className="text-xs font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                                       👥 조별 제출
                                     </span>
                                   )}
                                   {r._groupStatus === 'rejected' && (
-                                    <span className="text-[10px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                    <span className="text-xs font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                                       <X size={9} /> 반려됨
                                     </span>
                                   )}
-                                  {weekLabel && <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{weekLabel}</span>}
+                                  {weekLabel && <span className="text-xs font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{weekLabel}</span>}
                                 </div>
                                 {r.title && <p className="font-black text-base group-hover:text-primary transition-colors">{r.title}</p>}
                                 {/* 그룹 내 콘텐츠 프리뷰 */}
@@ -3201,20 +3201,20 @@ ${guidePrompt}
                                   )}
                                 </div>
                               </div>
-                              <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 shrink-0">
+                              <p className="text-sm text-on-surface-variant font-bold flex items-center gap-1 shrink-0">
                                 <Clock size={10} />{formatRelativeTime(r.created_at)}
                               </p>
                             </div>
                             {/* 반려 피드백 */}
                             {r._groupStatus === 'rejected' && (
                               <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-2xl">
-                                <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
+                                <p className="text-xs font-black text-red-500 mb-1">선생님 피드백</p>
                                 {r._rejectionFeedback && (
-                                  <p className="text-xs font-bold text-red-700 leading-relaxed mb-2">{r._rejectionFeedback}</p>
+                                  <p className="text-sm font-bold text-red-700 leading-relaxed mb-2">{r._rejectionFeedback}</p>
                                 )}
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleEditResult(r); handleTabChange('results'); }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-black transition-all"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-black transition-all"
                                 >
                                   <RefreshCw size={10} /> 수정 후 재제출
                                 </button>
@@ -3223,30 +3223,30 @@ ${guidePrompt}
                             {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
                             {r._groupStatus !== 'rejected' && r._teacherFeedback && (
                               <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-2xl">
-                                <p className="text-[10px] font-black text-indigo-500 mb-1 flex items-center gap-1">
+                                <p className="text-xs font-black text-indigo-500 mb-1 flex items-center gap-1">
                                   <MessageSquare size={11} /> 선생님 피드백
                                 </p>
-                                <p className="text-xs font-bold text-indigo-700 leading-relaxed">{r._teacherFeedback}</p>
+                                <p className="text-sm font-bold text-indigo-700 leading-relaxed">{r._teacherFeedback}</p>
                               </div>
                             )}
                             {/* 선생님 평가 (성취수준/역량 태그/평가 코멘트) */}
                             {r._groupStatus !== 'rejected' && (r._teacherEvalScore || r._teacherEvalTags?.length || r._teacherEvalNote) && (
                               <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-1.5">
-                                <p className="text-[10px] font-black text-amber-600 mb-0.5 flex items-center gap-1">
+                                <p className="text-xs font-black text-amber-600 mb-0.5 flex items-center gap-1">
                                   <Trophy size={11} /> 선생님 평가
                                 </p>
                                 {r._teacherEvalScore && (
-                                  <p className="text-xs font-black text-amber-600">{'★'.repeat(r._teacherEvalScore)}{'☆'.repeat(5 - r._teacherEvalScore)}</p>
+                                  <p className="text-sm font-black text-amber-600">{'★'.repeat(r._teacherEvalScore)}{'☆'.repeat(5 - r._teacherEvalScore)}</p>
                                 )}
                                 {r._teacherEvalTags?.length > 0 && (
                                   <div className="flex flex-wrap gap-1">
                                     {r._teacherEvalTags.map((tag: string) => (
-                                      <span key={tag} className="text-[10px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">{tag}</span>
+                                      <span key={tag} className="text-xs font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">{tag}</span>
                                     ))}
                                   </div>
                                 )}
                                 {r._teacherEvalNote && (
-                                  <p className="text-xs font-bold text-amber-800 leading-relaxed">{r._teacherEvalNote}</p>
+                                  <p className="text-sm font-bold text-amber-800 leading-relaxed">{r._teacherEvalNote}</p>
                                 )}
                               </div>
                             )}
@@ -3254,13 +3254,13 @@ ${guidePrompt}
                             <div className="flex justify-end gap-2 pt-3 mt-2 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleEditResult(r); handleTabChange('results'); }}
-                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-sm transition-all"
                               >
                                 <Pencil size={12} /> 수정
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteResult(r); }}
-                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all"
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-sm transition-all"
                               >
                                 <Trash2 size={12} /> 삭제
                               </button>
@@ -3546,7 +3546,7 @@ ${guidePrompt}
                       <div className="space-y-3">
                         <button
                           onClick={() => setSelectedToolId(null)}
-                          className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant/60 hover:text-primary transition-colors"
+                          className="flex items-center gap-1.5 text-sm font-black text-on-surface-variant/60 hover:text-primary transition-colors"
                         >
                           <ArrowLeft size={14} /> 학습 도구 목록으로
                         </button>
@@ -3576,7 +3576,7 @@ ${guidePrompt}
                           </div>
                           <div className="space-y-1.5">
                             <p className="font-black text-base">{tool.label}</p>
-                            <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{tool.description}</p>
+                            <p className="text-sm font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{tool.description}</p>
                           </div>
                         </button>
                       ))}
@@ -3594,7 +3594,7 @@ ${guidePrompt}
                               {app.name}
                               <ExternalLink size={13} className="text-on-surface-variant/40" />
                             </p>
-                            <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{app.description}</p>
+                            <p className="text-sm font-bold text-on-surface-variant/60 leading-relaxed line-clamp-2">{app.description}</p>
                           </div>
                         </button>
                       ))}
@@ -3621,7 +3621,7 @@ ${guidePrompt}
                     </div>
                     <div>
                       <p className="text-sm font-black text-white">수업이 종료되었습니다</p>
-                      <p className="text-xs font-bold text-slate-400 mt-0.5">결과 제출은 더 이상 이용할 수 없습니다. 나의 기록에서 제출한 결과물을 확인할 수 있습니다.</p>
+                      <p className="text-sm font-bold text-slate-400 mt-0.5">결과 제출은 더 이상 이용할 수 없습니다. 나의 기록에서 제출한 결과물을 확인할 수 있습니다.</p>
                     </div>
                   </div>
                 )}
@@ -3631,10 +3631,10 @@ ${guidePrompt}
                   <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
                     <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">2</div>
                     <div>
-                      <p className="text-xs font-black text-emerald-700">Step 2 · 결과물 제출</p>
-                      <p className="text-[11px] font-bold text-emerald-500/80">활동 기록 작성 후 결과물을 업로드하세요.</p>
+                      <p className="text-sm font-black text-emerald-700">Step 2 · 결과물 제출</p>
+                      <p className="text-sm font-bold text-emerald-500/80">활동 기록 작성 후 결과물을 업로드하세요.</p>
                     </div>
-                    <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
+                    <button onClick={() => handleTabChange('home')} className="ml-auto text-sm font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
                   </div>
                 )}
 
@@ -3655,11 +3655,11 @@ ${guidePrompt}
                 {/* ── 주차 선택 + 제출 폼 (수업 종료 시 비표시) ── */}
                 {!isClassClosed && (<>
                 <div ref={resultFormRef} className="space-y-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">
+                  <p className="text-sm font-black uppercase tracking-[0.2em] text-primary/70">
                     주차 선택 *
                   </p>
                   {!editingResult && activeWeek && (
-                    <p className="text-[11px] font-bold text-primary/60">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
+                    <p className="text-sm font-bold text-primary/60">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
                   )}
                   <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                     {(classResources.length > 0
@@ -3678,7 +3678,7 @@ ${guidePrompt}
                           }}
                           onClick={() => { if (!weekLocked) setSelectedWeek(week); }}
                           disabled={weekLocked}
-                          className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
+                          className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-xl text-sm font-black border-2 transition-all ${
                             selectedWeek === week
                               ? 'bg-primary text-white border-primary shadow-md'
                               : weekLocked
@@ -3700,11 +3700,11 @@ ${guidePrompt}
                       <p className="text-sm font-black text-amber-700">
                         ✏️ {editingResult.week_number}주차 결과물 수정 중
                       </p>
-                      <p className="text-xs font-bold text-amber-500 mt-0.5">
+                      <p className="text-sm font-bold text-amber-500 mt-0.5">
                         항목을 추가하거나 내용을 수정할 수 있습니다
                       </p>
                     </div>
-                    <button onClick={resetResultForm} className="text-xs font-black text-amber-500 hover:text-amber-700 flex items-center gap-1">
+                    <button onClick={resetResultForm} className="text-sm font-black text-amber-500 hover:text-amber-700 flex items-center gap-1">
                       <X size={14} /> 취소
                     </button>
                   </div>
@@ -3722,7 +3722,7 @@ ${guidePrompt}
 
                   {/* 텍스트 */}
                   <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-[11px] font-black text-primary/70 uppercase tracking-widest">
+                    <label className="flex items-center gap-2 text-sm font-black text-primary/70 uppercase tracking-widest">
                       <AlignLeft size={13} /> 텍스트
                     </label>
                     <textarea
@@ -3736,7 +3736,7 @@ ${guidePrompt}
 
                   {/* 링크 */}
                   <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-[11px] font-black text-blue-500/80 uppercase tracking-widest">
+                    <label className="flex items-center gap-2 text-sm font-black text-blue-500/80 uppercase tracking-widest">
                       <Link2 size={13} /> 링크
                     </label>
                     <input
@@ -3750,7 +3750,7 @@ ${guidePrompt}
 
                   {/* 이미지 */}
                   <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-[11px] font-black text-emerald-600/80 uppercase tracking-widest">
+                    <label className="flex items-center gap-2 text-sm font-black text-emerald-600/80 uppercase tracking-widest">
                       <ImageIcon size={13} /> 이미지
                     </label>
                     <div
@@ -3764,7 +3764,7 @@ ${guidePrompt}
                               <img key={i} src={src} alt={`preview-${i}`} className="h-20 w-20 rounded-xl object-cover" />
                             ))}
                           </div>
-                          <p className="text-xs font-bold text-emerald-600 mt-2">
+                          <p className="text-sm font-bold text-emerald-600 mt-2">
                             {resultImageFiles.length > 0
                               ? `이미지 ${resultImageFiles.length}장 선택됨`
                               : `현재 이미지 ${imagePreviews.length}장 — 새로 선택 시 전체 교체`}
@@ -3777,7 +3777,7 @@ ${guidePrompt}
                           </div>
                           <div className="text-left">
                             <p className="font-black text-emerald-600 text-sm">이미지 선택 (여러 장 가능)</p>
-                            <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP · 장당 최대 50MB · 최대 {MAX_RESULT_IMAGES}장</p>
+                            <p className="text-sm font-bold text-emerald-400">JPG, PNG, GIF, WEBP · 장당 최대 50MB · 최대 {MAX_RESULT_IMAGES}장</p>
                           </div>
                         </div>
                       )}
@@ -3787,7 +3787,7 @@ ${guidePrompt}
 
                   {/* 파일 */}
                   <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-[11px] font-black text-amber-600/80 uppercase tracking-widest">
+                    <label className="flex items-center gap-2 text-sm font-black text-amber-600/80 uppercase tracking-widest">
                       <File size={13} /> 파일
                     </label>
                     <div
@@ -3804,7 +3804,7 @@ ${guidePrompt}
                               </div>
                               <div>
                                 <p className="font-black text-sm">{resultFileUpload.name}</p>
-                                <p className="text-xs font-bold text-amber-500">{formatFileSize(resultFileUpload.size)}</p>
+                                <p className="text-sm font-bold text-amber-500">{formatFileSize(resultFileUpload.size)}</p>
                               </div>
                             </div>
                           );
@@ -3817,7 +3817,7 @@ ${guidePrompt}
                               </div>
                               <div>
                                 <p className="font-black text-sm text-amber-700">{existingFile.display_name || '현재 파일'}</p>
-                                <p className="text-xs font-bold text-amber-400">새 파일 선택 시 교체됩니다</p>
+                                <p className="text-sm font-bold text-amber-400">새 파일 선택 시 교체됩니다</p>
                               </div>
                             </div>
                           );
@@ -3829,7 +3829,7 @@ ${guidePrompt}
                             </div>
                             <div>
                               <p className="font-black text-amber-600 text-sm">파일 선택</p>
-                              <p className="text-xs font-bold text-amber-400">모든 파일 형식 (최대 50MB)</p>
+                              <p className="text-sm font-bold text-amber-400">모든 파일 형식 (최대 50MB)</p>
                             </div>
                           </div>
                         );
@@ -3857,7 +3857,7 @@ ${guidePrompt}
                         <p className={`text-sm font-black ${isGroupSubmission ? 'text-emerald-800' : 'text-on-surface-variant'}`}>
                           {myClassGroup.name} 조별 제출
                         </p>
-                        <p className="text-[10px] text-on-surface-variant/50 mt-0.5">
+                        <p className="text-xs text-on-surface-variant/50 mt-0.5">
                           {isGroupSubmission
                             ? (editingResult && editingResult.is_group_submission
                                 ? `끄면 다른 조원의 제출 기록이 삭제되고 본인 제출만 남습니다`
@@ -3898,7 +3898,7 @@ ${guidePrompt}
                 {false && <div className="space-y-4 pt-4 border-t border-surface-container">
                   <div className="flex items-center justify-between">
                     <h4 className="font-black text-base">제출 내역</h4>
-                    <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">{results.length}개</span>
+                    <span className="text-sm font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">{results.length}개</span>
                   </div>
 
                   {resultsLoading ? (
@@ -3931,7 +3931,7 @@ ${guidePrompt}
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => setFilterWeek(null)}
-                            className={`px-4 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${
+                            className={`px-4 py-1.5 rounded-xl text-sm font-black border-2 transition-all ${
                               filterWeek === null
                                 ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                                 : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
@@ -3946,7 +3946,7 @@ ${guidePrompt}
                               <button
                                 key={w}
                                 onClick={() => setFilterWeek(w)}
-                                className={`px-4 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${
+                                className={`px-4 py-1.5 rounded-xl text-sm font-black border-2 transition-all ${
                                   filterWeek === w
                                     ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                                     : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
@@ -3967,8 +3967,8 @@ ${guidePrompt}
                           return (
                             <div key={week} className="space-y-3">
                               <div className="flex items-center gap-3">
-                                <span className="px-3 py-1 bg-primary/10 text-primary text-[11px] font-black rounded-lg">{weekLabel}</span>
-                                <span className="text-[10px] font-bold text-on-surface-variant/40">{weekItems.length}개 항목</span>
+                                <span className="px-3 py-1 bg-primary/10 text-primary text-sm font-black rounded-lg">{weekLabel}</span>
+                                <span className="text-xs font-bold text-on-surface-variant/40">{weekItems.length}개 항목</span>
                               </div>
                               <div className="space-y-2 pl-1">
                                 {weekItems.map(r => {
@@ -3987,12 +3987,12 @@ ${guidePrompt}
                                         <div className="flex-1 min-w-0 space-y-1">
                                           <div className="flex items-center gap-2 flex-wrap">
                                             {r.title && <p className="font-black text-sm">{r.title}</p>}
-                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>{cfg.label}</span>
-                                            {isEditing && <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">수정 중</span>}
+                                            <span className={`text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>{cfg.label}</span>
+                                            {isEditing && <span className="text-xs font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">수정 중</span>}
                                           </div>
-                                          {r.text_content && <p className="text-xs font-bold text-on-surface-variant line-clamp-2 leading-relaxed">{r.text_content}</p>}
+                                          {r.text_content && <p className="text-sm font-bold text-on-surface-variant line-clamp-2 leading-relaxed">{r.text_content}</p>}
                                           {r.link_url && (
-                                            <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
+                                            <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
                                               <ExternalLink size={11} />{r.link_url}
                                             </a>
                                           )}
@@ -4002,11 +4002,11 @@ ${guidePrompt}
                                             </div>
                                           )}
                                           {r.result_type === 'file' && (
-                                            <p className="text-xs font-bold text-amber-600 flex items-center gap-1">
+                                            <p className="text-sm font-bold text-amber-600 flex items-center gap-1">
                                               <File size={11} />{r.display_name} {r.file_size ? `(${formatFileSize(r.file_size)})` : ''}
                                             </p>
                                           )}
-                                          <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1">
+                                          <p className="text-xs font-bold text-on-surface-variant/40 flex items-center gap-1">
                                             <Clock size={10} />{formatRelativeTime(r.created_at)}
                                           </p>
                                         </div>
@@ -4125,11 +4125,11 @@ ${guidePrompt}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <span className="w-2 h-2 bg-primary rounded-full" />
-                                  <label className="text-[11px] font-black text-primary uppercase tracking-widest">자기평가서</label>
+                                  <label className="text-sm font-black text-primary uppercase tracking-widest">자기평가서</label>
                                 </div>
                                 <div className="flex items-start gap-3 bg-primary/5 p-4 rounded-xl border border-primary/10 mb-3">
                                   <Lightbulb size={14} className="text-primary mt-0.5 shrink-0" />
-                                  <p className="text-xs font-bold text-primary/70 leading-relaxed">
+                                  <p className="text-sm font-bold text-primary/70 leading-relaxed">
                                     {guides.self_eval || defaultGuides.self_eval}
                                   </p>
                                 </div>
@@ -4142,7 +4142,7 @@ ${guidePrompt}
                                     maxLength={300}
                                     className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all leading-relaxed"
                                   />
-                                  <span className={`absolute bottom-4 right-4 text-[10px] font-black ${
+                                  <span className={`absolute bottom-4 right-4 text-xs font-black ${
                                     (unitForm[`${unit.id}_self_eval`] || '').length < 50
                                       ? 'text-error'
                                       : 'text-on-surface-variant/40'
@@ -4158,11 +4158,11 @@ ${guidePrompt}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <span className="w-2 h-2 bg-secondary rounded-full" />
-                                  <label className="text-[11px] font-black text-secondary uppercase tracking-widest">탐구소감문</label>
+                                  <label className="text-sm font-black text-secondary uppercase tracking-widest">탐구소감문</label>
                                 </div>
                                 <div className="flex items-start gap-3 bg-secondary/5 p-4 rounded-xl border border-secondary/10 mb-3">
                                   <Lightbulb size={14} className="text-secondary mt-0.5 shrink-0" />
-                                  <p className="text-xs font-bold text-secondary/70 leading-relaxed">
+                                  <p className="text-sm font-bold text-secondary/70 leading-relaxed">
                                     {guides.inquiry_reflection || defaultGuides.inquiry_reflection}
                                   </p>
                                 </div>
@@ -4175,7 +4175,7 @@ ${guidePrompt}
                                     maxLength={300}
                                     className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-secondary/10 border-2 border-transparent focus:border-secondary/20 resize-none transition-all leading-relaxed"
                                   />
-                                  <span className={`absolute bottom-4 right-4 text-[10px] font-black ${
+                                  <span className={`absolute bottom-4 right-4 text-xs font-black ${
                                     (unitForm[`${unit.id}_inquiry_reflection`] || '').length < 100
                                       ? 'text-error'
                                       : 'text-on-surface-variant/40'
@@ -4191,12 +4191,12 @@ ${guidePrompt}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <span className="w-2 h-2 bg-amber-500 rounded-full" />
-                                  <label className="text-[11px] font-black text-amber-600 uppercase tracking-widest">수행평가 활동 기술</label>
-                                  <span className="text-[9px] font-black text-amber-500 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">NEIS 세특 기준</span>
+                                  <label className="text-sm font-black text-amber-600 uppercase tracking-widest">수행평가 활동 기술</label>
+                                  <span className="text-xs font-black text-amber-500 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">NEIS 세특 기준</span>
                                 </div>
                                 <div className="flex items-start gap-3 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-3">
                                   <AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0" />
-                                  <p className="text-xs font-bold text-amber-600/80 leading-relaxed">
+                                  <p className="text-sm font-bold text-amber-600/80 leading-relaxed">
                                     {guides.performance_record || defaultGuides.performance_record}
                                   </p>
                                 </div>
@@ -4209,7 +4209,7 @@ ${guidePrompt}
                                     maxLength={500}
                                     className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-amber-200 border-2 border-transparent focus:border-amber-200 resize-none transition-all leading-relaxed"
                                   />
-                                  <span className={`absolute bottom-4 right-4 text-[10px] font-black ${
+                                  <span className={`absolute bottom-4 right-4 text-xs font-black ${
                                     (unitForm[`${unit.id}_performance_record`] || '').length < 150
                                       ? 'text-error'
                                       : (unitForm[`${unit.id}_performance_record`] || '').length > 450
@@ -4227,11 +4227,11 @@ ${guidePrompt}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2">
                                   <span className="w-2 h-2 bg-violet-500 rounded-full" />
-                                  <label className="text-[11px] font-black text-violet-600 uppercase tracking-widest">독서기록</label>
+                                  <label className="text-sm font-black text-violet-600 uppercase tracking-widest">독서기록</label>
                                 </div>
                                 <div className="flex items-start gap-3 bg-violet-50 p-4 rounded-xl border border-violet-100 mb-3">
                                   <Lightbulb size={14} className="text-violet-500 mt-0.5 shrink-0" />
-                                  <p className="text-xs font-bold text-violet-600/70 leading-relaxed">
+                                  <p className="text-sm font-bold text-violet-600/70 leading-relaxed">
                                     {guides.reading_record || defaultGuides.reading_record}
                                   </p>
                                 </div>
@@ -4344,7 +4344,7 @@ ${guidePrompt}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between pt-4 border-t border-surface-container">
                     <h4 className="font-black text-base">내가 보낸 질문·건의</h4>
-                    <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">
+                    <span className="text-sm font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">
                       {suggestions.length}개
                     </span>
                   </div>
@@ -4387,14 +4387,14 @@ ${guidePrompt}
                                   <button
                                     onClick={() => handleSaveEditSuggestion(s.id)}
                                     disabled={savingSuggestionId === s.id}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-sm hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
                                   >
                                     {savingSuggestionId === s.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                                     저장
                                   </button>
                                   <button
                                     onClick={handleCancelEditSuggestion}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all"
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-sm hover:bg-surface-container-high active:scale-95 transition-all"
                                   >
                                     <X size={13} /> 취소
                                   </button>
@@ -4408,7 +4408,7 @@ ${guidePrompt}
                                   </div>
                                   <div className="flex-1 min-w-0 space-y-1">
                                     <p className="text-sm font-medium text-on-surface leading-relaxed">{s.content}</p>
-                                    <p className="text-[10px] font-bold text-on-surface-variant/50 flex items-center gap-1">
+                                    <p className="text-xs font-bold text-on-surface-variant/50 flex items-center gap-1">
                                       <Clock size={10} />
                                       {formatRelativeTime(s.created_at)}
                                     </p>
@@ -4418,13 +4418,13 @@ ${guidePrompt}
                                 {/* 선생님 답변 버블 */}
                                 {s.teacher_reply ? (
                                   <div className="ml-14 p-4 rounded-2xl bg-primary/5 border border-primary/10 space-y-1">
-                                    <p className="text-[9px] font-black text-primary uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                    <p className="text-xs font-black text-primary uppercase tracking-[0.15em] flex items-center gap-1.5">
                                       <span className="w-4 h-4 rounded-md bg-primary/20 flex items-center justify-center text-primary">↩</span>
                                       선생님 답변
                                     </p>
                                     <p className="text-sm font-medium text-on-surface leading-relaxed">{s.teacher_reply}</p>
                                     {s.replied_at && (
-                                      <p className="text-[9px] font-bold text-on-surface-variant/30 flex items-center gap-1">
+                                      <p className="text-xs font-bold text-on-surface-variant/30 flex items-center gap-1">
                                         <Clock size={9} /> {formatRelativeTime(s.replied_at)}
                                       </p>
                                     )}
@@ -4432,21 +4432,21 @@ ${guidePrompt}
                                 ) : (
                                   <div className="ml-14 px-4 py-2.5 rounded-xl bg-surface-container border border-dashed border-surface-container-highest flex items-center gap-2">
                                     <Clock size={12} className="text-on-surface-variant/30" />
-                                    <p className="text-[11px] font-bold text-on-surface-variant/40">답변 대기 중</p>
+                                    <p className="text-sm font-bold text-on-surface-variant/40">답변 대기 중</p>
                                   </div>
                                 )}
 
                                 <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => handleStartEditSuggestion(s)}
-                                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
+                                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-sm transition-all"
                                   >
                                     <Pencil size={12} /> 수정
                                   </button>
                                   <button
                                     onClick={() => handleDeleteSuggestion(s.id)}
                                     disabled={isDeleting}
-                                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-sm transition-all disabled:opacity-50"
                                   >
                                     {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                     삭제
@@ -4475,14 +4475,14 @@ ${guidePrompt}
                 {/* 헤더 */}
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black text-purple-500 uppercase tracking-[0.25em]">Live Quiz</p>
+                    <p className="text-xs font-black text-purple-500 uppercase tracking-[0.25em]">Live Quiz</p>
                     <h2 className="text-2xl font-black">실시간 퀴즈</h2>
                     <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 퀴즈에 바로 참여하세요</p>
                   </div>
                   <button
                     onClick={fetchActiveQuizSessions}
                     disabled={quizLoading}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-sm transition-all disabled:opacity-50"
                   >
                     <RefreshCw size={14} className={quizLoading ? 'animate-spin' : ''} />
                     새로고침
@@ -4507,9 +4507,9 @@ ${guidePrompt}
                   return (
                     <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/80 to-violet-50/60 p-5 space-y-4">
                       <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest">나의 퀴즈 기록</p>
+                        <p className="text-xs font-black text-purple-500 uppercase tracking-widest">나의 퀴즈 기록</p>
                         {rankBadge && (
-                          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r ${rankBadge.color} text-white text-xs font-black shadow-sm`}>
+                          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r ${rankBadge.color} text-white text-sm font-black shadow-sm`}>
                             <span>{rankBadge.icon}</span>
                             {rankBadge.label}
                           </div>
@@ -4522,15 +4522,15 @@ ${guidePrompt}
                           <div className="grid grid-cols-3 gap-3">
                             <div className="bg-white/70 rounded-2xl p-3 text-center">
                               <p className="text-2xl font-black text-purple-600">{totalScore.toLocaleString()}</p>
-                              <p className="text-[10px] font-bold text-on-surface-variant mt-0.5">누적 점수</p>
+                              <p className="text-xs font-bold text-on-surface-variant mt-0.5">누적 점수</p>
                             </div>
                             <div className="bg-white/70 rounded-2xl p-3 text-center">
                               <p className="text-2xl font-black text-violet-600">{playCount}</p>
-                              <p className="text-[10px] font-bold text-on-surface-variant mt-0.5">참여 횟수</p>
+                              <p className="text-xs font-bold text-on-surface-variant mt-0.5">참여 횟수</p>
                             </div>
                             <div className="bg-white/70 rounded-2xl p-3 text-center">
                               <p className="text-2xl font-black text-indigo-600">{bestRank ? `${bestRank}위` : '-'}</p>
-                              <p className="text-[10px] font-bold text-on-surface-variant mt-0.5">최고 순위</p>
+                              <p className="text-xs font-bold text-on-surface-variant mt-0.5">최고 순위</p>
                             </div>
                           </div>
                           {quizHistory.length > 0 && (
@@ -4541,7 +4541,7 @@ ${guidePrompt}
                                     {h.rank === 1 ? '👑' : h.rank === 2 ? '🥈' : h.rank === 3 ? '🥉' : `${h.rank}위`}
                                   </span>
                                   <span className="font-bold text-sm text-on-surface flex-1 truncate">{h.quiz_set_title || '퀴즈'}</span>
-                                  <span className="text-xs font-black text-purple-600">{(h.score ?? 0).toLocaleString()}점</span>
+                                  <span className="text-sm font-black text-purple-600">{(h.score ?? 0).toLocaleString()}점</span>
                                 </div>
                               ))}
                             </div>
@@ -4598,15 +4598,15 @@ ${guidePrompt}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${st.color}`}>
+                                <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${st.color}`}>
                                   {st.text}
                                 </span>
-                                <span className="text-[10px] font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
+                                <span className="text-xs font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
                                   PIN: {qs.pin_code}
                                 </span>
                               </div>
                               <h3 className="font-black text-on-surface text-base truncate">{quizTitle}</h3>
-                              <p className="text-xs text-on-surface-variant font-bold mt-0.5">
+                              <p className="text-sm text-on-surface-variant font-bold mt-0.5">
                                 {session?.student_name}으로 자동 입장됩니다
                               </p>
                             </div>
@@ -4641,14 +4641,14 @@ ${guidePrompt}
               >
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black text-teal-500 uppercase tracking-[0.25em]">Live Survey</p>
+                    <p className="text-xs font-black text-teal-500 uppercase tracking-[0.25em]">Live Survey</p>
                     <h2 className="text-2xl font-black">실시간 설문</h2>
                     <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 설문에 바로 참여하세요</p>
                   </div>
                   <button
                     onClick={fetchActiveSurveyForms}
                     disabled={surveyLoading}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-sm transition-all disabled:opacity-50"
                   >
                     <RefreshCw size={14} className={surveyLoading ? 'animate-spin' : ''} />
                     새로고침
@@ -4691,10 +4691,10 @@ ${guidePrompt}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                              <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
                                 진행 중 🟢
                               </span>
-                              <span className="text-[10px] font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
+                              <span className="text-xs font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
                                 PIN: {sf.pin_code}
                               </span>
                             </div>
@@ -4729,14 +4729,14 @@ ${guidePrompt}
               >
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-[0.25em]">Online Class</p>
+                    <p className="text-xs font-black text-rose-500 uppercase tracking-[0.25em]">Online Class</p>
                     <h2 className="text-2xl font-black">온라인 수업</h2>
                     <p className="text-sm text-on-surface-variant font-bold">선생님이 등록한 회의 링크로 바로 입장하세요</p>
                   </div>
                   <button
                     onClick={fetchActiveMeeting}
                     disabled={meetingLoading}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-sm transition-all disabled:opacity-50"
                   >
                     <RefreshCw size={14} className={meetingLoading ? 'animate-spin' : ''} />
                     새로고침
@@ -4780,12 +4780,12 @@ ${guidePrompt}
                           </div>
                           <div className="min-w-0">
                             {m.is_active && (
-                              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 mb-1 inline-block">
+                              <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 mb-1 inline-block">
                                 진행 중 🔴
                               </span>
                             )}
                             <h3 className="font-black text-on-surface text-base truncate">{m.title}</h3>
-                            <p className="text-xs text-on-surface-variant/60 font-bold">
+                            <p className="text-sm text-on-surface-variant/60 font-bold">
                               {new Date(m.created_at).toLocaleString('ko-KR')}
                             </p>
                           </div>
@@ -4821,7 +4821,7 @@ ${guidePrompt}
                 {/* 실시간 참여 게시판 입장 */}
                 <div className="mb-8">
                   <div className="mb-4 space-y-0.5">
-                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.25em]">Live Response</p>
+                    <p className="text-xs font-black text-emerald-500 uppercase tracking-[0.25em]">Live Response</p>
                     <h3 className="text-xl font-black">실시간 참여 게시판 입장</h3>
                     <p className="text-sm text-on-surface-variant font-bold">선생님이 알려준 6자리 코드를 입력하세요</p>
                   </div>
@@ -4857,7 +4857,7 @@ ${guidePrompt}
                 {activeBoardSessions.length > 0 && (
                   <div className="mb-8">
                     <div className="mb-4 space-y-0.5">
-                      <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.25em]">Live Board</p>
+                      <p className="text-xs font-black text-blue-500 uppercase tracking-[0.25em]">Live Board</p>
                       <h3 className="text-xl font-black">수업 보드 참여</h3>
                       <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 수업 보드에 입장하세요</p>
                     </div>
@@ -4875,8 +4875,8 @@ ${guidePrompt}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">진행 중 🎨</span>
-                                <span className="text-[10px] font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
+                                <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">진행 중 🎨</span>
+                                <span className="text-xs font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
                                   {bs.group_count}개 조
                                 </span>
                               </div>
@@ -4910,11 +4910,11 @@ ${guidePrompt}
                       </div>
                       <h2 className="text-xl font-black">우리 반 보드</h2>
                     </div>
-                    <p className="text-xs text-on-surface-variant font-bold ml-10">승인된 활동 기록·결과를 함께 봐요</p>
+                    <p className="text-sm text-on-surface-variant font-bold ml-10">승인된 활동 기록·결과를 함께 봐요</p>
                   </div>
                   <button
                     onClick={fetchBoard}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-black text-xs hover:bg-indigo-100 transition-all"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-black text-sm hover:bg-indigo-100 transition-all"
                   >
                     <RefreshCw size={12} /> 새로고침
                   </button>
@@ -4932,7 +4932,7 @@ ${guidePrompt}
                       <button
                         key={f.key}
                         onClick={() => setBoardTypeFilter(f.key as any)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                        className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${
                           boardTypeFilter === f.key
                             ? 'bg-white text-indigo-700 shadow-sm'
                             : 'text-slate-500 hover:text-slate-700'
@@ -4947,7 +4947,7 @@ ${guidePrompt}
                   <div className="flex items-center gap-1.5 overflow-x-auto">
                     <button
                       onClick={() => setBoardWeekFilter('all')}
-                      className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                      className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-black border transition-all ${
                         boardWeekFilter === 'all'
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                           : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
@@ -4959,7 +4959,7 @@ ${guidePrompt}
                       <button
                         key={w}
                         onClick={() => setBoardWeekFilter(w)}
-                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-black border transition-all ${
                           boardWeekFilter === w
                             ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                             : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
@@ -5021,31 +5021,31 @@ ${guidePrompt}
                             {/* 카드 헤더 */}
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
                                   isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
                                 }`}>
                                   {isObs ? '📝' : '📁'}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-xs font-black truncate">
+                                  <p className="text-sm font-black truncate">
                                     {post.student_name}
-                                    {isMe && <span className="ml-1 text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
+                                    {isMe && <span className="ml-1 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
                                   </p>
-                                  <p className="text-[10px] text-on-surface-variant font-bold">
+                                  <p className="text-xs text-on-surface-variant font-bold">
                                     {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
                                   </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 {!isObs && post._isGroupSub && (
-                                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">조별</span>
+                                  <span className="text-sm font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">조별</span>
                                 )}
                                 {!isObs && post._submissions?.length > 1 && (
-                                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                  <span className="text-sm font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
                                     총 {post._submissions.length}회 제출
                                   </span>
                                 )}
-                                <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                                <span className={`text-sm font-black px-2.5 py-1 rounded-full ${
                                   isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                                 }`}>
                                   {isObs ? '활동 기록' : '결과'}
@@ -5059,19 +5059,19 @@ ${guidePrompt}
                                 {isObs ? post.activity_name : post.title}
                               </p>
                               {isObs && post.content && (
-                                <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">
+                                <p className="text-sm text-on-surface-variant font-bold leading-relaxed line-clamp-4">
                                   {post.content}
                                 </p>
                               )}
                               {isObs && post.feeling && (
-                                <p className="text-[11px] text-on-surface-variant/60 font-bold italic line-clamp-2">
+                                <p className="text-sm text-on-surface-variant/60 font-bold italic line-clamp-2">
                                   💬 {post.feeling}
                                 </p>
                               )}
                               {!isObs && (
                                 <div className="space-y-1.5">
                                   {post.text_content && (
-                                    <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">
+                                    <p className="text-sm text-on-surface-variant font-bold leading-relaxed line-clamp-4">
                                       {post.text_content}
                                     </p>
                                   )}
@@ -5087,7 +5087,7 @@ ${guidePrompt}
                                         }}
                                       />
                                       {post.image_urls?.length > 1 && (
-                                        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
                                           1/{post.image_urls.length}
                                         </div>
                                       )}
@@ -5099,7 +5099,7 @@ ${guidePrompt}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={e => e.stopPropagation()}
-                                      className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
+                                      className="flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:underline"
                                     >
                                       <ExternalLink size={11} className="shrink-0" />
                                       <span className="truncate">{post.link_url}</span>
@@ -5111,7 +5111,7 @@ ${guidePrompt}
                                         e.stopPropagation();
                                         setViewerFile({ url: post.file_url, name: post.display_name || '파일' });
                                       }}
-                                      className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant hover:text-primary cursor-pointer"
+                                      className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-primary cursor-pointer"
                                     >
                                       <File size={11} className="shrink-0" />
                                       <span className="truncate">{post.display_name || '파일'}</span>
@@ -5125,7 +5125,7 @@ ${guidePrompt}
                             <div className="pt-1 border-t border-slate-100">
                               <button
                                 onClick={(e) => { e.stopPropagation(); setBoardLikes(prev => ({ ...prev, [post.id]: !prev[post.id] })); }}
-                                className={`flex items-center gap-1.5 text-xs font-black transition-all px-2 py-1 rounded-lg ${
+                                className={`flex items-center gap-1.5 text-sm font-black transition-all px-2 py-1 rounded-lg ${
                                   liked
                                     ? 'text-rose-500 bg-rose-50'
                                     : 'text-slate-400 hover:text-rose-400 hover:bg-rose-50'
@@ -5198,7 +5198,7 @@ ${guidePrompt}
                     <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100 sticky top-0 bg-white z-10">
                       <button
                         onClick={backToNoteList}
-                        className="flex items-center gap-1.5 text-xs font-black text-neutral-500 hover:text-neutral-800 transition-colors shrink-0"
+                        className="flex items-center gap-1.5 text-sm font-black text-neutral-500 hover:text-neutral-800 transition-colors shrink-0"
                       >
                         <ArrowLeft size={14} /> 목록
                       </button>
@@ -5214,7 +5214,7 @@ ${guidePrompt}
                       {isNoteImageUploading && (
                         <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200">
                           <Loader2 size={11} className="animate-spin text-amber-500" />
-                          <span className="text-[11px] font-black text-amber-600">업로드 중</span>
+                          <span className="text-sm font-black text-amber-600">업로드 중</span>
                         </div>
                       )}
                       {/* 저장됨 피드백 */}
@@ -5225,7 +5225,7 @@ ${guidePrompt}
                             className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200"
                           >
                             <CheckCircle2 size={11} className="text-emerald-500" />
-                            <span className="text-[11px] font-black text-emerald-600">저장됨</span>
+                            <span className="text-sm font-black text-emerald-600">저장됨</span>
                           </motion.div>
                         )}
                         {noteSaveStatus === 'error' && (
@@ -5234,7 +5234,7 @@ ${guidePrompt}
                             className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200"
                           >
                             <AlertCircle size={11} className="text-red-500" />
-                            <span className="text-[11px] font-black text-red-600">저장 오류</span>
+                            <span className="text-sm font-black text-red-600">저장 오류</span>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -5261,12 +5261,12 @@ ${guidePrompt}
                     {/* 삭제 확인 배너 */}
                     {noteDeleteId === selectedNote.id && (
                       <div className="mx-5 mt-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-between gap-3">
-                        <p className="text-xs font-black text-red-600">이 노트를 삭제할까요?</p>
+                        <p className="text-sm font-black text-red-600">이 노트를 삭제할까요?</p>
                         <div className="flex gap-2">
-                          <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-xs font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
+                          <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-sm font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
                           <button
                             onClick={async () => { await deleteNote(selectedNote.id); setSelectedNote(null); fetchNotes(); }}
-                            className="px-3 py-1.5 rounded-xl text-xs font-black text-white bg-red-500 hover:bg-red-600"
+                            className="px-3 py-1.5 rounded-xl text-sm font-black text-white bg-red-500 hover:bg-red-600"
                           >삭제</button>
                         </div>
                       </div>
@@ -5297,7 +5297,7 @@ ${guidePrompt}
                         </div>
                         <div>
                           <h2 className="text-base font-black leading-tight">나의 노트</h2>
-                          <p className="text-[10px] font-bold text-emerald-500/80">
+                          <p className="text-xs font-bold text-emerald-500/80">
                             📢 담당 선생님에게 공개됩니다
                           </p>
                         </div>
@@ -5305,7 +5305,7 @@ ${guidePrompt}
                       <button
                         onClick={createNote}
                         disabled={noteCreating}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black disabled:opacity-50 transition-all active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-black disabled:opacity-50 transition-all active:scale-95"
                       >
                         {noteCreating ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                         새 노트
@@ -5318,7 +5318,7 @@ ${guidePrompt}
                         onClick={() => setNoteGuideOpen(v => !v)}
                         className="w-full flex items-center justify-between px-4 py-3 text-left"
                       >
-                        <span className="text-xs font-black text-emerald-700">💡 사용 방법 보기</span>
+                        <span className="text-sm font-black text-emerald-700">💡 사용 방법 보기</span>
                         {noteGuideOpen ? <ChevronUp size={14} className="text-emerald-500" /> : <ChevronDown size={14} className="text-emerald-500" />}
                       </button>
                       {noteGuideOpen && (
@@ -5330,10 +5330,10 @@ ${guidePrompt}
                             { icon: '💾', title: '저장', desc: '오른쪽 위 "저장" 버튼을 눌러 노트를 저장하세요. 이미지 업로드 중에는 완료 후 저장이 가능해요.' },
                           ].map(item => (
                             <div key={item.title} className="flex items-start gap-3">
-                              <span className="w-7 h-7 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{item.icon}</span>
+                              <span className="w-7 h-7 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center text-sm font-black shrink-0 mt-0.5">{item.icon}</span>
                               <div>
-                                <p className="text-xs font-black text-emerald-800">{item.title}</p>
-                                <p className="text-[11px] font-bold text-emerald-600/80">{item.desc}</p>
+                                <p className="text-sm font-black text-emerald-800">{item.title}</p>
+                                <p className="text-sm font-bold text-emerald-600/80">{item.desc}</p>
                               </div>
                             </div>
                           ))}
@@ -5371,10 +5371,10 @@ ${guidePrompt}
                             {/* 삭제 확인 */}
                             {noteDeleteId === note.id ? (
                               <div className="px-4 py-3 bg-red-50 flex items-center justify-between gap-3">
-                                <p className="text-xs font-black text-red-600">이 노트를 삭제할까요?</p>
+                                <p className="text-sm font-black text-red-600">이 노트를 삭제할까요?</p>
                                 <div className="flex gap-2">
-                                  <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-xs font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
-                                  <button onClick={() => deleteNote(note.id)} className="px-3 py-1.5 rounded-xl text-xs font-black text-white bg-red-500">삭제</button>
+                                  <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-sm font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
+                                  <button onClick={() => deleteNote(note.id)} className="px-3 py-1.5 rounded-xl text-sm font-black text-white bg-red-500">삭제</button>
                                 </div>
                               </div>
                             ) : (
@@ -5391,11 +5391,11 @@ ${guidePrompt}
                                       </p>
                                     </div>
                                     {notePreview(note.content) && (
-                                      <p className="text-xs text-on-surface-variant/60 font-bold line-clamp-2 ml-5">
+                                      <p className="text-sm text-on-surface-variant/60 font-bold line-clamp-2 ml-5">
                                         {notePreview(note.content)}
                                       </p>
                                     )}
-                                    <p className="text-[10px] font-bold text-neutral-300 mt-1.5 ml-5">
+                                    <p className="text-xs font-bold text-neutral-300 mt-1.5 ml-5">
                                       {formatRelativeTime(note.updated_at)}
                                     </p>
                                   </div>
@@ -5424,7 +5424,7 @@ ${guidePrompt}
 
         <button
           onClick={() => navigate('/classroom-entry')}
-          className="flex items-center gap-3 text-on-surface-variant hover:text-primary text-[12px] font-black uppercase tracking-[0.3em] transition-all mx-auto pb-10 group"
+          className="flex items-center gap-3 text-on-surface-variant hover:text-primary text-sm font-black uppercase tracking-[0.3em] transition-all mx-auto pb-10 group"
         >
           <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           다른 수업의 참여 코드가 있나요?
@@ -5488,7 +5488,7 @@ ${guidePrompt}
                 <div className="relative shrink-0">
                   <item.icon size={19} className={isActive ? item.activeColor : ''} />
                   {!!badge && badge > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                    <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-xs font-black flex items-center justify-center">
                       {badge}
                     </span>
                   )}
@@ -5539,7 +5539,7 @@ ${guidePrompt}
                     </span>
                   )}
                 </div>
-                <span className={`text-[11px] font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-white/60'} ${isLocked ? 'opacity-40' : ''}`}>
+                <span className={`text-sm font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-white/60'} ${isLocked ? 'opacity-40' : ''}`}>
                   {tab.label}
                 </span>
               </button>
@@ -5557,12 +5557,12 @@ ${guidePrompt}
             }`}>
               <MoreHorizontal size={26} className={isMoreSheetOpen ? 'text-white' : 'text-white/75'} strokeWidth={isMoreSheetOpen ? 2.5 : 2} />
               {(unitPendingCount + unreadReplyCount) > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full text-xs font-black flex items-center justify-center">
                   {unitPendingCount + unreadReplyCount}
                 </span>
               )}
             </div>
-            <span className={`text-[11px] font-black tracking-tight transition-colors ${isMoreSheetOpen ? 'text-white' : 'text-white/60'}`}>
+            <span className={`text-sm font-black tracking-tight transition-colors ${isMoreSheetOpen ? 'text-white' : 'text-white/60'}`}>
               더보기
             </span>
           </button>
@@ -5620,11 +5620,11 @@ ${guidePrompt}
                       }`}>
                         <item.icon size={20} className={isActive ? item.color : 'text-slate-500'} />
                       </div>
-                      <span className={`text-[10px] font-black text-center leading-tight ${isActive ? item.color : 'text-slate-500'}`}>
+                      <span className={`text-xs font-black text-center leading-tight ${isActive ? item.color : 'text-slate-500'}`}>
                         {item.label}
                       </span>
                       {(item as any).badge > 0 && (
-                        <span className="absolute top-2 right-2 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-sm">
+                        <span className="absolute top-2 right-2 w-4 h-4 bg-error text-white rounded-full text-xs font-black flex items-center justify-center shadow-sm">
                           {(item as any).badge}
                         </span>
                       )}
@@ -5646,7 +5646,7 @@ ${guidePrompt}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all"
                 >
                   <BookOpen size={16} className="text-slate-500" />
-                  <span className="text-[12px] font-black text-slate-500">사용 방법 보기</span>
+                  <span className="text-sm font-black text-slate-500">사용 방법 보기</span>
                 </button>
               </div>
             </motion.div>
@@ -5727,7 +5727,7 @@ ${guidePrompt}
 
               <div className="space-y-4 pt-2">
                 <div className="space-y-2 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                  <h4 className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${
+                  <h4 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 ${
                     rejectModalType === 'auto_reject' ? 'text-amber-600' : 'text-error'
                   }`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${
@@ -5739,14 +5739,14 @@ ${guidePrompt}
                 </div>
                 {aiFeedback.guide && (
                   <div className="space-y-2 bg-primary/5 p-6 rounded-2xl border border-primary/10">
-                    <h4 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                    <h4 className="text-sm font-black text-primary uppercase tracking-widest flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary" /> 이렇게 수정해보세요
                     </h4>
                     <p className="text-sm font-bold text-primary/80 leading-relaxed">{aiFeedback.guide}</p>
                   </div>
                 )}
                 {rejectModalType === 'auto_reject' && (
-                  <p className="text-[11px] text-slate-400 font-bold text-center">
+                  <p className="text-sm text-slate-400 font-bold text-center">
                     선생님이 직접 검토 후 승인으로 변경할 수도 있습니다.
                   </p>
                 )}
@@ -5807,18 +5807,18 @@ ${guidePrompt}
                     <div className="space-y-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         {isObs ? (
-                          <span className="text-[10px] font-black text-violet-600 bg-white border border-violet-200 px-2.5 py-1 rounded-lg">📝 활동 기록</span>
+                          <span className="text-xs font-black text-violet-600 bg-white border border-violet-200 px-2.5 py-1 rounded-lg">📝 활동 기록</span>
                         ) : (
-                          <span className="text-[10px] font-black text-emerald-600 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg">📁 결과 제출</span>
+                          <span className="text-xs font-black text-emerald-600 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg">📁 결과 제출</span>
                         )}
                         {weekLabel && (
-                          <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">{weekLabel}</span>
+                          <span className="text-xs font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">{weekLabel}</span>
                         )}
                       </div>
                       <p className="font-black text-xl leading-tight">
                         {isObs ? detailItem.activity_name : (detailItem.title || '제목 없음')}
                       </p>
-                      <p className="text-xs text-on-surface-variant font-bold flex items-center gap-1">
+                      <p className="text-sm text-on-surface-variant font-bold flex items-center gap-1">
                         <Clock size={11} />
                         {new Date(detailItem.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
@@ -5838,22 +5838,22 @@ ${guidePrompt}
                     <>
                       {detailItem.category && (
                         <div className="space-y-1">
-                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">카테고리</p>
+                          <p className="text-xs font-black text-primary uppercase tracking-widest">카테고리</p>
                           <p className="text-sm font-bold">{detailItem.category}</p>
                         </div>
                       )}
                       <div className="space-y-1">
-                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</p>
+                        <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">활동 내용</p>
                         <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{detailItem.content || '내용 없음'}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">상태</p>
+                        <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">상태</p>
                         {detailItem.status === 'pending' ? (
-                          <span className="flex items-center gap-1 text-xs font-black text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                          <span className="flex items-center gap-1 text-sm font-black text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
                             <Clock size={11} /> 승인 대기중
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-xs font-black text-secondary bg-secondary/10 border border-secondary/20 px-2.5 py-1 rounded-lg">
+                          <span className="flex items-center gap-1 text-sm font-black text-secondary bg-secondary/10 border border-secondary/20 px-2.5 py-1 rounded-lg">
                             <CheckCircle2 size={11} /> 승인됨
                           </span>
                         )}
@@ -5871,12 +5871,12 @@ ${guidePrompt}
                               {detailItem._isGroupSubmission && (
                                 <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-2xl">
                                   <span className="text-sm">👥</span>
-                                  <p className="text-xs font-black text-indigo-600">조별 제출 결과물입니다</p>
+                                  <p className="text-sm font-black text-indigo-600">조별 제출 결과물입니다</p>
                                 </div>
                               )}
                               {groupRows.find((r: any) => r.result_type === 'text')?.text_content && (
                                 <div className="space-y-1">
-                                  <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
+                                  <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
                                   <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">
                                     {groupRows.find((r: any) => r.result_type === 'text').text_content}
                                   </p>
@@ -5884,7 +5884,7 @@ ${guidePrompt}
                               )}
                               {groupRows.find((r: any) => r.result_type === 'link')?.link_url && (
                                 <div className="space-y-1">
-                                  <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">링크</p>
+                                  <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">링크</p>
                                   <a
                                     href={groupRows.find((r: any) => r.result_type === 'link').link_url.startsWith('http') ? groupRows.find((r: any) => r.result_type === 'link').link_url : `https://${groupRows.find((r: any) => r.result_type === 'link').link_url}`}
                                     target="_blank"
@@ -5901,7 +5901,7 @@ ${guidePrompt}
                                 const imgUrls = getResultImagePublicUrls(supabase.storage, imgRow);
                                 return (
                                   <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
+                                    <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
                                     {imgUrls.length > 0 ? (
                                       <ImageCarousel
                                         urls={imgUrls}
@@ -5918,18 +5918,18 @@ ${guidePrompt}
                                 const fileRow = groupRows.find((r: any) => r.result_type === 'file');
                                 return (
                                   <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">파일</p>
+                                    <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">파일</p>
                                     <div className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 px-5 py-4 rounded-2xl">
                                       <div className="flex items-center gap-3 min-w-0">
                                         <File size={18} className="text-amber-600 shrink-0" />
                                         <div className="min-w-0">
                                           <p className="text-sm font-black truncate">{fileRow.display_name}</p>
-                                          {fileRow.file_size && <p className="text-xs text-on-surface-variant font-bold">{(fileRow.file_size / 1024).toFixed(1)} KB</p>}
+                                          {fileRow.file_size && <p className="text-sm text-on-surface-variant font-bold">{(fileRow.file_size / 1024).toFixed(1)} KB</p>}
                                         </div>
                                       </div>
                                       <button
                                         onClick={() => handleDownloadResult(fileRow)}
-                                        className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black hover:bg-amber-600 transition-all shrink-0"
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-black hover:bg-amber-600 transition-all shrink-0"
                                       >
                                         <ExternalLink size={12} /> 다운로드
                                       </button>
@@ -5944,13 +5944,13 @@ ${guidePrompt}
                         <>
                           {(detailItem.result_type === 'text' || detailItem.submission_type === 'text') && detailItem.text_content && (
                             <div className="space-y-1">
-                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
+                              <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
                               <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">{detailItem.text_content}</p>
                             </div>
                           )}
                           {(detailItem.result_type === 'link' || detailItem.submission_type === 'link') && detailItem.link_url && (
                             <div className="space-y-1">
-                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">링크</p>
+                              <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">링크</p>
                               <a
                                 href={detailItem.link_url.startsWith('http') ? detailItem.link_url : `https://${detailItem.link_url}`}
                                 target="_blank"
@@ -5964,7 +5964,7 @@ ${guidePrompt}
                           )}
                           {(detailItem.result_type === 'image' || detailItem.submission_type === 'image') && (
                             <div className="space-y-2">
-                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
+                              <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
                               {imagePublicUrls.length > 0 ? (
                                 <ImageCarousel
                                   urls={imagePublicUrls}
@@ -5978,18 +5978,18 @@ ${guidePrompt}
                           )}
                           {(detailItem.result_type === 'file' || detailItem.submission_type === 'file') && detailItem.display_name && (
                             <div className="space-y-2">
-                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">파일</p>
+                              <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">파일</p>
                               <div className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 px-5 py-4 rounded-2xl">
                                 <div className="flex items-center gap-3 min-w-0">
                                   <File size={18} className="text-amber-600 shrink-0" />
                                   <div className="min-w-0">
                                     <p className="text-sm font-black truncate">{detailItem.display_name}</p>
-                                    {detailItem.file_size && <p className="text-xs text-on-surface-variant font-bold">{(detailItem.file_size / 1024).toFixed(1)} KB</p>}
+                                    {detailItem.file_size && <p className="text-sm text-on-surface-variant font-bold">{(detailItem.file_size / 1024).toFixed(1)} KB</p>}
                                   </div>
                                 </div>
                                 <button
                                   onClick={() => handleDownloadResult(detailItem)}
-                                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black hover:bg-amber-600 transition-all shrink-0"
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-black hover:bg-amber-600 transition-all shrink-0"
                                 >
                                   <ExternalLink size={12} /> 다운로드
                                 </button>
@@ -6001,7 +6001,7 @@ ${guidePrompt}
                       {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
                       {detailItem._teacherFeedback && (
                         <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl">
-                          <p className="text-[10px] font-black text-indigo-500 mb-1.5 flex items-center gap-1">
+                          <p className="text-xs font-black text-indigo-500 mb-1.5 flex items-center gap-1">
                             <MessageSquare size={12} /> 선생님 피드백
                           </p>
                           <p className="text-sm font-bold text-indigo-700 leading-relaxed">{detailItem._teacherFeedback}</p>
@@ -6010,7 +6010,7 @@ ${guidePrompt}
                       {/* 선생님 평가 (성취수준/역량 태그/평가 코멘트) */}
                       {(detailItem._teacherEvalScore || detailItem._teacherEvalTags?.length || detailItem._teacherEvalNote) && (
                         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
-                          <p className="text-[10px] font-black text-amber-600 mb-0.5 flex items-center gap-1">
+                          <p className="text-xs font-black text-amber-600 mb-0.5 flex items-center gap-1">
                             <Trophy size={12} /> 선생님 평가
                           </p>
                           {detailItem._teacherEvalScore && (
@@ -6019,7 +6019,7 @@ ${guidePrompt}
                           {detailItem._teacherEvalTags?.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {detailItem._teacherEvalTags.map((tag: string) => (
-                                <span key={tag} className="text-[10px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">{tag}</span>
+                                <span key={tag} className="text-xs font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">{tag}</span>
                               ))}
                             </div>
                           )}
@@ -6107,9 +6107,9 @@ ${guidePrompt}
                       <div className="min-w-0">
                         <p className="font-black truncate text-sm">
                           {p.student_name}
-                          {isMe && <span className="ml-1.5 text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
+                          {isMe && <span className="ml-1.5 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
                         </p>
-                        <p className="text-[11px] text-on-surface-variant font-bold">
+                        <p className="text-sm text-on-surface-variant font-bold">
                           {p.week_number ? `${p.week_number}주차 · ` : ''}
                           {new Date(p.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
@@ -6139,7 +6139,7 @@ ${guidePrompt}
                         <div>
                           <p className="text-sm font-black text-indigo-700">{boardGroupModalInfo.name}</p>
                           {boardGroupModalInfo.memberNames.length > 0 && (
-                            <p className="text-xs text-indigo-500 font-bold mt-0.5">
+                            <p className="text-sm text-indigo-500 font-bold mt-0.5">
                               {boardGroupModalInfo.memberNames.join(' · ')}
                             </p>
                           )}
@@ -6148,7 +6148,7 @@ ${guidePrompt}
                     )}
                     {isObs && p.content && (
                       <div className="space-y-1">
-                        <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
+                        <p className="text-xs font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
                         <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.content}</p>
                       </div>
                     )}
@@ -6160,13 +6160,13 @@ ${guidePrompt}
                     {!isObs && (p._submissions || [p]).map((sub: any, idx: number, arr: any[]) => (
                       <div key={sub.id} className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-slate-200' : ''}` : 'space-y-3'}>
                         {arr.length > 1 && (
-                          <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
+                          <p className="text-xs font-black text-on-surface-variant/60 uppercase tracking-widest">
                             {idx + 1}번째 제출 · {new Date(sub.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         )}
                         {sub.text_content && (
                           <div className="space-y-1">
-                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p>
+                            <p className="text-xs font-black text-emerald-600 uppercase tracking-widest">내용</p>
                             <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{sub.text_content}</p>
                           </div>
                         )}
@@ -6293,7 +6293,7 @@ ${guidePrompt}
                     "{quizSessionAlert.title}"에 지금 바로 참여하세요
                   </p>
                   <div className="mt-2 flex items-center gap-2 bg-violet-50 rounded-xl px-3 py-2">
-                    <span className="text-xs font-black text-violet-500">PIN</span>
+                    <span className="text-sm font-black text-violet-500">PIN</span>
                     <span className="text-xl font-black tracking-widest text-violet-700">{quizSessionAlert.pin_code}</span>
                   </div>
                 </div>
@@ -6345,11 +6345,11 @@ ${guidePrompt}
                   </p>
                   {rejectionNotification.feedback && (
                     <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl">
-                      <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
+                      <p className="text-xs font-black text-red-500 mb-1">선생님 피드백</p>
                       <p className="text-sm font-bold text-red-700 leading-relaxed">{rejectionNotification.feedback}</p>
                     </div>
                   )}
-                  <p className="text-xs text-on-surface-variant/60 font-bold mt-2">수정 후 재제출할 수 있습니다.</p>
+                  <p className="text-sm text-on-surface-variant/60 font-bold mt-2">수정 후 재제출할 수 있습니다.</p>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -6398,7 +6398,7 @@ ${guidePrompt}
                       ? `"${approvalNotification.title}" 활동 기록이 승인되었습니다`
                       : `"${approvalNotification.title}" 결과물이 승인되었습니다`}
                   </p>
-                  <p className="text-xs text-on-surface-variant/60 font-bold mt-2">선생님이 확인하고 승인했습니다. 🎉</p>
+                  <p className="text-sm text-on-surface-variant/60 font-bold mt-2">선생님이 확인하고 승인했습니다. 🎉</p>
                 </div>
               </div>
               <div className="flex gap-3">

@@ -3,16 +3,10 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { X, Smartphone, Tablet, Monitor, RefreshCw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-
-interface PreviewStudent {
-  id: string;
-  name: string;
-  number?: string;
-}
+import { supabase } from '../../lib/supabase';
 
 interface StudentPreviewModalProps {
   classId: string;
-  students: PreviewStudent[];
   onClose: () => void;
 }
 
@@ -26,38 +20,45 @@ const DEVICE_PRESETS: Record<DeviceKey, { label: string; icon: LucideIcon; width
   desktop: { label: 'PC', icon: Monitor, width: 1280, height: '85vh' },
 };
 
-const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModalProps) => {
-  const [selectedId, setSelectedId] = useState(students[0]?.id || '');
+const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => {
   const [reloadTick, setReloadTick] = useState(0);
   const [device, setDevice] = useState<DeviceKey>('mobile');
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
+  const [teacherName, setTeacherName] = useState('');
   const previousSessionRef = useRef<string | null>(null);
-  const hasSavedPrevRef = useRef(false);
 
-  // 모달을 여는 동안 교사 탭의 sessionStorage에 임시 학생 세션을 심어
-  // 실제 학생 화면(/student-log)을 그대로 재사용한다. 렌더 단계에서 동기적으로
-  // 써야 아래 iframe이 마운트되며 세션을 읽기 전에 값이 확정된다.
-  if (!hasSavedPrevRef.current) {
-    previousSessionRef.current = sessionStorage.getItem(SESSION_KEY);
-    hasSavedPrevRef.current = true;
-  }
-  const selectedStudent = students.find(s => s.id === selectedId);
-  if (selectedStudent) {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-      student_id: selectedStudent.id,
-      class_id: classId,
-      student_name: selectedStudent.name,
-    }));
-  }
-
+  // 서버가 "이 반의 담당 선생님"임을 확인한 뒤 발급하는 학생 토큰을 임시 세션으로 심어
+  // 실제 학생 화면(/student-log)을 입장번호·PIN 없이 그대로 재사용한다.
   useEffect(() => {
+    let cancelled = false;
+    previousSessionRef.current = sessionStorage.getItem(SESSION_KEY);
+    (async () => {
+      const { data, error: err } = await supabase.rpc('teacher_student_session', { p_class_id: classId });
+      const t = Array.isArray(data) ? data[0] : data;
+      if (cancelled) return;
+      if (err || !t?.session_token) {
+        setError('미리보기를 열 수 없습니다. 이 클래스의 담당 선생님 계정인지 확인해주세요.');
+        return;
+      }
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        student_id: t.student_id,
+        class_id: t.class_id,
+        student_name: t.student_name,
+        token: t.session_token,
+      }));
+      setTeacherName(t.student_name);
+      setReady(true);
+    })();
     return () => {
+      cancelled = true;
       if (previousSessionRef.current) {
         sessionStorage.setItem(SESSION_KEY, previousSessionRef.current);
       } else {
         sessionStorage.removeItem(SESSION_KEY);
       }
     };
-  }, []);
+  }, [classId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -66,8 +67,6 @@ const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModal
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
-
-  if (students.length === 0) return null;
 
   const preset = DEVICE_PRESETS[device];
 
@@ -84,17 +83,9 @@ const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModal
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-surface-container-low/40 shrink-0">
-          <select
-            value={selectedId}
-            onChange={e => setSelectedId(e.target.value)}
-            className="flex-1 min-w-0 text-sm font-bold bg-transparent focus:outline-none truncate"
-          >
-            {students.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.number ? `${s.number}번 ` : ''}{s.name}
-              </option>
-            ))}
-          </select>
+          <span className="flex-1 min-w-0 text-sm font-bold truncate">
+            {teacherName ? `${teacherName}(으)로 미리보기` : '학생 화면 미리보기'}
+          </span>
 
           <div className="flex items-center gap-0.5 p-0.5 bg-surface-container rounded-full shrink-0">
             {(Object.keys(DEVICE_PRESETS) as DeviceKey[]).map(key => {
@@ -128,12 +119,18 @@ const StudentPreviewModal = ({ classId, students, onClose }: StudentPreviewModal
             <X size={18} />
           </button>
         </div>
-        <iframe
-          key={`${selectedId}-${reloadTick}`}
-          src="/student-log"
-          title="학생 화면 미리보기"
-          className="flex-1 w-full border-0 bg-white"
-        />
+        {error ? (
+          <div className="flex-1 flex items-center justify-center p-8 text-center text-sm font-bold text-on-surface-variant">{error}</div>
+        ) : ready ? (
+          <iframe
+            key={reloadTick}
+            src="/student-log"
+            title="학생 화면 미리보기"
+            className="flex-1 w-full border-0 bg-white"
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-sm font-bold text-on-surface-variant">불러오는 중...</div>
+        )}
       </motion.div>
     </div>,
     document.body

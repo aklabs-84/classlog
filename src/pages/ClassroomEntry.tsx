@@ -120,8 +120,28 @@ const ClassroomEntry = () => {
         return;
       }
 
+      // 이 반의 담당 선생님이 로그인한 상태라면 명단·PIN 없이 바로 입장 (서버가 담당 교사인지 확인)
+      const { data: authData } = await supabase.auth.getSession();
+      if (authData.session) {
+        const { data: tRows, error: tErr } = await supabase.rpc('teacher_student_session', { p_class_id: data.id });
+        const t = Array.isArray(tRows) ? tRows[0] : tRows;
+        if (!tErr && t?.session_token) {
+          sessionStorage.setItem('student_session', JSON.stringify({
+            student_id: t.student_id,
+            student_name: t.student_name,
+            class_id: t.class_id,
+            class_name: data.name,
+            subject: data.subject,
+            token: t.session_token,
+            is_fresh_entry: true,
+          }));
+          navigate('/student-log');
+          return;
+        }
+      }
+
       setTargetClass(data);
-      
+
       // 학급 명단은 서버 창구로만 가져온다 (이름·번호·아바타·PIN 설정 여부만 받음, PIN 값은 받지 않음)
       const { data: studentData, error: stuError } = await supabase
         .rpc('student_list_class', { p_entry_code: fullCode });
