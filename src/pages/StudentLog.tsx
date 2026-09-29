@@ -336,7 +336,7 @@ const StudentLog = () => {
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; links?: ActivityLink[]; week?: number | null } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ id?: string; title: string; content: string; links?: ActivityLink[]; week?: number | null } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
@@ -2271,6 +2271,19 @@ ${guidePrompt}
         content={fullscreenMaterial.content}
         links={fullscreenMaterial.links}
         mdComponents={MATERIAL_MD_COMPONENTS}
+        answers={fullscreenMaterial.id && session?.token ? {
+          load: async () => {
+            const { data, error } = await supabase.rpc('student_material_answers_get', { p_token: session.token, p_material_id: fullscreenMaterial.id });
+            if (error) throw error;
+            const map: Record<string, string> = {};
+            (data as { field_key: string; value: string }[] | null)?.forEach(r => { map[r.field_key] = r.value; });
+            return map;
+          },
+          save: async (key, value) => {
+            const { error } = await supabase.rpc('student_material_answer_save', { p_token: session.token, p_material_id: fullscreenMaterial.id, p_field_key: key, p_value: value });
+            if (error) throw error;
+          },
+        } : undefined}
         relatedMaterials={fullscreenMaterial.week != null
           ? (generalMaterials as any[]).filter(g => g.week_number === fullscreenMaterial.week)
           : []}
@@ -3390,7 +3403,7 @@ ${guidePrompt}
                               className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-cyan-200 hover:shadow-sm transition-all"
                               onClick={() => {
                                 recordMaterialView(mat.id);
-                                setFullscreenMaterial({ title: mat.title, content: mat.content, links: mat.activity_urls, week: res.week });
+                                setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls, week: res.week });
                               }}
                             >
                               <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-sm font-black shrink-0">
@@ -3450,7 +3463,7 @@ ${guidePrompt}
                           className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-violet-200 hover:shadow-sm transition-all"
                           onClick={() => {
                             recordMaterialView(mat.id);
-                            setFullscreenMaterial({ title: mat.title, content: mat.content, links: mat.activity_urls });
+                            setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls });
                           }}
                         >
                           <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">

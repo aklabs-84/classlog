@@ -43,6 +43,23 @@ const SLASH_COMMANDS = [
   { icon: '💡', title: '콜아웃',    description: '강조 박스 (정보/주의/팁/중요)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'info' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '⊞',  title: '표',       description: '표 삽입 (3×3)',     command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { icon: '▶',  title: '영상 임베드', description: 'YouTube 등 영상 삽입', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).run(); (window as any).__openEmbedDialog?.(); } },
+  // 학생 화면에서 입력칸으로 바뀌는 요소 — 표의 빈 칸 / 문장 앞 "[ ]" / 밑줄 3개 이상
+  {
+    icon: '✍', title: '학생 입력 · 메모 표', description: '번호 + 빈 칸 표 (학생이 빈 칸에 입력)',
+    command: ({ editor, range }: any) => {
+      const p = (text?: string) => ({ type: 'paragraph', ...(text ? { content: [{ type: 'text', text }] } : {}) });
+      const row = (n: string) => ({ type: 'tableRow', content: [{ type: 'tableCell', content: [p(n)] }, { type: 'tableCell', content: [p()] }] });
+      editor.chain().focus().deleteRange(range).insertContent({
+        type: 'table',
+        content: [
+          { type: 'tableRow', content: [{ type: 'tableHeader', content: [p('번호')] }, { type: 'tableHeader', content: [p('내 생각')] }] },
+          row('1'), row('2'), row('3'),
+        ],
+      }).run();
+    },
+  },
+  { icon: '☑', title: '학생 입력 · 체크 항목', description: '학생이 눌러 체크하는 [ ] 항목', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent('[ ] ').run() },
+  { icon: '＿', title: '학생 입력 · 밑줄 빈칸', description: '학생이 한 줄 입력하는 ______ 빈칸', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent('______ ').run() },
 ] as const;
 
 type SlashItem = { icon: string; title: string; description: string; command: (p: any) => void };

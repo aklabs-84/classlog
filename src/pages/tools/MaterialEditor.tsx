@@ -40,10 +40,11 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List, PenLine,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
+import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal, { renderCallout } from '../../components/PresentationModal';
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
 const SlideModeView = lazy(() => import('../../components/SlideModeView'));
@@ -1287,6 +1288,7 @@ const MaterialEditor = () => {
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null; activity_urls?: ActivityLink[] } | null>(null);
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[] } | null>(null);
+  const [answersMaterial, setAnswersMaterial] = useState<Material | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
   const [importedSourceMaterialId, setImportedSourceMaterialId] = useState<string | null>(null);
@@ -1958,6 +1960,16 @@ const MaterialEditor = () => {
                       >
                         <Eye size={size} />
                       </button>
+                      {/* 학생이 표·체크박스·밑줄에 적은 답변 보기 (반에 연결된 자료만) */}
+                      {material.class_id && material.content && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setAnswersMaterial(material); }}
+                          title="학생 답변 보기"
+                          className={`${qcls} text-emerald-700 hover:bg-white transition-colors`}
+                        >
+                          <PenLine size={size} />
+                        </button>
+                      )}
       </>
     );
   };
@@ -2271,6 +2283,13 @@ const MaterialEditor = () => {
         content={fullscreenPreview.content}
         links={fullscreenPreview.links}
         onClose={() => setFullscreenPreview(null)}
+      />
+    )}
+    {answersMaterial && (
+      <MaterialAnswersModal
+        material={answersMaterial}
+        mdComponents={mdComponents}
+        onClose={() => setAnswersMaterial(null)}
       />
     )}
     {showCoverModal && (
@@ -2823,6 +2842,34 @@ const MaterialEditor = () => {
               </p>
             </div>
           )}
+
+          {/* 학생이 직접 입력할 수 있는 요소 안내 */}
+          <details className="group mx-5 mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60">
+            <summary className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer list-none select-none">
+              <PenLine size={14} className="shrink-0 text-emerald-700" />
+              <span className="flex-1 text-xs font-black text-emerald-900">학생이 직접 입력할 수 있는 요소 쓰는 법</span>
+              <ChevronDown size={14} className="shrink-0 text-emerald-700 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="px-3.5 pb-3.5 pt-1 space-y-2.5 text-xs font-bold text-emerald-900/90 leading-relaxed">
+              <p>아래 3가지를 자료에 넣으면 학생 화면에서 <span className="font-black">입력칸</span>으로 바뀌고, 학생이 적은 내용은 자동 저장돼요.</p>
+              <ul className="space-y-2">
+                <li>
+                  <span className="font-black">① 표의 빈 칸</span> — <code className="px-1 rounded bg-white/80">/</code>를 눌러 <span className="font-black">표</span>를 넣고, 학생이 적을 칸은 <span className="font-black">비워 두세요</span>. 글자가 적힌 칸(번호·제목 등)은 그대로 보여요. 머리글 줄은 입력칸이 되지 않아요.
+                </li>
+                <li>
+                  <span className="font-black">② 체크박스</span> — 문장 맨 앞에 <code className="px-1 rounded bg-white/80">[ ]</code>(대괄호 사이 띄어쓰기)를 쓰세요. 예) <code className="px-1 rounded bg-white/80">[ ] 불편함을 3개 적었어요.</code> 학생이 눌러서 체크해요.
+                </li>
+                <li>
+                  <span className="font-black">③ 밑줄 빈칸</span> — 밑줄(<code className="px-1 rounded bg-white/80">_</code>)을 <span className="font-black">3개 이상</span> 이어 쓰세요. 예) <code className="px-1 rounded bg-white/80">이 중 하나를 골라요: ______</code> 그 자리에 한 줄 입력칸이 생겨요.
+                </li>
+              </ul>
+              <ul className="list-disc pl-4 space-y-1 text-emerald-900/80">
+                <li>편집·미리보기 화면에서는 입력되지 않아요. <span className="font-black">반에 연결·공개된 자료</span>를 학생이 열었을 때만 입력할 수 있어요.</li>
+                <li>학생이 적은 답은 자료 목록의 <PenLine size={11} className="inline -mt-0.5" /> <span className="font-black">학생 답변 보기</span> 버튼에서 학생별로 확인해요.</li>
+                <li>학생이 답한 뒤에는 입력칸을 <span className="font-black">중간에 추가·삭제하지 마세요</span>. 입력칸 순서로 답을 저장하기 때문에 그 뒤 칸들의 답이 한 칸씩 밀릴 수 있어요. (글을 고치거나 줄을 추가하는 건 괜찮아요)</li>
+              </ul>
+            </div>
+          </details>
 
           {/* 편집 / 미리보기 영역 */}
           {viewMode === 'edit' ? (

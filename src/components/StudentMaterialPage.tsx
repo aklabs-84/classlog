@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip } from 'lucide-react';
+import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 
 // 학생용 수업 자료 "한 페이지" 뷰어 — 본문 + 오른쪽 목차(접고 펼치기) + 이 차시에 등록된 일반 자료를
@@ -20,15 +20,168 @@ export interface RelatedMaterial {
   file_name?: string | null;
 }
 
+// 학생 입력칸(표의 빈 셀 · [ ] 체크박스 · ___ 밑줄) 답변 저장 설정.
+// save가 없으면 읽기 전용(교사가 학생 답변을 볼 때). answers 자체가 없으면 입력칸 없이 기존처럼 본문만 보여준다.
+export interface MaterialAnswerConfig {
+  load: () => Promise<Record<string, string>>;
+  save?: (key: string, value: string) => Promise<void>;
+}
+
 interface Props {
   title: string;
   content: string;
   links?: ActivityLink[];
   mdComponents: any;
   relatedMaterials?: RelatedMaterial[];
+  answers?: MaterialAnswerConfig;
   onOpenFile?: (mat: RelatedMaterial, download: boolean) => void;
   onClose: () => void;
 }
+
+interface AnswerCtx {
+  readOnly: boolean;
+  version: number; // 답변을 불러올 때마다 올라가 입력칸이 값을 다시 읽게 한다
+  get: (key: string) => string;
+  set: (key: string, value: string) => void;
+}
+const AnswerContext = createContext<AnswerCtx | null>(null);
+// GFM 체크박스(`- [ ]`)의 input은 위치 정보가 없어 가장 가까운 li의 줄 번호를 키로 빌려 쓴다
+const LineContext = createContext<string>('');
+
+const FIELD_CLS = 'rounded-lg border-2 border-primary/25 bg-primary/5 px-3 py-2 text-lg leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-100 disabled:bg-surface-container-low disabled:border-surface-container disabled:text-on-surface';
+
+const AnswerText = ({ fieldKey, inline }: { fieldKey: string; inline?: boolean }) => {
+  const ctx = useContext(AnswerContext)!;
+  const [v, setV] = useState(() => ctx.get(fieldKey));
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { setV(ctx.get(fieldKey)); }, [ctx, fieldKey]);
+  // 접힌 details 안에서는 scrollHeight가 0이라 높이를 건드리지 않는다
+  useLayoutEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    if (el.scrollHeight) el.style.height = `${el.scrollHeight}px`;
+  }, [v]);
+  const onChange = (nv: string) => { setV(nv); ctx.set(fieldKey, nv); };
+  if (inline) {
+    return (
+      <input
+        type="text"
+        data-answer-field
+        data-fkey={fieldKey}
+        value={v}
+        maxLength={2000}
+        disabled={ctx.readOnly}
+        placeholder={ctx.readOnly ? '' : '여기에 적어요'}
+        onChange={e => onChange(e.target.value)}
+        className={`${FIELD_CLS} inline-block align-baseline mx-1 w-72 max-w-full py-1`}
+      />
+    );
+  }
+  return (
+    <textarea
+      ref={taRef}
+      data-answer-field
+      data-fkey={fieldKey}
+      rows={1}
+      value={v}
+      maxLength={2000}
+      disabled={ctx.readOnly}
+      placeholder={ctx.readOnly ? '' : '여기에 적어요'}
+      onChange={e => onChange(e.target.value)}
+      className={`${FIELD_CLS} block w-full min-w-[8rem] resize-none`}
+    />
+  );
+};
+
+const AnswerCheckbox = ({ fieldKey }: { fieldKey: string }) => {
+  const ctx = useContext(AnswerContext)!;
+  const [on, setOn] = useState(() => ctx.get(fieldKey) === '1');
+  useEffect(() => { setOn(ctx.get(fieldKey) === '1'); }, [ctx, fieldKey]);
+  return (
+    <input
+      type="checkbox"
+      data-answer-field
+      data-fkey={fieldKey}
+      checked={on}
+      disabled={ctx.readOnly}
+      onChange={e => { setOn(e.target.checked); ctx.set(fieldKey, e.target.checked ? '1' : '0'); }}
+      className="w-5 h-5 mr-2 align-[-3px] accent-primary cursor-pointer disabled:cursor-default"
+    />
+  );
+};
+
+const TOKEN_RE = /(\[ \]|_{3,})/;
+
+// 문자열 자식 안의 "[ ]"·"___"를 입력칸으로 바꾼다(이스케이프된 \[ \] , \___ 도 마크다운 처리 후엔 일반 글자)
+const renderInteractive = (children: ReactNode, baseKey: string): ReactNode => {
+  let idx = 0;
+  return Children.toArray(children).map((c, i) => {
+    if (typeof c !== 'string' || !TOKEN_RE.test(c)) return c;
+    return (
+      <Fragment key={`t${i}`}>
+        {c.split(TOKEN_RE).map((part, j) => {
+          if (part === '[ ]') return <AnswerCheckbox key={j} fieldKey={`${baseKey}:${idx++}`} />;
+          if (/^_{3,}$/.test(part)) return <AnswerText key={j} inline fieldKey={`${baseKey}:${idx++}`} />;
+          return part;
+        })}
+      </Fragment>
+    );
+  });
+};
+
+const isBlankCell = (children: ReactNode) =>
+  Children.toArray(children).every(c => typeof c === 'string' && !c.trim());
+
+const posKey = (node: any) => {
+  const s = node?.position?.start;
+  return s ? `${s.line}-${s.column}` : '';
+};
+
+// 입력칸을 끼워 넣은 마크다운 컴포넌트. 컴포넌트 참조는 useMemo로 고정(리마운트 방지)하고 값은 context로 읽는다.
+const buildAnswerComponents = (base: any) => {
+  const wrap = (tag: 'p' | 'li' | 'td', extra?: (props: any, ctx: AnswerCtx, key: string) => any) => (props: any) => {
+    const ctx = useContext(AnswerContext);
+    const key = posKey(props.node);
+    const Base = base?.[tag] ?? tag;
+    if (!ctx || !key) return createElement(Base, props);
+    const next = extra ? extra(props, ctx, key) : props;
+    return createElement(Base, next);
+  };
+  const withTokens = (tag: string) => (props: any, _ctx: AnswerCtx, key: string) =>
+    ({ ...props, children: renderInteractive(props.children, `${tag}${key}`) });
+
+  const P = wrap('p', withTokens('p'));
+  const Td = wrap('td', (props, _ctx, key) =>
+    isBlankCell(props.children)
+      ? { ...props, children: <AnswerText fieldKey={`td${key}`} /> }
+      : withTokens('td')(props, _ctx, key));
+  const LiInner = (props: any) => {
+    const ctx = useContext(AnswerContext);
+    const key = posKey(props.node);
+    const BaseLi = base?.li ?? 'li';
+    if (!ctx || !key) return createElement(BaseLi, props);
+    const children = renderInteractive(props.children, `li${key}`);
+    // 기본 li는 className을 무시하므로 체크박스 항목만 글머리표 없이 직접 그린다
+    if (/task-list-item/.test(props.className || '')) {
+      return <li className="list-none -ml-6 text-lg leading-[1.9]">{children}</li>;
+    }
+    return createElement(BaseLi, { ...props, children });
+  };
+  const Li = (props: any) => (
+    <LineContext.Provider value={`li${posKey(props.node)}`}>
+      <LiInner {...props} />
+    </LineContext.Provider>
+  );
+  const Input = (props: any) => {
+    const ctx = useContext(AnswerContext);
+    const line = useContext(LineContext);
+    if (props.type === 'checkbox' && ctx && line) return <AnswerCheckbox fieldKey={`${line}:gfm`} />;
+    const { node: _node, ...rest } = props;
+    return <input {...rest} />;
+  };
+  return { ...base, p: P, td: Td, li: Li, input: Input };
+};
 
 const RELATED_ID = 'student-material-related';
 const TOC_PREF_KEY = 'studentMaterialTocOpen';
@@ -39,7 +192,10 @@ const readTocPref = (): boolean => {
   try { return localStorage.getItem(TOC_PREF_KEY) !== '0'; } catch { return true; }
 };
 
-const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], onOpenFile, onClose }: Props) => {
+const SAVE_DELAY_MS = 800;
+const RETRY_DELAY_MS = 5000;
+
+const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], answers, onOpenFile, onClose }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -47,6 +203,107 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
   const [tocOpen, setTocOpen] = useState<boolean>(readTocPref);
 
   const hasRelated = relatedMaterials.length > 0;
+
+  // ── 학생 입력칸 답변 ─────────────────────────────────────────────
+  // 값은 ref에 두고 각 입력칸이 자기 상태로 들고 있어, 타이핑할 때 본문 전체가 다시 그려지지 않는다.
+  const cfgRef = useRef(answers);
+  cfgRef.current = answers;
+  const valuesRef = useRef<Record<string, string>>({});
+  // 저장 키는 "문서에서 n번째 입력칸"(f1, f2…). 자료 중간에 줄이 추가/삭제돼도 답변이 밀리지 않도록
+  // 화면에 그려진 입력칸을 DOM 순서로 세어 위치 키(줄:칸)→순번으로 바꾼다.
+  const ordinalRef = useRef<Map<string, string>>(new Map());
+  const pendingRef = useRef<Map<string, string>>(new Map());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [version, setVersion] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const flush = useCallback(async () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    const save = cfgRef.current?.save;
+    if (!save || pendingRef.current.size === 0) return;
+    const entries = Array.from(pendingRef.current.entries());
+    pendingRef.current.clear();
+    setStatus('saving');
+    try {
+      await Promise.all(entries.map(([k, v]) => save(k, v)));
+      setStatus(pendingRef.current.size > 0 ? 'saving' : 'saved');
+    } catch {
+      // 실패한 값은 되돌려 놓고(그 사이 더 새 값이 있으면 그걸 유지) 잠시 뒤 다시 시도
+      entries.forEach(([k, v]) => { if (!pendingRef.current.has(k)) pendingRef.current.set(k, v); });
+      setStatus('error');
+      timerRef.current = setTimeout(() => { void flush(); }, RETRY_DELAY_MS);
+    }
+  }, []);
+
+  const answerCtx = useMemo<AnswerCtx | null>(() => {
+    if (!answers) return null;
+    return {
+      readOnly: !answers.save,
+      version,
+      get: (k) => valuesRef.current[ordinalRef.current.get(k) ?? k] ?? '',
+      set: (k, v) => {
+        const sk = ordinalRef.current.get(k) ?? k;
+        valuesRef.current[sk] = v;
+        pendingRef.current.set(sk, v);
+        setStatus('saving');
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => { void flush(); }, SAVE_DELAY_MS);
+      },
+    };
+    // answers 객체는 렌더마다 새로 만들어질 수 있어 유무(load/save 존재)만 의존성으로 쓴다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!answers, !!answers?.save, version, flush]);
+
+  useEffect(() => {
+    const cfg = cfgRef.current;
+    if (!cfg) return;
+    let cancelled = false;
+    cfg.load()
+      .then(res => {
+        if (cancelled) return;
+        // 불러오는 사이 이미 입력한 값은 덮어쓰지 않는다
+        valuesRef.current = { ...(res || {}), ...valuesRef.current };
+        setVersion(v => v + 1);
+      })
+      .catch(() => { if (!cancelled) setStatus('error'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // 창을 닫거나 나갈 때 아직 저장 안 된 입력을 마저 저장
+  useEffect(() => {
+    const onHide = () => { void flush(); };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onHide);
+      void flush();
+    };
+  }, [flush]);
+
+  const components = useMemo(() => (answers ? buildAnswerComponents(mdComponents) : mdComponents), [!!answers, mdComponents]);
+  // 상태 표시(저장 중/저장됨)로 다시 그려져도 마크다운은 다시 파싱하지 않도록 엘리먼트를 고정
+  const markdown = useMemo(
+    () => (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
+        {content}
+      </ReactMarkdown>
+    ),
+    [content, components]
+  );
+
+  // 본문이 그려진 뒤 입력칸을 문서 순서대로 세어 순번 키를 만들고, 입력칸들이 값을 다시 읽게 한다
+  useLayoutEffect(() => {
+    if (!answers) return;
+    const next = new Map<string, string>();
+    articleRef.current?.querySelectorAll<HTMLElement>('[data-fkey]').forEach((el, i) => {
+      const k = el.getAttribute('data-fkey');
+      if (k) next.set(k, `f${i + 1}`);
+    });
+    ordinalRef.current = next;
+    setVersion(v => v + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markdown, !!answers]);
 
   // 전체화면 뷰어가 열려 있는 동안 뒤 페이지 스크롤을 잠가 스크롤바가 이중으로 보이지 않게 한다
   useEffect(() => {
@@ -137,6 +394,16 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
           <Eye size={17} className="text-white/60 shrink-0" />
           <span className="font-black text-base text-white/90 truncate">{title}</span>
         </div>
+        {answers?.save && status !== 'idle' && (
+          <span
+            className={`flex items-center gap-1.5 text-sm font-black shrink-0 ${status === 'error' ? 'text-red-300' : status === 'saved' ? 'text-emerald-300' : 'text-white/70'}`}
+            role="status"
+          >
+            {status === 'saving' && <><Loader2 size={15} className="animate-spin" /> 저장 중…</>}
+            {status === 'saved' && <><Check size={15} /> 저장됨</>}
+            {status === 'error' && <><AlertCircle size={15} /> 저장 실패, 다시 시도 중</>}
+          </span>
+        )}
         <ActivityLinksButton links={links} dark />
         {entries.length > 0 && (
           <button
@@ -155,9 +422,9 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-w-0 overflow-y-auto overscroll-contain">
           <div className="max-w-3xl mx-auto px-5 sm:px-8 py-8 sm:py-12">
             <div ref={articleRef}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
-                {content}
-              </ReactMarkdown>
+              <AnswerContext.Provider value={answerCtx}>
+                {markdown}
+              </AnswerContext.Provider>
             </div>
 
             {hasRelated && (
