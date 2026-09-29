@@ -40,7 +40,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -1256,6 +1256,14 @@ const MaterialEditor = () => {
   const [showCoverModal, setShowCoverModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   // 자료와 연결할 외부 체험 활동 앱 링크들 (예: AIServiceHub 앱) — 학생 화면에 "체험해보기" 버튼으로 표시됨
+  // 자료 목록 보기 방식 (카드 / 리스트) — 브라우저에 기억
+  const [viewLayout, setViewLayout] = useState<'card' | 'list'>(() => {
+    try { return localStorage.getItem('materialEditorLayout') === 'list' ? 'list' : 'card'; } catch { return 'card'; }
+  });
+  const changeViewLayout = (v: 'card' | 'list') => {
+    setViewLayout(v);
+    try { localStorage.setItem('materialEditorLayout', v); } catch { /* 저장 실패해도 화면은 정상 */ }
+  };
   const [activityLinks, setActivityLinks] = useState<ActivityLink[]>([]);
   const [showAiServicePicker, setShowAiServicePicker] = useState(false);
   const [newLinkUrl, setNewLinkUrl] = useState('');
@@ -1900,6 +1908,223 @@ const MaterialEditor = () => {
         .filter(m => (m.folder_id ?? null) === activeFolderId)
         // 폴더 안에서는 제목 기준 자연 정렬(숫자→가나다→abc 순)로 보여준다
         .sort((a, b) => a.title.localeCompare(b.title, 'ko', { numeric: true, sensitivity: 'base' }));
+
+  // 카드/리스트 보기가 함께 쓰는 자료별 빠른 보기 버튼 (발표 모드·슬라이드·미리보기)
+  const renderQuickButtons = (material: Material, size = 16, compact = false) => {
+    const qcls = compact ? 'p-1.5 rounded-lg bg-surface-container-low' : 'p-2.5 rounded-xl bg-white/90';
+    return (
+      <>
+                      {material.content && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const versionId = selectedVersionId[material.id] ?? null;
+                            setPresentingMaterial({ ...material, content: getActiveVersion(material).content });
+                            // AI 정리 버전 편집은 그대로 저장하되, 원본(versionId 없음)은 발표 화면 편집으로 덮어쓰지 않는다
+                            setPresentingOnSave(() => (updated: string) => {
+                              if (versionId) persistMaterialVersion(material, versionId, updated);
+                            });
+                          }}
+                          title="전체화면 발표 모드"
+                          className={`${qcls} text-violet-700 hover:bg-white transition-colors`}
+                        >
+                          <Presentation size={size} />
+                        </button>
+                      )}
+                      {material.content && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSlideModeMaterial({
+                              title: material.title,
+                              content: getActiveVersion(material).content,
+                              coverImageUrl: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
+                              activity_urls: material.activity_urls,
+                            });
+                          }}
+                          title="슬라이드로 보기"
+                          className={`${qcls} text-sky-700 hover:bg-white transition-colors`}
+                        >
+                          <GalleryHorizontal size={size} />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls });
+                        }}
+                        title="내용 미리보기"
+                        className={`${qcls} text-on-surface hover:bg-white transition-colors`}
+                      >
+                        <Eye size={size} />
+                      </button>
+      </>
+    );
+  };
+
+  // 카드/리스트 보기가 함께 쓰는 자료별 액션 버튼 줄 (공개 전환·복사·폴더 이동·수정·삭제 등)
+  const renderMaterialActions = (material: Material, compact = false) => (
+                    <div className={compact ? 'flex items-center gap-1' : 'flex items-center gap-1 flex-wrap mt-auto pt-2 border-t border-surface-container'}>
+                      {/* 원본/AI 정리 버전 선택 — 목록 화면에서도 선택해서 볼 수 있게 */}
+                      {(material.ai_versions?.length ?? 0) > 0 && (
+                        <div className="relative shrink-0">
+                          <button
+                            onClick={() => setVersionMenuFor(v => v === material.id ? null : material.id)}
+                            title="보고 싶은 버전 선택 (원본 / AI 정리 결과)"
+                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                          >
+                            <History size={14} />
+                          </button>
+                          {versionMenuFor === material.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setVersionMenuFor(null)} />
+                              <div className="absolute bottom-full mb-1 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-64 overflow-hidden">
+                                <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                                  어떤 버전을 볼까요?
+                                </p>
+                                <div className="max-h-64 overflow-y-auto">
+                                  <button
+                                    onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: null })); setVersionMenuFor(null); }}
+                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                  >
+                                    <span className="flex-1 min-w-0"><span className="block text-xs font-black">원본</span></span>
+                                    {!selectedVersionId[material.id] && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                  </button>
+                                  {material.ai_versions!.map(v => (
+                                    <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
+                                      <button
+                                        onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); }}
+                                        className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
+                                      >
+                                        {v.mode === 'guide'
+                                          ? <BookOpen size={13} className="text-primary shrink-0" />
+                                          : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                                        <span className="flex-1 min-w-0">
+                                          <span className="block text-xs font-black truncate">{v.label}</span>
+                                          <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                                        </span>
+                                        {selectedVersionId[material.id] === v.id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteMaterialVersion(material, v)}
+                                        title="이 버전 삭제"
+                                        className="shrink-0 p-1.5 mr-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {libraryMode ? (
+                        <>
+                          {/* 클래스 선택해서 바로 공개 */}
+                          <button
+                            onClick={() => { setLinkingMaterial(material); setLinkAsPublish(true); }}
+                            title="클래스를 선택해 그 클래스 학생에게 바로 공개"
+                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                          >
+                            <Globe size={14} />
+                          </button>
+                          {/* 클래스에 연결(비공개) */}
+                          <button
+                            onClick={() => { setLinkingMaterial(material); setLinkAsPublish(false); }}
+                            title="이 공통 자료를 원하는 클래스에 연결(복사, 비공개)"
+                            className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <Link2 size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {/* 공개/비공개 토글 */}
+                          <button
+                            onClick={() => handleTogglePublish(material)}
+                            title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              material.is_published
+                                ? 'text-emerald-600 hover:bg-emerald-50'
+                                : 'text-on-surface-variant hover:bg-surface-container'
+                            }`}
+                          >
+                            {material.is_published ? <Globe size={14} /> : <Lock size={14} />}
+                          </button>
+                          {/* 복사 */}
+                          <button
+                            onClick={() => handleCopy(material)}
+                            title="다른 주차로 복사"
+                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </>
+                      )}
+                      {/* 폴더로 이동 */}
+                      <div className="relative shrink-0">
+                        <button
+                          onClick={() => setMoveMenuFor(v => v === material.id ? null : material.id)}
+                          title="폴더로 이동"
+                          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                        >
+                          <FolderInput size={14} />
+                        </button>
+                        {moveMenuFor === material.id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setMoveMenuFor(null)} />
+                            <div className="absolute bottom-full mb-1 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-52 overflow-hidden">
+                              <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                                이동할 폴더
+                              </p>
+                              <div className="max-h-64 overflow-y-auto">
+                                <button
+                                  onClick={() => handleMoveToFolder(material, null)}
+                                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                >
+                                  <span className="flex-1 min-w-0 text-xs font-black">미분류</span>
+                                  {!material.folder_id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                </button>
+                                {folders.map(folder => (
+                                  <button
+                                    key={folder.id}
+                                    onClick={() => handleMoveToFolder(material, folder.id)}
+                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                  >
+                                    <Folder size={13} className="text-primary shrink-0" />
+                                    <span className="flex-1 min-w-0 text-xs font-black truncate">{folder.name}</span>
+                                    {material.folder_id === folder.id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                  </button>
+                                ))}
+                                {folders.length === 0 && (
+                                  <p className="px-4 py-3 text-xs font-bold text-on-surface-variant opacity-60">폴더가 없습니다. 위의 '새 폴더'로 먼저 만들어주세요.</p>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {/* 수정 */}
+                      <button
+                        onClick={() => handleEdit(material)}
+                        title="수정"
+                        className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      {/* 삭제 */}
+                      <button
+                        onClick={() => handleDelete(material.id)}
+                        title="삭제"
+                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors ml-auto"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+  );
 
   return (
     <>
@@ -2777,6 +3002,22 @@ const MaterialEditor = () => {
                 <FolderPlus size={12} /> 새 폴더
               </button>
             )}
+            <div className="ml-auto flex items-center gap-0.5 p-0.5 rounded-xl bg-surface-container-low">
+              <button
+                onClick={() => changeViewLayout('card')}
+                title="카드로 보기"
+                className={`p-1.5 rounded-lg transition-colors ${viewLayout === 'card' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
+              >
+                <LayoutGrid size={14} />
+              </button>
+              <button
+                onClick={() => changeViewLayout('list')}
+                title="리스트로 보기"
+                className={`p-1.5 rounded-lg transition-colors ${viewLayout === 'list' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
+              >
+                <List size={14} />
+              </button>
+            </div>
           </div>
 
           {materialsLoading ? (
@@ -2793,6 +3034,53 @@ const MaterialEditor = () => {
             <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
               <Folder size={48} />
               <p className="font-black">이 폴더에는 아직 자료가 없습니다.</p>
+            </div>
+          ) : viewLayout === 'list' ? (
+            <div className="flex flex-col gap-2">
+              {visibleMaterials.map(material => (
+                <div key={material.id} className="bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/30 hover:shadow-sm p-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div
+                      onClick={() => handleEdit(material)}
+                      role="button"
+                      tabIndex={0}
+                      title="열어서 수정"
+                      className="shrink-0 w-14 aspect-[210/297] rounded-lg overflow-hidden cursor-pointer border border-surface-container"
+                    >
+                      <MaterialCoverPage
+                        title=""
+                        imageUrl={material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null}
+                        thumbnail
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleEdit(material)}>
+                      <p className="font-black text-sm truncate" title={material.title}>{material.title}</p>
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span className={`shrink-0 whitespace-nowrap text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          material.is_published ? 'bg-emerald-50 text-emerald-600' : 'bg-surface-container text-on-surface-variant'
+                        }`}>
+                          {material.is_published ? '● 공개 중' : '● 비공개'}
+                        </span>
+                        {!libraryMode && (
+                          <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">{material.week_number}주차</span>
+                        )}
+                        {material.content && (
+                          <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>
+                        )}
+                        {(material.view_count ?? 0) > 0 && (
+                          <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[10px] font-black text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
+                            <Users size={9} /> {material.view_count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-1">
+                    {renderQuickButtons(material, 14, true)}
+                    {renderMaterialActions(material, true)}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -2829,50 +3117,7 @@ const MaterialEditor = () => {
 
                     {/* 호버 시 빠른 액션 */}
                     <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 group-hover:bg-black/40 transition-colors opacity-0 group-hover:opacity-100">
-                      {material.content && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const versionId = selectedVersionId[material.id] ?? null;
-                            setPresentingMaterial({ ...material, content: getActiveVersion(material).content });
-                            // AI 정리 버전 편집은 그대로 저장하되, 원본(versionId 없음)은 발표 화면 편집으로 덮어쓰지 않는다
-                            setPresentingOnSave(() => (updated: string) => {
-                              if (versionId) persistMaterialVersion(material, versionId, updated);
-                            });
-                          }}
-                          title="전체화면 발표 모드"
-                          className="p-2.5 rounded-xl bg-white/90 text-violet-700 hover:bg-white transition-colors"
-                        >
-                          <Presentation size={16} />
-                        </button>
-                      )}
-                      {material.content && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSlideModeMaterial({
-                              title: material.title,
-                              content: getActiveVersion(material).content,
-                              coverImageUrl: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
-                              activity_urls: material.activity_urls,
-                            });
-                          }}
-                          title="슬라이드로 보기"
-                          className="p-2.5 rounded-xl bg-white/90 text-sky-700 hover:bg-white transition-colors"
-                        >
-                          <GalleryHorizontal size={16} />
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls });
-                        }}
-                        title="내용 미리보기"
-                        className="p-2.5 rounded-xl bg-white/90 text-on-surface hover:bg-white transition-colors"
-                      >
-                        <Eye size={16} />
-                      </button>
+                      {renderQuickButtons(material)}
                     </div>
                   </div>
 
@@ -2884,166 +3129,7 @@ const MaterialEditor = () => {
                       <span className="self-start shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>
                     )}
 
-                    <div className="flex items-center gap-1 flex-wrap mt-auto pt-2 border-t border-surface-container">
-                      {/* 원본/AI 정리 버전 선택 — 목록 화면에서도 선택해서 볼 수 있게 */}
-                      {(material.ai_versions?.length ?? 0) > 0 && (
-                        <div className="relative shrink-0">
-                          <button
-                            onClick={() => setVersionMenuFor(v => v === material.id ? null : material.id)}
-                            title="보고 싶은 버전 선택 (원본 / AI 정리 결과)"
-                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
-                          >
-                            <History size={14} />
-                          </button>
-                          {versionMenuFor === material.id && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={() => setVersionMenuFor(null)} />
-                              <div className="absolute bottom-full mb-1 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-64 overflow-hidden">
-                                <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                                  어떤 버전을 볼까요?
-                                </p>
-                                <div className="max-h-64 overflow-y-auto">
-                                  <button
-                                    onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: null })); setVersionMenuFor(null); }}
-                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                                  >
-                                    <span className="flex-1 min-w-0"><span className="block text-xs font-black">원본</span></span>
-                                    {!selectedVersionId[material.id] && <Check size={13} className="text-emerald-500 shrink-0" />}
-                                  </button>
-                                  {material.ai_versions!.map(v => (
-                                    <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
-                                      <button
-                                        onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); }}
-                                        className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
-                                      >
-                                        {v.mode === 'guide'
-                                          ? <BookOpen size={13} className="text-primary shrink-0" />
-                                          : <Presentation size={13} className="text-violet-600 shrink-0" />}
-                                        <span className="flex-1 min-w-0">
-                                          <span className="block text-xs font-black truncate">{v.label}</span>
-                                          <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
-                                        </span>
-                                        {selectedVersionId[material.id] === v.id && <Check size={13} className="text-emerald-500 shrink-0" />}
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteMaterialVersion(material, v)}
-                                        title="이 버전 삭제"
-                                        className="shrink-0 p-1.5 mr-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {libraryMode ? (
-                        <>
-                          {/* 클래스 선택해서 바로 공개 */}
-                          <button
-                            onClick={() => { setLinkingMaterial(material); setLinkAsPublish(true); }}
-                            title="클래스를 선택해 그 클래스 학생에게 바로 공개"
-                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
-                          >
-                            <Globe size={14} />
-                          </button>
-                          {/* 클래스에 연결(비공개) */}
-                          <button
-                            onClick={() => { setLinkingMaterial(material); setLinkAsPublish(false); }}
-                            title="이 공통 자료를 원하는 클래스에 연결(복사, 비공개)"
-                            className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
-                          >
-                            <Link2 size={14} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {/* 공개/비공개 토글 */}
-                          <button
-                            onClick={() => handleTogglePublish(material)}
-                            title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              material.is_published
-                                ? 'text-emerald-600 hover:bg-emerald-50'
-                                : 'text-on-surface-variant hover:bg-surface-container'
-                            }`}
-                          >
-                            {material.is_published ? <Globe size={14} /> : <Lock size={14} />}
-                          </button>
-                          {/* 복사 */}
-                          <button
-                            onClick={() => handleCopy(material)}
-                            title="다른 주차로 복사"
-                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        </>
-                      )}
-                      {/* 폴더로 이동 */}
-                      <div className="relative shrink-0">
-                        <button
-                          onClick={() => setMoveMenuFor(v => v === material.id ? null : material.id)}
-                          title="폴더로 이동"
-                          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
-                        >
-                          <FolderInput size={14} />
-                        </button>
-                        {moveMenuFor === material.id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setMoveMenuFor(null)} />
-                            <div className="absolute bottom-full mb-1 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-52 overflow-hidden">
-                              <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                                이동할 폴더
-                              </p>
-                              <div className="max-h-64 overflow-y-auto">
-                                <button
-                                  onClick={() => handleMoveToFolder(material, null)}
-                                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                                >
-                                  <span className="flex-1 min-w-0 text-xs font-black">미분류</span>
-                                  {!material.folder_id && <Check size={13} className="text-emerald-500 shrink-0" />}
-                                </button>
-                                {folders.map(folder => (
-                                  <button
-                                    key={folder.id}
-                                    onClick={() => handleMoveToFolder(material, folder.id)}
-                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                                  >
-                                    <Folder size={13} className="text-primary shrink-0" />
-                                    <span className="flex-1 min-w-0 text-xs font-black truncate">{folder.name}</span>
-                                    {material.folder_id === folder.id && <Check size={13} className="text-emerald-500 shrink-0" />}
-                                  </button>
-                                ))}
-                                {folders.length === 0 && (
-                                  <p className="px-4 py-3 text-xs font-bold text-on-surface-variant opacity-60">폴더가 없습니다. 위의 '새 폴더'로 먼저 만들어주세요.</p>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      {/* 수정 */}
-                      <button
-                        onClick={() => handleEdit(material)}
-                        title="수정"
-                        className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      {/* 삭제 */}
-                      <button
-                        onClick={() => handleDelete(material.id)}
-                        title="삭제"
-                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors ml-auto"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    {renderMaterialActions(material)}
                   </div>
                 </div>
               ))}
