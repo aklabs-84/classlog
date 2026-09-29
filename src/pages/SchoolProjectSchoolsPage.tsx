@@ -37,6 +37,7 @@ import {
   Save,
   CalendarRange,
 } from 'lucide-react';
+import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 
 interface ProgramMaterial {
   id: string;
@@ -145,6 +146,7 @@ const SchoolProjectSchoolsPage = () => {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SchoolRow | null>(null);
+  const [editTarget, setEditTarget] = useState<SchoolRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
 
@@ -166,6 +168,9 @@ const SchoolProjectSchoolsPage = () => {
 
   const [projectRootClassId, setProjectRootClassId] = useState<string | null>(null);
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanItem[]>([]);
+  const [planTarget, setPlanTarget] = useState<string>('common'); // 'common' 또는 반 id
+  const [commonPlan, setCommonPlan] = useState<WeeklyPlanItem[]>([]);
+  const [classPlans, setClassPlans] = useState<Record<string, WeeklyPlanItem[]>>({});
   const [planLoading, setPlanLoading] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
   const [planMaterials, setPlanMaterials] = useState<ImportableMaterial[]>([]);
@@ -222,7 +227,19 @@ const SchoolProjectSchoolsPage = () => {
         .is('parent_class_id', null)
         .maybeSingle();
       setProjectRootClassId(data?.id || null);
-      setWeeklyPlan(data?.weekly_plan || []);
+      const common = (data?.weekly_plan || []) as WeeklyPlanItem[];
+      setCommonPlan(common);
+      setWeeklyPlan(common);
+      setPlanTarget('common');
+      const classIds = schools.flatMap(sc => sc.classes.map(c => c.id));
+      if (classIds.length > 0) {
+        const { data: rows } = await supabase.from('classes').select('id, weekly_plan').in('id', classIds);
+        const map: Record<string, WeeklyPlanItem[]> = {};
+        (rows || []).forEach((r: any) => { map[r.id] = r.weekly_plan || []; });
+        setClassPlans(map);
+      } else {
+        setClassPlans({});
+      }
     } finally {
       setPlanLoading(false);
     }
@@ -245,14 +262,49 @@ const SchoolProjectSchoolsPage = () => {
     }
   };
 
+  const samePlan = (a: WeeklyPlanItem[], b: WeeklyPlanItem[]) => JSON.stringify(a) === JSON.stringify(b);
+  // 공통 계획과 다르게 직접 입력된 반 = 개별 수정된 반 (빈 계획은 공통을 따르는 것으로 본다)
+  const isCustomPlan = (classId: string) => {
+    const plan = classPlans[classId] || [];
+    return plan.length > 0 && !samePlan(plan, commonPlan);
+  };
+  const currentPlanBaseline = planTarget === 'common' ? commonPlan : ((classPlans[planTarget]?.length ? classPlans[planTarget] : commonPlan));
+
+  const handleChangePlanTarget = (next: string) => {
+    if (next === planTarget) return;
+    if (!samePlan(weeklyPlan, currentPlanBaseline) && !window.confirm('저장하지 않은 변경 내용이 있습니다. 버리고 이동할까요?')) return;
+    setPlanTarget(next);
+    setPlanMaterialDropdownIdx(null);
+    setWeeklyPlan(next === 'common' ? commonPlan : (classPlans[next]?.length ? classPlans[next] : commonPlan));
+  };
+
   const handleSavePlan = async () => {
     if (!projectRootClassId) return;
     setPlanSaving(true);
     try {
-      const targetIds = [projectRootClassId, ...schools.map(s => s.rootClassId).filter(Boolean)] as string[];
+      if (planTarget !== 'common') {
+        const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan }).eq('id', planTarget);
+        if (error) throw error;
+        setClassPlans(prev => ({ ...prev, [planTarget]: weeklyPlan }));
+        alert('이 반의 주차별 계획이 저장되었습니다.');
+        return;
+      }
+      const rootIds = [projectRootClassId, ...schools.map(s => s.rootClassId).filter(Boolean)] as string[];
+      const allClassIds = schools.flatMap(sc => sc.classes.map(c => c.id));
+      const skipped = allClassIds.filter(id => isCustomPlan(id));
+      const followIds = allClassIds.filter(id => !skipped.includes(id));
+      const targetIds = [...rootIds, ...followIds];
       const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan }).in('id', targetIds);
       if (error) throw error;
-      alert('주차별 계획이 저장되었습니다. 모든 학교의 반에 적용됩니다.');
+      setCommonPlan(weeklyPlan);
+      setClassPlans(prev => {
+        const next = { ...prev };
+        followIds.forEach(id => { next[id] = weeklyPlan; });
+        return next;
+      });
+      alert(skipped.length > 0
+        ? `공통 주차별 계획이 저장되었습니다. 개별 수정된 ${skipped.length}개 반은 건너뛰었습니다.`
+        : '주차별 계획이 저장되었습니다. 모든 학교의 반에 적용됩니다.');
     } catch (err) {
       console.error('handleSavePlan error:', err);
       alert('저장 중 오류가 발생했습니다.');
@@ -1006,6 +1058,12 @@ const SchoolProjectSchoolsPage = () => {
                                 className="w-40 bg-surface-container-lowest border border-surface-container-high rounded-xl shadow-lg z-50 overflow-hidden py-1"
                               >
                                 <button
+                                  onClick={() => { setMenuOpenId(null); setEditTarget(s); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high transition-all"
+                                >
+                                  <Pencil size={13} /> 정보 수정
+                                </button>
+                                <button
                                   onClick={() => { setMenuOpenId(null); handleToggleArchive(s); }}
                                   disabled={archivingId === s.id}
                                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high transition-all disabled:opacity-50"
@@ -1233,9 +1291,42 @@ const SchoolProjectSchoolsPage = () => {
           <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/10">
             <CalendarRange size={16} className="text-primary mt-0.5 shrink-0" />
             <p className="text-xs text-on-surface-variant">
-              여기서 설정한 주차별 계획은 <span className="font-bold text-primary">프로젝트 전체(모든 학교의 모든 반)</span>에 자동 적용됩니다.
-              새로 추가되는 학교에도 현재 계획이 그대로 반영됩니다.
+              {planTarget === 'common' ? (
+                <>
+                  공통 계획은 <span className="font-bold text-primary">프로젝트 전체(모든 학교의 모든 반)</span>에 자동 적용됩니다.
+                  새로 추가되는 학교에도 반영되며, <span className="font-bold text-primary">개별 수정된 반은 건너뜁니다.</span>
+                </>
+              ) : (
+                <>선택한 <span className="font-bold text-primary">이 반에만</span> 적용됩니다. 다른 반과 공통 계획은 바뀌지 않습니다.</>
+              )}
             </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-xs font-black text-on-surface-variant shrink-0">편집 대상</label>
+            <select
+              value={planTarget}
+              onChange={e => handleChangePlanTarget(e.target.value)}
+              className="flex-1 min-w-[12rem] px-3 py-2 rounded-xl bg-surface-container text-sm font-bold text-on-surface outline-none"
+            >
+              <option value="common">공통 계획 (전체)</option>
+              {schools.filter(sc => sc.classes.length > 0).map(sc => (
+                <optgroup key={sc.id} label={sc.name}>
+                  {sc.classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{isCustomPlan(c.id) ? ' · 개별 수정됨' : ''}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {planTarget !== 'common' && isCustomPlan(planTarget) && (
+              <button
+                type="button"
+                onClick={() => setWeeklyPlan(commonPlan)}
+                className="text-xs font-bold text-primary hover:text-primary-dim px-2 py-1.5"
+              >
+                공통 계획으로 되돌리기
+              </button>
+            )}
           </div>
 
           {planLoading ? (
@@ -1376,7 +1467,7 @@ const SchoolProjectSchoolsPage = () => {
                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
               >
                 {planSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                주차별 계획 저장
+                {planTarget === 'common' ? '공통 주차별 계획 저장' : '이 반의 주차별 계획 저장'}
               </button>
             </>
           )}
@@ -1447,6 +1538,16 @@ const SchoolProjectSchoolsPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {editTarget && (
+        <SchoolInfoEditModal
+          schoolId={editTarget.id}
+          initialName={editTarget.school_name || editTarget.name}
+          initialRegion={editTarget.region}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => fetchData()}
+        />
       )}
 
       {/* 학교 삭제 확인 모달 */}

@@ -21,7 +21,9 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Pencil,
 } from 'lucide-react';
+import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 
 interface TeachingClass {
   id: string;
@@ -113,6 +115,7 @@ const SchoolProjectDetailPage = () => {
   const [attLoading, setAttLoading] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editInfoOpen, setEditInfoOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingSchool, setDeletingSchool] = useState(false);
@@ -409,6 +412,12 @@ const SchoolProjectDetailPage = () => {
                 className="absolute right-0 top-full mt-1 w-40 bg-surface-container-lowest border border-surface-container-high rounded-xl shadow-lg z-20 overflow-hidden py-1"
               >
                 <button
+                  onClick={() => { setMenuOpen(false); setEditInfoOpen(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high transition-all"
+                >
+                  <Pencil size={13} /> 정보 수정
+                </button>
+                <button
                   onClick={handleToggleArchive}
                   disabled={archiving}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high transition-all disabled:opacity-50"
@@ -698,6 +707,16 @@ const SchoolProjectDetailPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {editInfoOpen && (
+        <SchoolInfoEditModal
+          schoolId={school.id}
+          initialName={school.school_name || school.name}
+          initialRegion={school.region}
+          onClose={() => setEditInfoOpen(false)}
+          onSaved={(name, region) => setSchool((prev: any) => ({ ...prev, name, school_name: name, region }))}
+        />
       )}
 
       {/* 학교 삭제 확인 모달 */}
