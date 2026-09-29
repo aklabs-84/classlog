@@ -48,6 +48,16 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
 
   const hasRelated = relatedMaterials.length > 0;
 
+  // 전체화면 뷰어가 열려 있는 동안 뒤 페이지 스크롤을 잠가 스크롤바가 이중으로 보이지 않게 한다
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevHtml = html.style.overflow;
+    const prevBody = document.body.style.overflow;
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => { html.style.overflow = prevHtml; document.body.style.overflow = prevBody; };
+  }, []);
+
   // 렌더된 본문에서 h1/h2를 모아 id를 붙이고 목차를 만든다(토글 안 제목은 제외)
   useEffect(() => {
     const root = articleRef.current;

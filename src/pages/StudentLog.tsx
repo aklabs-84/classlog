@@ -123,6 +123,39 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
+// 이미지가 많은 자료에서 일시적으로 로드에 실패하면 새로고침 없이 자동으로 다시 시도한다(최대 3회)
+const RetryImg = ({ src, alt, style }: { src?: string; alt?: string; style?: React.CSSProperties }) => {
+  const [tries, setTries] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const failed = !loaded && tries >= 3;
+  const url = tries > 0 && src ? `${src}${src.includes('?') ? '&' : '?'}r=${tries}` : src;
+  return (
+    <span className="relative block my-4">
+      {!loaded && (
+        <span className="flex h-56 w-full flex-col items-center justify-center gap-3 rounded-xl bg-surface-container animate-pulse text-on-surface-variant/60">
+          {failed ? (
+            <span className="text-base font-bold">이미지를 불러오지 못했어요. 새로고침해 보세요.</span>
+          ) : (
+            <>
+              <span className="h-9 w-9 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+              <span className="text-base font-bold">이미지 불러오는 중...</span>
+            </>
+          )}
+        </span>
+      )}
+      <img
+        src={url}
+        alt={alt}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => { if (tries < 3) setTimeout(() => setTries(t => t + 1), 800 * (tries + 1)); else setTries(4); }}
+        style={loaded ? style : { position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }}
+        className={loaded ? 'max-w-full rounded-xl shadow' : ''}
+      />
+    </span>
+  );
+};
+
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const MATERIAL_MD_COMPONENTS = {
   h1: ({ children }: any) => <h1 className="text-4xl font-black mb-6 mt-9 leading-tight">{children}</h1>,
@@ -148,7 +181,7 @@ const MATERIAL_MD_COMPONENTS = {
   img: ({ src, alt, title }: any) => {
     const wm = (title || '').match(/(?:^|,)width:(\d+)/);
     const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
-    return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-4 shadow" />;
+    return <RetryImg src={src} alt={alt} style={style} />;
   },
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-lg hover:opacity-70">{children}</a>,
   hr: () => <hr className="border-surface-container my-6" />,
