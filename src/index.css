@@ -259,15 +259,11 @@
   font-size: 1.1rem;
   font-weight: 900;
   margin: 1.75rem 0 0.5rem;
-  padding-top: 1rem;
-  border-top: 1px dashed var(--color-surface-container-high);
   color: var(--color-on-surface);
 }
 .rich-editor-content h2 + h3,
 .rich-editor-content h3:first-child {
   margin-top: 0.5rem;
-  padding-top: 0;
-  border-top: none;
 }
 
 .rich-editor-content p { margin-bottom: 0.6rem; }

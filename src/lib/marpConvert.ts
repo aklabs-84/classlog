@@ -6,7 +6,7 @@ import { normalizeStandaloneHr, normalizeHeadingSpace } from '../components/Pres
 let marpDisplayInstance: Marp | null = null;
 function getDisplayMarp(): Marp {
   if (!marpDisplayInstance) {
-    marpDisplayInstance = new Marp({ html: true, inlineSVG: true, headingDivider: 1 });
+    marpDisplayInstance = new Marp({ html: true, inlineSVG: true, headingDivider: 2 });
   }
   return marpDisplayInstance;
 }
@@ -16,7 +16,7 @@ function getDisplayMarp(): Marp {
 let marpExportInstance: Marp | null = null;
 function getExportMarp(): Marp {
   if (!marpExportInstance) {
-    marpExportInstance = new Marp({ html: true, inlineSVG: false, headingDivider: 1 });
+    marpExportInstance = new Marp({ html: true, inlineSVG: false, headingDivider: 2 });
   }
   return marpExportInstance;
 }
@@ -28,11 +28,12 @@ function fixBoldFlanking(content: string): string {
   return content.replace(/\*\*([^\n*]+?[\])}"'.,;:!?…”’」』》〉])\*\*(?=[^\s*\n])/g, '**$1** ');
 }
 
-// headingDivider:1로 h1마다 자동으로 새 슬라이드가 시작되는데, 문서에 있던 "---" 구분선이
-// h1 바로 앞에 있으면 그 hr 자체도 Marpit 기본 동작으로 슬라이드 경계가 되어 h1의 자동 분리와
-// 겹친다 — 그 사이에 내용 없는 빈 슬라이드가 하나 더 생기므로, h1 바로 앞의 "---"만 제거한다.
-// (h1이 없는 발표자료 재구성 콘텐츠는 "---"가 유일한 슬라이드 구분자이므로 영향받지 않는다.)
-function stripHrBeforeH1(content: string): string {
+// headingDivider:2로 h1/h2마다 자동으로 새 슬라이드가 시작되는데(에디터에서 h2 위에 실선이
+// 그려지는 것과 슬라이드 경계를 맞추기 위함 — h3는 슬라이드를 나누지 않는다), 문서에 있던 "---"
+// 구분선이 h1/h2 바로 앞에 있으면 그 hr 자체도 Marpit 기본 동작으로 슬라이드 경계가 되어
+// 자동 분리와 겹친다 — 그 사이에 내용 없는 빈 슬라이드가 하나 더 생기므로, h1/h2 바로 앞의
+// "---"만 제거한다. (제목이 없는 발표자료 재구성 콘텐츠는 "---"가 유일한 슬라이드 구분자이므로 영향받지 않는다.)
+function stripHrBeforeH1H2(content: string): string {
   const lines = content.split('\n');
   const out: string[] = [];
   let inFence = false;
@@ -42,7 +43,7 @@ function stripHrBeforeH1(content: string): string {
     if (!inFence && /^(-{3,}|_{3,}|\*{3,})$/.test(line.trim())) {
       let j = i + 1;
       while (j < lines.length && lines[j].trim() === '') j++;
-      if (j < lines.length && /^#\s/.test(lines[j])) continue; // hr 줄 자체를 제거
+      if (j < lines.length && /^#{1,2}\s/.test(lines[j])) continue; // hr 줄 자체를 제거
     }
     out.push(line);
   }
@@ -221,7 +222,7 @@ function computeToggleRanges(html: string): ToggleSlideRange[] {
 }
 
 const normalize = (content: string) =>
-  widthImagesForMarp(joinAdjacentImageHardBreaks(fixBoldFlanking(stripHrBeforeH1(normalizeHeadingSpace(normalizeStandaloneHr(explodeDetailsForSlides(content || '')))))));
+  widthImagesForMarp(joinAdjacentImageHardBreaks(fixBoldFlanking(stripHrBeforeH1H2(normalizeHeadingSpace(normalizeStandaloneHr(explodeDetailsForSlides(content || '')))))));
 
 // 사이트 브랜드 팔레트(보라 #8b5cf6 / 시안 #06b6d4 / 핑크 #f472b6)를 반영한
 // Marp 커스텀 테마. Marp 기본 테마 CSS 뒤에 이어붙여 덮어쓴다.
