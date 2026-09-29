@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { compressImageForUpload } from '../lib/imageCompress';
@@ -72,7 +71,8 @@ import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import RichEditor from '../components/RichEditor';
-import ActivityLinksButton, { type ActivityLink } from '../components/ActivityLinksButton';
+import { type ActivityLink } from '../components/ActivityLinksButton';
+import StudentMaterialPage from '../components/StudentMaterialPage';
 import { getAiApps, type AiApp } from '../lib/aiApps';
 
 const TOUR_STEPS: TourStep[] = [
@@ -125,18 +125,18 @@ const TOUR_STEPS: TourStep[] = [
 
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const MATERIAL_MD_COMPONENTS = {
-  h1: ({ children }: any) => <h1 className="text-3xl font-black mb-5 mt-7">{children}</h1>,
-  h2: ({ children }: any) => <h2 className="text-2xl font-black mb-4 mt-6">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="text-xl font-black mb-3 mt-5">{children}</h3>,
-  p: ({ children }: any) => <p className="mb-4 text-base leading-loose">{children}</p>,
-  ul: ({ children }: any) => <ul className="list-disc pl-6 mb-4 space-y-2 text-base leading-loose">{children}</ul>,
-  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-4 space-y-2 text-base leading-loose">{children}</ol>,
-  li: ({ children }: any) => <li className="text-base leading-loose">{children}</li>,
+  h1: ({ children }: any) => <h1 className="text-4xl font-black mb-6 mt-9 leading-tight">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-3xl font-black mb-5 mt-8 leading-tight">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-2xl font-black mb-4 mt-6">{children}</h3>,
+  p: ({ children }: any) => <p className="mb-5 text-lg leading-[1.9]">{children}</p>,
+  ul: ({ children }: any) => <ul className="list-disc pl-7 mb-5 space-y-2.5 text-lg leading-[1.9]">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-7 mb-5 space-y-2.5 text-lg leading-[1.9]">{children}</ol>,
+  li: ({ children }: any) => <li className="text-lg leading-[1.9]">{children}</li>,
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-4 border-cyan-400 pl-4 italic text-on-surface-variant my-4 bg-cyan-50 py-3 rounded-r-xl text-base leading-relaxed">{children}</blockquote>
+    <blockquote className="border-l-4 border-cyan-400 pl-4 italic text-on-surface-variant my-4 bg-cyan-50 py-3.5 rounded-r-xl text-lg leading-relaxed">{children}</blockquote>
   ),
   code: ({ children, className }: any) => {
-    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-base font-mono text-primary">{children}</code>;
+    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-[1.05rem] font-mono text-primary">{children}</code>;
     return <code className={className}>{children}</code>;
   },
   pre: ({ children }: any) => {
@@ -150,17 +150,17 @@ const MATERIAL_MD_COMPONENTS = {
     const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
     return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-4 shadow" />;
   },
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-base hover:opacity-70">{children}</a>,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-lg hover:opacity-70">{children}</a>,
   hr: () => <hr className="border-surface-container my-6" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
   em: ({ children }: any) => <em className="italic">{children}</em>,
-  table: ({ children }: any) => <div className="overflow-auto my-4 rounded-xl border border-surface-container"><table className="w-full border-collapse text-base">{children}</table></div>,
+  table: ({ children }: any) => <div className="overflow-auto my-4 rounded-xl border border-surface-container"><table className="w-full border-collapse text-lg">{children}</table></div>,
   thead: ({ children }: any) => <thead>{children}</thead>,
   th: ({ children }: any) => <th className="border border-surface-container px-4 py-2.5 bg-surface-container-low font-black text-left">{children}</th>,
   td: ({ children }: any) => <td className="border border-surface-container px-4 py-2.5 align-top">{children}</td>,
   details: ({ children }: any) => <details className="group my-4 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
   summary: ({ children }: any) => (
-    <summary className="px-4 py-3 bg-surface-container-low cursor-pointer font-black text-base list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
+    <summary className="px-4 py-3 bg-surface-container-low cursor-pointer font-black text-lg list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
       <span className="text-primary text-sm transition-transform duration-200 group-open:rotate-90">▶</span> {children}
     </summary>
   ),
@@ -303,7 +303,7 @@ const StudentLog = () => {
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; links?: ActivityLink[] } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; links?: ActivityLink[]; week?: number | null } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
@@ -2232,34 +2232,24 @@ ${guidePrompt}
 
   return (
     <>
-    {fullscreenMaterial && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
-        <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
-          <button
-            onClick={() => setFullscreenMaterial(null)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
-          >
-            <ArrowLeft size={15} /> 나가기
-          </button>
-          <div className="flex items-center gap-2 ml-2">
-            <Eye size={15} className="text-white/60" />
-            <span className="font-black text-sm text-white/80 truncate max-w-xs">{fullscreenMaterial.title}</span>
-          </div>
-          <ActivityLinksButton links={fullscreenMaterial.links} dark />
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-8 py-10">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw]}
-              components={MATERIAL_MD_COMPONENTS}
-            >
-              {fullscreenMaterial.content}
-            </ReactMarkdown>
-          </div>
-        </div>
-      </div>,
-      document.body
+    {fullscreenMaterial && (
+      <StudentMaterialPage
+        title={fullscreenMaterial.title}
+        content={fullscreenMaterial.content}
+        links={fullscreenMaterial.links}
+        mdComponents={MATERIAL_MD_COMPONENTS}
+        relatedMaterials={fullscreenMaterial.week != null
+          ? (generalMaterials as any[]).filter(g => g.week_number === fullscreenMaterial.week)
+          : []}
+        onOpenFile={(mat, download) => {
+          const full = (generalMaterials as any[]).find(g => g.id === mat.id);
+          if (!full?.file_path) return;
+          const { data } = supabase.storage.from('student-attachments').getPublicUrl(full.file_path);
+          if (download) downloadFile(data.publicUrl, full.file_name || full.title);
+          else openFile(data.publicUrl, full.file_name || full.title);
+        }}
+        onClose={() => setFullscreenMaterial(null)}
+      />
     )}
     <div className={`min-h-screen bg-surface flex flex-col p-6 pb-28 lg:pb-6 transition-[padding] duration-200 ${isSidebarCollapsed ? 'lg:pl-28' : 'lg:pl-72'}`}>
       {/* Top Navbar */}
@@ -3305,7 +3295,7 @@ ${guidePrompt}
                   </div>
                   <div>
                     <h3 className="text-xl font-black">수업 자료실</h3>
-                    <p className="text-on-surface-variant text-xs font-bold mt-0.5">선생님이 공유한 자료입니다.</p>
+                    <p className="text-on-surface-variant text-sm font-bold mt-0.5">선생님이 공유한 자료입니다.</p>
                   </div>
                 </div>
 
@@ -3313,24 +3303,24 @@ ${guidePrompt}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMaterialsSubTab('weekly')}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'weekly' ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-cyan-200'}`}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${materialsSubTab === 'weekly' ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-cyan-200'}`}
                   >주차별 자료</button>
                   <button
                     onClick={() => setMaterialsSubTab('editor')}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'editor' ? 'border-violet-500 bg-violet-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-violet-200'}`}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${materialsSubTab === 'editor' ? 'border-violet-500 bg-violet-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-violet-200'}`}
                   >
                     자료 에디터
                     {unlinkedEditorMaterials.length > 0 && (
-                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md ${materialsSubTab === 'editor' ? 'bg-white/20' : 'bg-violet-500/10 text-violet-600'}`}>{unlinkedEditorMaterials.length}</span>
+                      <span className={`ml-1.5 text-sm px-1.5 py-0.5 rounded-md ${materialsSubTab === 'editor' ? 'bg-white/20' : 'bg-violet-500/10 text-violet-600'}`}>{unlinkedEditorMaterials.length}</span>
                     )}
                   </button>
                   <button
                     onClick={() => setMaterialsSubTab('general')}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'general' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${materialsSubTab === 'general' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
                   >
                     일반 자료
                     {generalMaterials.length > 0 && (
-                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md ${materialsSubTab === 'general' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>{generalMaterials.length}</span>
+                      <span className={`ml-1.5 text-sm px-1.5 py-0.5 rounded-md ${materialsSubTab === 'general' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>{generalMaterials.length}</span>
                     )}
                   </button>
                 </div>
@@ -3347,7 +3337,7 @@ ${guidePrompt}
                       <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                         <BookOpen size={64} />
                         <p className="font-black text-lg">아직 등록된 주차별 자료가 없습니다.</p>
-                        <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
+                        <p className="text-base font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
                       </div>
                     );
                   }
@@ -3367,15 +3357,15 @@ ${guidePrompt}
                               className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-cyan-200 hover:shadow-sm transition-all"
                               onClick={() => {
                                 recordMaterialView(mat.id);
-                                setFullscreenMaterial({ title: mat.title, content: mat.content, links: mat.activity_urls });
+                                setFullscreenMaterial({ title: mat.title, content: mat.content, links: mat.activity_urls, week: res.week });
                               }}
                             >
-                              <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
+                              <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-sm font-black shrink-0">
                                 {res.week}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-black text-sm">{res.topic || mat.title}</p>
-                                <p className="text-[11px] text-cyan-600 font-bold mt-0.5">{mat.title}</p>
+                                <p className="font-black text-base">{res.topic || mat.title}</p>
+                                <p className="text-sm text-cyan-600 font-bold mt-0.5">{mat.title}</p>
                               </div>
                               <Maximize2 size={15} className="shrink-0 text-on-surface-variant/50" />
                             </button>
@@ -3393,14 +3383,14 @@ ${guidePrompt}
                               rel="noopener noreferrer"
                               className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
                             >
-                              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-sm font-black shrink-0">
                                 {res.week}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-black text-sm truncate group-hover:text-primary transition-colors">
+                                <p className="font-black text-base truncate group-hover:text-primary transition-colors">
                                   {res.topic || '수업 자료'}
                                 </p>
-                                <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{res.url}</p>
+                                <p className="text-sm text-on-surface-variant truncate opacity-60 font-medium">{res.url}</p>
                               </div>
                               <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
                             </a>
@@ -3417,7 +3407,7 @@ ${guidePrompt}
                     <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                       <BookOpen size={64} />
                       <p className="font-black text-lg">공개된 자료가 없습니다.</p>
-                      <p className="text-sm font-bold">선생님이 자료 에디터에서 자료를 공개하면 이곳에 표시됩니다.</p>
+                      <p className="text-base font-bold">선생님이 자료 에디터에서 자료를 공개하면 이곳에 표시됩니다.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -3434,9 +3424,9 @@ ${guidePrompt}
                             <BookOpen size={16} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-black text-sm truncate">{mat.title}</p>
+                            <p className="font-black text-base truncate">{mat.title}</p>
                             {mat.content && (
-                              <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium mt-0.5">
+                              <p className="text-sm text-on-surface-variant truncate opacity-60 font-medium mt-0.5">
                                 {mat.content.slice(0, 60)}
                               </p>
                             )}
@@ -3452,7 +3442,7 @@ ${guidePrompt}
                     <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                       <File size={64} />
                       <p className="font-black text-lg">등록된 일반 자료가 없습니다.</p>
-                      <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
+                      <p className="text-base font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -3465,8 +3455,8 @@ ${guidePrompt}
                                 <Link2 size={18} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-black text-sm truncate">{mat.title}</p>
-                                <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{mat.url}</p>
+                                <p className="font-black text-base truncate">{mat.title}</p>
+                                <p className="text-sm text-on-surface-variant truncate opacity-60 font-medium">{mat.url}</p>
                               </div>
                               <a
                                 href={href}
@@ -3497,8 +3487,8 @@ ${guidePrompt}
                               onClick={handleOpenMaterialFile}
                               className="flex-1 min-w-0 text-left"
                             >
-                              <p className="font-black text-sm truncate hover:text-amber-600 transition-colors">{mat.title}</p>
-                              <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">
+                              <p className="font-black text-base truncate hover:text-amber-600 transition-colors">{mat.title}</p>
+                              <p className="text-sm text-on-surface-variant truncate opacity-60 font-medium">
                                 {mat.file_name}{mat.file_size ? ` · ${(mat.file_size / 1024).toFixed(0)}KB` : ''}
                               </p>
                             </button>

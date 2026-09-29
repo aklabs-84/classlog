@@ -9,7 +9,7 @@ import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import {
   ArrowLeft, Save, Pencil, X as XIcon,
   ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
-  Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText, BellOff,
+  Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText, BellOff, ListTree,
 } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
 
@@ -377,6 +377,38 @@ const PresentationModal = ({
   const [docHeight, setDocHeight] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
 
+  // ── 목차 드롭다운 — 본문의 #/## 제목으로 바로 이동 (토글 안 제목은 제외) ──────────
+  const [tocItems, setTocItems] = useState<{ el: HTMLElement; text: string; level: 1 | 2 }[]>([]);
+  const [showToc, setShowToc] = useState(false);
+  const tocRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editMode) return;
+    const doc = docRef.current;
+    if (!doc) return;
+    const heads = Array.from(doc.querySelectorAll<HTMLElement>('h1, h2')).filter(h => !h.closest('details'));
+    setTocItems(heads
+      .map(h => ({ el: h, text: (h.textContent || '').trim(), level: (h.tagName === 'H1' ? 1 : 2) as 1 | 2 }))
+      .filter(it => it.text));
+  }, [material.content, editMode, dark]);
+
+  useEffect(() => {
+    if (!showToc) return;
+    const onDown = (e: MouseEvent) => {
+      if (tocRef.current && !tocRef.current.contains(e.target as Node)) setShowToc(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showToc]);
+
+  const goToHeading = (el: HTMLElement) => {
+    const box = stageBoxRef.current;
+    if (!box) return;
+    const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 24;
+    box.scrollTo({ top, behavior: 'smooth' });
+    setShowToc(false);
+  };
+
   useEffect(() => {
     const calc = () => {
       const el = viewRef.current;
@@ -532,6 +564,32 @@ const PresentationModal = ({
         </div>
 
         {!editMode && <ActivityLinksButton links={material.activity_urls} dark={dark} />}
+
+        {/* 목차 — 본문 제목으로 바로 이동하는 드롭다운 */}
+        {tocItems.length > 0 && !editMode && (
+          <div className="relative shrink-0" ref={tocRef}>
+            <button
+              onClick={() => setShowToc(v => !v)}
+              title="목차"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${showToc ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <ListTree size={15} /> 목차
+            </button>
+            {showToc && (
+              <div className={`absolute right-0 top-full mt-2 w-80 max-h-[60vh] overflow-y-auto rounded-2xl border shadow-2xl z-10 py-2 ${dark ? 'bg-[#15151f] border-white/10' : 'bg-white border-slate-900/10'}`}>
+                {tocItems.map((it, i) => (
+                  <button
+                    key={i}
+                    onClick={() => goToHeading(it.el)}
+                    className={`w-full text-left px-4 py-2.5 text-sm font-bold transition-colors ${it.level === 2 && tocItems.some(t => t.level === 1) ? 'pl-8' : ''} ${dark ? 'text-white/85 hover:bg-white/10' : 'text-slate-800 hover:bg-slate-900/5'}`}
+                  >
+                    {it.text}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 주차 이동 — 발표 화면을 나가지 않고 다른 주차 자료로 바로 전환 */}
         {weekNav && !editMode && (
