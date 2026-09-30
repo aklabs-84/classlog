@@ -28,6 +28,7 @@ import {
   Users2,
   Layers,
   Maximize2,
+  Minimize2,
   GalleryHorizontal,
   StickyNote,
   RefreshCw,
@@ -272,6 +273,8 @@ const Classroom = () => {
   const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
+  const [updateModalFull, setUpdateModalFull] = useState(false); // 학급 정보 관리 모달 전체화면 토글
+  useEffect(() => { if (!isUpdateModalOpen) setUpdateModalFull(false); }, [isUpdateModalOpen]);
   const [promptValidation, setPromptValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
   const [isValidatingPrompt, setIsValidatingPrompt] = useState(false);
   const [guideValidation, setGuideValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
@@ -3695,10 +3698,15 @@ const Classroom = () => {
         )}
 
         {isUpdateModalOpen && updateClassData && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-black/30 backdrop-blur-md overflow-y-auto" onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-8 md:p-10 rounded-[2rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
+          <div className={`fixed inset-0 z-[500] flex items-center justify-center bg-black/30 backdrop-blur-md overflow-y-auto ${updateModalFull ? 'p-0' : 'p-4 md:p-6'}`} onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`w-full bg-white p-8 md:p-10 space-y-8 shadow-2xl border border-neutral-200 ${updateModalFull ? 'max-w-none min-h-full rounded-none md:px-16 lg:px-24' : 'max-w-2xl rounded-[2rem] my-auto'}`} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
+                  <button type="button" onClick={() => setUpdateModalFull(v => !v)} title={updateModalFull ? '작게 보기' : '전체화면으로 보기'} className="hidden sm:flex p-2 rounded-xl text-neutral-400 hover:bg-neutral-100 hover:text-primary transition-all">
+                    {updateModalFull ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  </button>
+                </div>
                 <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
                   <button type="button" onClick={() => setEditModalTab('basic')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'basic' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>기본 정보</button>
                   <button type="button" onClick={() => setEditModalTab('syllabus')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'syllabus' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>주차별 계획</button>

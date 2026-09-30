@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown, Lock } from 'lucide-react';
+import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown, Lock, Maximize2, X, Search } from 'lucide-react';
 
 interface ClassSelectorProps {
   classes: any[];
@@ -41,6 +42,8 @@ const ClassSelector = ({
   currentUserId,
 }: ClassSelectorProps) => {
   const [open, setOpen] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeClass = classes.find(c => c.id === activeClassId);
 
@@ -57,6 +60,59 @@ const ClassSelector = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 전체화면 목록: Esc로 닫기 + 배경 스크롤 잠금
+  useEffect(() => {
+    if (!fullOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullOpen(false); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [fullOpen]);
+
+  const closeFull = () => { setFullOpen(false); setQuery(''); };
+
+  const q = query.trim().toLowerCase();
+  const matchQuery = (c: any) => !q || `${c.name} ${c.subject || ''}`.toLowerCase().includes(q);
+  const fullRegular = regularClasses.filter(matchQuery);
+  const fullProject = projectClasses.filter(matchQuery);
+
+  const renderFullCard = (c: any, isProject: boolean) => {
+    const isActive = c.id === activeClassId;
+    const canEdit = !isProject || c.teacher_id === currentUserId;
+    const canDelete = !isProject || c.teacher_id === currentUserId;
+    return (
+      <div
+        key={c.id}
+        onClick={() => { onSelectClass(c.id); closeFull(); }}
+        className={`group/card flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-all hover:shadow-md ${
+          isActive
+            ? (isProject ? 'bg-violet-50 border-violet-300' : 'bg-primary/5 border-primary/30')
+            : 'bg-surface-container-lowest border-surface-container-high hover:border-primary/30'
+        }`}
+      >
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+          isActive ? (isProject ? 'bg-violet-500 text-white' : 'bg-primary text-white') : (isProject ? 'bg-violet-100 text-violet-500' : 'bg-primary/10 text-primary/70')
+        }`}>
+          {isProject ? <School size={20} /> : <GraduationCap size={20} strokeWidth={2.5} />}
+        </div>
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className={`text-sm font-black tracking-tight truncate ${isActive ? (isProject ? 'text-violet-700' : 'text-primary') : 'text-on-surface'}`}>{c.name}</span>
+          <span className={`text-[11px] font-black tracking-wider truncate ${isProject ? 'text-violet-400' : 'text-on-surface-variant/70'}`}>{c.subject}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {isActive && <Check size={16} className={`${isProject ? 'text-violet-500' : 'text-primary'} mr-1`} />}
+          {canEdit && !isProject && (
+            <button title="학급 설정" onClick={(e) => { e.stopPropagation(); onEditClass(c); closeFull(); }} className="p-2 hover:bg-primary/10 rounded-lg text-on-surface-variant/60 hover:text-primary transition-all"><Settings2 size={15} /></button>
+          )}
+          {canDelete && (
+            <button title="학급 삭제" onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); closeFull(); }} className="p-2 hover:bg-error/10 rounded-lg text-error/50 hover:text-error transition-all"><Trash2 size={15} /></button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const handleSelect = (id: string) => {
     onSelectClass(id);
@@ -136,10 +192,17 @@ const ClassSelector = ({
                 className="absolute top-full left-0 mt-3 w-72 bg-surface-container-lowest rounded-2xl shadow-elevated border border-surface-container-high overflow-hidden z-[100]"
               >
                 {/* 헤더 */}
-                <div className="px-5 py-3 border-b border-surface-container-high">
+                <div className="px-5 py-3 border-b border-surface-container-high flex items-center justify-between gap-2">
                   <p className="text-xs font-black text-on-surface-variant/80 uppercase tracking-[0.2em]">
                     전체 학급 목록 ({classes.length})
                   </p>
+                  <button
+                    onClick={() => { setFullOpen(true); setOpen(false); }}
+                    className="hidden sm:flex p-1.5 rounded-lg text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary transition-all"
+                    title="전체화면으로 보기"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
                 </div>
 
                 {/* 학급 리스트 */}
@@ -315,6 +378,55 @@ const ClassSelector = ({
           </button>
         </div>
       </div>
+
+      {/* 전체화면 학급 목록 — MainLayout의 main이 fixed를 가두므로 body로 포탈 */}
+      {fullOpen && createPortal(
+        <div className="fixed inset-0 z-[600] bg-surface flex flex-col">
+          <div className="flex items-center gap-3 px-4 sm:px-8 py-4 border-b border-surface-container-high bg-surface-container-lowest shrink-0">
+            <h2 className="text-lg font-black text-on-surface shrink-0">전체 학급 목록 <span className="text-primary">({classes.length})</span></h2>
+            <div className="relative flex-1 max-w-md ml-2">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
+              <input
+                autoFocus
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="학급 이름·과목 검색"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface-container text-sm font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div className="flex-1" />
+            <button onClick={() => { onCreateClass(); closeFull(); }} className="flex items-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/90 active:scale-95 transition-all shadow-md shadow-primary/20">
+              <Plus size={14} strokeWidth={3} />새 학급 추가
+            </button>
+            <button onClick={closeFull} className="p-2.5 rounded-xl hover:bg-surface-container text-on-surface-variant transition-all" title="닫기 (Esc)"><X size={20} /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 custom-scrollbar">
+            <div className="max-w-[1600px] mx-auto space-y-8">
+              {fullRegular.length > 0 && (
+                <section>
+                  <p className="mb-3 text-[11px] font-black text-on-surface-variant/60 uppercase tracking-widest">내 학급 ({fullRegular.length})</p>
+                  <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">{fullRegular.map(c => renderFullCard(c, false))}</div>
+                </section>
+              )}
+              {fullProject.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-1.5 mb-3"><Crown size={12} className="text-violet-500" /><p className="text-[11px] font-black text-violet-500 uppercase tracking-widest">학교 프로젝트 담당 ({fullProject.length})</p></div>
+                  <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">{fullProject.map(c => renderFullCard(c, true))}</div>
+                </section>
+              )}
+              {fullRegular.length === 0 && fullProject.length === 0 && (
+                <p className="text-center text-sm font-bold text-on-surface-variant/60 py-20">검색 결과가 없습니다.</p>
+              )}
+              {closedClassesCount > 0 && (
+                <button onClick={() => { onOpenClosedClasses(); closeFull(); }} className="flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black text-rose-500 bg-rose-50 hover:bg-rose-100 transition-all">
+                  <Lock size={13} />종료된 학급 {closedClassesCount}개 보기
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </nav>
   );
 };
