@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
 
@@ -28,12 +28,24 @@ export interface MaterialAnswerConfig {
   save?: (key: string, value: string) => Promise<void>;
 }
 
+// 이 차시에 연결된 퀴즈·보드 — 관련 자료 섹션에 함께 표시 (ready=false면 안내만, 버튼 비활성)
+export interface WeekExtraItem {
+  key: string;
+  kind: 'quiz' | 'board';
+  title: string;
+  ready: boolean;
+  note: string;
+  onClick?: () => void;
+  href?: string;
+}
+
 interface Props {
   title: string;
   content: string;
   links?: ActivityLink[];
   mdComponents: any;
   relatedMaterials?: RelatedMaterial[];
+  extraItems?: WeekExtraItem[];
   answers?: MaterialAnswerConfig;
   onOpenFile?: (mat: RelatedMaterial, download: boolean) => void;
   /** 선생님 미리보기일 때만 켜는 수업 도구(돋보기·펜·스포트라이트, PC 화면 전용) */
@@ -217,14 +229,14 @@ const readTocPref = (): boolean => {
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], answers, onOpenFile, teacherTools = false, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, onClose }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const [tocOpen, setTocOpen] = useState<boolean>(readTocPref);
 
-  const hasRelated = relatedMaterials.length > 0;
+  const hasRelated = relatedMaterials.length > 0 || extraItems.length > 0;
 
   // ── 학생 입력칸 답변 ─────────────────────────────────────────────
   // 값은 ref에 두고 각 입력칸이 자기 상태로 들고 있어, 타이핑할 때 본문 전체가 다시 그려지지 않는다.
@@ -457,6 +469,25 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
                 </h2>
                 <p className="text-base text-on-surface-variant font-bold mb-5">선생님이 이 차시에 함께 등록한 자료예요.</p>
                 <div className="space-y-3">
+                  {extraItems.map(it => {
+                    const isQuiz = it.kind === 'quiz';
+                    const tone = isQuiz ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600';
+                    const btnCls = `px-5 py-3 rounded-xl font-black text-sm shrink-0 transition-all ${isQuiz ? 'bg-gradient-to-r from-purple-500 to-violet-600 text-white' : 'bg-blue-600 text-white'}`;
+                    return (
+                      <div key={it.key} className={`flex items-center gap-4 p-4 rounded-2xl border-2 ${it.ready ? (isQuiz ? 'bg-purple-50/50 border-purple-200' : 'bg-blue-50/50 border-blue-200') : 'bg-white border-surface-container'}`}>
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
+                          {isQuiz ? <Gamepad2 size={22} /> : <StickyNote size={22} />}
+                        </div>
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="font-black text-lg leading-snug break-words">{isQuiz ? '퀴즈' : '보드'}: {it.title}</p>
+                          <p className={`text-sm font-bold mt-0.5 ${it.ready ? (isQuiz ? 'text-purple-600' : 'text-blue-600') : 'text-on-surface-variant/60'}`}>{it.note}</p>
+                        </div>
+                        {it.ready && (it.href
+                          ? <a href={it.href} target="_blank" rel="noopener noreferrer" className={btnCls}>열기</a>
+                          : <button onClick={it.onClick} className={btnCls}>참여하기</button>)}
+                      </div>
+                    );
+                  })}
                   {relatedMaterials.map(mat => {
                     const isLink = mat.type === 'link';
                     const href = isLink ? (mat.url?.startsWith('http') ? mat.url : `https://${mat.url}`) : undefined;

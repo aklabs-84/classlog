@@ -72,7 +72,7 @@ import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import RichEditor from '../components/RichEditor';
 import { type ActivityLink } from '../components/ActivityLinksButton';
-import StudentMaterialPage from '../components/StudentMaterialPage';
+import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMaterialPage';
 import { getAiApps, type AiApp } from '../lib/aiApps';
 
 const TOUR_STEPS: TourStep[] = [
@@ -2314,6 +2314,29 @@ ${guidePrompt}
         relatedMaterials={fullscreenMaterial.week != null
           ? (generalMaterials as any[]).filter(g => g.week_number === fullscreenMaterial.week)
           : []}
+        extraItems={(() => {
+          const wk = (classResources as any[]).find(r => r.week === fullscreenMaterial.week);
+          if (!wk) return [];
+          const items: WeekExtraItem[] = [];
+          const q = wk.quiz_set_id ? weekLinks.quizzes.find((x: any) => x.id === wk.quiz_set_id) : null;
+          if (q) {
+            const live = weekActiveQuizzes.find((a: any) => a.quiz_set_id === q.id);
+            items.push({
+              key: `quiz-${q.id}`, kind: 'quiz', title: q.title, ready: !!live,
+              note: live ? '지금 진행 중이에요!' : '아직 시작 전이에요',
+              onClick: live ? () => navigate(`/quiz/${live.pin_code}`, { state: { autoJoinName: session?.student_name } }) : undefined,
+            });
+          }
+          const b = wk.whiteboard_id ? weekLinks.boards.find((x: any) => x.id === wk.whiteboard_id) : null;
+          if (b) {
+            items.push({
+              key: `board-${b.id}`, kind: 'board', title: b.title, ready: !!b.is_public,
+              note: b.is_public ? '눌러서 보드를 열어보세요' : '선생님이 공개하면 열려요',
+              href: b.is_public ? `/sb/${b.id}` : undefined,
+            });
+          }
+          return items;
+        })()}
         onOpenFile={(mat, download) => {
           const full = (generalMaterials as any[]).find(g => g.id === mat.id);
           if (!full?.file_path) return;
