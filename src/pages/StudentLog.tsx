@@ -257,6 +257,11 @@ const StudentLog = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [session, setSession] = useState<any>(null);
+  // 선생님 미리보기 여부 — 입장 때 남긴 표시, 또는 같은 브라우저에 선생님 로그인이 살아 있으면 선생님으로 본다(화면 도구 표시 전용)
+  const [teacherLoggedIn, setTeacherLoggedIn] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setTeacherLoggedIn(!!data.session));
+  }, []);
   const [studentAvatar, setStudentAvatar] = useState<string | null>(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -2271,7 +2276,7 @@ ${guidePrompt}
         content={fullscreenMaterial.content}
         links={fullscreenMaterial.links}
         mdComponents={MATERIAL_MD_COMPONENTS}
-        teacherTools={!!session?.is_teacher}
+        teacherTools={!!session?.is_teacher || teacherLoggedIn}
         answers={fullscreenMaterial.id && session?.token ? {
           load: async () => {
             const { data, error } = await supabase.rpc('student_material_answers_get', { p_token: session.token, p_material_id: fullscreenMaterial.id });

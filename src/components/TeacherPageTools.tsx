@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { ZoomIn, PenTool, Flashlight, Undo2, Highlighter, X as XIcon } from 'lucide-react';
 
 // 선생님이 학생 자료 화면(스크롤되는 한 페이지)을 보며 쓰는 수업 도구 — 돋보기 / 펜 / 스포트라이트.
@@ -12,7 +12,7 @@ const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#1f2937'];
 const ZOOM = 2.2;
 const SPOTLIGHT_RADIUS = 170;
 const SPOTLIGHT_ZOOM = 1.6;
-const DESKTOP_QUERY = '(min-width: 1024px)';
+const DESKTOP_QUERY = '(min-width: 640px)';
 
 interface Props {
   /** 본문이 스크롤되는 영역 (첫 번째 자식이 본문 전체를 감싸는 요소여야 한다) */
@@ -139,36 +139,37 @@ const TeacherPageTools = ({ scrollRef }: Props) => {
       if (!isDesktop) return;
       const t = e.target as HTMLElement;
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
-      if (e.key === 'z' || e.key === 'Z') { selectTool('zoom'); return; }
-      if (e.key === 'p' || e.key === 'P') { selectTool('pen'); return; }
-      if (e.key === 'l' || e.key === 'L') { selectTool('spotlight'); return; }
+      if (e.key === '1' || e.key === 'z' || e.key === 'Z') { selectTool('zoom'); return; }
+      if (e.key === '2' || e.key === 'p' || e.key === 'P') { selectTool('pen'); return; }
+      if (e.key === '3' || e.key === 'l' || e.key === 'L') { selectTool('spotlight'); return; }
       if (e.key === 'Escape' && tool !== 'none') setTool('none');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isDesktop, tool, selectTool]);
 
-  const handleMove = (e: ReactMouseEvent) => {
+  const handleMove = (e: ReactPointerEvent) => {
     if (!rect) return;
     setLensPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const canvasPoint = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+  const canvasPoint = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const r = canvasRef.current!.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
-  const penDown = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+  const penDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     drawingRef.current = true;
     lastPointRef.current = canvasPoint(e);
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* 캡처 실패해도 그리기는 가능 */ }
     try {
       undoStackRef.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
       setCanUndo(true);
     } catch { /* 되돌리기만 못 쓰고 그리기는 계속 */ }
   };
-  const penMove = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+  const penMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current) return;
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !lastPointRef.current) return;
@@ -214,9 +215,9 @@ const TeacherPageTools = ({ scrollRef }: Props) => {
     <>
       {/* 상단 바에 들어가는 도구 버튼 */}
       <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="선생님 수업 도구">
-        <button onClick={() => selectTool('zoom')} title="돋보기 (Z)" style={toolBtnStyle(tool === 'zoom')}><ZoomIn size={18} /></button>
-        <button onClick={() => selectTool('pen')} title="펜 (P)" style={toolBtnStyle(tool === 'pen')}><PenTool size={18} /></button>
-        <button onClick={() => selectTool('spotlight')} title="스포트라이트 (L)" style={toolBtnStyle(tool === 'spotlight')}><Flashlight size={18} /></button>
+        <button onClick={() => selectTool('zoom')} title="돋보기 (1)" style={toolBtnStyle(tool === 'zoom')}><ZoomIn size={18} /></button>
+        <button onClick={() => selectTool('pen')} title="펜 (2)" style={toolBtnStyle(tool === 'pen')}><PenTool size={18} /></button>
+        <button onClick={() => selectTool('spotlight')} title="스포트라이트 (3)" style={toolBtnStyle(tool === 'spotlight')}><Flashlight size={18} /></button>
       </div>
 
       {tool !== 'none' && rect && (
@@ -272,18 +273,20 @@ const TeacherPageTools = ({ scrollRef }: Props) => {
 
           {/* 마우스 추적/그리기용 투명 레이어 (입력칸이 실수로 눌리지 않게 본문 위를 덮는다) */}
           <div
-            style={{ position: 'absolute', inset: 0, zIndex: 40, cursor: tool === 'pen' ? 'crosshair' : 'default' }}
-            onMouseMove={tool === 'zoom' || tool === 'spotlight' ? handleMove : undefined}
-            onMouseLeave={() => setLensPos(null)}
+            style={{ position: 'absolute', inset: 0, zIndex: 40, touchAction: 'none', cursor: tool === 'pen' ? 'crosshair' : 'default' }}
+            onPointerDown={tool === 'zoom' || tool === 'spotlight' ? handleMove : undefined}
+            onPointerMove={tool === 'zoom' || tool === 'spotlight' ? handleMove : undefined}
+            onPointerLeave={() => setLensPos(null)}
             onWheel={forwardWheel}
           >
             <canvas
               ref={canvasRef}
               style={{ width: '100%', height: '100%', pointerEvents: tool === 'pen' ? 'auto' : 'none', touchAction: 'none' }}
-              onMouseDown={tool === 'pen' ? penDown : undefined}
-              onMouseMove={tool === 'pen' ? penMove : undefined}
-              onMouseUp={tool === 'pen' ? penUp : undefined}
-              onMouseLeave={tool === 'pen' ? penUp : undefined}
+              onPointerDown={tool === 'pen' ? penDown : undefined}
+              onPointerMove={tool === 'pen' ? penMove : undefined}
+              onPointerUp={tool === 'pen' ? penUp : undefined}
+              onPointerCancel={tool === 'pen' ? penUp : undefined}
+              onPointerLeave={tool === 'pen' ? penUp : undefined}
               onDragStart={e => e.preventDefault()}
             />
           </div>
