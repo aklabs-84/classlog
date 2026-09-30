@@ -70,6 +70,9 @@ import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
 import PresentationModal from '../components/PresentationModal';
+// AnimatePresence 자식으로 쓸 수 있도록 포탈을 컴포넌트로 감쌈 (createPortal 결과는 유효한 element가 아님)
+const BodyPortal = ({ children }: { children: React.ReactNode }) => createPortal(children, document.body);
+
 const SlideModeView = lazy(() => import('../components/SlideModeView'));
 import type { ActivityLink } from '../components/ActivityLinksButton';
 
@@ -3706,7 +3709,7 @@ const Classroom = () => {
         )}
 
         {isUpdateModalOpen && updateClassData && (
-          createPortal(<div className={`fixed inset-0 z-[500] flex items-center justify-center bg-black/30 backdrop-blur-md ${updateModalFull ? 'p-0 overflow-hidden' : 'p-4 md:p-6 overflow-y-auto'}`} onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
+          <BodyPortal><div className={`fixed inset-0 z-[500] flex items-center justify-center bg-black/30 backdrop-blur-md ${updateModalFull ? 'p-0 overflow-hidden' : 'p-4 md:p-6 overflow-y-auto'}`} onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`w-full bg-white p-8 md:p-10 space-y-8 shadow-2xl border border-neutral-200 ${updateModalFull ? 'max-w-none h-full overflow-y-auto rounded-none md:px-16 lg:px-24 md:py-12' : 'max-w-2xl rounded-[2rem] my-auto'}`} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -4488,7 +4491,7 @@ const Classroom = () => {
                 </div>
               </form>
             </motion.div>
-          </div>, document.body)
+          </div></BodyPortal>
         )}
 
         {classInfo && (
