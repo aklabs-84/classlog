@@ -341,6 +341,9 @@ const StudentLog = () => {
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  // 주차 카드에 함께 보여줄 연결된 퀴즈/보드 + 진행 중인 퀴즈 세션 (DB 함수가 없거나 실패해도 카드는 정상 표시)
+  const [weekLinks, setWeekLinks] = useState<{ quizzes: any[]; boards: any[] }>({ quizzes: [], boards: [] });
+  const [weekActiveQuizzes, setWeekActiveQuizzes] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ id?: string; title: string; content: string; links?: ActivityLink[]; week?: number | null } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
@@ -1020,6 +1023,24 @@ const StudentLog = () => {
       setGeneralMaterials(content?.general || []);
       setEditorMaterials(content?.editor || []);
       setEnabledToolIds((content?.enabled_tools || []) as string[]);
+
+      // 주차에 연결된 퀴즈·보드 (실패해도 자료 표시에는 영향 없음)
+      const quizIds = [...new Set(plan.map(p => p.quiz_set_id).filter(Boolean))];
+      const boardIds = [...new Set(plan.map(p => p.whiteboard_id).filter(Boolean))];
+      if (quizIds.length > 0 || boardIds.length > 0) {
+        try {
+          const { data: links, error: linksError } = await supabase.rpc('student_week_links', {
+            p_token: session.token, p_quiz_ids: quizIds, p_board_ids: boardIds,
+          });
+          if (!linksError && links) setWeekLinks({ quizzes: links.quizzes || [], boards: links.boards || [] });
+          if (quizIds.length > 0) {
+            const { data: active } = await supabase.rpc('student_active_quiz', { p_token: session.token });
+            setWeekActiveQuizzes((active as any[]) || []);
+          }
+        } catch (e) {
+          console.error('Error fetching week links:', e);
+        }
+      }
     } catch (err) {
       console.error('Error fetching resources:', err);
     } finally {
@@ -3383,7 +3404,7 @@ ${guidePrompt}
                   </div>
                 ) : materialsSubTab === 'weekly' ? (() => {
                   // weekly_plan에 자료(material_id 또는 url)가 있는 주차만 필터링
-                  const weeks = (classResources as any[]).filter(r => r.material_id || r.url);
+                  const weeks = (classResources as any[]).filter(r => r.material_id || r.url || r.quiz_set_id || r.whiteboard_id);
                   if (weeks.length === 0) {
                     return (
                       <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
@@ -3396,6 +3417,44 @@ ${guidePrompt}
                   return (
                     <div className="space-y-3">
                       {weeks.map((res: any) => {
+                        // 이 주차에 연결된 퀴즈/보드 (연결 정보가 있을 때만 카드 아래에 표시)
+                        const linkedQuiz = res.quiz_set_id ? weekLinks.quizzes.find((q: any) => q.id === res.quiz_set_id) : null;
+                        const linkedBoard = res.whiteboard_id ? weekLinks.boards.find((b: any) => b.id === res.whiteboard_id) : null;
+                        const liveQuiz = linkedQuiz ? weekActiveQuizzes.find((a: any) => a.quiz_set_id === linkedQuiz.id) : null;
+                        const linkRow = (linkedQuiz || linkedBoard) ? (
+                          <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                            {linkedQuiz && (
+                              liveQuiz ? (
+                                <button
+                                  onClick={() => navigate(`/quiz/${liveQuiz.pin_code}`, { state: { autoJoinName: session?.student_name } })}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 text-white text-xs font-black shadow-sm"
+                                >
+                                  <Play size={12} /> 퀴즈 진행 중 · 참여하기
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-400 text-xs font-black">
+                                  <Gamepad2 size={12} /> 퀴즈: {linkedQuiz.title} · 아직 시작 전이에요
+                                </span>
+                              )
+                            )}
+                            {linkedBoard && (
+                              linkedBoard.is_public ? (
+                                <a
+                                  href={`/sb/${linkedBoard.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-black shadow-sm"
+                                >
+                                  <StickyNote size={12} /> 보드 열기: {linkedBoard.title}
+                                </a>
+                              ) : (
+                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-400 text-xs font-black">
+                                  <StickyNote size={12} /> 보드: {linkedBoard.title} · 선생님이 공개하면 열려요
+                                </span>
+                              )
+                            )}
+                          </div>
+                        ) : null;
                         // material_id가 있으면 에디터 자료 사용
                         const mat = res.material_id
                           ? classMaterials.find(m => m.id === res.material_id)
@@ -3404,8 +3463,8 @@ ${guidePrompt}
                         if (res.material_id && mat) {
                           // ── 에디터 자료 카드 — 클릭 시 바로 전체화면 ──
                           return (
+                            <div key={res.week}>
                             <button
-                              key={res.week}
                               className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-cyan-200 hover:shadow-sm transition-all"
                               onClick={() => {
                                 recordMaterialView(mat.id);
@@ -3421,6 +3480,8 @@ ${guidePrompt}
                               </div>
                               <Maximize2 size={15} className="shrink-0 text-on-surface-variant/50" />
                             </button>
+                            {linkRow}
+                            </div>
                           );
                         }
 
@@ -3428,8 +3489,8 @@ ${guidePrompt}
                         if (res.url) {
                           const href = res.url.startsWith('http') ? res.url : `https://${res.url}`;
                           return (
+                            <div key={res.week}>
                             <a
-                              key={res.week}
                               href={href}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -3446,6 +3507,21 @@ ${guidePrompt}
                               </div>
                               <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
                             </a>
+                            {linkRow}
+                            </div>
+                          );
+                        }
+
+                        // ── 자료 없이 퀴즈/보드만 연결된 주차 ──
+                        if (linkRow) {
+                          return (
+                            <div key={res.week} className="p-4 bg-white rounded-2xl border border-surface-container">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-black shrink-0">{res.week}</div>
+                                <p className="font-black text-base">{res.topic || `${res.week}주차`}</p>
+                              </div>
+                              {linkRow}
+                            </div>
                           );
                         }
 

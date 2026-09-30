@@ -382,6 +382,9 @@ const Classroom = () => {
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
   const [editingClassSurveyForms, setEditingClassSurveyForms] = useState<{ id: string; title: string }[]>([]);
+  // 주차별 계획에 연결할 수 있는 퀴즈 세트 / 화이트보드 (학생 자료 페이지 주차 카드에 함께 표시)
+  const [editingClassQuizSets, setEditingClassQuizSets] = useState<{ id: string; title: string }[]>([]);
+  const [editingClassBoards, setEditingClassBoards] = useState<{ id: string; title: string }[]>([]);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
   // 일반 자료 관리 상태
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
@@ -963,6 +966,22 @@ const Classroom = () => {
       .eq('class_id', c.id)
       .order('created_at', { ascending: false });
     setEditingClassSurveyForms(forms || []);
+    // 연동 학급이면 원본 담임 학급 기준으로 퀴즈·보드가 저장되어 있음
+    const quizBoardClassId = c.linked_class_id || c.id;
+    const { data: quizSets } = await supabase
+      .from('quiz_sets')
+      .select('id, title')
+      .eq('class_id', quizBoardClassId)
+      .order('created_at', { ascending: false });
+    setEditingClassQuizSets(quizSets || []);
+    const { data: boards } = await supabase
+      .from('whiteboards')
+      .select('id, title')
+      .eq('class_id', quizBoardClassId)
+      .is('session_id', null)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false });
+    setEditingClassBoards(boards || []);
   };
 
   const handleToggleClassClosed = async (classId: string, currentIsClosed: boolean) => {
@@ -4235,6 +4254,35 @@ const Classroom = () => {
                                         )}
                                       </div>
                                     )}
+                                  </div>
+
+                                  {/* ── 퀴즈 / 화이트보드 연결 (학생 자료 페이지 주차 카드에 함께 표시) ── */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {([
+                                      { key: 'quiz_set_id', label: '퀴즈 연결', empty: '연결할 퀴즈 없음', options: editingClassQuizSets },
+                                      { key: 'whiteboard_id', label: '화이트보드 연결', empty: '연결할 보드 없음', options: editingClassBoards },
+                                    ] as const).map(f => (
+                                      <div key={f.key} className="space-y-1">
+                                        <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">
+                                          {f.label} {f.options.length === 0 && <span className="normal-case font-bold text-neutral-400">({f.empty})</span>}
+                                        </label>
+                                        <select
+                                          value={item[f.key] || ''}
+                                          disabled={f.options.length === 0 && !item[f.key]}
+                                          onChange={e => {
+                                            const plan = [...updateClassData.weekly_plan];
+                                            plan[idx] = { ...plan[idx], [f.key]: e.target.value };
+                                            if (!e.target.value) delete plan[idx][f.key];
+                                            setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                          }}
+                                          className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold text-neutral-700 disabled:bg-neutral-50 disabled:text-neutral-300"
+                                        >
+                                          <option value="">선택 안 함</option>
+                                          {item[f.key] && !f.options.some(o => o.id === item[f.key]) && <option value={item[f.key]}>(삭제됐거나 다른 학급의 항목)</option>}
+                                          {f.options.map(o => <option key={o.id} value={o.id}>{o.title}</option>)}
+                                        </select>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
                               </div>
