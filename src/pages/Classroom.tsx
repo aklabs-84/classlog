@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
@@ -275,6 +276,13 @@ const Classroom = () => {
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   const [updateModalFull, setUpdateModalFull] = useState(false); // 학급 정보 관리 모달 전체화면 토글
   useEffect(() => { if (!isUpdateModalOpen) setUpdateModalFull(false); }, [isUpdateModalOpen]);
+  // 전체화면일 때 뒤 페이지 스크롤 잠금 (이중 스크롤 방지)
+  useEffect(() => {
+    if (!updateModalFull) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [updateModalFull]);
   const [promptValidation, setPromptValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
   const [isValidatingPrompt, setIsValidatingPrompt] = useState(false);
   const [guideValidation, setGuideValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
@@ -3698,8 +3706,8 @@ const Classroom = () => {
         )}
 
         {isUpdateModalOpen && updateClassData && (
-          <div className={`fixed inset-0 z-[500] flex items-center justify-center bg-black/30 backdrop-blur-md overflow-y-auto ${updateModalFull ? 'p-0' : 'p-4 md:p-6'}`} onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`w-full bg-white p-8 md:p-10 space-y-8 shadow-2xl border border-neutral-200 ${updateModalFull ? 'max-w-none min-h-full rounded-none md:px-16 lg:px-24' : 'max-w-2xl rounded-[2rem] my-auto'}`} onClick={e => e.stopPropagation()}>
+          createPortal(<div className={`fixed inset-0 z-[500] flex items-center justify-center bg-black/30 backdrop-blur-md ${updateModalFull ? 'p-0 overflow-hidden' : 'p-4 md:p-6 overflow-y-auto'}`} onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`w-full bg-white p-8 md:p-10 space-y-8 shadow-2xl border border-neutral-200 ${updateModalFull ? 'max-w-none h-full overflow-y-auto rounded-none md:px-16 lg:px-24 md:py-12' : 'max-w-2xl rounded-[2rem] my-auto'}`} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
@@ -4480,7 +4488,7 @@ const Classroom = () => {
                 </div>
               </form>
             </motion.div>
-          </div>
+          </div>, document.body)
         )}
 
         {classInfo && (
