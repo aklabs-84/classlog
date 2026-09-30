@@ -2328,7 +2328,7 @@ ${guidePrompt}
           },
         } : undefined}
         relatedMaterials={fullscreenMaterial.week != null
-          ? (generalMaterials as any[]).filter(g => g.week_number === fullscreenMaterial.week)
+          ? (generalMaterials as any[]).filter(g => (g.week_numbers && g.week_numbers.length > 0) ? g.week_numbers.includes(fullscreenMaterial.week) : g.week_number === fullscreenMaterial.week)
           : []}
         extraItems={(() => {
           const wk = (classResources as any[]).find(r => r.week === fullscreenMaterial.week);

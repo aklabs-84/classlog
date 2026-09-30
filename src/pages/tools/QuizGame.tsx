@@ -125,6 +125,10 @@ const QuizGame = () => {
   const [gradingDone, setGradingDone] = useState(false);
   const [gradingSaving, setGradingSaving] = useState(false);
 
+  // 종료되지 않은 내 퀴즈 세션 (설정 화면 안내용)
+  const [openSessions, setOpenSessions] = useState<any[]>([]);
+  const [closingSessionId, setClosingSessionId] = useState<string | null>(null);
+
   // UI 뷰
   type View = 'setup' | 'questions' | 'game';
   const [view, setView] = useState<View>('setup');
@@ -217,6 +221,59 @@ const QuizGame = () => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 이 클래스에서 종료되지 않은 내 퀴즈 세션 조회 (종료 깜빡한 세션 확인/정리용)
+  const fetchOpenSessions = useCallback(async (cls: any) => {
+    if (!user || !cls) { setOpenSessions([]); return; }
+    const { data } = await supabase
+      .from('quiz_sessions')
+      .select('id, quiz_set_id, state, pin_code, current_question_index, created_at, updated_at')
+      .eq('teacher_id', user.id)
+      .eq('class_id', resolveClassId(cls))
+      .neq('state', 'FINAL')
+      .order('created_at', { ascending: false });
+    setOpenSessions(data || []);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (view === 'setup') fetchOpenSessions(selectedClass);
+  }, [view, selectedClass?.id, fetchOpenSessions]);
+
+  // 진행 중 세션 종료 — 학생 화면의 "참여하기" 버튼은 다음 갱신(최대 10초)에 사라짐
+  const handleCloseOpenSession = async (id: string) => {
+    setClosingSessionId(id);
+    await supabase.from('quiz_sessions').update({ state: 'FINAL', updated_at: new Date().toISOString() }).eq('id', id);
+    setOpenSessions(prev => prev.filter(x => x.id !== id));
+    setClosingSessionId(null);
+  };
+
+  // 진행 중 세션 이어서 진행 — 세션/문제/참가자를 다시 불러와 게임 화면으로 복귀
+  const handleResumeOpenSession = async (os: any) => {
+    setLoading(true);
+    offsetMsRef.current = await getServerTimeOffsetMs();
+    const [{ data: sess }, { data: qs }, { data: qRows }] = await Promise.all([
+      supabase.from('quiz_sessions').select('*').eq('id', os.id).single(),
+      supabase.from('quiz_sets').select('*').eq('id', os.quiz_set_id).single(),
+      supabase.from('quiz_questions').select('*').eq('quiz_set_id', os.quiz_set_id).order('order_index', { ascending: true }),
+    ]);
+    if (!sess || sess.state === 'FINAL' || !qs) {
+      setLoading(false);
+      fetchOpenSessions(selectedClass);
+      return;
+    }
+    const currentQ = (qRows || [])[sess.current_question_index];
+    const { data: ans } = currentQ
+      ? await supabase.from('quiz_answers').select('*').eq('session_id', sess.id).eq('question_id', currentQ.id)
+      : { data: [] as any[] };
+    setSelectedQuizSet(qs);
+    setQuestions(qRows || []);
+    setSession(sess);
+    setAnswers((ans as Answer[]) || []);
+    await fetchParticipantsFresh(sess.id);
+    subscribeToSession(sess.id);
+    setView('game');
+    setLoading(false);
+  };
 
   const handleToggleAllClasses = async (val: boolean) => {
     setShowAllClasses(val);
@@ -841,6 +898,40 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
             </div>
           </div>
 
+          {/* 종료되지 않은 퀴즈 안내 */}
+          {selectedClass && openSessions.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-amber-600">종료되지 않은 퀴즈 {openSessions.length}개</p>
+              {openSessions.map(os => {
+                const setTitle = quizSets.find(q => q.id === os.quiz_set_id)?.title ?? '퀴즈';
+                const started = new Date(os.created_at);
+                const stale = Date.now() - new Date(os.updated_at || os.created_at).getTime() > 3 * 60 * 60 * 1000;
+                const stateLabel = os.state === 'LOBBY' ? '대기실' : '진행 중';
+                return (
+                  <div key={os.id} className="flex items-center gap-2 px-4 py-3 rounded-xl border border-amber-300/60 bg-amber-50/70">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-on-surface truncate">{setTitle}</p>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {started.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 시작 · {stateLabel}
+                        {stale && <span className="ml-1 text-amber-600 font-bold">· 3시간 넘게 멈춰 있어 학생 화면에서는 숨겨졌습니다</span>}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleResumeOpenSession(os)}
+                      disabled={loading}
+                      className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-black disabled:opacity-40 shrink-0"
+                    >이어서 진행</button>
+                    <button
+                      onClick={() => handleCloseOpenSession(os.id)}
+                      disabled={closingSessionId === os.id}
+                      className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-500 text-xs font-black hover:bg-red-50 disabled:opacity-40 shrink-0"
+                    >{closingSessionId === os.id ? '종료 중…' : '종료'}</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* 퀴즈 세트 선택 + 생성 */}
           <AnimatePresence>
             {selectedClass && (
@@ -878,6 +969,9 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                             <div className="flex items-center gap-2 min-w-0">
                               <BookOpen size={15} className="text-primary/60 group-hover:text-primary transition-colors shrink-0" />
                               <span className="text-sm font-bold text-on-surface truncate">{qs.title}</span>
+                              {openSessions.some(o => o.quiz_set_id === qs.id) && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 font-bold shrink-0">진행 중</span>
+                              )}
                               {otherClassName && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-bold shrink-0">{otherClassName}</span>
                               )}

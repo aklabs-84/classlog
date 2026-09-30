@@ -389,7 +389,7 @@ const Classroom = () => {
   // 일반 자료 관리 상태
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [showAddGeneralForm, setShowAddGeneralForm] = useState(false);
-  const [generalMatForm, setGeneralMatForm] = useState<{ title: string; type: 'link' | 'file'; url: string; file: File | null; week: number | null }>({ title: '', type: 'link', url: '', file: null, week: null });
+  const [generalMatForm, setGeneralMatForm] = useState<{ title: string; type: 'link' | 'file'; url: string; file: File | null; weeks: number[] }>({ title: '', type: 'link', url: '', file: null, weeks: [] });
   const [generalMatUploading, setGeneralMatUploading] = useState(false);
   const [deletingGeneralMatId, setDeletingGeneralMatId] = useState<string | null>(null);
   const [editingGeneralMatId, setEditingGeneralMatId] = useState<string | null>(null);
@@ -2025,7 +2025,7 @@ const Classroom = () => {
       type: m.type,
       url: m.type === 'link' ? (m.url || '') : '',
       file: null,
-      week: m.week_number ?? null,
+      weeks: (m.week_numbers && m.week_numbers.length > 0) ? m.week_numbers : (m.week_number != null ? [m.week_number] : []),
     });
     setShowAddGeneralForm(true);
   };
@@ -2064,7 +2064,8 @@ const Classroom = () => {
         file_path: filePath,
         file_name: fileName,
         file_size: fileSize,
-        week_number: generalMatForm.week,
+        week_numbers: [...generalMatForm.weeks].sort((a, b) => a - b),
+        week_number: generalMatForm.weeks.length > 0 ? Math.min(...generalMatForm.weeks) : null,
       };
 
       if (editingGeneralMatId) {
@@ -2081,7 +2082,7 @@ const Classroom = () => {
       }
 
       await fetchResources(activeClassId);
-      setGeneralMatForm({ title: '', type: 'link', url: '', file: null, week: null });
+      setGeneralMatForm({ title: '', type: 'link', url: '', file: null, weeks: [] });
       setEditingGeneralMatId(null);
       setShowAddGeneralForm(false);
       showToast(editingGeneralMatId ? '자료가 수정되었습니다.' : '자료가 등록되었습니다.');
@@ -2104,7 +2105,7 @@ const Classroom = () => {
       if (editingGeneralMatId === id) {
         setEditingGeneralMatId(null);
         setShowAddGeneralForm(false);
-        setGeneralMatForm({ title: '', type: 'link', url: '', file: null, week: null });
+        setGeneralMatForm({ title: '', type: 'link', url: '', file: null, weeks: [] });
       }
       showToast('자료가 삭제되었습니다.');
     } catch (err) {
@@ -5267,7 +5268,7 @@ const Classroom = () => {
                               setShowAddGeneralForm(false);
                             } else {
                               setEditingGeneralMatId(null);
-                              setGeneralMatForm({ title: '', type: 'link', url: '', file: null, week: null });
+                              setGeneralMatForm({ title: '', type: 'link', url: '', file: null, weeks: [] });
                               setShowAddGeneralForm(true);
                             }
                           }}
@@ -5290,16 +5291,36 @@ const Classroom = () => {
                             onChange={e => setGeneralMatForm(f => ({ ...f, title: e.target.value }))}
                             className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
                           />
-                          <select
-                            value={generalMatForm.week ?? ''}
-                            onChange={e => setGeneralMatForm(f => ({ ...f, week: e.target.value === '' ? null : Number(e.target.value) }))}
-                            className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
-                          >
-                            <option value="">차시 선택 안 함 (일반 자료 탭에만 표시)</option>
-                            {((classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || [])) as any[]).map((w: any) => (
-                              <option key={w.week} value={w.week}>{w.week}차시{w.topic ? ` · ${w.topic}` : ''} 자료에 함께 표시</option>
-                            ))}
-                          </select>
+                          {(() => {
+                            const planList = (classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || [])) as any[];
+                            if (planList.length === 0) return null;
+                            return (
+                              <div className="bg-white border border-neutral-200 rounded-xl p-2">
+                                <div className="flex items-center justify-between px-1 pb-1.5">
+                                  <p className="text-[11px] font-black text-on-surface-variant">표시할 차시 (여러 개 선택 가능 · 선택 안 하면 일반 자료 탭에만 표시)</p>
+                                  {generalMatForm.weeks.length > 0 && (
+                                    <button type="button" onClick={() => setGeneralMatForm(f => ({ ...f, weeks: [] }))} className="text-[10px] font-black text-primary hover:underline shrink-0 ml-2">모두 해제</button>
+                                  )}
+                                </div>
+                                <div className="max-h-44 overflow-y-auto space-y-0.5">
+                                  {planList.map((w: any) => {
+                                    const checked = generalMatForm.weeks.includes(w.week);
+                                    return (
+                                      <label key={w.week} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-bold transition-colors ${checked ? 'bg-primary/10 text-primary' : 'hover:bg-neutral-50'}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => setGeneralMatForm(f => ({ ...f, weeks: checked ? f.weeks.filter(n => n !== w.week) : [...f.weeks, w.week] }))}
+                                          className="accent-primary"
+                                        />
+                                        <span className="truncate">{w.week}차시{w.topic ? ` · ${w.topic}` : ''}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <div className="flex gap-2">
                             <button
                               disabled={!!editingGeneralMatId}
@@ -5355,7 +5376,7 @@ const Classroom = () => {
                           )}
                           <div className="flex gap-2">
                             <button
-                              onClick={() => { setShowAddGeneralForm(false); setEditingGeneralMatId(null); setGeneralMatForm({ title: '', type: 'link', url: '', file: null, week: null }); }}
+                              onClick={() => { setShowAddGeneralForm(false); setEditingGeneralMatId(null); setGeneralMatForm({ title: '', type: 'link', url: '', file: null, weeks: [] }); }}
                               className="flex-1 py-2 rounded-xl text-xs font-black border border-neutral-200 text-neutral-400 hover:bg-neutral-50 transition-all"
                             >취소</button>
                             <button
@@ -5393,7 +5414,10 @@ const Classroom = () => {
                                   >{mat.title}</button>
                                 )}
                                 <p className="text-[10px] text-on-surface-variant/50 truncate">
-                                  {mat.week_number != null && <span className="mr-1.5 px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-700 font-black">{mat.week_number}차시</span>}
+                                  {(() => {
+                                    const ws: number[] = (mat.week_numbers && mat.week_numbers.length > 0) ? mat.week_numbers : (mat.week_number != null ? [mat.week_number] : []);
+                                    return ws.length > 0 ? <span className="mr-1.5 px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-700 font-black">{ws.join('·')}차시</span> : null;
+                                  })()}
                                   {mat.type === 'link' ? mat.url : mat.file_name}
                                 </p>
                               </div>
