@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, GraduationCap, CheckCircle2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, GraduationCap, CheckCircle2, MessageCircle, BookOpen } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
@@ -21,11 +21,16 @@ const TrainingRequest = () => {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [groupSize, setGroupSize] = useState('');
   const [preferredMethod, setPreferredMethod] = useState('video_call');
   const [memo, setMemo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const isVisit = preferredMethod === 'visit';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,7 +40,10 @@ const TrainingRequest = () => {
     const { error } = await supabase.from('training_requests').insert({
       name: name.trim(),
       phone: phone.trim(),
+      email: email.trim(),
       preferred_method: preferredMethod,
+      organization: isVisit ? organization.trim() || null : null,
+      group_size: isVisit && groupSize ? Number(groupSize) : null,
       memo: memo.trim() || null,
       teacher_id: user?.id ?? null,
       source,
@@ -56,7 +64,10 @@ const TrainingRequest = () => {
       body: JSON.stringify({
         name: name.trim(),
         phone: phone.trim(),
+        email: email.trim(),
         preferred_method: preferredMethod,
+        organization: isVisit ? organization.trim() || null : null,
+        group_size: isVisit && groupSize ? Number(groupSize) : null,
         memo: memo.trim() || null,
         source,
       }),
@@ -78,15 +89,33 @@ const TrainingRequest = () => {
             <CheckCircle2 size={40} className="text-indigo-500 mx-auto mb-4" />
             <h1 className="text-xl font-black text-gray-900 mb-2">신청 완료했습니다!</h1>
             <p className="text-sm text-gray-600 leading-relaxed">
-              남겨주신 연락처로 <strong>빠른 시일 내</strong> 연락드려서
+              남겨주신 이메일·연락처로 <strong>빠른 시일 내</strong> 연락드려서
               <br />
               사용법을 편하게 안내해 드릴게요.
+              {preferredMethod === 'material_only' && (
+                <>
+                  <br />
+                  자료만 원하셨다면 아래 가이드를 바로 보실 수 있어요.
+                </>
+              )}
             </p>
+            <a
+              href="/quickstart.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`mt-6 w-full inline-flex items-center justify-center gap-2 rounded-2xl font-black transition-all active:scale-95 ${
+                preferredMethod === 'material_only'
+                  ? 'py-3.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700'
+                  : 'py-3 text-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100'
+              }`}
+            >
+              <BookOpen size={16} /> 처음 30분 시작 가이드 보기
+            </a>
             <a
               href={KAKAO_OPEN_CHAT_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-6 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-[#3c1e1e] bg-[#fee500] hover:brightness-95 transition-all active:scale-95"
+              className="mt-3 w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black text-[#3c1e1e] bg-[#fee500] hover:brightness-95 transition-all active:scale-95"
             >
               <MessageCircle size={16} /> 카카오톡 커뮤니티로 바로 물어보기
             </a>
@@ -146,6 +175,18 @@ const TrainingRequest = () => {
               </div>
 
               <div>
+                <label className="block text-xs font-black text-gray-700 mb-1.5">이메일 *</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-black text-gray-700 mb-1.5">희망하는 안내 방식</label>
                 <select
                   value={preferredMethod}
@@ -159,6 +200,40 @@ const TrainingRequest = () => {
                   ))}
                 </select>
               </div>
+
+              {isVisit && (
+                <div className="space-y-4 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                  <p className="text-xs text-amber-900 leading-relaxed">
+                    <strong>현장 방문 교육은 5명 이상 모였을 때 진행할 수 있어요.</strong> 양해 부탁드려요.
+                    같은 학교나 지역 선생님들과 함께 신청해 주시면 좋고, 혼자 신청하셔도 인원이 모이면 연락드릴게요.
+                    그전에는 화상통화로 먼저 안내해 드릴 수도 있어요.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-black text-gray-700 mb-1.5">학교 / 소속 *</label>
+                    <input
+                      type="text"
+                      required
+                      value={organization}
+                      onChange={(e) => setOrganization(e.target.value)}
+                      placeholder="예: ○○초등학교 / ○○교육지원청"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-gray-700 mb-1.5">함께 들을 인원 (본인 포함, 대략) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={500}
+                      value={groupSize}
+                      onChange={(e) => setGroupSize(e.target.value)}
+                      placeholder="예: 5"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-black text-gray-700 mb-1.5">하고 싶은 말 (선택)</label>

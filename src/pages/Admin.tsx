@@ -185,8 +185,8 @@ interface WaitlistRow {
   notified_at: string | null; created_at: string;
 }
 interface TrainingRequestRow {
-  id: string; name: string; phone: string; preferred_method: string;
-  memo: string | null; notified_at: string | null; created_at: string;
+  id: string; name: string; phone: string; email: string | null; preferred_method: string;
+  source: string | null; organization: string | null; group_size: number | null; memo: string | null; notified_at: string | null; created_at: string;
 }
 
 interface DashboardStats {
@@ -219,6 +219,10 @@ const WAITLIST_PLAN_LABELS: Record<string, string> = {
 };
 const TRAINING_METHOD_LABELS: Record<string, string> = {
   video_call: '화상통화', visit: '방문', kakao: '카카오톡', material_only: '자료만',
+};
+const TRAINING_METHOD_FULL_LABELS: Record<string, string> = {
+  video_call: '화상통화로 안내받기', visit: '학교(현장) 방문 안내',
+  kakao: '카카오톡으로 편하게 문의', material_only: '사용법 자료만 받아보기',
 };
 const OBS_STATUS: Record<string, { label: string; color: string }> = {
   pending:  { label: '대기', color: 'bg-amber-100 text-amber-700' },
@@ -2797,7 +2801,7 @@ const Admin = () => {
                           <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                             t.notified_at ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                           }`}>
-                            {t.notified_at ? '✅ 연락완료' : '🔴 대기'}
+                            {t.notified_at ? '✅ 연락함' : '🔴 연락 전'}
                           </span>
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-black">
                             {TRAINING_METHOD_LABELS[t.preferred_method] || t.preferred_method}
@@ -2805,6 +2809,17 @@ const Admin = () => {
                           <span className="text-[10px] text-amber-400">{new Date(t.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         <p className="font-black text-amber-900">{t.name} · {t.phone}</p>
+                        <div className="mt-2 space-y-0.5 text-xs text-amber-800">
+                          <p><span className="font-black text-amber-500 mr-1.5">이메일</span>{t.email || '-'}</p>
+                          <p><span className="font-black text-amber-500 mr-1.5">희망 방식</span>{TRAINING_METHOD_FULL_LABELS[t.preferred_method] || t.preferred_method}</p>
+                          {t.preferred_method === 'visit' && (
+                            <>
+                              <p><span className="font-black text-amber-500 mr-1.5">소속</span>{t.organization || '-'}</p>
+                              <p><span className="font-black text-amber-500 mr-1.5">인원</span>{t.group_size ? `약 ${t.group_size}명${t.group_size >= 5 ? ' (5명 이상 ✅)' : ' (5명 미만)'}` : '-'}</p>
+                            </>
+                          )}
+                          <p><span className="font-black text-amber-500 mr-1.5">신청 경로</span>{t.source || '-'}</p>
+                        </div>
                         {t.memo && <p className="text-sm text-amber-700 mt-1 leading-relaxed">{t.memo}</p>}
                       </div>
                       <div className="shrink-0 flex items-center gap-2">
@@ -2814,7 +2829,7 @@ const Admin = () => {
                             t.notified_at ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                           }`}
                         >
-                          {t.notified_at ? '연락취소' : '연락완료'}
+                          {t.notified_at ? '연락 전으로 되돌리기' : '연락함으로 표시'}
                         </button>
                         <button onClick={() => setDeleteTarget({ table: 'training_requests', id: t.id, label: `교육신청: ${t.name}` })}
                           className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>

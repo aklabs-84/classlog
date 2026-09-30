@@ -432,7 +432,7 @@ async function handleTrainingRequest(req: any, res: any) {
   const supabaseUrl    = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  const { name, phone, preferred_method, memo, source } = req.body;
+  const { name, phone, email, preferred_method, organization, group_size, memo, source } = req.body;
 
   const METHOD_LABELS: Record<string, string> = {
     video_call: '화상통화로 안내받기',
@@ -453,7 +453,10 @@ async function handleTrainingRequest(req: any, res: any) {
           fields: [
             { type: 'mrkdwn', text: `*이름*\n${name}` },
             { type: 'mrkdwn', text: `*연락처*\n${phone}` },
+            { type: 'mrkdwn', text: `*이메일*\n${email || '-'}` },
             { type: 'mrkdwn', text: `*희망 방식*\n${METHOD_LABELS[preferred_method] || preferred_method}` },
+            ...(organization ? [{ type: 'mrkdwn', text: `*소속*\n${organization}` }] : []),
+            ...(group_size ? [{ type: 'mrkdwn', text: `*인원*\n약 ${group_size}명` }] : []),
           ],
         },
         ...(memo

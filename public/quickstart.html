@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>클래스로그 AI — 처음 30분 시작하기</title>
+  <meta name="description" content="클래스로그 AI를 처음 쓰는 선생님을 위한 한 장짜리 시작 안내" />
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --iris: #5551ff;
+      --iris-dark: #423ed6;
+      --lavender: #e4e9ff;
+      --emerald: #10b981;
+      --emerald-light: #d1fae5;
+      --gray-50: #fafafa;
+      --gray-100: #f1f2f4;
+      --gray-200: #e4e7ed;
+      --gray-600: #666666;
+      --gray-800: #27272b;
+      --amber-light: #fff7e0;
+      --amber-border: #f5d77a;
+    }
+    body {
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+      background: var(--gray-50); color: var(--gray-800); line-height: 1.7; word-break: keep-all;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+    .hero { text-align: center; padding: 32px 0 24px; }
+    .badge { display: inline-block; padding: 6px 14px; border-radius: 999px; background: var(--lavender); color: var(--iris-dark); font-size: 12px; font-weight: 800; margin-bottom: 14px; }
+    h1 { font-size: 28px; font-weight: 900; line-height: 1.35; margin-bottom: 10px; }
+    .lead { color: var(--gray-600); font-size: 15px; }
+    .card { background: #fff; border: 1px solid var(--gray-200); border-radius: 20px; padding: 22px 22px 20px; margin-top: 16px; }
+    .step { display: flex; gap: 14px; align-items: flex-start; }
+    .num { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--iris); color: #fff; font-weight: 900; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .step h2 { font-size: 17px; font-weight: 900; margin-bottom: 4px; }
+    .step p { font-size: 14px; color: #3f3f46; }
+    .step ul { margin: 6px 0 0 18px; font-size: 14px; color: #3f3f46; }
+    .step li { margin-top: 2px; }
+    b { font-weight: 800; }
+    .tip { margin-top: 16px; padding: 14px 16px; background: var(--amber-light); border: 1px solid var(--amber-border); border-radius: 14px; font-size: 13.5px; }
+    .ok { margin-top: 16px; padding: 14px 16px; background: var(--emerald-light); border-radius: 14px; font-size: 13.5px; }
+    .more h2 { font-size: 18px; font-weight: 900; margin-bottom: 4px; }
+    .more p.sub { font-size: 13.5px; color: var(--gray-600); margin-bottom: 14px; }
+    .links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .links a { display: block; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-800); text-decoration: none; transition: all .15s; }
+    .links a:hover { border-color: var(--iris); background: var(--lavender); }
+    .links strong { display: block; font-size: 14.5px; font-weight: 900; }
+    .links span { font-size: 12.5px; color: var(--gray-600); }
+    .contact { margin-top: 16px; text-align: center; font-size: 13.5px; color: var(--gray-600); }
+    .contact a { color: var(--iris-dark); font-weight: 800; }
+    .cta { display: block; margin: 22px auto 0; width: fit-content; padding: 13px 28px; border-radius: 999px; background: var(--iris); color: #fff; text-decoration: none; font-weight: 900; font-size: 15px; }
+    .cta:hover { background: var(--iris-dark); }
+    @media (max-width: 560px) { .links { grid-template-columns: 1fr; } h1 { font-size: 24px; } }
+    @media print { body { background: #fff; } .cta, .links a { break-inside: avoid; } .card { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <span class="badge">처음 오신 선생님을 위한 한 장 안내</span>
+      <h1>클래스로그 AI,<br />처음 30분이면 충분해요</h1>
+      <p class="lead">기록하고, 만들고, 관리한다 — 딱 5단계만 따라 해 보세요.</p>
+    </header>
+
+    <div class="card step">
+      <div class="num">1</div>
+      <div>
+        <h2>Google 계정으로 가입하기</h2>
+        <p>메인 화면에서 <b>Google로 계속하기</b>를 누르고 계정을 선택하면 끝입니다. 승인 대기 없이 바로 무료 플랜으로 시작돼요.</p>
+      </div>
+    </div>
+
+    <div class="card step">
+      <div class="num">2</div>
+      <div>
+        <h2>떠오르는 수업 아이디어 남기기</h2>
+        <p>로그인하면 처음 보이는 <b>아이디어 기록</b> 화면에 오늘 떠오른 수업 아이디어를 가볍게 적어 보세요. 학급이 없어도 저장돼요.</p>
+        <ul>
+          <li>카드의 <b>AI로 발전시키기</b>를 누르면 요약과 진행 순서 초안이 나와요.</li>
+          <li><b>수업 자료로 만들기</b> 또는 <b>슬라이드로 만들기</b>로 바로 이어갈 수 있어요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card step">
+      <div class="num">3</div>
+      <div>
+        <h2>학급 만들고 학생 초대하기</h2>
+        <p>상단 메뉴의 <b>클래스룸</b> → <b>+ 새 클래스 만들기</b>에서 클래스명과 과목을 입력하세요.</p>
+        <ul>
+          <li>학급을 만들면 <b>6자리 입장 코드</b>가 자동으로 생겨요.</li>
+          <li>코드 복사 · QR코드 · 링크 공유 중 편한 방법으로 학생에게 알려 주세요. 학생이 코드를 입력하면 자동으로 등록돼요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card step">
+      <div class="num">4</div>
+      <div>
+        <h2>학생 활동 기록 모으기</h2>
+        <p>학생이 입장 코드로 접속해 활동 제목·내용·느낀 점을 제출하면, 선생님은 확인 후 <b>승인</b> 또는 <b>반려(피드백)</b>를 선택해요.</p>
+        <ul>
+          <li>수업 중 직접 관찰한 내용은 학생 상세 화면의 <b>교사 메모</b>로 남길 수 있어요.</li>
+          <li>승인된 기록과 교사 메모가 다음 단계의 재료가 돼요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card step">
+      <div class="num">5</div>
+      <div>
+        <h2>AI 초안 받아보기</h2>
+        <p>상단 메뉴의 <b>AI 초안</b>에서 학급과 학생을 고르고 <b>세특 초안 생성</b>을 누르면, 승인된 활동 기록을 바탕으로 학생별 초안이 만들어져요. 결과는 검토하고 다듬어서 사용하세요.</p>
+      </div>
+    </div>
+
+    <div class="tip">
+      💡 <b>참고</b> — AI 초안은 승인된 활동 기록이 1개 이상 있어야 만들어져요. 학원·레슨에서는 같은 흐름으로 <b>학부모 보고서</b> 초안을 만들 수 있어요.
+    </div>
+    <div class="ok">
+      🎮 익숙해지면 <b>실시간 퀴즈 · 설문 · 협업 화이트보드 · 수업 자료 에디터 · 슬라이드</b> 같은 수업 도구도 함께 써 보세요. 대화로 만들어 주는 <b>AI 코파일럿</b>은 Basic·Pro 플랜에서 이용할 수 있어요.
+    </div>
+
+    <section class="card more" style="margin-top:24px">
+      <h2>더 알아보기</h2>
+      <p class="sub">궁금한 만큼 골라서 보세요.</p>
+      <div class="links">
+        <a href="/guide.html"><strong>📖 사용 가이드</strong><span>기능별 단계 설명과 자주 묻는 질문</span></a>
+        <a href="/catalog.html"><strong>📦 제품 카탈로그</strong><span>기능과 플랜을 한눈에</span></a>
+        <a href="/stories"><strong>📰 스토리</strong><span>활용 사례와 소식</span></a>
+        <a href="/video-guide"><strong>🎬 영상 가이드</strong><span>화면을 보며 따라 하기</span></a>
+      </div>
+      <p class="contact">
+        막히는 부분이 있으면 편하게 문의해 주세요 ·
+        <a href="mailto:aklabs84@naver.com">aklabs84@naver.com</a> ·
+        <a href="https://open.kakao.com/o/p7ZWBlKi" target="_blank" rel="noopener noreferrer">카카오톡 커뮤니티</a>
+      </p>
+    </section>
+
+    <a class="cta" href="/">클래스로그 AI 시작하기</a>
+  </div>
+</body>
+</html>

@@ -814,6 +814,27 @@ const StudentLog = () => {
     return () => clearInterval(timer);
   }, [session?.class_id]);
 
+  // 주차에 연결된 보드의 공개 여부 — 선생님이 공개하면 새로고침 없이 반영 (10초마다 확인)
+  useEffect(() => {
+    if (!session?.token) return;
+    const plan = (classResources || []) as any[];
+    const boardIds = [...new Set(plan.map(p => p.whiteboard_id).filter(Boolean))];
+    if (boardIds.length === 0) return;
+    const quizIds = [...new Set(plan.map(p => p.quiz_set_id).filter(Boolean))];
+    const refresh = async () => {
+      try {
+        const { data: links, error } = await supabase.rpc('student_week_links', {
+          p_token: session.token, p_quiz_ids: quizIds, p_board_ids: boardIds,
+        });
+        if (!error && links) setWeekLinks({ quizzes: links.quizzes || [], boards: links.boards || [] });
+      } catch (e) {
+        console.error('Error refreshing week links:', e);
+      }
+    };
+    const timer = setInterval(refresh, 10000);
+    return () => clearInterval(timer);
+  }, [session?.token, classResources]);
+
   // 온라인 수업 미팅 Realtime 구독 — 선생님이 등록/종료 시 즉시 반영
   useEffect(() => {
     if (!session?.class_id) return;
