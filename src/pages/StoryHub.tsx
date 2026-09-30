@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { BookOpen, ExternalLink, GraduationCap, LayoutDashboard, LogIn, MessageCircle, Newspaper } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, BookOpen, ExternalLink, GraduationCap, LayoutDashboard, LogIn, MessageCircle, Newspaper } from 'lucide-react';
 import { useAuth, isAnonymousUser } from '../lib/auth';
 import { stories, type Story } from '../data/stories';
 
@@ -16,6 +16,7 @@ const THUMB_GRADIENTS = [
 export default function StoryHub() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isPublicPage = useLocation().pathname === '/stories';
   const isLoggedIn = !!user && !isAnonymousUser(user);
 
   const sorted = [...stories].sort((a, b) => a.order - b.order);
@@ -70,6 +71,14 @@ export default function StoryHub() {
       </nav>
 
       <div className="max-w-3xl mx-auto px-6 py-10">
+        {isPublicPage && (
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-sm text-amber-700 hover:text-amber-900 font-bold mb-6 transition-colors"
+          >
+            <ArrowLeft size={16} /> 메인 페이지로
+          </button>
+        )}
         <div className="mb-8 text-center">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-md mb-4">
             <BookOpen size={28} className="text-white" />

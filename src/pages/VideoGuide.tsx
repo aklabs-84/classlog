@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   PlayCircle, X, ChevronLeft, ChevronRight, Loader2,
   Video, HardDrive, ExternalLink, BookOpen, GraduationCap,
-  LayoutDashboard, LogIn,
+  LayoutDashboard, LogIn, ArrowLeft,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -89,6 +89,12 @@ export default function VideoGuide() {
 
       {/* 본문 */}
       <div className="max-w-5xl mx-auto px-6 py-10">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-sm text-amber-700 hover:text-amber-900 font-bold mb-6 transition-colors"
+        >
+          <ArrowLeft size={16} /> 메인 페이지로
+        </button>
         {/* 헤더 */}
         <div className="mb-8 text-center">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-md mb-4">
