@@ -341,9 +341,8 @@ const StudentLog = () => {
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
-  // 주차 카드에 함께 보여줄 연결된 퀴즈/보드 + 진행 중인 퀴즈 세션 (DB 함수가 없거나 실패해도 카드는 정상 표시)
+  // 주차 카드에 함께 보여줄 연결된 퀴즈/보드 (진행 중 여부는 10초 폴링되는 activeQuizSessions 사용, DB 함수가 없거나 실패해도 카드는 정상 표시)
   const [weekLinks, setWeekLinks] = useState<{ quizzes: any[]; boards: any[] }>({ quizzes: [], boards: [] });
-  const [weekActiveQuizzes, setWeekActiveQuizzes] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ id?: string; title: string; content: string; links?: ActivityLink[]; week?: number | null } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
@@ -1033,10 +1032,6 @@ const StudentLog = () => {
             p_token: session.token, p_quiz_ids: quizIds, p_board_ids: boardIds,
           });
           if (!linksError && links) setWeekLinks({ quizzes: links.quizzes || [], boards: links.boards || [] });
-          if (quizIds.length > 0) {
-            const { data: active } = await supabase.rpc('student_active_quiz', { p_token: session.token });
-            setWeekActiveQuizzes((active as any[]) || []);
-          }
         } catch (e) {
           console.error('Error fetching week links:', e);
         }
@@ -2320,7 +2315,7 @@ ${guidePrompt}
           const items: WeekExtraItem[] = [];
           const q = wk.quiz_set_id ? weekLinks.quizzes.find((x: any) => x.id === wk.quiz_set_id) : null;
           if (q) {
-            const live = weekActiveQuizzes.find((a: any) => a.quiz_set_id === q.id);
+            const live = activeQuizSessions.find((a: any) => a.quiz_set_id === q.id);
             items.push({
               key: `quiz-${q.id}`, kind: 'quiz', title: q.title, ready: !!live,
               note: live ? '지금 진행 중이에요!' : '아직 시작 전이에요',
@@ -3443,7 +3438,7 @@ ${guidePrompt}
                         // 이 주차에 연결된 퀴즈/보드 (연결 정보가 있을 때만 카드 아래에 표시)
                         const linkedQuiz = res.quiz_set_id ? weekLinks.quizzes.find((q: any) => q.id === res.quiz_set_id) : null;
                         const linkedBoard = res.whiteboard_id ? weekLinks.boards.find((b: any) => b.id === res.whiteboard_id) : null;
-                        const liveQuiz = linkedQuiz ? weekActiveQuizzes.find((a: any) => a.quiz_set_id === linkedQuiz.id) : null;
+                        const liveQuiz = linkedQuiz ? activeQuizSessions.find((a: any) => a.quiz_set_id === linkedQuiz.id) : null;
                         const linkRow = (linkedQuiz || linkedBoard) ? (
                           <div className="flex flex-wrap gap-2 mt-2 ml-1">
                             {linkedQuiz && (
