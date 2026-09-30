@@ -46,6 +46,7 @@ const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => 
         class_id: t.class_id,
         student_name: t.student_name,
         token: t.session_token,
+        is_teacher: true,
       }));
       setTeacherName(t.student_name);
       setReady(true);

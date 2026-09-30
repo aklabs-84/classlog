@@ -108,7 +108,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
 
       // 부모(전체) 클래스 자동 생성
       const parentClassPayload: any = {
-        name: `${schoolName.trim() || projectName.trim()} (전체)`,
+        name: `${projectName.trim()} (사업 전체)`,
         subject: projectName.trim(),
         teacher_id: user.id,
         entry_code: generateEntryCode(),

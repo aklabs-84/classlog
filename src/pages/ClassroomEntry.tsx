@@ -134,6 +134,7 @@ const ClassroomEntry = () => {
             subject: data.subject,
             token: t.session_token,
             is_fresh_entry: true,
+            is_teacher: true,
           }));
           navigate('/student-log');
           return;

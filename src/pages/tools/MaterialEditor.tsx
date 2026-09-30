@@ -1962,16 +1962,6 @@ const MaterialEditor = () => {
                       >
                         <Eye size={size} />
                       </button>
-                      {/* 학생이 표·체크박스·밑줄에 적은 답변 보기 (반에 연결된 자료만) */}
-                      {material.class_id && material.content && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setAnswersMaterial(material); }}
-                          title="학생 답변 보기"
-                          className={`${qcls} text-emerald-700 hover:bg-white transition-colors`}
-                        >
-                          <PenLine size={size} />
-                        </button>
-                      )}
       </>
     );
   };
@@ -1979,6 +1969,17 @@ const MaterialEditor = () => {
   // 카드/리스트 보기가 함께 쓰는 자료별 액션 버튼 줄 (공개 전환·복사·폴더 이동·수정·삭제 등)
   const renderMaterialActions = (material: Material, compact = false) => (
                     <div className={compact ? 'flex items-center gap-1' : 'flex items-center gap-1 flex-wrap mt-auto pt-2 border-t border-surface-container'}>
+                      {/* 학생이 표·체크박스·밑줄에 적은 답변 보기 (반에 연결된 자료만) — 마우스를 올리지 않아도 항상 보이게 글자 버튼으로 둔다 */}
+                      {material.class_id && material.content && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setAnswersMaterial(material); }}
+                          title="학생들이 자료에 적은 답변 보기"
+                          className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                        >
+                          <PenLine size={13} />
+                          <span className={compact ? 'hidden md:inline' : ''}>학생 답변</span>
+                        </button>
+                      )}
                       {/* 원본/AI 정리 버전 선택 — 목록 화면에서도 선택해서 볼 수 있게 */}
                       {(material.ai_versions?.length ?? 0) > 0 && (
                         <div className="relative shrink-0">

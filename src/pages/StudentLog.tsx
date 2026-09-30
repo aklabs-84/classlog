@@ -2271,6 +2271,7 @@ ${guidePrompt}
         content={fullscreenMaterial.content}
         links={fullscreenMaterial.links}
         mdComponents={MATERIAL_MD_COMPONENTS}
+        teacherTools={!!session?.is_teacher}
         answers={fullscreenMaterial.id && session?.token ? {
           load: async () => {
             const { data, error } = await supabase.rpc('student_material_answers_get', { p_token: session.token, p_material_id: fullscreenMaterial.id });

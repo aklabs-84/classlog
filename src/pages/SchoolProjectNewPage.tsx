@@ -44,7 +44,7 @@ const SchoolProjectNewPage = () => {
       if (!proj) return;
 
       const parentClassPayload: any = {
-        name: `${schoolName.trim() || projectName.trim()} (전체)`,
+        name: `${projectName.trim()} (사업 전체)`,
         subject: projectName.trim(),
         teacher_id: user.id,
         entry_code: generateEntryCode(),

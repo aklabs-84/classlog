@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
+import TeacherPageTools from './TeacherPageTools';
 
 // 학생용 수업 자료 "한 페이지" 뷰어 — 본문 + 오른쪽 목차(접고 펼치기) + 이 차시에 등록된 일반 자료를
 // 한 화면에서 이어서 볼 수 있게 한다. 목차는 실제 렌더된 화면의 h1/h2에서 뽑아 토글·HTML 제목이
@@ -35,6 +36,8 @@ interface Props {
   relatedMaterials?: RelatedMaterial[];
   answers?: MaterialAnswerConfig;
   onOpenFile?: (mat: RelatedMaterial, download: boolean) => void;
+  /** 선생님 미리보기일 때만 켜는 수업 도구(돋보기·펜·스포트라이트, PC 화면 전용) */
+  teacherTools?: boolean;
   onClose: () => void;
 }
 
@@ -214,7 +217,7 @@ const readTocPref = (): boolean => {
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], answers, onOpenFile, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], answers, onOpenFile, teacherTools = false, onClose }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -423,6 +426,7 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
             {status === 'error' && <><AlertCircle size={15} /> 저장 실패, 다시 시도 중</>}
           </span>
         )}
+        {teacherTools && <TeacherPageTools scrollRef={scrollRef} />}
         <ActivityLinksButton links={links} dark />
         {entries.length > 0 && (
           <button
