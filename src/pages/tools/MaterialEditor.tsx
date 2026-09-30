@@ -1275,10 +1275,13 @@ const MaterialEditor = () => {
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // 에디터를 열 때(신규/수정 진입) 폼 필드가 초기값으로 세팅되면서 발생하는 최초 1회 변경은
   // 자동저장 대상이 아니므로 건너뛰기 위한 플래그
   const autosaveSkipRef = useRef(true);
+  // 대기 중인 자동저장 타이머 / 이번 편집 중 자동저장이 한 번이라도 서버에 반영됐는지 (목록 새로고침 판단용)
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSavedRef = useRef(false);
   // 아직 한 번도 저장되지 않은 새 자료를 생성하는 insert가 수동 저장/자동 저장에서 동시에
   // 일어나면(예: 자동저장 debounce가 막 돌 때 사용자가 저장 버튼을 누른 경우) 같은 내용이
   // 두 번 insert돼 중복 자료가 생긴다. 진행 중인 생성 Promise를 공유해 insert가 한 번만 나가도록 막는다.
@@ -1427,6 +1430,7 @@ const MaterialEditor = () => {
   };
 
   const resetForm = () => {
+    autoSavedRef.current = false;
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
@@ -1715,10 +1719,11 @@ const MaterialEditor = () => {
 
   // ── 자동 저장 ─────────────────────────────────────────────────────────────
   // 수동 저장(handleSave)과 달리 창을 닫거나 폼을 리셋하지 않고, 조용히 DB에만 반영한다.
-  const doAutoSave = async () => {
-    if (saving) return; // 수동 저장이 진행 중이면 충돌 방지를 위해 건너뜀
-    if (!libraryMode && !selectedClass) return;
-    if (!title.trim()) return;
+  // 반환값: 서버 반영에 실패했으면 false (저장할 게 없어 건너뛴 경우는 true)
+  const doAutoSave = async (): Promise<boolean> => {
+    if (saving) return true; // 수동 저장이 진행 중이면 충돌 방지를 위해 건너뜀
+    if (!libraryMode && !selectedClass) return true;
+    if (!title.trim()) return true;
     setAutoSaveStatus('saving');
     try {
       const payload = {
@@ -1735,8 +1740,10 @@ const MaterialEditor = () => {
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
-        const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
+        // select()로 실제 수정된 행이 있는지 확인 — 권한 문제 등으로 0행이 수정돼도 오류가 나지 않기 때문
+        const { data: updated, error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id).select('id');
         if (error) throw error;
+        if (!updated || updated.length === 0) throw new Error('저장된 행이 없습니다');
         syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
         if (libraryMode) {
           const { error: syncError } = await supabase
@@ -1757,10 +1764,35 @@ const MaterialEditor = () => {
             .then(({ error: linkError }) => { if (linkError) console.error('[MaterialEditor] linked_material_id 기록 오류:', linkError); });
         }
       }
+      autoSavedRef.current = true;
       setAutoSaveStatus('saved');
+      return true;
     } catch (err) {
       console.error('[MaterialEditor] autosave error:', err);
-      setAutoSaveStatus('idle');
+      setAutoSaveStatus('error');
+      return false;
+    }
+  };
+
+  // 에디터를 닫고 목록으로 돌아간다. 대기 중인 자동저장이 있으면 먼저 끝내고,
+  // 자동저장으로 바뀐 내용이 목록에 보이도록 목록을 다시 불러온다.
+  const closeEditor = async () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+      const ok = await doAutoSave();
+      if (!ok) {
+        alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.\\n(내용은 아직 화면에 남아 있습니다)');
+        return;
+      }
+    }
+    const needRefresh = autoSavedRef.current;
+    autoSavedRef.current = false;
+    setIsEditorOpen(false);
+    resetForm();
+    if (needRefresh) {
+      if (libraryMode) await fetchLibraryMaterials();
+      else if (selectedClass) await fetchMaterials(selectedClass.id);
     }
   };
 
@@ -1768,8 +1800,9 @@ const MaterialEditor = () => {
   useEffect(() => {
     if (!isEditorOpen) return;
     if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
-    const timer = setTimeout(() => { doAutoSave(); }, 1500);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { autosaveTimerRef.current = null; doAutoSave(); }, 1500);
+    autosaveTimerRef.current = timer;
+    return () => { clearTimeout(timer); if (autosaveTimerRef.current === timer) autosaveTimerRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks]);
 
@@ -2382,7 +2415,7 @@ const MaterialEditor = () => {
       <div className="flex items-center gap-3 flex-wrap">
         {isEditorOpen && (
           <button
-            onClick={() => { setIsEditorOpen(false); resetForm(); }}
+            onClick={closeEditor}
             title={libraryMode ? '공통 자료 목록으로' : '자료 목록으로'}
             className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-black text-xs transition-colors shrink-0"
           >
@@ -2941,10 +2974,10 @@ const MaterialEditor = () => {
             )}
             <div className="flex items-center gap-3 ml-auto shrink-0">
               <button
-                onClick={() => { setIsEditorOpen(false); resetForm(); }}
+                onClick={closeEditor}
                 className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
               >
-                취소
+                닫기
               </button>
               <button
                 onClick={handleSave}
@@ -2966,6 +2999,10 @@ const MaterialEditor = () => {
           {autoSaveStatus === 'saving' ? (
             <span className="text-on-surface-variant flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin" /> 자동 저장 중...
+            </span>
+          ) : autoSaveStatus === 'error' ? (
+            <span className="text-red-600 flex items-center gap-1.5">
+              <Save size={12} /> 저장 실패 — 내용을 수정하면 다시 시도합니다
             </span>
           ) : (
             <span className="text-emerald-600 flex items-center gap-1.5">
