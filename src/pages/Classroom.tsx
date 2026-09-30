@@ -4230,7 +4230,7 @@ const Classroom = () => {
                                         </button>
 
                                         {materialDropdownIdx === idx && editingClassMaterials.length > 0 && (
-                                          <div className="absolute top-full mt-1 left-0 right-0 bg-white rounded-xl shadow-xl border border-neutral-200 z-50 overflow-hidden max-h-48 overflow-y-auto">
+                                          <div className="mt-1 bg-white rounded-xl shadow-md border border-neutral-200 max-h-80 overflow-y-auto">
                                             {editingClassMaterials.map(mat => (
                                               <button
                                                 key={mat.id}

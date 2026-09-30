@@ -466,7 +466,7 @@ const SchoolProjectClassDetailPage = () => {
                                 <ChevronDown size={13} className="text-on-surface-variant/40" />
                               </button>
                               {materialDropdownIdx === idx && materials.length > 0 && (
-                                <div className="absolute top-full mt-1 left-0 right-0 bg-white rounded-xl shadow-xl border border-surface-container-high z-20 overflow-hidden max-h-48 overflow-y-auto">
+                                <div className="mt-1 bg-white rounded-xl shadow-md border border-surface-container-high max-h-80 overflow-y-auto">
                                   {materials.map(mat => (
                                     <button
                                       key={mat.id}
