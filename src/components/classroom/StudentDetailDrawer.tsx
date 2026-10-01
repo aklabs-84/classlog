@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2,
   FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2,
-  Reply, Send, XCircle, MessageCircle, Check, AlertTriangle, PenLine
+  Reply, Send, XCircle, MessageCircle, Check, AlertTriangle, PenLine, Eye
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { downloadFile } from '../../lib/fileUtils';
 import { ImageCarousel, getResultImagePublicUrls } from '../common/ImageCarousel';
+import StudentPreviewModal from './StudentPreviewModal';
 import SubmissionViewerModal, { getViewerKind } from './SubmissionViewerModal';
 
 interface StudentDetailDrawerProps {
@@ -45,6 +46,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
   const [obsContent, setObsContent] = useState('');
   const [savingObs, setSavingObs] = useState(false);
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
+  const [showStudentView, setShowStudentView] = useState(false);
   const navigate = useNavigate();
 
   const handleSaveReply = async (suggestionId: string) => {
@@ -343,6 +345,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                 </button>
               )}
             </div>
+            {fromClassId && studentId && (
+              <button
+                onClick={() => setShowStudentView(true)}
+                className="w-full py-2.5 bg-white border border-neutral-200 text-on-surface-variant rounded-xl text-xs font-black hover:border-primary hover:text-primary transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Eye size={14} /> 학생 화면으로 보기 (반려·피드백 확인)
+              </button>
+            )}
           </header>
 
           {/* Drawer Content */}
@@ -860,6 +870,13 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
       fileUrl={viewerFile?.url || ''}
       fileName={viewerFile?.name || ''}
     />
+    {showStudentView && fromClassId && studentId && (
+      <StudentPreviewModal
+        classId={fromClassId}
+        studentId={studentId}
+        onClose={() => setShowStudentView(false)}
+      />
+    )}
   </>);
 };
 

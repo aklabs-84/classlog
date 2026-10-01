@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 
 interface StudentPreviewModalProps {
   classId: string;
+  studentId?: string;
   onClose: () => void;
 }
 
@@ -20,7 +21,7 @@ const DEVICE_PRESETS: Record<DeviceKey, { label: string; icon: LucideIcon; width
   desktop: { label: 'PC', icon: Monitor, width: 1280, height: '85vh' },
 };
 
-const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => {
+const StudentPreviewModal = ({ classId, studentId, onClose }: StudentPreviewModalProps) => {
   const [reloadTick, setReloadTick] = useState(0);
   const [device, setDevice] = useState<DeviceKey>('mobile');
   const [ready, setReady] = useState(false);
@@ -34,7 +35,9 @@ const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => 
     let cancelled = false;
     previousSessionRef.current = sessionStorage.getItem(SESSION_KEY);
     (async () => {
-      const { data, error: err } = await supabase.rpc('teacher_student_session', { p_class_id: classId });
+      const { data, error: err } = studentId
+        ? await supabase.rpc('teacher_view_student_session', { p_student_id: studentId })
+        : await supabase.rpc('teacher_student_session', { p_class_id: classId });
       const t = Array.isArray(data) ? data[0] : data;
       if (cancelled) return;
       if (err || !t?.session_token) {
@@ -46,7 +49,7 @@ const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => 
         class_id: t.class_id,
         student_name: t.student_name,
         token: t.session_token,
-        is_teacher: true,
+        is_teacher: !studentId,
       }));
       setTeacherName(t.student_name);
       setReady(true);
@@ -59,7 +62,7 @@ const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => 
         sessionStorage.removeItem(SESSION_KEY);
       }
     };
-  }, [classId]);
+  }, [classId, studentId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -85,7 +88,9 @@ const StudentPreviewModal = ({ classId, onClose }: StudentPreviewModalProps) => 
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-surface-container-low/40 shrink-0">
           <span className="flex-1 min-w-0 text-sm font-bold truncate">
-            {teacherName ? `${teacherName}(으)로 미리보기` : '학생 화면 미리보기'}
+            {teacherName
+              ? (studentId ? `${teacherName} 학생 화면 (확인용 · 제출/수정 금지)` : `${teacherName}(으)로 미리보기`)
+              : '학생 화면 미리보기'}
           </span>
 
           <div className="flex items-center gap-0.5 p-0.5 bg-surface-container rounded-full shrink-0">
