@@ -194,6 +194,8 @@ const SchoolProjectSchoolsPage = () => {
   const [newClassCourseId, setNewClassCourseId] = useState('');
   const [newClassCourseName, setNewClassCourseName] = useState('');
   const [courseDraft, setCourseDraft] = useState('');
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  const [editingClassName, setEditingClassName] = useState('');
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingCourseName, setEditingCourseName] = useState('');
   const [courseError, setCourseError] = useState('');
@@ -778,6 +780,16 @@ const SchoolProjectSchoolsPage = () => {
     fetchData();
   };
 
+  const handleRenameClass = async () => {
+    const name = editingClassName.trim();
+    if (!editingClassId || !name) return;
+    setCourseError('');
+    const { error } = await supabase.from('classes').update({ name }).eq('id', editingClassId);
+    if (error) { setCourseError('반 이름을 바꾸지 못했습니다. 다시 시도해주세요.'); return; }
+    setEditingClassId(null);
+    fetchData();
+  };
+
   const handleDeleteCourse = async (course: CourseRow) => {
     if (!confirm(`'${course.name}' 과목을 삭제하시겠습니까? 소속된 반은 삭제되지 않고 "과목 없음"으로 돌아갑니다.`)) return;
     setCourseError('');
@@ -1296,7 +1308,35 @@ const SchoolProjectSchoolsPage = () => {
                             onClick={() => navigate(`/school-projects/${projectId}/schools/${school.id}/classes/${c.id}`)}
                             className="border-b border-surface-container-high last:border-0 hover:bg-surface-container-low/60 cursor-pointer transition-colors"
                           >
-                            <td className="px-4 py-2.5 font-bold">{c.name}</td>
+                            <td className="px-4 py-2.5 font-bold" onClick={editingClassId === c.id ? e => e.stopPropagation() : undefined}>
+                              {editingClassId === c.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    autoFocus
+                                    value={editingClassName}
+                                    onChange={e => setEditingClassName(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleRenameClass();
+                                      if (e.key === 'Escape') setEditingClassId(null);
+                                    }}
+                                    className="w-full min-w-[10rem] px-2 py-1 rounded-lg text-sm font-bold bg-surface-container border border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                  />
+                                  <button onClick={handleRenameClass} className="p-1 text-primary hover:bg-primary/10 rounded" title="저장"><Check size={14} /></button>
+                                  <button onClick={() => setEditingClassId(null)} className="p-1 text-on-surface-variant/60 hover:bg-surface-container-high rounded" title="취소"><X size={14} /></button>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 group">
+                                  {c.name}
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setEditingClassId(c.id); setEditingClassName(c.name); }}
+                                    className="p-1 text-on-surface-variant/40 hover:text-primary rounded"
+                                    title="반 이름 수정"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                               <select
                                 value={c.course_id ?? ''}
