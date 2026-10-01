@@ -835,6 +835,50 @@ const StudentLog = () => {
     return () => clearInterval(timer);
   }, [session?.token, classResources]);
 
+  // 선생님이 주차별 계획·수업 자료를 수정하면 새로고침 없이 반영 — 10초마다 조용히 다시 불러옴
+  // (학생은 토큰 로그인이라 테이블 직접 구독 대신 DB 함수 폴링 사용. 화면이 보일 때만 동작, 복귀 시 즉시 1회)
+  useEffect(() => {
+    if (!session?.token || !session?.class_id) return;
+    const token = session.token;
+    const classId = session.class_id;
+    let cancelled = false;
+    const keep = <T,>(next: T) => (prev: T) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next);
+
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const { data: st } = await supabase.rpc('student_class_settings', { p_token: token, p_class_id: classId });
+        if (cancelled || !st) return;
+        let plan = st.weekly_plan;
+        if (st.parent_class_id && (!plan || plan.length === 0) && st.parent_weekly_plan?.length > 0) plan = st.parent_weekly_plan;
+        if (!Array.isArray(plan) || plan.length === 0) return;
+        setClassResources(keep(plan));
+
+        const planIds = plan.map((p: any) => p.material_id).filter(Boolean);
+        const { data: content, error } = await supabase.rpc('student_class_content', { p_token: token, p_plan_ids: planIds });
+        if (cancelled || error || !content) return;
+        setClassMaterials(keep(content.plan_materials || []));
+        setGeneralMaterials(keep(content.general || []));
+        setEditorMaterials(keep(content.editor || []));
+        setEnabledToolIds(keep((content.enabled_tools || []) as string[]));
+
+        const quizIds = [...new Set(plan.map((p: any) => p.quiz_set_id).filter(Boolean))];
+        const boardIds = [...new Set(plan.map((p: any) => p.whiteboard_id).filter(Boolean))];
+        if (quizIds.length > 0 || boardIds.length > 0) {
+          const { data: links, error: linksError } = await supabase.rpc('student_week_links', { p_token: token, p_quiz_ids: quizIds, p_board_ids: boardIds });
+          if (!cancelled && !linksError && links) setWeekLinks(keep({ quizzes: links.quizzes || [], boards: links.boards || [] }));
+        }
+      } catch (e) {
+        console.error('Error refreshing class content:', e);
+      }
+    };
+
+    const timer = setInterval(refresh, 10000);
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [session?.token, session?.class_id]);
+
   // 온라인 수업 미팅 Realtime 구독 — 선생님이 등록/종료 시 즉시 반영
   useEffect(() => {
     if (!session?.class_id) return;

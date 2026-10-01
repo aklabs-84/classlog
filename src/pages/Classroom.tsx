@@ -4201,6 +4201,23 @@ const Classroom = () => {
                                         <span className="text-sm font-black text-primary flex-1 truncate">
                                           {editingClassMaterials.find(m => m.id === item.material_id)?.title || '선택된 자료'}
                                         </span>
+                                        {(() => {
+                                          const linkedTitle = editingClassMaterials.find(m => m.id === item.material_id)?.title;
+                                          if (!linkedTitle || (item.topic || '').trim() === linkedTitle.trim()) return null;
+                                          return (
+                                            <button
+                                              type="button"
+                                              title="이미 학생 기록이 쌓인 차시라면, 주제를 바꾸면 이전 기록이 이 차시에서 분리될 수 있어요"
+                                              onClick={() => {
+                                                if ((item.topic || '').trim() && !window.confirm('수업 주제를 에디터 제목으로 바꿉니다.\n이미 학생 활동 기록이 쌓인 차시라면, 이전 기록이 이 차시와 연결되지 않을 수 있어요.\n계속할까요?')) return;
+                                                const plan = [...updateClassData.weekly_plan];
+                                                plan[idx].topic = linkedTitle;
+                                                setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                              }}
+                                              className="shrink-0 px-2 py-1 rounded-lg bg-white border border-primary/30 text-[10px] font-black text-primary hover:bg-primary/10 transition-colors"
+                                            >에디터 제목으로 맞추기</button>
+                                          );
+                                        })()}
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -4240,6 +4257,8 @@ const Classroom = () => {
                                                   const plan = [...updateClassData.weekly_plan];
                                                   plan[idx].material_id = mat.id;
                                                   plan[idx].url = '';
+                                                  // 수업 주제가 비어 있을 때만 에디터 제목을 자동 입력 (기존 주제는 활동 기록 매칭에 쓰이므로 덮어쓰지 않음)
+                                                  if (!(plan[idx].topic || '').trim()) plan[idx].topic = mat.title || '';
                                                   setUpdateClassData({ ...updateClassData, weekly_plan: plan });
                                                   setMaterialDropdownIdx(null);
                                                 }}
