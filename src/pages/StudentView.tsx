@@ -205,6 +205,17 @@ const StudentView = () => {
   ), [observations, timelineTab]);
   const timelineTotalPages = Math.max(1, Math.ceil(timelineFiltered.length / TIMELINE_PAGE_SIZE));
 
+  // 사이드바에서 특정 글을 눌러 들어온 경우 — 그 글이 있는 페이지로 한 번만 이동
+  const focusObservationId: string | undefined = locationState?.focusObservationId;
+  const focusHandledRef = useRef(false);
+  useEffect(() => {
+    if (!focusObservationId || focusHandledRef.current || observations.length === 0) return;
+    focusHandledRef.current = true;
+    if (timelineTab !== 'all') { setTimelineTab('all'); }
+    const idx = observations.findIndex(o => o.id === focusObservationId);
+    if (idx >= 0) setTimelinePage(Math.floor(idx / TIMELINE_PAGE_SIZE) + 1);
+  }, [focusObservationId, observations, timelineTab]);
+
   // 주차별 성장 추이 — 관찰기록은 weekly_plan의 활동명 매칭으로, 결과제출은 week_number 컬럼으로 주차를 판별
   const weeklyTrendData = useMemo((): WeeklyTrendPoint[] => {
     const weeklyPlan: { week: number; topic: string }[] = student?.classes?.weekly_plan || [];

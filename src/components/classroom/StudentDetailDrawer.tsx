@@ -263,9 +263,9 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
     }
   };
 
-  const handleNavigateToFullPage = () => {
+  const handleNavigateToFullPage = (focusObservationId?: string) => {
     if (studentId) {
-      navigate(`/student-view/${studentId}`, { state: { fromClassId } });
+      navigate(`/student-view/${studentId}`, { state: { fromClassId, focusObservationId } });
       onClose();
     }
   };
@@ -329,7 +329,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
 
             <div className="flex gap-2">
               <button
-                onClick={handleNavigateToFullPage}
+                onClick={() => handleNavigateToFullPage()}
                 className="flex-1 py-3 bg-on-surface text-surface rounded-xl text-xs font-black hover:bg-primary transition-all shadow-soft active:scale-95 flex items-center justify-center gap-2"
               >
                 <BookOpen size={14} /> 전체 기록실 이동
@@ -391,7 +391,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                 <div className="space-y-4">
                    <div className="flex items-center justify-between">
                      <button
-                       onClick={handleNavigateToFullPage}
+                       onClick={() => handleNavigateToFullPage()}
                        className="flex items-center gap-2 group"
                      >
                        <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
@@ -467,7 +467,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                        {student.observations.slice(0, 3).map((obs: any) => (
                          <div
                            key={obs.id}
-                           onClick={handleNavigateToFullPage}
+                           onClick={() => handleNavigateToFullPage(obs.id)}
                            className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 hover:bg-primary/[0.02] transition-colors cursor-pointer"
                          >
                             <div className="flex items-start justify-between mb-1">
