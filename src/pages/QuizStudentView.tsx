@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { getServerTimeOffsetMs } from '../lib/serverTime';
 import ConfettiEffect from '../components/quiz/ConfettiEffect';
+import { YouTubeEmbed } from '../components/quiz/YouTubeEmbed';
 import { playVictoryFanfare, playRankFanfare, playCompleteSound } from '../lib/quizSound';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,6 +37,10 @@ interface Question {
   explanation?: string;
   question_type: 'multiple_choice' | 'short_answer';
   image_url?: string | null;
+  youtube_id?: string | null;
+  youtube_start?: number | null;
+  youtube_end?: number | null;
+  audio_url?: string | null;
   correct_answers?: string[] | null;
 }
 
@@ -617,6 +622,24 @@ const QuizStudentView = () => {
                           src={currentQuestion.image_url}
                           alt=""
                           className="max-h-64 md:max-h-80 mx-auto rounded-xl object-contain"
+                        />
+                      )}
+                      {currentQuestion.audio_url && (
+                        <audio
+                          key={currentQuestion.id}
+                          controls
+                          preload="metadata"
+                          src={currentQuestion.audio_url}
+                          className="w-full max-w-xl mx-auto"
+                        />
+                      )}
+                      {currentQuestion.youtube_id && (
+                        <YouTubeEmbed
+                          key={currentQuestion.id}
+                          videoId={currentQuestion.youtube_id}
+                          start={currentQuestion.youtube_start}
+                          end={currentQuestion.youtube_end}
+                          className="max-w-xl mx-auto"
                         />
                       )}
                     </div>

@@ -6,7 +6,7 @@ import {
   ClipboardCheck, ChevronDown, Play, Trophy, Users,
   Plus, Trash2, Edit3, Check, X, ChevronRight,
   RefreshCw, BarChart2, Clock, Zap, Crown, Copy, CheckCheck,
-  ArrowRight, ListChecks, BookOpen, Wifi, Image as ImageIcon
+  ArrowRight, ListChecks, BookOpen, Wifi, Image as ImageIcon, Volume2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getServerTimeOffsetMs } from '../../lib/serverTime';
@@ -16,6 +16,8 @@ import ConfettiEffect from '../../components/quiz/ConfettiEffect';
 import { playVictoryFanfare } from '../../lib/quizSound';
 import { useBackdropClose } from '../../hooks/useBackdropClose';
 import { uploadQuizImage } from '../../components/quiz/imageUpload';
+import { YouTubeEmbed, parseYouTubeId } from '../../components/quiz/YouTubeEmbed';
+import { uploadQuizAudio } from '../../components/quiz/audioUpload';
 import AiCreditCost from '../../components/common/AiCreditCost';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,6 +44,10 @@ interface Question {
   explanation?: string;
   question_type: 'multiple_choice' | 'short_answer';
   image_url?: string | null;
+  youtube_id?: string | null;
+  youtube_start?: number | null;
+  youtube_end?: number | null;
+  audio_url?: string | null;
   correct_answers?: string[] | null;
 }
 
@@ -420,6 +426,8 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
     const { text, option_1, option_2, option_3, option_4 } = editingQuestion;
     const isShortAnswer = editingQuestion.question_type === 'short_answer';
     if (!text?.trim()) return;
+    const { youtube_id: yId, youtube_start: yS, youtube_end: yE } = editingQuestion;
+    if (yId && yS && yE && yE <= yS) return;
     if (isShortAnswer) {
       const answers = (editingQuestion.correct_answers ?? []).map(a => a.trim()).filter(Boolean);
       if (answers.length === 0) return;
@@ -440,6 +448,10 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
         ? (editingQuestion.correct_answers ?? []).map(a => a.trim()).filter(Boolean)
         : null,
       image_url: editingQuestion.image_url || null,
+      audio_url: editingQuestion.audio_url || null,
+      youtube_id: editingQuestion.youtube_id || null,
+      youtube_start: editingQuestion.youtube_id ? (editingQuestion.youtube_start || null) : null,
+      youtube_end: editingQuestion.youtube_id ? (editingQuestion.youtube_end || null) : null,
       time_limit: editingQuestion.time_limit ?? 20,
       explanation: editingQuestion.explanation?.trim() || null,
     };
@@ -1215,6 +1227,12 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                 {q.image_url && (
                   <img src={q.image_url} alt="문제 이미지" className="w-full max-h-40 object-cover rounded-xl" />
                 )}
+                {q.audio_url && (
+                  <p className="text-xs font-bold text-primary">🔊 오디오 포함</p>
+                )}
+                {q.youtube_id && (
+                  <p className="text-xs font-bold text-red-500">▶ 유튜브 영상 포함{q.youtube_start || q.youtube_end ? ` (${q.youtube_start ?? 0}초~${q.youtube_end ? `${q.youtube_end}초` : '끝'})` : ''}</p>
+                )}
                 {q.question_type === 'short_answer' ? (
                   <div className="flex flex-wrap gap-1.5">
                     {(q.correct_answers ?? []).map((a, idx) => (
@@ -1443,6 +1461,18 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
               </div>
               {currentQuestion.image_url && (
                 <img src={currentQuestion.image_url} alt="문제 이미지" className="w-full max-h-64 object-contain rounded-2xl bg-surface-container-low/50" />
+              )}
+              {currentQuestion.audio_url && (
+                <audio key={currentQuestion.id} controls preload="metadata" src={currentQuestion.audio_url} className="w-full max-w-xl mx-auto" />
+              )}
+              {currentQuestion.youtube_id && (
+                <YouTubeEmbed
+                  key={currentQuestion.id}
+                  videoId={currentQuestion.youtube_id}
+                  start={currentQuestion.youtube_start}
+                  end={currentQuestion.youtube_end}
+                  className="max-w-xl mx-auto"
+                />
               )}
               {currentQuestion.question_type === 'short_answer' ? (
                 <div className="flex items-center justify-center gap-2 py-6 rounded-xl border border-white/40 bg-surface-container-low/50">
@@ -1808,8 +1838,38 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
   const backdropHandlers = useBackdropClose(onClose);
   const [uploading, setUploading] = useState(false);
   const [newAnswerText, setNewAnswerText] = useState('');
+  const [ytInput, setYtInput] = useState('');
+  const [ytError, setYtError] = useState(false);
+  const [audioUploading, setAudioUploading] = useState(false);
+  const [audioError, setAudioError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const isShortAnswer = question.question_type === 'short_answer';
+  const ytRangeInvalid = !!(question.youtube_start && question.youtube_end && question.youtube_end <= question.youtube_start);
+
+  const handleAudioSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAudioError('');
+    setAudioUploading(true);
+    const res = await uploadQuizAudio(file);
+    if (res.ok) onChange({ ...question, audio_url: res.url });
+    else setAudioError(
+      res.reason === 'type' ? 'mp3, m4a, aac, wav 파일만 올릴 수 있습니다.'
+      : res.reason === 'size' ? '파일이 5MB를 넘습니다. 더 짧게 잘라서 올려 주세요.'
+      : '업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+    );
+    setAudioUploading(false);
+    if (audioInputRef.current) audioInputRef.current.value = '';
+  };
+
+  const applyYoutubeLink = () => {
+    const id = parseYouTubeId(ytInput);
+    if (!id) { setYtError(true); return; }
+    setYtError(false);
+    setYtInput('');
+    onChange({ ...question, youtube_id: id });
+  };
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1923,6 +1983,98 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
               </button>
             )}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+          </div>
+
+          {/* 오디오 파일 (선택) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">
+              오디오 파일 <span className="font-normal text-on-surface-variant/60">(선택 · mp3/m4a/aac/wav · 5MB 이하)</span>
+            </label>
+            {question.audio_url ? (
+              <div className="flex items-center gap-2">
+                <audio controls preload="metadata" src={question.audio_url} className="flex-1 min-w-0 h-10" />
+                <button
+                  onClick={() => onChange({ ...question, audio_url: null })}
+                  className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-lg transition-all"
+                  aria-label="오디오 삭제"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => audioInputRef.current?.click()}
+                disabled={audioUploading}
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-surface-container-high text-on-surface-variant hover:border-primary/40 transition-all text-sm font-bold disabled:opacity-50"
+              >
+                {audioUploading ? (
+                  <><RefreshCw size={16} className="animate-spin" /> 업로드 중...</>
+                ) : (
+                  <><Volume2 size={16} /> 오디오 업로드</>
+                )}
+              </button>
+            )}
+            {audioError && <p className="text-xs font-bold text-red-500">{audioError}</p>}
+            <input ref={audioInputRef} type="file" accept=".mp3,.m4a,.aac,.wav,audio/*" onChange={handleAudioSelect} className="hidden" />
+          </div>
+
+          {/* 유튜브 영상 (선택) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">
+              유튜브 영상 <span className="font-normal text-on-surface-variant/60">(선택 · 학생이 자기 화면에서 직접 재생)</span>
+            </label>
+            {question.youtube_id ? (
+              <div className="space-y-2">
+                <div className="relative">
+                  <YouTubeEmbed videoId={question.youtube_id} start={question.youtube_start} end={question.youtube_end} />
+                  <button
+                    onClick={() => onChange({ ...question, youtube_id: null, youtube_start: null, youtube_end: null })}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg transition-all z-10"
+                    aria-label="영상 삭제"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold text-on-surface-variant">
+                  <span>재생 구간(초)</span>
+                  <input
+                    type="number" min={0} placeholder="시작"
+                    value={question.youtube_start ?? ''}
+                    onChange={e => onChange({ ...question, youtube_start: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    className="w-20 px-2 py-1.5 rounded-lg border border-surface-container-high bg-white/60 text-sm"
+                  />
+                  <span>~</span>
+                  <input
+                    type="number" min={0} placeholder="끝"
+                    value={question.youtube_end ?? ''}
+                    onChange={e => onChange({ ...question, youtube_end: e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    className="w-20 px-2 py-1.5 rounded-lg border border-surface-container-high bg-white/60 text-sm"
+                  />
+                  <span className="font-normal text-on-surface-variant/60">비우면 전체</span>
+                </div>
+                {ytRangeInvalid && <p className="text-xs font-bold text-red-500">끝 시간은 시작 시간보다 커야 합니다.</p>}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex gap-2">
+                  <input
+                    value={ytInput}
+                    onChange={e => { setYtInput(e.target.value); setYtError(false); }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyYoutubeLink(); } }}
+                    placeholder="유튜브 링크 붙여넣기"
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-surface-container-high bg-white/60 text-sm"
+                  />
+                  <button
+                    onClick={applyYoutubeLink}
+                    disabled={!ytInput.trim()}
+                    className="px-4 py-2.5 rounded-xl btn-vibrant text-sm font-black disabled:opacity-40"
+                  >
+                    추가
+                  </button>
+                </div>
+                {ytError && <p className="text-xs font-bold text-red-500">올바른 유튜브 링크가 아닙니다.</p>}
+              </div>
+            )}
           </div>
 
           {/* 선택지 / 정답 */}
