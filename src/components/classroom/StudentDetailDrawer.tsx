@@ -498,9 +498,9 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                   {obs.status !== 'rejected' && rejectingObsId !== obs.id && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setRejectingObsId(obs.id); setObsFeedback(''); }}
-                                      className="flex items-center gap-1 text-xs font-black text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md hover:bg-red-100 transition-all"
+                                      className="flex items-center gap-1 text-xs font-bold text-neutral-500 bg-white border border-neutral-300 px-1.5 py-0.5 rounded-md hover:bg-neutral-50 hover:text-neutral-700 transition-all"
                                     >
-                                      <XCircle size={9} /> 반려+피드백
+                                      <XCircle size={9} /> 반려하기
                                     </button>
                                   )}
                                 </div>
