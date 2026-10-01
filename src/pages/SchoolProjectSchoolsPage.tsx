@@ -90,8 +90,16 @@ interface SchoolRow {
   teacherCount: number;
   unassignedCount: number;
   studentCount: number;
-  classes: { id: string; name: string; entry_code: string; assigned_teacher_id: string | null; teacherName: string | null; studentCount: number }[];
+  classes: { id: string; name: string; entry_code: string; assigned_teacher_id: string | null; teacherName: string | null; studentCount: number; course_id: string | null }[];
 }
+
+// 같은 수업을 여러 선생님이 각자 반으로 진행할 때 묶는 이름표(사업 단위 → 학교가 달라도 합산 가능)
+interface CourseRow {
+  id: string;
+  name: string;
+}
+
+const NEW_COURSE = '__new__';
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   active: { label: '진행 중', className: 'bg-green-100 text-green-600' },
@@ -182,6 +190,13 @@ const SchoolProjectSchoolsPage = () => {
   const [newClassName, setNewClassName] = useState('');
   const [newClassSchoolId, setNewClassSchoolId] = useState('');
   const [savingClass, setSavingClass] = useState(false);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [newClassCourseId, setNewClassCourseId] = useState('');
+  const [newClassCourseName, setNewClassCourseName] = useState('');
+  const [courseDraft, setCourseDraft] = useState('');
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editingCourseName, setEditingCourseName] = useState('');
+  const [courseError, setCourseError] = useState('');
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
   const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
   const [projectTeachers, setProjectTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null; school_code?: string | null }[]>([]);
@@ -474,6 +489,14 @@ const SchoolProjectSchoolsPage = () => {
         .single();
       setProgram(proj || null);
 
+      const { data: courseRows } = await supabase
+        .from('school_project_courses')
+        .select('id, name')
+        .eq('project_id', projectId)
+        .order('sort_order')
+        .order('created_at');
+      setCourses(courseRows || []);
+
       const { data: subProjects } = await supabase
         .from('school_projects')
         .select('id, name, school_name, region, status, entry_code, created_at')
@@ -489,7 +512,7 @@ const SchoolProjectSchoolsPage = () => {
 
       const { data: allClasses } = await supabase
         .from('classes')
-        .select('id, name, entry_code, school_project_id, parent_class_id, assigned_teacher_id')
+        .select('id, name, entry_code, school_project_id, parent_class_id, assigned_teacher_id, course_id')
         .in('school_project_id', schoolIds);
 
       const teachingClasses = (allClasses || []).filter(c => c.parent_class_id !== null);
@@ -537,6 +560,7 @@ const SchoolProjectSchoolsPage = () => {
             assigned_teacher_id: c.assigned_teacher_id,
             teacherName: c.assigned_teacher_id ? (teacherMap[c.assigned_teacher_id] || null) : null,
             studentCount: studentCountByClass[c.id] || 0,
+            course_id: c.course_id ?? null,
           })),
         };
       });
@@ -696,22 +720,78 @@ const SchoolProjectSchoolsPage = () => {
   const handleAddClass = async () => {
     const targetSchool = schools.find(s => s.id === newClassSchoolId);
     if (!newClassName.trim() || !user || !targetSchool?.rootClassId || !program) return;
+    if (newClassCourseId === NEW_COURSE && !newClassCourseName.trim()) return;
     setSavingClass(true);
+    setCourseError('');
     try {
-      await supabase.from('classes').insert({
+      let courseId: string | null = newClassCourseId || null;
+      if (newClassCourseId === NEW_COURSE) {
+        courseId = await createCourse(newClassCourseName);
+        if (!courseId) return;
+      }
+      const { error } = await supabase.from('classes').insert({
         name: newClassName.trim(),
         subject: program.name,
         teacher_id: user.id,
         entry_code: generateEntryCode(),
         school_project_id: newClassSchoolId,
         parent_class_id: targetSchool.rootClassId,
+        course_id: courseId,
       });
+      if (error) { setCourseError('반을 추가하지 못했습니다. 다시 시도해주세요.'); return; }
       setNewClassName('');
+      setNewClassCourseId('');
+      setNewClassCourseName('');
       setAddClassOpen(false);
       fetchData();
     } finally {
       setSavingClass(false);
     }
+  };
+
+  // 과목 이름표 만들기 (성공하면 새 과목 id, 실패하면 null)
+  const createCourse = async (rawName: string): Promise<string | null> => {
+    const name = rawName.trim();
+    if (!name || !projectId) return null;
+    const { data, error } = await supabase
+      .from('school_project_courses')
+      .insert({ project_id: projectId, name, sort_order: courses.length })
+      .select('id')
+      .single();
+    if (error || !data) { setCourseError('과목을 만들지 못했습니다. 다시 시도해주세요.'); return null; }
+    return data.id as string;
+  };
+
+  const handleAddCourse = async () => {
+    setCourseError('');
+    const id = await createCourse(courseDraft);
+    if (id) { setCourseDraft(''); fetchData(); }
+  };
+
+  const handleRenameCourse = async () => {
+    const name = editingCourseName.trim();
+    if (!editingCourseId || !name) return;
+    setCourseError('');
+    const { error } = await supabase.from('school_project_courses').update({ name }).eq('id', editingCourseId);
+    if (error) { setCourseError('과목 이름을 바꾸지 못했습니다. 다시 시도해주세요.'); return; }
+    setEditingCourseId(null);
+    fetchData();
+  };
+
+  const handleDeleteCourse = async (course: CourseRow) => {
+    if (!confirm(`'${course.name}' 과목을 삭제하시겠습니까? 소속된 반은 삭제되지 않고 "과목 없음"으로 돌아갑니다.`)) return;
+    setCourseError('');
+    const { error } = await supabase.from('school_project_courses').delete().eq('id', course.id);
+    if (error) { setCourseError('과목을 삭제하지 못했습니다. 다시 시도해주세요.'); return; }
+    fetchData();
+  };
+
+  // 이미 만든 반을 다른 과목으로 옮기기 (값이 비면 "과목 없음")
+  const handleChangeClassCourse = async (classId: string, courseId: string) => {
+    setCourseError('');
+    const { error } = await supabase.from('classes').update({ course_id: courseId || null }).eq('id', classId);
+    if (error) { setCourseError('반의 과목을 바꾸지 못했습니다. 다시 시도해주세요.'); return; }
+    fetchData();
   };
 
   const handleAssignTeacher = async (teacherId: string, classId: string, school: SchoolRow) => {
@@ -1103,12 +1183,77 @@ const SchoolProjectSchoolsPage = () => {
               이 사업의 모든 학교에 걸쳐 반을 만들고 담당 강사를 배정합니다. 강사에게는 참가코드를 전달하거나, 직접 강사를 검색해 배정할 수 있습니다.
             </p>
             <button
-              onClick={() => { setNewClassSchoolId(schools[0]?.id || ''); setAddClassOpen(true); }}
+              onClick={() => { setNewClassSchoolId(schools[0]?.id || ''); setNewClassCourseId(''); setNewClassCourseName(''); setCourseError(''); setAddClassOpen(true); }}
               disabled={schools.length === 0}
               className="flex items-center gap-1.5 text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-40 px-4 py-2.5 rounded-xl transition-all shrink-0"
             >
               <Plus size={16} /> 반 추가
             </button>
+          </div>
+
+          <div className="surface-card border border-surface-container-high p-4 space-y-3">
+            <div>
+              <p className="text-sm font-bold">과목 묶음</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">
+                같은 수업을 여러 선생님이 각자의 반으로 진행할 때 과목으로 묶어 두면, 학교가 달라도 출석과 과제 제출을 한꺼번에 합산해서 볼 수 있습니다.
+              </p>
+            </div>
+            {courses.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {courses.map(course => {
+                  const count = schools.reduce((n, s) => n + s.classes.filter(c => c.course_id === course.id).length, 0);
+                  return editingCourseId === course.id ? (
+                    <div key={course.id} className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={editingCourseName}
+                        onChange={e => setEditingCourseName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRenameCourse(); if (e.key === 'Escape') setEditingCourseId(null); }}
+                        className="px-3 py-1.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      <button onClick={handleRenameCourse} disabled={!editingCourseName.trim()} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 disabled:opacity-40" title="저장">
+                        <Check size={14} />
+                      </button>
+                      <button onClick={() => setEditingCourseId(null)} className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high" title="취소">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span key={course.id} className="flex items-center gap-1.5 text-sm font-bold bg-primary/10 text-primary pl-3 pr-1.5 py-1 rounded-full">
+                      {course.name}
+                      <span className="text-[10px] font-black opacity-70">{count}개 반</span>
+                      <button
+                        onClick={() => { setEditingCourseId(course.id); setEditingCourseName(course.name); }}
+                        title="이름 바꾸기"
+                        className="p-1 rounded-full hover:bg-primary/15"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button onClick={() => handleDeleteCourse(course)} title="과목 삭제" className="p-1 rounded-full hover:bg-red-100 hover:text-red-500">
+                        <Trash2 size={11} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                value={courseDraft}
+                onChange={e => setCourseDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddCourse(); }}
+                placeholder="새 과목 이름 (예: 해양 생물을 지키는 AI 만들기)"
+                className="flex-1 min-w-0 px-3 py-2 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                onClick={handleAddCourse}
+                disabled={!courseDraft.trim()}
+                className="flex items-center gap-1 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/15 disabled:opacity-40 px-3 py-2 rounded-xl transition-all shrink-0"
+              >
+                <Plus size={14} /> 과목 추가
+              </button>
+            </div>
+            {courseError && <p className="text-xs font-bold text-red-500">{courseError}</p>}
           </div>
 
           {schools.every(s => s.classes.length === 0) ? (
@@ -1137,6 +1282,7 @@ const SchoolProjectSchoolsPage = () => {
                       <thead>
                         <tr className="border-b border-surface-container-high text-left text-xs text-on-surface-variant/70">
                           <th className="px-4 py-2.5 font-bold">반 이름</th>
+                          <th className="px-4 py-2.5 font-bold">과목</th>
                           <th className="px-4 py-2.5 font-bold">담당 강사</th>
                           <th className="px-4 py-2.5 font-bold">참가코드</th>
                           <th className="px-4 py-2.5 font-bold text-right">학생</th>
@@ -1151,6 +1297,18 @@ const SchoolProjectSchoolsPage = () => {
                             className="border-b border-surface-container-high last:border-0 hover:bg-surface-container-low/60 cursor-pointer transition-colors"
                           >
                             <td className="px-4 py-2.5 font-bold">{c.name}</td>
+                            <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                              <select
+                                value={c.course_id ?? ''}
+                                onChange={e => handleChangeClassCourse(c.id, e.target.value)}
+                                disabled={courses.length === 0}
+                                title={courses.length === 0 ? '위에서 과목을 먼저 추가해주세요' : undefined}
+                                className="max-w-[11rem] px-2 py-1 rounded-lg text-xs font-bold bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+                              >
+                                <option value="">과목 없음</option>
+                                {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+                              </select>
+                            </td>
                             <td className="px-4 py-2.5">
                               <button
                                 onClick={e => { e.stopPropagation(); setAssigningClassId(c.id); }}
@@ -1776,6 +1934,28 @@ const SchoolProjectSchoolsPage = () => {
                   className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
+              <div>
+                <label className="text-xs font-bold text-on-surface-variant">과목 (선택)</label>
+                <select
+                  value={newClassCourseId}
+                  onChange={e => setNewClassCourseId(e.target.value)}
+                  className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">과목 없음</option>
+                  {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+                  <option value={NEW_COURSE}>+ 새 과목 만들기</option>
+                </select>
+                {newClassCourseId === NEW_COURSE && (
+                  <input
+                    type="text"
+                    value={newClassCourseName}
+                    onChange={e => setNewClassCourseName(e.target.value)}
+                    placeholder="새 과목 이름"
+                    className="w-full mt-2 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                )}
+              </div>
+              {courseError && <p className="text-xs font-bold text-red-500">{courseError}</p>}
             </div>
             <div className="flex gap-2 mt-5">
               <button
@@ -1787,7 +1967,7 @@ const SchoolProjectSchoolsPage = () => {
               </button>
               <button
                 onClick={handleAddClass}
-                disabled={savingClass || !newClassName.trim() || !newClassSchoolId}
+                disabled={savingClass || !newClassName.trim() || !newClassSchoolId || (newClassCourseId === NEW_COURSE && !newClassCourseName.trim())}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all"
               >
                 {savingClass ? '추가 중...' : '추가'}

@@ -50,6 +50,52 @@ export async function fetchProjectSummaryStats(projectId: string): Promise<Proje
   return { schools: d.schools ?? [], weekly: d.weekly ?? [] };
 }
 
+// ── 과목별 합산 (get_project_course_stats) ──
+// course_id가 null인 줄은 "과목에 안 넣은 반" 묶음이다.
+
+export interface CourseStatRow extends AttendanceCounts {
+  course_id: string | null;
+  name: string | null;
+  sort_order: number;
+  class_count: number;
+  teacher_count: number;
+  student_count: number;
+  session_days: number;
+  result_count: number;
+  result_student_count: number;
+}
+
+export interface CourseClassRow extends AttendanceCounts {
+  course_id: string | null;
+  class_id: string;
+  class_name: string;
+  school_name: string;
+  teacher_id: string | null;
+  student_count: number;
+  session_days: number;
+  result_count: number;
+  result_student_count: number;
+}
+
+export interface CourseWeeklyRow {
+  course_id: string | null;
+  week_number: number;
+  cnt: number;
+}
+
+export interface ProjectCourseStats {
+  courses: CourseStatRow[];
+  classes: CourseClassRow[];
+  weekly: CourseWeeklyRow[];
+}
+
+export async function fetchProjectCourseStats(projectId: string): Promise<ProjectCourseStats> {
+  const { data, error } = await supabase.rpc('get_project_course_stats', { p_project_id: projectId });
+  if (error) throw error;
+  const d = (data ?? {}) as Partial<ProjectCourseStats>;
+  return { courses: d.courses ?? [], classes: d.classes ?? [], weekly: d.weekly ?? [] };
+}
+
 // ── 출석률 ──
 // (출석+지각+조퇴) ÷ (전체 − 공결). 분모가 0이면 null(기록 없음).
 // 공결은 분모에서 뺀다. 기관이 기준을 바꿔 다시 계산할 수 있도록 건수는 화면에 그대로 보여준다.
