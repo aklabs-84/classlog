@@ -826,6 +826,29 @@ const QuizStudentView = () => {
                         <p className="text-amber-100 text-sm font-bold leading-relaxed">{currentQuestion.explanation}</p>
                       </motion.div>
                     )}
+                    {/* 문제에 쓴 오디오·영상 다시 보기 (해설과 함께 확인) */}
+                    {(currentQuestion.audio_url || currentQuestion.youtube_id) && (
+                      <div className="bg-white/10 rounded-2xl p-4 border border-white/15 space-y-3">
+                        <p className="text-white/60 text-xs font-black">문제 자료 다시 보기</p>
+                        {currentQuestion.audio_url && (
+                          <audio
+                            key={`r-${currentQuestion.id}`}
+                            controls
+                            preload="metadata"
+                            src={currentQuestion.audio_url}
+                            className="w-full"
+                          />
+                        )}
+                        {currentQuestion.youtube_id && (
+                          <YouTubeEmbed
+                            key={`r-${currentQuestion.id}`}
+                            videoId={currentQuestion.youtube_id}
+                            start={currentQuestion.youtube_start}
+                            end={currentQuestion.youtube_end}
+                          />
+                        )}
+                      </div>
+                    )}
                     {/* 누적 점수는 항상 표시 — 이번 획득과 분리되어 혼동 없음 */}
                     <div className="bg-white/10 rounded-2xl p-4 border border-white/15 flex items-center justify-between">
                       <span className="text-white/70 text-sm font-bold">누적 점수</span>

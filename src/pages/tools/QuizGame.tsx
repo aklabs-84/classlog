@@ -1519,6 +1519,18 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
               {currentQuestion.image_url && (
                 <img src={currentQuestion.image_url} alt="문제 이미지" className="w-full max-h-64 object-contain rounded-2xl bg-surface-container-low/50" />
               )}
+              {currentQuestion.audio_url && (
+                <audio key={`r-${currentQuestion.id}`} controls preload="metadata" src={currentQuestion.audio_url} className="w-full max-w-xl mx-auto" />
+              )}
+              {currentQuestion.youtube_id && (
+                <YouTubeEmbed
+                  key={`r-${currentQuestion.id}`}
+                  videoId={currentQuestion.youtube_id}
+                  start={currentQuestion.youtube_start}
+                  end={currentQuestion.youtube_end}
+                  className="max-w-xl mx-auto"
+                />
+              )}
 
               {currentQuestion.question_type === 'short_answer' ? (
                 <div className="space-y-3">
