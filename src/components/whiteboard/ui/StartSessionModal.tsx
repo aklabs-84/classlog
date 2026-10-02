@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, ChevronUp, ChevronDown, Sparkles, RotateCcw, Check } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { filterMyTeachingClasses } from '../../../lib/projectClassFilter';
 import { useAuth } from '../../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { useBackdropClose } from '../../../hooks/useBackdropClose';
@@ -47,8 +48,8 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('classes').select('id, name, subject').eq('teacher_id', user.id).eq('is_archived', false).order('name')
-      .then(({ data }) => setClasses(data || []));
+    supabase.from('classes').select('id, name, subject, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).eq('is_archived', false).order('name')
+      .then(({ data }) => setClasses(filterMyTeachingClasses(data, user.id)));
   }, [user]);
 
   // 클래스 선택 시 class_groups 자동 조회

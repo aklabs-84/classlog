@@ -6,6 +6,7 @@ import { Send, User, Loader2, FolderPlus, Presentation, Paperclip, X, Check, Arr
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 import { creditPriceOf } from '../lib/aiCredits';
 import { useAuth, isFreeCreditPlan, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft, countActiveClasses } from '../lib/auth';
 import CopilotIntro from '../components/copilot/CopilotIntro';
@@ -581,8 +582,8 @@ const AiCopilotChat = () => {
 
   useEffect(() => {
     if (!user?.id) return;
-    supabase.from('classes').select('id, name, subject, class_type, weekly_plan').eq('teacher_id', user.id).then(({ data }) => {
-      if (data) setClasses(data);
+    supabase.from('classes').select('id, name, subject, class_type, weekly_plan, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).then(({ data }) => {
+      if (data) setClasses(filterMyTeachingClasses(data, user.id));
     });
   }, [user?.id]);
 

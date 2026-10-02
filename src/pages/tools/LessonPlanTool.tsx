@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 import type { LessonPlanConfig, LessonPlanSections } from '../../lib/gemini';
 import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan, generateMaterialDraftFromLessonPlanSession } from '../../lib/gemini';
@@ -535,8 +536,8 @@ const LessonPlanTool = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('classes').select('id, name, subject').eq('teacher_id', user.id).eq('is_archived', false)
-      .then(({ data }) => setClasses(data || []));
+    supabase.from('classes').select('id, name, subject, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).eq('is_archived', false)
+      .then(({ data }) => setClasses(filterMyTeachingClasses(data, user.id)));
     fetchPlans();
   }, [user?.id]);
 

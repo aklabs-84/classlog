@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from './supabase';
+import { filterMyTeachingClasses } from './projectClassFilter';
 import type { User, Session, RealtimeChannel } from '@supabase/supabase-js';
 import { useIdleTimeout } from '../hooks/useIdleTimeout';
 import { FREE_MONTHLY_CREDITS, creditPriceOf } from './aiCredits';
@@ -262,11 +263,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const todayStr = toLocalDateStr(new Date());
       const { data } = await supabase
         .from('classes')
-        .select('today_started_at, today_ended_at')
+        .select('today_started_at, today_ended_at, school_project_id, parent_class_id, assigned_teacher_id')
         .eq('teacher_id', userId)
         .eq('is_closed', false);
 
-      const active = (data || []).some((c: { today_started_at: string | null; today_ended_at: string | null }) => {
+      // 내가 가르치지 않는 프로젝트용 반의 수업 상태는 내 자동 로그아웃 방지에 반영하지 않는다
+      const active = filterMyTeachingClasses(data, userId).some((c: { today_started_at: string | null; today_ended_at: string | null }) => {
         const startedToday = c.today_started_at && toLocalDateStr(new Date(c.today_started_at)) === todayStr;
         const endedToday = c.today_ended_at && toLocalDateStr(new Date(c.today_ended_at)) === todayStr;
         return startedToday && !endedToday;
@@ -444,6 +446,9 @@ export async function countActiveClasses(teacherId: string): Promise<number> {
     .eq('teacher_id', teacherId)
     .eq('is_demo', false)
     .eq('is_closed', false)
+    // 학교 프로젝트용 반은 개인 클래스 한도에서 제외한다(서버 트리거 enforce_class_limit와 같은 기준)
+    .is('school_project_id', null)
+    .is('parent_class_id', null)
     .or('is_archived.is.null,is_archived.eq.false')
     .or(`end_date.is.null,end_date.gte.${today}`);
   return count ?? 0;

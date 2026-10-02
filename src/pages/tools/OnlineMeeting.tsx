@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Video, Plus, ExternalLink, StopCircle, Trash2, ChevronDown, Radio, Play } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 
 type Platform = 'google_meet' | 'zoom' | 'etc';
@@ -64,7 +65,7 @@ export default function OnlineMeeting() {
   const resolveClassId = (cls: any) => cls?.linked_class_id || cls?.id;
 
   const fetchClasses = async () => {
-    const { data: ownData } = await supabase.from('classes').select('id, name, class_type, linked_class_id')
+    const { data: ownData } = await supabase.from('classes').select('id, name, class_type, linked_class_id, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
     let assignedData: any[] = [];
     try {
@@ -73,7 +74,7 @@ export default function OnlineMeeting() {
       assignedData = data || [];
     } catch (_e) {}
     const seen = new Set<string>();
-    const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    const combined = [...filterMyTeachingClasses(ownData, user!.id), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
     if (combined.length > 0) {
       setClasses(combined);
       setSelectedClass(combined[0]);

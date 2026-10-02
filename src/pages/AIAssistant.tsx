@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { aiGenStore } from '../lib/aiGenerationStore';
 import { supabase } from '../lib/supabase';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -92,7 +93,8 @@ const AIAssistant = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const { data: classesData } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
+      const { data: rawClassesData } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
+      const classesData = rawClassesData ? filterMyTeachingClasses(rawClassesData, user?.id) : rawClassesData;
       if (classesData) {
         setClasses(classesData);
         if (classesData.length > 0) {

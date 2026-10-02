@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 import { motion } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import {
@@ -81,7 +82,8 @@ const Export = () => {
   const fetchClasses = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
+      const { data: rawData } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
+      const data = rawData ? filterMyTeachingClasses(rawData, user?.id) : rawData;
       if (data) {
         // 데모 교사 계정은 여러 방문자가 공유하므로, URL의 ?id= 또는(상단 내비게이션처럼
         // id가 없는 링크로 진입한 경우) 방문자가 마지막으로 보던 학급만 노출한다.

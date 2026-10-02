@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, ChevronDown, Search, Check, Sparkles, X, Save,
@@ -45,8 +46,9 @@ const ActivityLog = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const { data: classesData } = await supabase
+      const { data: rawClassesData } = await supabase
         .from('classes').select('*').eq('teacher_id', user?.id).order('name');
+      const classesData = rawClassesData ? filterMyTeachingClasses(rawClassesData, user?.id) : rawClassesData;
       if (classesData) {
         setClasses(classesData);
         const requestedClassId = searchParams.get('classId');

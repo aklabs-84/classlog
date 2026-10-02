@@ -9,6 +9,7 @@ import {
   ArrowRight, ListChecks, BookOpen, Wifi, Image as ImageIcon, Volume2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { getServerTimeOffsetMs } from '../../lib/serverTime';
 import { useAuth } from '../../lib/auth';
 import { quizGeneratorAI } from '../../lib/gemini';
@@ -176,7 +177,7 @@ const QuizGame = () => {
 
   const fetchClasses = async () => {
     const { data: ownData } = await supabase
-      .from('classes').select('id, name, class_type, linked_class_id')
+      .from('classes').select('id, name, class_type, linked_class_id, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
     let assignedData: any[] = [];
     try {
@@ -185,7 +186,7 @@ const QuizGame = () => {
       assignedData = data || [];
     } catch (_e) {}
     const seen = new Set<string>();
-    const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    const combined = [...filterMyTeachingClasses(ownData, user!.id), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
     if (combined.length > 0) setClasses(combined);
   };
 

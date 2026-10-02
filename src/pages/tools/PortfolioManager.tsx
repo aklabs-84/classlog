@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 import { generatePortfolioIntroDraft } from '../../lib/gemini';
 import type { LessonPlanSections } from '../../lib/gemini';
@@ -53,10 +54,10 @@ const PortfolioManager = () => {
     (async () => {
       setLoading(true);
       const [{ data: classData }, { data: portfolioData }] = await Promise.all([
-        supabase.from('classes').select('id, name, subject').eq('teacher_id', user.id).eq('is_archived', false).order('created_at', { ascending: false }),
+        supabase.from('classes').select('id, name, subject, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).eq('is_archived', false).order('created_at', { ascending: false }),
         supabase.from('teacher_portfolios').select('slug, intro, visibility, included_class_ids, showcase_plan_ids').eq('teacher_id', user.id).maybeSingle(),
       ]);
-      setClasses((classData || []) as ClassRow[]);
+      setClasses(filterMyTeachingClasses(classData, user.id) as ClassRow[]);
       if (portfolioData) {
         const p = portfolioData as PortfolioRow;
         setSlug(p.slug);

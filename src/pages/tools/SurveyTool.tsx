@@ -9,6 +9,7 @@ import {
   Download, Sparkles, GripVertical, RotateCcw, Link2, CopyPlus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { surveyAnalysisAI } from '../../lib/gemini';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
@@ -655,7 +656,7 @@ export default function SurveyTool() {
   }, []);
 
   const fetchClasses = async () => {
-    const { data: ownData } = await supabase.from('classes').select('id, name, class_type')
+    const { data: ownData } = await supabase.from('classes').select('id, name, class_type, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
     let assignedData: any[] = [];
     try {
@@ -664,7 +665,7 @@ export default function SurveyTool() {
       assignedData = data || [];
     } catch (_e) {}
     const seen = new Set<string>();
-    const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    const combined = [...filterMyTeachingClasses(ownData, user!.id), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
     if (combined.length > 0) { setClasses(combined); setSelectedClass(combined[0]); fetchForms(combined[0].id); }
   };
 

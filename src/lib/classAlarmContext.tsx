@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { supabase } from './supabase';
+import { filterMyTeachingClasses } from './projectClassFilter';
 import { useAuth } from './auth';
 import { playAlarm } from './timerContext';
 
@@ -100,10 +101,11 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
     }
     const { data } = await supabase
       .from('classes')
-      .select('id, name, class_start_time, class_end_time, end_alarm_minutes, break_times, start_date, end_date, is_closed, is_archived, today_started_at, today_ended_at, schedule_mode, class_days_of_week, class_specific_dates')
+      .select('id, name, class_start_time, class_end_time, end_alarm_minutes, break_times, start_date, end_date, is_closed, is_archived, today_started_at, today_ended_at, schedule_mode, class_days_of_week, class_specific_dates, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', user.id)
       .eq('is_closed', false);
-    setClasses((data || []).filter((c) => {
+    // 내가 가르치지 않는 프로젝트용 반의 시작·종료 알람은 울리지 않는다
+    setClasses(filterMyTeachingClasses(data, user.id).filter((c) => {
       if (c.is_archived) return false;
       const hasStartAlarm = !!c.class_start_time;
       const hasEndAlarm = !!c.class_end_time && (c.end_alarm_minutes || []).length > 0;

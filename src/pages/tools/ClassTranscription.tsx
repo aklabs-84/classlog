@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 import { transcriptionAI } from '../../lib/gemini';
 import {
@@ -423,7 +424,7 @@ const ClassTranscription = () => {
         assignedData = data || [];
       } catch (_e) {}
       const seen = new Set<string>();
-      const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      const combined = [...filterMyTeachingClasses(ownData, user?.id), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
       if (combined.length > 0) {
         setClasses(combined);
         setSelectedClassId(combined[0].id);

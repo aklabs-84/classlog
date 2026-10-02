@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil, Archive, ArchiveRestore } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import StartSessionModal from './ui/StartSessionModal';
@@ -116,14 +117,14 @@ export default function WhiteboardList() {
 
     // 선생님의 모든 클래스 로드 (연결없음 보드 일괄 연결에 사용, 초대받은 클래스 포함)
     const { data: ownClassesData } = await supabase
-      .from('classes').select('id, name').eq('teacher_id', user.id).order('name');
+      .from('classes').select('id, name, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).order('name');
     let assignedClassesData: any[] = [];
     try {
       const { data } = await supabase.from('classes').select('id, name').eq('assigned_teacher_id', user.id).order('name');
       assignedClassesData = data || [];
     } catch (_e) {}
     const seenIds = new Set<string>();
-    const combinedClasses = [...(ownClassesData || []), ...assignedClassesData].filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
+    const combinedClasses = [...filterMyTeachingClasses(ownClassesData, user.id), ...assignedClassesData].filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
     setAllClasses(combinedClasses);
 
     setClassInfos(fetchedClasses);
