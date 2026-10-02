@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { downloadFile } from '../../lib/fileUtils';
+import { collapseObservationsByActivity, prevSubmissionLabel } from '../../lib/latestObservations';
 import { ImageCarousel, getResultImagePublicUrls } from '../common/ImageCarousel';
 import StudentPreviewModal from './StudentPreviewModal';
 import SubmissionViewerModal, { getViewerKind } from './SubmissionViewerModal';
@@ -34,6 +35,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
   // 관찰기록 반려
   const [rejectingObsId, setRejectingObsId] = useState<string | null>(null);
   const [obsFeedback, setObsFeedback] = useState('');
+  const [openPrevObsIds, setOpenPrevObsIds] = useState<Set<string>>(new Set());
+  const [openPrevResultIds, setOpenPrevResultIds] = useState<Set<string>>(new Set());
   const [savingObsReject, setSavingObsReject] = useState(false);
   // 결과물 피드백
   const [feedbackResultId, setFeedbackResultId] = useState<string | null>(null);
@@ -316,7 +319,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                      <div className="h-4 w-12 bg-surface-container animate-pulse rounded-md" />
                   ) : (
                     <span className="px-2 py-0.5 bg-surface-container-high text-xs font-black uppercase text-on-surface-variant/75 rounded border border-neutral-200">
-                       {student?.student_number ? `${student.student_number}번` : '정보 없음'}
+                       {student?.student_number ? `${student.student_number}번` : '번호 미등록'}
                     </span>
                   )}
                 </div>
@@ -474,7 +477,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                    )}
                    {student?.observations?.length > 0 ? (
                      <div className="space-y-3">
-                       {student.observations.slice(0, 3).map((obs: any) => (
+                       {(() => {
+                         // 같은 활동의 반려→재제출은 마지막 제출만 대표로, 이전 시도는 접어서 보여줌
+                         const { latest, older } = collapseObservationsByActivity<any>(student.observations);
+                         return latest.slice(0, 3).map((obs: any) => (
                          <div
                            key={obs.id}
                            onClick={() => handleNavigateToFullPage(obs.id)}
@@ -567,8 +573,34 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                 </div>
                               </div>
                             )}
+                            {(older[obs.id]?.length ?? 0) > 0 && (
+                              <div className="mt-2" onClick={e => e.stopPropagation()}>
+                                <button
+                                  onClick={() => setOpenPrevObsIds(prev => { const n = new Set(prev); n.has(obs.id) ? n.delete(obs.id) : n.add(obs.id); return n; })}
+                                  className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                                >
+                                  🔁 {prevSubmissionLabel(older[obs.id].length, older[obs.id].filter((p: any) => p.status === 'rejected').length)} · {openPrevObsIds.has(obs.id) ? '접기 ▲' : '이전 제출 보기 ▼'}
+                                </button>
+                                {openPrevObsIds.has(obs.id) && (
+                                  <div className="mt-1.5 space-y-1.5">
+                                    {older[obs.id].map((p: any) => (
+                                      <div key={p.id} className="rounded-lg bg-neutral-50 border border-neutral-100 px-2.5 py-1.5">
+                                        <p className="text-[11px] font-bold text-neutral-400">
+                                          {new Date(p.created_at).toLocaleDateString('ko-KR')} · {p.status === 'rejected' ? '반려됨' : p.status === 'pending' ? '승인대기' : '승인완료'}
+                                        </p>
+                                        <p className="text-xs text-neutral-600 line-clamp-2">{p.content}</p>
+                                        {p.teacher_feedback && p.status === 'rejected' && (
+                                          <p className="text-[11px] font-bold text-red-500 mt-0.5">💬 {p.teacher_feedback}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                          </div>
-                       ))}
+                         ));
+                       })()}
                      </div>
                    ) : (
                      <div className="p-6 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
@@ -614,9 +646,19 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                       new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
                     );
 
+                    // 같은 차시(week_number)에 여러 번 제출한 건은 최신 제출만 대표로, 이전 제출은 접어서 보여줌
+                    const weekBuckets: { groupId: string; groupItems: any[]; older: { groupId: string; groupItems: any[] }[] }[] = [];
+                    const weekIndex: Record<string, number> = {};
+                    groupedEntries.forEach(([groupId, groupItems]) => {
+                      const wk = groupItems.find(r => r.week_number)?.week_number;
+                      if (!wk) { weekBuckets.push({ groupId, groupItems, older: [] }); return; }
+                      if (weekIndex[wk] === undefined) { weekIndex[wk] = weekBuckets.length; weekBuckets.push({ groupId, groupItems, older: [] }); }
+                      else weekBuckets[weekIndex[wk]].older.push({ groupId, groupItems });
+                    });
+
                     return (
                       <div className="space-y-2">
-                        {groupedEntries.map(([groupId, groupItems]) => {
+                        {weekBuckets.map(({ groupId, groupItems, older }) => {
                           const firstItem = groupItems[0];
                           const title = groupItems.find(r => r.title)?.title;
                           const textItem = groupItems.find(r => r.result_type === 'text');
@@ -742,6 +784,35 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                 >
                                   <MessageCircle size={10} /> {teacherFeedback ? '피드백 수정' : '피드백 남기기'}
                                 </button>
+                              )}
+                              {older.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-neutral-100">
+                                  <button
+                                    onClick={() => setOpenPrevResultIds(prev => { const n = new Set(prev); n.has(groupId) ? n.delete(groupId) : n.add(groupId); return n; })}
+                                    className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                                  >
+                                    🔁 {prevSubmissionLabel(older.length, older.filter(o => o.groupItems.some(r => r.status === 'rejected')).length)} · {openPrevResultIds.has(groupId) ? '접기 ▲' : '이전 제출 보기 ▼'}
+                                  </button>
+                                  {openPrevResultIds.has(groupId) && (
+                                    <div className="mt-1.5 space-y-1.5">
+                                      {older.map(o => {
+                                        const oText = o.groupItems.find(r => r.result_type === 'text')?.text_content;
+                                        const oLink = o.groupItems.find(r => r.result_type === 'link')?.link_url;
+                                        const oTypes = [...new Set(o.groupItems.map(r => typeConfig[r.result_type]?.label || r.result_type))].join('·');
+                                        const oStatus = o.groupItems.some(r => r.status === 'rejected') ? '반려됨' : o.groupItems.every(r => r.status === 'approved') ? '승인완료' : '승인대기';
+                                        return (
+                                          <div key={o.groupId} className="rounded-lg bg-neutral-50 border border-neutral-100 px-2.5 py-1.5">
+                                            <p className="text-[11px] font-bold text-neutral-400">
+                                              {new Date(o.groupItems[0].created_at).toLocaleDateString('ko-KR')} · {oStatus} · {oTypes}
+                                            </p>
+                                            {oText && <p className="text-xs text-neutral-600 line-clamp-2">{oText}</p>}
+                                            {oLink && <p className="text-xs text-blue-500 truncate">{oLink}</p>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );

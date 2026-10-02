@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
+import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
 import { compressImageForUpload } from '../lib/imageCompress';
 import { toStorageUploadError, isStorageQuotaError, removeStudentFiles } from '../lib/storageCleanup';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
@@ -281,6 +282,7 @@ const StudentLog = () => {
     });
   };
   const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
+  const [openPrevHistoryIds, setOpenPrevHistoryIds] = useState<Set<string>>(new Set());
   const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -3056,7 +3058,11 @@ ${guidePrompt}
             {/* ─── MY HISTORY 탭 ─── */}
             {activeTab === 'history' && (() => {
               // 관찰 기록 + 결과 제출 통합 타임라인
-              const obsItems = historyLogs.map(l => ({ ...l, _kind: 'obs' as const }));
+              // 같은 활동의 반려→재제출은 마지막 제출만 대표로, 이전 시도는 카드 안에서 접어서 보여줌
+              const collapsedHistory = collapseObservationsByActivity<any>(
+                historyLogs.map(l => ({ ...l, is_student_record: l.is_student_record !== false }))
+              );
+              const obsItems = collapsedHistory.latest.map(l => ({ ...l, _kind: 'obs' as const }));
 
               // submission_group 기준으로 결과 제출 그룹핑
               const groupedResultMap: Record<string, any[]> = {};
@@ -3085,7 +3091,16 @@ ${guidePrompt}
                 };
               }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-              const allItems = [...obsItems, ...resItems].sort(
+              // 같은 차시(week_number)에 여러 번 낸 결과는 최신 제출만 대표로, 이전 제출은 카드 안에서 접어서 보여줌
+              const resBuckets: any[] = [];
+              const resWeekIdx: Record<string, number> = {};
+              resItems.forEach(it => {
+                if (!it.week_number) { resBuckets.push({ ...it, _older: [] }); return; }
+                if (resWeekIdx[it.week_number] === undefined) { resWeekIdx[it.week_number] = resBuckets.length; resBuckets.push({ ...it, _older: [] }); }
+                else resBuckets[resWeekIdx[it.week_number]]._older.push(it);
+              });
+
+              const allItems = [...obsItems, ...resBuckets].sort(
                 (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
               );
               const filtered = historyFilter === 'all' ? allItems
@@ -3287,6 +3302,31 @@ ${guidePrompt}
                                   </div>
                                 </div>
                               )}
+                              {!isEditing && (collapsedHistory.older[log.id]?.length ?? 0) > 0 && (
+                                <div className="mt-3" onClick={e => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => setOpenPrevHistoryIds(prev => { const n = new Set(prev); n.has(log.id) ? n.delete(log.id) : n.add(log.id); return n; })}
+                                    className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                                  >
+                                    🔁 {prevSubmissionLabel(collapsedHistory.older[log.id].length, collapsedHistory.older[log.id].filter((p: any) => p.status === 'rejected').length)} · {openPrevHistoryIds.has(log.id) ? '접기 ▲' : '이전 제출 보기 ▼'}
+                                  </button>
+                                  {openPrevHistoryIds.has(log.id) && (
+                                    <div className="mt-2 space-y-2">
+                                      {collapsedHistory.older[log.id].map((p: any) => (
+                                        <div key={p.id} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+                                          <p className="text-xs font-bold text-slate-400">
+                                            {new Date(p.created_at).toLocaleDateString('ko-KR')} · {p.status === 'rejected' ? '반려됨' : p.status === 'pending' ? '승인 대기' : '승인 완료'}
+                                          </p>
+                                          <p className="text-sm text-slate-600 whitespace-pre-wrap line-clamp-3">{p.content}</p>
+                                          {p.teacher_feedback && p.status === 'rejected' && (
+                                            <p className="text-xs font-bold text-red-500 mt-1">선생님 피드백: {p.teacher_feedback}</p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </motion.div>
                           );
                         }
@@ -3421,6 +3461,34 @@ ${guidePrompt}
                                 <Trash2 size={12} /> 삭제
                               </button>
                             </div>
+                            {r._older?.length > 0 && (
+                              <div className="mt-3" onClick={e => e.stopPropagation()}>
+                                <button
+                                  onClick={() => setOpenPrevHistoryIds(prev => { const n = new Set(prev); const k = `res-${r.id}`; n.has(k) ? n.delete(k) : n.add(k); return n; })}
+                                  className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                                >
+                                  🔁 {prevSubmissionLabel(r._older.length, r._older.filter((o: any) => o._groupStatus === 'rejected').length)} · {openPrevHistoryIds.has(`res-${r.id}`) ? '접기 ▲' : '이전 제출 보기 ▼'}
+                                </button>
+                                {openPrevHistoryIds.has(`res-${r.id}`) && (
+                                  <div className="mt-2 space-y-2">
+                                    {r._older.map((o: any) => {
+                                      const oText = o._group.find((x: any) => x.result_type === 'text')?.text_content;
+                                      const oLink = o._group.find((x: any) => x.result_type === 'link')?.link_url;
+                                      return (
+                                        <div key={o.id} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+                                          <p className="text-xs font-bold text-slate-400">
+                                            {new Date(o.created_at).toLocaleDateString('ko-KR')} · {o._groupStatus === 'rejected' ? '반려됨' : o._groupStatus === 'approved' ? '승인 완료' : '승인 대기'} · {(o._types as string[]).map((t: string) => resultTypeConfig[t]?.label || t).join('·')}
+                                          </p>
+                                          {oText && <p className="text-sm text-slate-600 line-clamp-2">{oText}</p>}
+                                          {oLink && <p className="text-xs text-blue-500 truncate">{oLink}</p>}
+                                          {o._rejectionFeedback && o._groupStatus === 'rejected' && <p className="text-xs font-bold text-red-500 mt-1">선생님 피드백: {o._rejectionFeedback}</p>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </motion.div>
                         );
                       })}

@@ -97,6 +97,7 @@ import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 import AiCreditCost from '../components/common/AiCreditCost';
+import { collapseObservationsByActivity } from '../lib/latestObservations';
 
 type BreakGenSettings = {
   periodMinutes: number;
@@ -1154,7 +1155,7 @@ const Classroom = () => {
           created_at,
           memo,
           pin,
-          observations(id, student_id, content, activity_name, created_at, teacher_id, status),
+          observations(id, student_id, content, activity_name, created_at, teacher_id, status, is_student_record),
           reports(is_published)
         `)
         .eq('class_id', targetClassId);
@@ -1187,7 +1188,8 @@ const Classroom = () => {
             all_observations: s.observations || [],
             // teacher_id 필터: 다른 선생님(예: 담임)의 pending 기록이 과목선생님 승인 대기 카운트에 포함되지 않도록
             pending_obs_ids: (s.observations || []).filter((o: any) => o.status === 'pending' && o.teacher_id === user?.id).map((o: any) => o.id),
-            has_rejected: (s.observations || []).some((o: any) => o.status === 'rejected')
+            // 반려→재제출이 쌓이므로 같은 활동은 마지막 제출만 보고 반려 여부 판단
+            has_rejected: collapseObservationsByActivity(s.observations || []).latest.some((o: any) => o.status === 'rejected')
           };
         });
         setStudents(formattedStudents);

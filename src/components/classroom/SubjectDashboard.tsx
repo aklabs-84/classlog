@@ -277,8 +277,10 @@ const SubjectDashboard = ({
     const weekObs = rawObs.filter(r => r.student_id === studentId && topics.includes(norm(r.activity_name)));
     const weekResults = rawResults.filter(r => r.student_id === studentId && r.week_number === week);
     if (weekObs.length === 0 && weekResults.length === 0) return 'none';
-    if (weekObs.some(r => r.status === 'pending')) return 'pending';
-    if (weekObs.some(r => r.status === 'rejected') || weekResults.some(r => r.status === 'rejected')) return 'rejected';
+    // 같은 주차에 반려→재제출이 쌓이므로 마지막 제출 1건의 상태만 본다
+    const latestObs = [...weekObs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    if (latestObs?.status === 'pending') return 'pending';
+    if (latestObs?.status === 'rejected' || weekResults.some(r => r.status === 'rejected')) return 'rejected';
     return 'done';
   };
 

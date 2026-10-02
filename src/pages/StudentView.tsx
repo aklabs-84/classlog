@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, User as UserIcon, BookOpen, Clock, Activity,
@@ -198,11 +199,14 @@ const StudentView = () => {
 
   useEffect(() => { setTimelinePage(1); }, [timelineTab]);
 
-  const timelineFiltered = useMemo(() => observations.filter(o =>
+  // 같은 활동(주차)의 반려→재제출은 마지막 제출만 대표로, 이전 시도는 접어서 보여줌
+  const collapsedObs = useMemo(() => collapseObservationsByActivity<any>(observations), [observations]);
+  const [openPrevObsIds, setOpenPrevObsIds] = useState<Set<string>>(new Set());
+  const timelineFiltered = useMemo(() => collapsedObs.latest.filter(o =>
     timelineTab === 'all' ? true :
     timelineTab === 'teacher' ? !o.is_student_record :
     o.is_student_record
-  ), [observations, timelineTab]);
+  ), [collapsedObs, timelineTab]);
   const timelineTotalPages = Math.max(1, Math.ceil(timelineFiltered.length / TIMELINE_PAGE_SIZE));
 
   // 사이드바에서 특정 글을 눌러 들어온 경우 — 그 글이 있는 페이지로 한 번만 이동
@@ -212,9 +216,11 @@ const StudentView = () => {
     if (!focusObservationId || focusHandledRef.current || observations.length === 0) return;
     focusHandledRef.current = true;
     if (timelineTab !== 'all') { setTimelineTab('all'); }
-    const idx = observations.findIndex(o => o.id === focusObservationId);
+    // 이전 제출을 가리키면 그 대표(최신) 기록이 있는 페이지로 이동
+    const repId = collapsedObs.latest.find(o => o.id === focusObservationId || (collapsedObs.older[o.id] || []).some(p => p.id === focusObservationId))?.id;
+    const idx = collapsedObs.latest.findIndex(o => o.id === repId);
     if (idx >= 0) setTimelinePage(Math.floor(idx / TIMELINE_PAGE_SIZE) + 1);
-  }, [focusObservationId, observations, timelineTab]);
+  }, [focusObservationId, observations, collapsedObs, timelineTab]);
 
   // 주차별 성장 추이 — 관찰기록은 weekly_plan의 활동명 매칭으로, 결과제출은 week_number 컬럼으로 주차를 판별
   const weeklyTrendData = useMemo((): WeeklyTrendPoint[] => {
@@ -1062,9 +1068,9 @@ const StudentView = () => {
           {/* 탭 */}
           <div className="flex gap-1.5 mb-8 p-1 bg-surface-container rounded-xl w-fit">
             {([
-              { key: 'all',     label: '전체',       count: observations.length },
-              { key: 'teacher', label: '교사 메모',    count: observations.filter(o => !o.is_student_record).length },
-              { key: 'student', label: '학생 제출',   count: observations.filter(o => o.is_student_record).length },
+              { key: 'all',     label: '전체',       count: collapsedObs.latest.length },
+              { key: 'teacher', label: '교사 메모',    count: collapsedObs.latest.filter(o => !o.is_student_record).length },
+              { key: 'student', label: '학생 제출',   count: collapsedObs.latest.filter(o => o.is_student_record).length },
             ] as const).map(tab => (
               <button
                 key={tab.key}
@@ -1322,6 +1328,31 @@ const StudentView = () => {
                             </div>
                           )}
                         </>
+                      )}
+                      {(collapsedObs.older[obs.id]?.length ?? 0) > 0 && !isEditing && (
+                        <div className="mt-3 ml-1">
+                          <button
+                            onClick={() => setOpenPrevObsIds(prev => { const n = new Set(prev); n.has(obs.id) ? n.delete(obs.id) : n.add(obs.id); return n; })}
+                            className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                          >
+                            🔁 {prevSubmissionLabel(collapsedObs.older[obs.id].length, collapsedObs.older[obs.id].filter((p: any) => p.status === 'rejected').length)} · {openPrevObsIds.has(obs.id) ? '접기 ▲' : '이전 제출 보기 ▼'}
+                          </button>
+                          {openPrevObsIds.has(obs.id) && (
+                            <div className="mt-2 space-y-2">
+                              {collapsedObs.older[obs.id].map((p: any) => (
+                                <div key={p.id} className="rounded-xl bg-neutral-50 border border-neutral-100 px-3 py-2">
+                                  <p className="text-[11px] font-bold text-neutral-400">
+                                    {new Date(p.created_at).toLocaleDateString('ko-KR')} · {p.status === 'rejected' ? '반려됨' : p.status === 'pending' ? '승인 대기' : '승인 완료'}
+                                  </p>
+                                  <p className="text-xs text-neutral-600 whitespace-pre-wrap line-clamp-3">{p.content}</p>
+                                  {p.teacher_feedback && p.status === 'rejected' && (
+                                    <p className="text-[11px] font-bold text-red-500 mt-1">💬 {p.teacher_feedback}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
