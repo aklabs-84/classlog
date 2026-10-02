@@ -675,6 +675,11 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
                                     {title && <span className="font-black text-xs text-on-surface w-full">{title}</span>}
+                                    {groupItems.find(r => r.week_number)?.week_number && (
+                                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                        {groupItems.find(r => r.week_number).week_number}주차
+                                      </span>
+                                    )}
                                     {types.map(type => {
                                       const cfg = typeConfig[type] || typeConfig.file;
                                       return (
@@ -798,6 +803,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                       {older.map(o => {
                                         const oText = o.groupItems.find(r => r.result_type === 'text')?.text_content;
                                         const oLink = o.groupItems.find(r => r.result_type === 'link')?.link_url;
+                                        const oFile = o.groupItems.find(r => r.result_type === 'file');
+                                        const oImageUrls = getResultImagePublicUrls(supabase.storage, o.groupItems.find(r => r.result_type === 'image'));
                                         const oTypes = [...new Set(o.groupItems.map(r => typeConfig[r.result_type]?.label || r.result_type))].join('·');
                                         const oStatus = o.groupItems.some(r => r.status === 'rejected') ? '반려됨' : o.groupItems.every(r => r.status === 'approved') ? '승인완료' : '승인대기';
                                         return (
@@ -807,6 +814,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                             </p>
                                             {oText && <p className="text-xs text-neutral-600 line-clamp-2">{oText}</p>}
                                             {oLink && <p className="text-xs text-blue-500 truncate">{oLink}</p>}
+                                            {oFile?.display_name && <p className="text-xs text-amber-600 font-bold truncate flex items-center gap-1"><File size={10} />{oFile.display_name}</p>}
+                                            {oImageUrls.length > 0 && (
+                                              <div className="mt-1">
+                                                <ImageCarousel urls={oImageUrls} alt="이전 제출 이미지" thumbClassName="max-h-16 rounded-lg object-cover hover:opacity-80" />
+                                              </div>
+                                            )}
                                           </div>
                                         );
                                       })}

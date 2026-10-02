@@ -3474,6 +3474,8 @@ ${guidePrompt}
                                     {r._older.map((o: any) => {
                                       const oText = o._group.find((x: any) => x.result_type === 'text')?.text_content;
                                       const oLink = o._group.find((x: any) => x.result_type === 'link')?.link_url;
+                                      const oFile = o._group.find((x: any) => x.result_type === 'file');
+                                      const oImageUrls = getResultImagePublicUrls(supabase.storage, o._group.find((x: any) => x.result_type === 'image'));
                                       return (
                                         <div key={o.id} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
                                           <p className="text-xs font-bold text-slate-400">
@@ -3481,6 +3483,12 @@ ${guidePrompt}
                                           </p>
                                           {oText && <p className="text-sm text-slate-600 line-clamp-2">{oText}</p>}
                                           {oLink && <p className="text-xs text-blue-500 truncate">{oLink}</p>}
+                                          {oFile?.display_name && <p className="text-xs text-amber-600 font-bold truncate flex items-center gap-1"><File size={10} />{oFile.display_name}</p>}
+                                          {oImageUrls.length > 0 && (
+                                            <div className="mt-1">
+                                              <ImageCarousel urls={oImageUrls} alt="이전 제출 이미지" thumbClassName="max-h-16 rounded-lg object-cover hover:opacity-80" />
+                                            </div>
+                                          )}
                                           {o._rejectionFeedback && o._groupStatus === 'rejected' && <p className="text-xs font-bold text-red-500 mt-1">선생님 피드백: {o._rejectionFeedback}</p>}
                                         </div>
                                       );

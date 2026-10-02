@@ -21,7 +21,8 @@ export function collapseObservationsByActivity<T extends ObsLike>(list: T[]): { 
   return { latest, older };
 }
 
-// 접힌 이전 제출을 알리는 배지 문구 — "총 4회 제출 · 반려 3회"
+// 접힌 이전 제출을 알리는 배지 문구 — "총 4회 제출 · 반려 3회" / "같은 차시 2회 제출"
 export function prevSubmissionLabel(olderCount: number, rejectedCount: number): string {
-  return `총 ${olderCount + 1}회 제출${rejectedCount > 0 ? ` · 반려 ${rejectedCount}회` : ''}`;
+  // 반려가 없으면 "반려 후 재제출"이 아니라 같은 차시에 나눠/추가로 낸 것임을 분명히 표시
+  return rejectedCount > 0 ? `총 ${olderCount + 1}회 제출 · 반려 ${rejectedCount}회` : `같은 차시 ${olderCount + 1}회 제출`;
 }
