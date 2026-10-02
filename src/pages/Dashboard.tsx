@@ -20,6 +20,7 @@ import {
   BookMarked,
   PlayCircle,
   Trash2,
+  Pencil,
   AlertTriangle,
   Folder,
   FolderOpen,
@@ -1160,8 +1161,7 @@ const Dashboard = () => {
                 return (
                   <div
                     key={proj.id}
-                    className="surface-card p-6 hover:scale-[1.02] transition-all cursor-pointer group border border-violet-100 relative"
-                    onClick={() => { setEditingProject(proj); setProjectModalOpen(true); }}
+                    className="surface-card p-6 hover:scale-[1.02] transition-all group border border-violet-100 relative"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600">
@@ -1175,17 +1175,26 @@ const Dashboard = () => {
                         }`}>
                           {isActive ? '진행 중' : isClosed ? '수업 종료' : '보관됨'}
                         </span>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            setDeletingProjectId(proj.id);
-                            setDeletingProjectName(proj.name);
-                          }}
-                          className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                          title="프로젝트 삭제"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => { setEditingProject(proj); setProjectModalOpen(true); }}
+                            className="p-2 rounded-lg bg-violet-100 text-violet-600 hover:bg-violet-600 hover:text-white shadow-sm transition-all"
+                            title="프로젝트 정보 수정"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDeletingProjectId(proj.id);
+                              setDeletingProjectName(proj.name);
+                            }}
+                            className="p-2 rounded-lg bg-red-100 text-red-500 hover:bg-red-500 hover:text-white shadow-sm transition-all"
+                            title="프로젝트 삭제"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <h3 className="font-black text-base mb-1 truncate">{proj.name}</h3>

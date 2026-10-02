@@ -36,6 +36,9 @@ import {
   Link as LinkIcon,
   Save,
   CalendarRange,
+  Lightbulb,
+  HelpCircle,
+  ChevronUp,
 } from 'lucide-react';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 
@@ -76,6 +79,72 @@ const PAGE_TABS = [
   { key: 'summary', label: '결과 요약' },
 ] as const;
 type PageTabKey = (typeof PAGE_TABS)[number]['key'];
+
+const TAB_GUIDES: Record<string, { title: string; steps: string[] }> = {
+  schools: {
+    title: '참여하는 학교를 등록하고 관리하는 곳입니다',
+    steps: [
+      '오른쪽 위 [학교 추가]로 이 프로젝트에 참여하는 학교를 등록하세요.',
+      '학교 담당자에게는 위쪽의 [학교 담당자 공유 URL]을 보내 주세요. 로그인 없이 학교 현황을 볼 수 있습니다.',
+      '학교 이름을 누르면 그 학교의 반·학생 현황을 자세히 볼 수 있고, 오른쪽 ⋮ 버튼으로 수정·보관·삭제할 수 있습니다.',
+    ],
+  },
+  teachers: {
+    title: '반을 만들고 담당 선생님을 정하는 곳입니다',
+    steps: [
+      '[반 추가]로 학교별 반을 만들고 담당 선생님을 정하세요.',
+      '선생님은 위쪽의 [선생님 참여 코드]로 합류하거나, 직접 검색해서 배정할 수 있습니다.',
+      '같은 수업을 여러 선생님이 진행한다면 [과목 묶음]으로 묶어 두세요. 결과 요약에서 학교가 달라도 합산해 볼 수 있습니다.',
+    ],
+  },
+  materials: {
+    title: '모든 반이 함께 쓰는 공용 수업 자료를 올리는 곳입니다',
+    steps: [
+      '[자료 추가]로 일반 자료나 주차별 자료를 만드세요.',
+      '자료는 \'공개(발행)\' 상태로 바꿔야 각 반의 담당 선생님에게 보입니다. 준비 중인 자료는 비공개로 두세요.',
+    ],
+  },
+  plan: {
+    title: '주차별 수업 계획을 한 번에 정하는 곳입니다',
+    steps: [
+      '\'편집 대상\'이 \'공통 계획(전체)\'이면 모든 학교의 모든 반에 같은 계획이 적용됩니다. 새로 추가되는 학교에도 자동 반영됩니다.',
+      '특정 반만 다르게 하고 싶으면 편집 대상에서 그 반을 골라 따로 수정하세요. 따로 수정한 반은 공통 계획이 바뀌어도 영향을 받지 않습니다.',
+    ],
+  },
+  survey: {
+    title: '사전·사후 설문을 만들고 응답을 모으는 곳입니다',
+    steps: [
+      '설문을 만들면 프로젝트 전체가 같은 PIN으로 참여할 수 있습니다.',
+      '수업 시작 전에는 사전 설문을, 끝난 뒤에는 사후 설문을 안내하세요. 두 결과의 비교는 [결과 요약]에서 볼 수 있습니다.',
+    ],
+  },
+  summary: {
+    title: '프로젝트 전체의 학생·출석·제출 현황을 한눈에 보는 곳입니다',
+    steps: [
+      '수업이 진행되어 출석과 제출 기록이 쌓이면 학교별, 과목별로 합산된 숫자가 나타납니다.',
+      '처음에는 숫자가 0으로 보이는 것이 정상입니다. 학교·반·선생님 등록을 먼저 마쳐 주세요.',
+    ],
+  },
+};
+
+const START_STEPS = [
+  '[학교 추가]로 참여 학교를 등록합니다.',
+  '[선생님 참여 코드]를 선생님들께 전달합니다. (가입 신청이 오면 승인해 주세요.)',
+  '[강사 관리] 탭에서 반을 만들고 담당 선생님을 정합니다.',
+  '[수업 자료], [주차별 계획] 탭에서 공용 자료와 계획을 등록합니다.',
+  '수업이 시작되면 [설문]과 [결과 요약]으로 현황을 확인합니다.',
+];
+
+const GUIDE_DISMISSED_KEY = 'school-project-guide-dismissed';
+const START_GUIDE_KEY = 'school-project-start-guide';
+
+function readDismissedGuides(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(GUIDE_DISMISSED_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
+
 
 interface SchoolRow {
   id: string;
@@ -159,6 +228,10 @@ const SchoolProjectSchoolsPage = () => {
   const [archivingId, setArchivingId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<PageTabKey>('schools');
+  const [dismissedGuides, setDismissedGuides] = useState<string[]>(readDismissedGuides);
+  const [startGuidePref, setStartGuidePref] = useState<string | null>(() => {
+    try { return localStorage.getItem(START_GUIDE_KEY); } catch { return null; }
+  });
   const [materials, setMaterials] = useState<ProgramMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
@@ -884,6 +957,22 @@ const SchoolProjectSchoolsPage = () => {
     );
   }
 
+  const setGuideDismissed = (key: string, dismissed: boolean) => {
+    setDismissedGuides(prev => {
+      const next = dismissed ? Array.from(new Set([...prev, key])) : prev.filter(k => k !== key);
+      try { localStorage.setItem(GUIDE_DISMISSED_KEY, JSON.stringify(next)); } catch { /* 저장 실패 시 무시 */ }
+      return next;
+    });
+  };
+  const startGuideOpen = startGuidePref ? startGuidePref === 'open' : schools.length === 0;
+  const toggleStartGuide = () => {
+    const next = startGuideOpen ? 'closed' : 'open';
+    setStartGuidePref(next);
+    try { localStorage.setItem(START_GUIDE_KEY, next); } catch { /* 저장 실패 시 무시 */ }
+  };
+  const currentGuide = TAB_GUIDES[activeTab];
+  const guideDismissed = dismissedGuides.includes(activeTab);
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <button
@@ -906,6 +995,27 @@ const SchoolProjectSchoolsPage = () => {
           >
             <Plus size={16} /> 학교 추가
           </button>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/60">
+        <button
+          onClick={toggleStartGuide}
+          className="w-full flex items-center gap-2 px-4 py-3 text-left"
+        >
+          <Lightbulb size={16} className="text-amber-600 shrink-0" />
+          <span className="flex-1 text-sm font-black text-amber-900">처음이신가요? 이렇게 시작하세요</span>
+          {startGuideOpen ? <ChevronUp size={16} className="text-amber-700" /> : <ChevronDown size={16} className="text-amber-700" />}
+        </button>
+        {startGuideOpen && (
+          <ol className="px-4 pb-4 space-y-2">
+            {START_STEPS.map((text, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-xs text-on-surface-variant">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[11px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
+                <span className="pt-0.5">{text}</span>
+              </li>
+            ))}
+          </ol>
         )}
       </div>
 
@@ -997,12 +1107,12 @@ const SchoolProjectSchoolsPage = () => {
       )}
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b border-surface-container-high">
+      <div className="flex gap-1 border-b border-surface-container-high overflow-x-auto">
         {PAGE_TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-colors ${
+            className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.key
                 ? 'border-primary text-primary'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -1011,7 +1121,36 @@ const SchoolProjectSchoolsPage = () => {
             {tab.label}
           </button>
         ))}
+        {guideDismissed && currentGuide && (
+          <button
+            onClick={() => setGuideDismissed(activeTab, false)}
+            className="ml-auto flex items-center gap-1 px-2 py-2.5 text-xs font-bold text-on-surface-variant hover:text-primary transition-colors shrink-0"
+          >
+            <HelpCircle size={14} /> 이 탭 사용법
+          </button>
+        )}
       </div>
+
+      {currentGuide && !guideDismissed && (
+        <div className="relative flex items-start gap-3 p-4 pr-10 bg-primary/5 rounded-2xl border border-primary/10">
+          <HelpCircle size={16} className="text-primary mt-0.5 shrink-0" />
+          <div className="space-y-1.5">
+            <p className="text-sm font-black text-on-surface">{currentGuide.title}</p>
+            <ul className="space-y-1">
+              {currentGuide.steps.map((t, i) => (
+                <li key={i} className="text-xs text-on-surface-variant leading-relaxed">· {t}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={() => setGuideDismissed(activeTab, true)}
+            className="absolute top-3 right-3 p-1 rounded-lg text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high transition-all"
+            title="안내 닫기"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {activeTab === 'schools' && (
       <>
@@ -1079,7 +1218,7 @@ const SchoolProjectSchoolsPage = () => {
         >
           <School size={32} className="mx-auto mb-2" />
           <p className="text-sm font-bold">아직 등록된 학교가 없습니다</p>
-          <p className="text-xs mt-1 opacity-70">이 사업에 참여하는 첫 번째 학교를 추가해보세요</p>
+          <p className="text-xs mt-1 opacity-70">여기를 눌러 첫 번째 학교를 추가하세요. 학교를 등록한 뒤에 반 만들기와 선생님 배정을 할 수 있습니다</p>
         </button>
       ) : filteredSchools.length === 0 ? (
         <div className="surface-card p-10 text-center text-on-surface-variant/60 text-sm">
