@@ -957,6 +957,7 @@ const Classroom = () => {
   const handleOpenEditClass = async (c: any) => {
     setUpdateClassData(c);
     setBreakGenEdit(DEFAULT_BREAK_GEN);
+    setUpdateModalFull(true); // 열 때 바로 전체화면 (우측 토글로 작게 보기 가능)
     setIsUpdateModalOpen(true);
     setMaterialDropdownIdx(null);
     setIsArchiveModalOpen(false);
