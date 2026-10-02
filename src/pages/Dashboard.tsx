@@ -328,34 +328,64 @@ const Dashboard = () => {
   const handleDeleteProject = async () => {
     if (!deletingProjectId) return;
 
-    // 배정된 선생님들의 Pro 권한 먼저 회수
-    const { data: subClasses } = await supabase
-      .from('classes')
-      .select('id, assigned_teacher_id')
-      .eq('school_project_id', deletingProjectId)
-      .not('parent_class_id', 'is', null)
-      .not('assigned_teacher_id', 'is', null);
+    // 사업 아래 학교(자식 프로젝트)까지 포함해서 대상 범위를 잡는다
+    const { data: childProjects } = await supabase
+      .from('school_projects')
+      .select('id')
+      .eq('parent_project_id', deletingProjectId);
+    const projectIds = [deletingProjectId, ...(childProjects || []).map((p: any) => p.id)];
 
-    if (subClasses && subClasses.length > 0) {
-      await Promise.all(
-        subClasses.map((cls: any) =>
+    const { data: projectClasses } = await supabase
+      .from('classes')
+      .select('id, name, parent_class_id, assigned_teacher_id')
+      .in('school_project_id', projectIds);
+    const allClasses = projectClasses || [];
+    const subClasses = allClasses.filter((c: any) => c.parent_class_id);
+    const rootClasses = allClasses.filter((c: any) => !c.parent_class_id);
+
+    // 배정된 선생님들의 Pro 권한 먼저 회수
+    await Promise.all(
+      subClasses
+        .filter((c: any) => c.assigned_teacher_id)
+        .map((c: any) =>
           supabase.rpc('remove_teacher_from_subclass', {
-            p_class_id: cls.id,
-            p_teacher_id: cls.assigned_teacher_id,
+            p_class_id: c.id,
+            p_teacher_id: c.assigned_teacher_id,
           })
         )
+    );
+
+    // 학생·출석·결과물이 하나라도 있는 반은 지우지 않고 남긴다
+    const hasData = async (classId: string) => {
+      const counts = await Promise.all(
+        ['students', 'attendance', 'student_results'].map(t =>
+          supabase.from(t).select('id', { count: 'exact', head: true }).eq('class_id', classId)
+        )
+      );
+      return counts.some(r => r.error || (r.count ?? 0) > 0); // 확인 실패 시에도 안전하게 남긴다
+    };
+    const subFlags = await Promise.all(subClasses.map((c: any) => hasData(c.id)));
+    const keptSubs = subClasses.filter((_: any, i: number) => subFlags[i]);
+    const emptySubs = subClasses.filter((_: any, i: number) => !subFlags[i]);
+
+    if (emptySubs.length > 0) {
+      await supabase.from('classes').delete().in('id', emptySubs.map((c: any) => c.id));
+    }
+    // 자료가 있는 반이 남아 있는 "전체" 클래스는 지우면 안에 든 반까지 같이 지워지므로 남긴다
+    const keptParentIds = new Set(keptSubs.map((c: any) => c.parent_class_id));
+    const deletableRoots = rootClasses.filter((c: any) => !keptParentIds.has(c.id));
+    if (deletableRoots.length > 0) {
+      await supabase.from('classes').delete().in('id', deletableRoots.map((c: any) => c.id));
+    }
+    await supabase.from('school_projects').delete().eq('id', deletingProjectId);
+
+    if (keptSubs.length > 0) {
+      alert(
+        `프로젝트를 삭제했습니다.\n비어 있던 반 ${emptySubs.length}개는 함께 삭제했고, ` +
+        `학생·출석·결과물이 있는 반 ${keptSubs.length}개는 자료 보호를 위해 남겨 두었습니다.\n` +
+        `(남은 반: ${keptSubs.map((c: any) => c.name).join(', ')})`
       );
     }
-
-    // 하위 클래스 먼저 삭제 (parent_class_id가 있는 것)
-    await supabase.from('classes').delete()
-      .eq('school_project_id', deletingProjectId)
-      .not('parent_class_id', 'is', null);
-    // 부모 클래스 삭제
-    await supabase.from('classes').delete()
-      .eq('school_project_id', deletingProjectId)
-      .is('parent_class_id', null);
-    await supabase.from('school_projects').delete().eq('id', deletingProjectId);
     setDeletingProjectId(null);
     setDeletingProjectName('');
     await Promise.all([fetchDashboardData(), fetchMyProjects(), fetchAssignedClasses()]);
@@ -374,7 +404,9 @@ const Dashboard = () => {
       // 학교 프로젝트의 루트("전체") 클래스는 실제 가르치는 반이 아니라 관리용 placeholder이므로
       // "나의 학급" 목록에서 제외한다 (하단 "학교 프로젝트" 섹션에서 별도로 노출됨)
       const teachingClassesData = (allClassesData || []).filter(
-        c => !(c.school_project_id && !c.parent_class_id)
+        c => !(c.school_project_id && !c.parent_class_id) &&
+          // 사업 담당자로서 만들기만 하고 담당 강사가 내가 아닌 프로젝트 반도 내 수업이 아니므로 제외
+          !(c.parent_class_id && c.assigned_teacher_id !== user?.id)
       );
 
       // 데모 교사 계정은 여러 방문자가 공유하므로 본인이 발급받은 학급만 화면에 남긴다
@@ -1547,7 +1579,7 @@ const Dashboard = () => {
                     <p className="text-xs text-orange-700 font-bold">삭제 시 함께 사라지는 것:</p>
                     <p className="text-xs text-orange-600">• 학교 담당자 공유 URL 접근 불가</p>
                     <p className="text-xs text-orange-600">• 초대된 선생님의 Pro 혜택 만료</p>
-                    <p className="text-xs text-gray-500 mt-1">※ 각 반 클래스와 학생 데이터는 유지됩니다</p>
+                    <p className="text-xs text-gray-500 mt-1">※ 비어 있는 학교·반은 함께 삭제되고, 학생·출석·결과물이 있는 반은 자료 보호를 위해 남습니다</p>
                   </div>
                 </div>
                 <div className="flex gap-3 w-full mt-2">

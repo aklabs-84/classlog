@@ -748,7 +748,12 @@ const Classroom = () => {
       } catch (_e) { /* 컬럼 미존재 시 무시 */ }
 
       const seen = new Set<string>();
-      const combined = [...(ownData || []), ...assignedData].filter(c => {
+      // 내가 사업 담당자로서 만들었을 뿐 담당 강사가 내가 아닌 프로젝트 반("전체" 껍데기 포함)은
+      // 내 수업이 아니므로 클래스룸 목록에서 뺀다. 사업 관리 페이지에서 확인한다.
+      const ownTeaching = (ownData || []).filter(c =>
+        !(c.school_project_id || c.parent_class_id) || c.assigned_teacher_id === user?.id
+      );
+      const combined = [...ownTeaching, ...assignedData].filter(c => {
         if (seen.has(c.id)) return false;
         seen.add(c.id);
         return true;

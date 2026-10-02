@@ -806,7 +806,14 @@ const SchoolProjectSchoolsPage = () => {
     fetchData();
   };
 
-  const handleAssignTeacher = async (teacherId: string, classId: string, school: SchoolRow) => {
+  const handleAssignTeacher = async (teacherId: string, classId: string, school: SchoolRow, newTeacherName?: string) => {
+    // 한 반에는 강사가 한 명뿐이라, 이미 다른 강사가 있으면 교체된다는 점을 먼저 확인받는다.
+    const target = school.classes.find(c => c.id === classId);
+    if (target?.assigned_teacher_id && target.assigned_teacher_id !== teacherId) {
+      const oldName = target.teacherName ? `${target.teacherName} 선생님` : '기존 강사';
+      const newName = newTeacherName ? `${newTeacherName} 선생님` : '선택한 강사';
+      if (!confirm(`'${target.name}' 반에는 이미 ${oldName}이 배정되어 있습니다.\n${newName}으로 교체하면 ${oldName}은 이 반에서 빠집니다.\n\n같은 수업을 여러 선생님이 하려면 반을 따로 추가해 같은 과목으로 묶어 주세요.\n\n그래도 교체하시겠습니까?`)) return;
+    }
     const { error } = await supabase.rpc('assign_teacher_to_subclass', {
       p_class_id: classId,
       p_teacher_id: teacherId,
@@ -2056,7 +2063,7 @@ const SchoolProjectSchoolsPage = () => {
                   return (
                     <button
                       key={t.id}
-                      onClick={() => school && handleAssignTeacher(t.id, assigningClassId, school)}
+                      onClick={() => school && handleAssignTeacher(t.id, assigningClassId, school, t.full_name)}
                       className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-primary/5 text-left transition-all"
                     >
                       <img
