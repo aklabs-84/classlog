@@ -303,6 +303,8 @@ const StudentLog = () => {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectModalType, setRejectModalType] = useState<'block' | 'auto_reject'>('block');
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
+  // 같은 차시에서 반려가 연속으로 쌓여 "승인 + 선생님 검토 필요" 로 처리된 경우의 안내
+  const [warnApproveInfo, setWarnApproveInfo] = useState<{ reason: string } | null>(null);
 
   // 학생 알림
   const [studentNotifs, setStudentNotifs] = useState<any[]>([]);
@@ -419,6 +421,40 @@ const StudentLog = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [feeling, setFeeling] = useState('');
+
+  // 작성 가이드(오늘 수업 되짚어 보기) — 문장을 대신 넣어 주지 않고, 학생마다 답이 달라지는 질문만 힌트로 보여 줌
+  const [guideOpen, setGuideOpen] = useState(true);
+  const [activeGuideKey, setActiveGuideKey] = useState<string | null>(null);
+  const [usedGuideChips, setUsedGuideChips] = useState<Set<string>>(new Set());
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const feelingRef = useRef<HTMLTextAreaElement>(null);
+  const WRITING_GUIDE_CHIPS: { key: string; label: string; target: 'content' | 'feeling'; question: string }[] = [
+    { key: 'choice', label: '🎯 내가 직접 고르고 결정한 것', target: 'content', question: '오늘 활동에서 내가 직접 선택하거나 결정한 것은 무엇인가요? 왜 그렇게 했나요?' },
+    { key: 'stuck', label: '🧩 가장 막혔던 순간', target: 'content', question: '가장 막혔던 순간은 언제였나요? 그때 어떻게 넘겼나요?' },
+    { key: 'diff', label: '✨ 내 결과물만의 특징', target: 'content', question: '내가 만든 결과물이 다른 친구 것과 다른 점은 무엇인가요?' },
+    { key: 'next', label: '🔁 다음에 다르게 해보고 싶은 것', target: 'feeling', question: '다음에 다시 한다면 무엇을 다르게 해보고 싶나요? 그 이유는요?' },
+  ];
+  const activeGuideChip = WRITING_GUIDE_CHIPS.find(c => c.key === activeGuideKey) || null;
+  // 선생님이 저장해 둔 "오늘 수업 키워드" — 선택한 주제(차시)와 일치하는 계획표 항목에서 가져옴
+  const [pickedRecap, setPickedRecap] = useState<Set<string>>(new Set());
+  const normGuideTitle = (t: string) => (t || '').replace(/\s+/g, '').toLowerCase();
+  const activeRecap: string[] = ((classResources as any[]).find(r => normGuideTitle(r.topic) === normGuideTitle(title))?.recap || []).filter(Boolean);
+  const toggleRecap = (kw: string) => setPickedRecap(prev => {
+    const next = new Set(prev);
+    if (next.has(kw)) next.delete(kw); else next.add(kw);
+    return next;
+  });
+  const selectGuideChip = (chip: { key: string; target: 'content' | 'feeling' }) => {
+    setActiveGuideKey(prev => (prev === chip.key ? null : chip.key));
+    (chip.target === 'content' ? contentRef.current : feelingRef.current)?.focus();
+  };
+  const toggleGuideDone = (key: string) => {
+    setUsedGuideChips(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   // Suggestions State
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -2201,37 +2237,59 @@ const StudentLog = () => {
       let aiReviewFlag: 'good' | 'review_needed' | null = null;
       let aiConcern = '';
       let aiFeedbackForModal: { reason: string; guide: string } | null = null;
+      let forcedApprove = false; // 연속 반려 한도 도달 → 승인하되 선생님 검토 요청
 
       if (guidePrompt && aiReviewEnabled) {
         try {
           const contentLength = content.trim().length;
+
+          // 같은 차시의 직전 제출 기록 (최신순) → 연속 반려 횟수와 직전 반려 사유
+          let rejectStreak = 0;
+          let prevReason = '';
+          try {
+            const wk = (classResources as any[]).find(r => normTitle(r.topic) === normTitle(title))?.week ?? null;
+            const { data: prevAll } = await supabase.rpc('student_my_observations', { p_token: session.token });
+            const prevSame = ((prevAll || []) as any[])
+              .filter(o => (o.status === 'rejected' || o.status === 'approved') && wk != null && o.week_number === wk)
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            for (const o of prevSame) {
+              if (o.status !== 'rejected') break;
+              rejectStreak++;
+            }
+            if (prevSame[0]?.status === 'rejected') prevReason = prevSame[0].teacher_feedback || '';
+          } catch (e) {
+            console.warn('[이전 제출 조회 실패 — 판정은 계속]', e);
+          }
+          const recapKeywords = activeRecap.length > 0 ? activeRecap.join(', ') : '';
           const prompt = `
 당신은 학생이 제출한 활동 기록의 내용 품질을 판단하는 AI입니다.
-글자수 미달·금지어는 이미 사전에 차단되었으므로 당신은 내용의 질만 평가합니다.
+글자수 미달·금지어는 이미 사전에 차단되었으므로 당신은 "주요 활동 내용"만 평가합니다.
+"배운 점 및 느낀 점"은 참고만 하고, 비어 있거나 부실해도 판단에 절대 반영하지 마세요.
 
 [교사의 지침]
 ${guidePrompt}
 
 [학생이 제출한 활동 정보]
 제목: "${title}"
-내용(${contentLength}자): "${content}"
-배운 점 및 느낀 점: "${feeling}"
+주요 활동 내용(${contentLength}자): "${content}"
+(참고) 배운 점 및 느낀 점: "${feeling}"
+${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevReason ? `\n[직전 제출이 반려된 사유] ${prevReason}\n→ 이 사유가 이번 글에서 해결되었다면 다른 새로운 이유를 찾아 반려하지 말고 good으로 처리하세요.\n` : ''}
+━━ 판정 체크리스트 ━━
+아래 "반려 사유"에 명백히 해당할 때만 review_needed, 그 외는 모두 good입니다.
 
-━━ 평가 기준 (두 가지만) ━━
+[반려 사유 — 이 세 가지뿐]
+ A. 수업과 무관한 내용이다 (오늘 수업 주제·키워드와 연결되는 말이 전혀 없음)
+ B. 한 일(활동)이 하나도 적혀 있지 않고 감상·감정만 있다
+ C. 같은 말·같은 글자를 반복해 분량만 채웠다 (글 전체나 큰 부분이 반복일 때. 글 중간에 "ㅋㅋ"처럼 짧게 섞인 정도는 반려 사유가 아님)
 
-1. review_needed (교사 검토 필요):
-   - 교사 지침의 핵심 요구사항을 명백히 충족하지 못한 경우
-   - 수업과 무관하거나 구체적 활동 없이 단순 감상·감정만 나열한 경우
-   - 의미 없는 문장 반복으로 분량만 채운 경우
-   - 같은 글자·자음·모음이 의미 없이 반복되는 부분(예: "아아아아", "ㅋㅋㅋㅋㅋ", "ㅠㅠㅠㅠㅠ" 등)이 내용에 조금이라도 포함된 경우
-     → 앞부분에 정상적인 내용이 있어 전체적으로는 승인할 만해 보이더라도, 이 경우는 예외 없이 반드시 review_needed로 처리하세요.
-   → reason: 학생에게 보여줄 반려 사유 (한두 문장, 구체적으로)
-   → guide: 어떻게 수정하면 좋을지 친절한 개선 방향 (한두 문장)
+[승인 기준]
+ - 수업과 관련된 구체적인 활동이 한 가지라도 적혀 있으면 good
+ - 분량·문체·맞춤법·표현력이 부족하다는 이유만으로는 반려하지 않음
+ - 애매하면 good
 
-2. good (승인):
-   - 교사 지침을 어느 정도 충족하거나 수업과 관련된 내용이 있으면 승인
-   - 분량·문체·맞춤법 무관, 진정성 있는 내용이면 승인
-   - 위 review_needed 사유(특히 무의미한 문자 반복)에 해당하지 않는 한, 애매한 경우는 반드시 good으로 처리
+[review_needed일 때 작성법]
+ - reason: 위 A·B·C 중 무엇 때문인지 학생이 이해할 수 있게 한두 문장으로
+ - guide: 정답 문장을 써 주지 말고, 학생이 스스로 떠올리도록 "~했나요?" 형태의 질문 2~3개를 한 문자열에 줄바꿈(\\n)으로 구분해 작성. 오늘 수업 키워드가 있으면 질문에 활용
 
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"status":"good","reason":"","guide":""}
@@ -2242,7 +2300,12 @@ ${guidePrompt}
           const jsonMatch = aiResponseText.match(/\{[\s\S]*?\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.status === 'review_needed' && parsed.reason) {
+            if (parsed.status === 'review_needed' && parsed.reason && rejectStreak >= 2) {
+              // 같은 차시 3번째 반려 → 승인하되 선생님 검토 요청 (학생이 계속 막히는 것 방지)
+              aiReviewFlag = 'good';
+              forcedApprove = true;
+              aiConcern = parsed.reason;
+            } else if (parsed.status === 'review_needed' && parsed.reason) {
               aiReviewFlag = 'review_needed';
               aiConcern = parsed.reason;
               aiFeedbackForModal = { reason: parsed.reason, guide: parsed.guide || '교사 지침을 참고하여 구체적인 활동 내용을 추가해 주세요.' };
@@ -2274,7 +2337,19 @@ ${guidePrompt}
       if (obsError || !newObsId) throw new Error(`기록 저장 오류: ${obsError?.message || '저장에 실패했어요. 다시 입장해 주세요.'}`);
 
       // ── 2. 교사 알림 전송 (실패해도 제출 성공으로 처리) ───────────────────
-      if (aiReviewFlag !== 'review_needed') {
+      if (forcedApprove) {
+        // 연속 반려 한도 도달 → 승인 처리, 선생님께 검토 요청
+        supabase
+          .rpc('student_notify_teacher', {
+            p_token: session.token,
+            p_title: `⚠️ 검토 필요 · ${session.student_name} "${title}"`,
+            p_content: `같은 차시에서 반려가 3번 이어져 승인 처리했어요. AI 우려: ${aiConcern}`,
+            p_type: 'ai_review_needed',
+          })
+          .then(({ error }) => {
+            if (error) console.warn('[검토요청 알림 실패]', error.message);
+          });
+      } else if (aiReviewFlag !== 'review_needed') {
         // 승인된 제출만 일반 알림 전송
         supabase
           .rpc('student_notify_teacher', {
@@ -2310,7 +2385,8 @@ ${guidePrompt}
         return;
       }
 
-      showToast('제출 완료! ✅');
+      if (forcedApprove) setWarnApproveInfo({ reason: aiConcern });
+      else showToast('제출 완료! ✅');
 
       // 결과제출 리마인더 체크 — stale state 대신 DB 직접 조회
       const normR = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
@@ -2329,6 +2405,9 @@ ${guidePrompt}
       setTitle('');
       setContent('');
       setFeeling('');
+      setUsedGuideChips(new Set());
+      setActiveGuideKey(null);
+      setPickedRecap(new Set());
       handleTabChange('history');
 
     } catch (err: any) {
@@ -2964,10 +3043,103 @@ ${guidePrompt}
                   </div>
                 )}
 
-                {!isClassClosed && (<><div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                {!isClassClosed && (<>
+                {/* 오늘 수업 되짚어 보기 — 무엇을 써야 할지 막막한 학생을 위한 질문 칩 */}
+                <div className="rounded-[1.75rem] border-2 border-primary/15 bg-primary/5 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setGuideOpen(o => !o)}
+                    className="w-full flex items-center justify-between gap-3 px-8 py-5 text-left"
+                  >
+                    <span className="flex items-center gap-3 font-black text-primary text-base">
+                      <Sparkles size={18} /> 뭘 써야 할지 모르겠다면? 오늘 수업 되짚어 보기
+                    </span>
+                    <span className="text-primary/60 text-sm font-black">{guideOpen ? '접기 ▲' : '펼치기 ▼'}</span>
+                  </button>
+                  {guideOpen && (
+                    <div className="px-8 pb-7 space-y-4">
+                      {title && (
+                        <p className="text-sm font-bold text-on-surface-variant">
+                          오늘 수업: <span className="text-primary font-black">{title}</span>
+                        </p>
+                      )}
+                      {activeRecap.length > 0 && (
+                        <div className="space-y-2.5">
+                          <p className="text-sm font-black text-on-surface">① 오늘 수업에서 이런 걸 했어요. <span className="text-primary">내가 직접 한 것</span>을 눌러 보세요.</p>
+                          <div className="flex flex-wrap gap-2.5">
+                            {activeRecap.map(kw => {
+                              const picked = pickedRecap.has(kw);
+                              return (
+                                <button
+                                  key={kw}
+                                  type="button"
+                                  onClick={() => toggleRecap(kw)}
+                                  className={`px-4 py-2.5 rounded-xl text-sm font-black border-2 transition-all active:scale-95 text-left ${
+                                    picked
+                                      ? 'bg-primary text-white border-primary shadow-sm'
+                                      : 'bg-white border-neutral-300 text-neutral-800 hover:border-primary/50'
+                                  }`}
+                                >
+                                  {picked ? '✓ ' : ''}{kw}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {pickedRecap.size > 0 && (
+                            <p className="text-sm font-bold text-primary">👉 고른 활동마다 <span className="font-black">어떻게 했는지, 내가 맡은 부분이 뭔지</span> 내 말로 써 보세요.</p>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-sm font-black text-on-surface">
+                        {activeRecap.length > 0 ? '② ' : ''}막막하면 질문을 눌러 보세요. 정답은 없고, 내 말로 직접 쓰면 돼요.
+                      </p>
+                      <div className="flex flex-wrap gap-2.5">
+                        {WRITING_GUIDE_CHIPS.map(chip => {
+                          const used = usedGuideChips.has(chip.key);
+                          const active = activeGuideKey === chip.key;
+                          return (
+                            <button
+                              key={chip.key}
+                              type="button"
+                              onClick={() => selectGuideChip(chip)}
+                              className={`px-4 py-2.5 rounded-full text-sm font-black border-2 transition-all active:scale-95 ${
+                                used
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                  : active
+                                  ? 'bg-primary text-white border-primary'
+                                  : 'bg-white border-primary/20 text-primary hover:border-primary/50 hover:bg-primary/5'
+                              }`}
+                            >
+                              {used ? '✓ ' : ''}{chip.label}
+                              <span className="ml-1.5 text-xs opacity-60 font-bold">→ {chip.target === 'content' ? '활동 내용' : '배운 점'}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {activeGuideChip && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white border border-primary/20 px-5 py-4">
+                          <p className="text-sm font-bold text-on-surface leading-relaxed">💭 {activeGuideChip.question}</p>
+                          <button
+                            type="button"
+                            onClick={() => toggleGuideDone(activeGuideChip.key)}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-black border transition-all whitespace-nowrap ${
+                              usedGuideChips.has(activeGuideChip.key)
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                : 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10'
+                            }`}
+                          >
+                            {usedGuideChips.has(activeGuideChip.key) ? '✓ 답했어요' : '답했어요'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-4">
                     <label className="text-sm font-black text-primary uppercase tracking-[0.2em] ml-2">주요 활동 내용</label>
                     <textarea
+                      ref={contentRef}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="오늘 수업에서 내가 어떤 역할을 맡았고, 어떤 구체적인 활동 과정을 거쳤는지 자세히 입력하세요..."
@@ -3013,7 +3185,8 @@ ${guidePrompt}
                   <div className="flex flex-col gap-10">
                     <div className="space-y-4 flex-1">
                       <label className="text-sm font-black text-primary uppercase tracking-[0.2em] ml-2">배운 점 및 느낀 점</label>
-                      <textarea 
+                      <textarea
+                        ref={feelingRef}
                         value={feeling}
                         onChange={(e) => setFeeling(e.target.value)}
                         placeholder="활동을 통해 새롭게 깨달은 지식, 확장된 호기심, 또는 어려웠던 점을 어떻게 해결했는지 기록하세요."
@@ -6029,7 +6202,7 @@ ${guidePrompt}
                     <h4 className="text-sm font-black text-primary uppercase tracking-widest flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary" /> 이렇게 수정해보세요
                     </h4>
-                    <p className="text-sm font-bold text-primary/80 leading-relaxed">{aiFeedback.guide}</p>
+                    <p className="text-sm font-bold text-primary/80 leading-relaxed whitespace-pre-line">{aiFeedback.guide}</p>
                   </div>
                 )}
                 {rejectModalType === 'auto_reject' && (
@@ -6050,6 +6223,38 @@ ${guidePrompt}
                   {rejectModalType === 'auto_reject' ? '수정 후 재제출하기 →' : '내용 수정하러 가기'}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 연속 반려 → 승인 + 선생님 검토 요청 안내 */}
+      <AnimatePresence>
+        {warnApproveInfo && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md" onClick={() => setWarnApproveInfo(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-lg bg-white p-10 rounded-[2rem] space-y-6 shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+              <div className="text-center space-y-2">
+                <div className="text-5xl">⚠️</div>
+                <h3 className="text-2xl font-black text-slate-900 font-manrope">제출은 됐어요! 선생님이 확인할 거예요</h3>
+                <p className="text-sm font-bold text-slate-500">같은 수업에서 여러 번 수정했어요. 이번에는 제출로 처리하고, 선생님이 직접 살펴본 뒤 의견을 줄 수 있어요.</p>
+              </div>
+              <div className="space-y-2 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                <h4 className="text-sm font-black text-amber-600">선생님이 확인할 점</h4>
+                <p className="text-sm font-bold text-slate-600 leading-relaxed">{warnApproveInfo.reason}</p>
+              </div>
+              <button
+                onClick={() => setWarnApproveInfo(null)}
+                className="w-full py-5 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95"
+              >
+                확인했어요
+              </button>
             </motion.div>
           </div>
         )}

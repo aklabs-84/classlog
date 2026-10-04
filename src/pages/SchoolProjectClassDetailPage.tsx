@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import RecapKeywordsEditor from '../components/classroom/RecapKeywordsEditor';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -46,6 +47,7 @@ interface WeeklyPlanItem {
   topic: string;
   url?: string;
   material_id?: string;
+  recap?: string[];
   requires_result?: boolean;
   requires_activity?: boolean;
 }
@@ -490,6 +492,14 @@ const SchoolProjectClassDetailPage = () => {
                             </div>
                           )}
                         </div>
+
+                        <RecapKeywordsEditor
+                          recap={item.recap}
+                          materialId={item.material_id}
+                          topic={item.topic}
+                          classId={classId}
+                          onChange={recap => setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, recap } : p))}
+                        />
                       </div>
                     </div>
                   </div>

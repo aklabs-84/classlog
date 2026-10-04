@@ -550,6 +550,41 @@ export const observationReviewAI  = makeModelWrapper('flash', 'observation_revie
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
 export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade', true);
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
+export const lessonRecapAI        = makeModelWrapper('flash', 'lesson_recap', true);
+
+// 수업 자료 본문에서 "오늘 수업 키워드"(학생이 기억을 떠올리는 단서) 3~5개를 뽑는다.
+// 학생 기록이 서로 똑같아지지 않도록 완성된 문장·서술형이 아닌 짧은 명사구만 만든다.
+export async function generateLessonRecap(topic: string, materialContent: string, classId?: string): Promise<string[]> {
+  const body = (materialContent || '').slice(0, 12000);
+  const prompt = `당신은 수업 마무리에 학생이 "오늘 뭘 했지?" 하고 떠올리도록 돕는 키워드를 만드는 도우미입니다.
+아래 수업 자료를 읽고, 학생이 오늘 수업에서 직접 해 봤을 법한 활동·배운 개념을 짧은 키워드 3~5개로 뽑으세요.
+
+[수업 주제]
+${topic || '(주제 없음)'}
+
+[수업 자료]
+${body}
+
+규칙:
+- 각 키워드는 25자 이내의 짧은 명사구로 쓰세요. (예: "개러지밴드로 코드 진행 만들기", "수노 AI에 곡 스타일 입력하기")
+- "~했다", "~배웠다" 같은 완성된 문장이나 감상·평가 표현은 쓰지 마세요.
+- 자료에 실제로 나온 활동·도구·개념만 쓰고, 없는 내용을 지어내지 마세요.
+- 서로 겹치지 않게, 수업 흐름 순서대로 쓰세요.
+
+반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
+{"keywords":["키워드1","키워드2","키워드3"]}`;
+  const result = await lessonRecapAI.generateContent(prompt, classId ? { class_id: classId } : undefined);
+  const text = result.response.text();
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('키워드를 만들지 못했어요. 다시 시도해 주세요.');
+  const parsed = JSON.parse(match[0]);
+  const list: unknown = parsed?.keywords;
+  if (!Array.isArray(list)) throw new Error('키워드를 만들지 못했어요. 다시 시도해 주세요.');
+  return list
+    .map(k => String(k).trim().slice(0, 40))
+    .filter(Boolean)
+    .slice(0, 5);
+}
 export const materialProofreadAI  = makeModelWrapper('lite',  'material_proofread', true);
 export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
 export const coverPromptAI         = makeModelWrapper('lite',  'cover_prompt_suggest', true);

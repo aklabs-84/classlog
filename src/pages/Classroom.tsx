@@ -61,7 +61,7 @@ import {
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
 import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
-import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
+import { validateTeacherPrompt, validateStudentGuidePrompt, generateLessonRecap } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { isDemoTeacher } from '../lib/demo';
 import { getAiApps, type AiApp } from '../lib/aiApps';
@@ -278,6 +278,18 @@ const Classroom = () => {
   const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
+  const [selectedWeekIdx, setSelectedWeekIdx] = useState(0);
+  const weekTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [selectedNewWeekIdx, setSelectedNewWeekIdx] = useState(0);
+  const newWeekTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [createModalFull, setCreateModalFull] = useState(true); // 새 학급 만들기 모달 전체화면 토글 (기본: 전체화면)
+  useEffect(() => { if (isCreateModalOpen) { setCreateModalFull(true); setSelectedNewWeekIdx(0); } }, [isCreateModalOpen]);
+  useEffect(() => {
+    if (!isCreateModalOpen || !createModalFull) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isCreateModalOpen, createModalFull]);
   const [updateModalFull, setUpdateModalFull] = useState(false); // 학급 정보 관리 모달 전체화면 토글
   useEffect(() => { if (!isUpdateModalOpen) setUpdateModalFull(false); }, [isUpdateModalOpen]);
   // 전체화면일 때 뒤 페이지 스크롤 잠금 (이중 스크롤 방지)
@@ -387,6 +399,33 @@ const Classroom = () => {
   const [editingClassQuizSets, setEditingClassQuizSets] = useState<{ id: string; title: string }[]>([]);
   const [editingClassBoards, setEditingClassBoards] = useState<{ id: string; title: string }[]>([]);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
+  // 주차별 "오늘 수업 키워드"(학생 기록 작성 가이드) — AI 초안 생성 중인 주차, 직접 입력 중인 키워드
+  const [recapBusyIdx, setRecapBusyIdx] = useState<number | null>(null);
+  const [recapDraft, setRecapDraft] = useState<Record<number, string>>({});
+  const setRecapAt = (idx: number, recap: string[]) => {
+    setUpdateClassData((prev: any) => {
+      const plan = [...(prev.weekly_plan || [])];
+      plan[idx] = { ...plan[idx], recap };
+      return { ...prev, weekly_plan: plan };
+    });
+  };
+  const handleGenerateRecap = async (idx: number) => {
+    const item = (updateClassData.weekly_plan || [])[idx];
+    if (!item?.material_id) return;
+    if ((item.recap || []).length > 0 && !window.confirm('이미 만들어 둔 키워드가 있어요.\nAI가 새로 만든 키워드로 바꿀까요?')) return;
+    setRecapBusyIdx(idx);
+    try {
+      const { data, error } = await supabase.from('class_materials').select('content').eq('id', item.material_id).single();
+      if (error || !data?.content?.trim()) throw new Error('연결된 자료의 내용을 불러오지 못했어요.');
+      const keywords = await generateLessonRecap(item.topic || '', data.content, updateClassData.id);
+      if (keywords.length === 0) throw new Error('키워드를 만들지 못했어요. 다시 시도해 주세요.');
+      setRecapAt(idx, keywords);
+    } catch (err: any) {
+      showToast(err?.message || '키워드를 만들지 못했어요.');
+    } finally {
+      setRecapBusyIdx(null);
+    }
+  };
   // 일반 자료 관리 상태
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [showAddGeneralForm, setShowAddGeneralForm] = useState(false);
@@ -3281,10 +3320,15 @@ const Classroom = () => {
 
       <AnimatePresence>
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-on-surface/20 backdrop-blur-sm overflow-y-auto" onClick={() => setIsCreateModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-8 md:p-10 rounded-[1.75rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
-              <h3 className="text-2xl font-black text-center text-neutral-900">새 학급 만들기</h3>
-              <form onSubmit={handleCreateClass} className="space-y-5">
+          <BodyPortal><div className={`fixed inset-0 z-[500] flex items-center justify-center bg-on-surface/20 backdrop-blur-sm ${createModalFull ? 'p-0 overflow-hidden' : 'p-4 md:p-6 overflow-y-auto'}`} onClick={() => setIsCreateModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`w-full bg-white p-6 md:p-10 space-y-8 shadow-2xl border border-neutral-200 ${createModalFull ? 'max-w-none h-full overflow-y-auto rounded-none md:px-16 lg:px-24 md:py-12' : 'max-w-md rounded-[1.75rem] my-auto'}`} onClick={e => e.stopPropagation()}>
+              <div className={`flex items-center gap-2 ${createModalFull ? 'justify-start max-w-3xl mx-auto w-full' : 'justify-center'}`}>
+                <h3 className="text-2xl font-black text-neutral-900">새 학급 만들기</h3>
+                <button type="button" onClick={() => setCreateModalFull(v => !v)} title={createModalFull ? '작게 보기' : '전체화면으로 보기'} className="hidden sm:flex p-2 rounded-xl text-neutral-400 hover:bg-neutral-100 hover:text-primary transition-all">
+                  {createModalFull ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+              </div>
+              <form onSubmit={handleCreateClass} className={`space-y-5 ${createModalFull ? 'max-w-3xl mx-auto w-full' : ''}`}>
                 <div className="space-y-1.5">
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">학급 명칭</label>
                   <input type="text" placeholder="예: 2학년 3반" value={newClassData.name} onChange={e => setNewClassData({...newClassData, name: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none placeholder:text-neutral-400" required />
@@ -3588,58 +3632,113 @@ const Classroom = () => {
                       <ChevronDown size={14} className="group-open:rotate-180 transition-transform duration-300" />
                     </summary>
                     <div className="space-y-4 pt-4 px-1">
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                        {newClassData.weekly_plan.map((item: any, idx: number) => (
-                          <div key={idx} className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-3 relative">
-                            {idx > 0 && (
-                              <button type="button" onClick={() => {
-                                const plan = newClassData.weekly_plan.filter((_: any, i: number) => i !== idx);
-                                setNewClassData({ ...newClassData, weekly_plan: plan });
-                              }} className="absolute top-3 right-3 text-neutral-500 hover:text-error transition-colors"><X size={14} /></button>
-                            )}
-                            <div className="flex items-center gap-3">
-                               <div className="w-10 h-10 bg-white border border-neutral-100 rounded-lg flex flex-col items-center justify-center shrink-0">
-                                 <span className="text-[7px] font-black text-neutral-400 uppercase leading-none">W</span>
-                                 <span className="text-xs font-black text-secondary leading-none">{item.week}</span>
-                               </div>
-                               <div className="flex-1 space-y-2">
-                                 <input type="text" value={item.topic} onChange={(e) => {
-                                   const plan = [...newClassData.weekly_plan];
-                                   plan[idx].topic = e.target.value;
-                                   setNewClassData({ ...newClassData, weekly_plan: plan });
-                                 }} placeholder="주제 (예: 국어의 기술)" className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs font-bold outline-none focus:border-secondary/40" />
-                                 <input type="text" value={item.url} onChange={(e) => {
-                                   const plan = [...newClassData.weekly_plan];
-                                   plan[idx].url = e.target.value;
-                                   setNewClassData({ ...newClassData, weekly_plan: plan });
-                                 }} placeholder="자료 링크 (URL)" className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs font-bold outline-none focus:border-secondary/40" />
-                                 <div className="flex items-center gap-4 mt-1">
-                                   <label onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer">
-                                     <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
-                                       const plan = [...newClassData.weekly_plan];
-                                       plan[idx].requires_result = e.target.checked;
-                                       setNewClassData({ ...newClassData, weekly_plan: plan });
-                                     }} className="w-3.5 h-3.5 rounded accent-secondary" />
-                                     <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
-                                   </label>
-                                   <label onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer">
-                                     <input type="checkbox" checked={item.requires_activity !== false} onChange={(e) => {
-                                       const plan = [...newClassData.weekly_plan];
-                                       plan[idx].requires_activity = e.target.checked;
-                                       setNewClassData({ ...newClassData, weekly_plan: plan });
-                                     }} className="w-3.5 h-3.5 rounded accent-secondary" />
-                                     <span className="text-xs font-black text-neutral-600">활동기록 필요</span>
-                                   </label>
-                                 </div>
-                               </div>
+                      {(() => {
+                        const plan = newClassData.weekly_plan;
+                        const planLen = plan.length;
+                        const curIdx = Math.min(selectedNewWeekIdx, planLen - 1);
+                        const item = plan[curIdx];
+                        const goTo = (i: number) => {
+                          setSelectedNewWeekIdx(i);
+                          requestAnimationFrame(() => newWeekTabRefs.current[i]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }));
+                        };
+                        const updateItem = (patch: any) => {
+                          const next = plan.map((w: any, i: number) => i === curIdx ? { ...w, ...patch } : w);
+                          setNewClassData({ ...newClassData, weekly_plan: next });
+                        };
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-2">
+                              <div
+                                role="tablist"
+                                aria-label="차시 선택"
+                                className="flex-1 min-w-0 flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x"
+                                style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'thin' }}
+                              >
+                                {plan.map((w: any, i: number) => {
+                                  const active = i === curIdx;
+                                  const empty = !(w.topic || '').trim();
+                                  return (
+                                    <button
+                                      key={i}
+                                      ref={el => { newWeekTabRefs.current[i] = el; }}
+                                      type="button"
+                                      role="tab"
+                                      aria-selected={active}
+                                      onClick={() => goTo(i)}
+                                      className={`snap-start shrink-0 min-h-[40px] px-4 rounded-xl text-sm font-black border-2 transition-all flex items-center gap-1.5 ${
+                                        active
+                                          ? 'bg-secondary text-white border-secondary shadow-md'
+                                          : 'bg-white text-neutral-600 border-neutral-200 hover:border-secondary/40'
+                                      }`}
+                                    >
+                                      {w.week}주차
+                                      {empty && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : 'bg-amber-400'}`} title="주제 미입력" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: planLen + 1, topic: '', url: '', requires_result: true, requires_activity: true }] });
+                                  goTo(planLen);
+                                }}
+                                className="shrink-0 min-h-[40px] px-4 rounded-xl text-sm font-black border-2 border-dashed border-neutral-300 text-neutral-500 hover:border-secondary/40 hover:text-secondary transition-all"
+                              >+ 추가</button>
                             </div>
+
+                            {item && (
+                              <div className="p-4 sm:p-6 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-4 relative">
+                                {curIdx > 0 && (
+                                  <button
+                                    type="button"
+                                    aria-label="이 차시 삭제"
+                                    onClick={() => {
+                                      setNewClassData({ ...newClassData, weekly_plan: plan.filter((_: any, i: number) => i !== curIdx) });
+                                      setSelectedNewWeekIdx(Math.max(0, curIdx - 1));
+                                    }}
+                                    className="absolute top-3 right-3 p-2 text-neutral-400 hover:text-error transition-colors"
+                                  ><X size={16} /></button>
+                                )}
+                                <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                                  <div className="w-12 h-12 bg-white border-2 border-neutral-100 rounded-xl flex flex-col items-center justify-center shrink-0">
+                                    <span className="text-[10px] font-black text-neutral-500 uppercase">Week</span>
+                                    <span className="text-sm font-black text-secondary">{item.week}</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0 space-y-4 pr-6">
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">수업 주제</label>
+                                      <input type="text" value={item.topic} onChange={(e) => updateItem({ topic: e.target.value })} placeholder="주제 (예: 국어의 기술)" className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:border-secondary/40" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">자료 링크 (URL)</label>
+                                      <input type="text" value={item.url} onChange={(e) => updateItem({ url: e.target.value })} placeholder="https://..." className="w-full px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:border-secondary/40" />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                      <label className="flex items-center gap-2 cursor-pointer min-h-[28px]">
+                                        <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => updateItem({ requires_result: e.target.checked })} className="w-4 h-4 rounded accent-secondary" />
+                                        <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
+                                      </label>
+                                      <label className="flex items-center gap-2 cursor-pointer min-h-[28px]">
+                                        <input type="checkbox" checked={item.requires_activity !== false} onChange={(e) => updateItem({ requires_activity: e.target.checked })} className="w-4 h-4 rounded accent-secondary" />
+                                        <span className="text-xs font-black text-neutral-600">활동기록 필요</span>
+                                      </label>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {planLen > 1 && (
+                              <div className="flex items-center gap-3">
+                                <button type="button" disabled={curIdx === 0} onClick={() => goTo(curIdx - 1)} className="flex-1 min-h-[44px] rounded-xl border border-neutral-200 bg-white text-sm font-black text-neutral-600 hover:border-secondary/40 hover:text-secondary transition-all disabled:opacity-40 disabled:cursor-not-allowed">← 이전 차시</button>
+                                <span className="text-xs font-black text-neutral-500 shrink-0">{curIdx + 1} / {planLen}</span>
+                                <button type="button" disabled={curIdx === planLen - 1} onClick={() => goTo(curIdx + 1)} className="flex-1 min-h-[44px] rounded-xl border border-neutral-200 bg-white text-sm font-black text-neutral-600 hover:border-secondary/40 hover:text-secondary transition-all disabled:opacity-40 disabled:cursor-not-allowed">다음 차시 →</button>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                        <button type="button" onClick={() => {
-                          const plan = newClassData.weekly_plan;
-                          setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }] });
-                        }} className="w-full py-2 border-2 border-dashed border-neutral-300 rounded-xl text-xs font-black text-neutral-500 hover:border-secondary/40 hover:text-secondary transition-all">+ 주차 추가</button>
-                      </div>
+                        );
+                      })()}
                     </div>
                   </details>
 
@@ -3733,7 +3832,7 @@ const Classroom = () => {
                 </div>
               </form>
             </motion.div>
-          </div>
+          </div></BodyPortal>
         )}
 
         {isUpdateModalOpen && updateClassData && (
@@ -4121,23 +4220,65 @@ const Classroom = () => {
                                 ...updateClassData,
                                 weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }]
                               });
+                              setSelectedWeekIdx(plan.length);
                             }}
                             className="text-xs font-black px-3 py-1 bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all"
                           >+ 주차 추가</button>
                         </div>
-                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                          {(updateClassData.weekly_plan || []).map((item: any, idx: number) => (
-                            <div key={idx} className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-4 relative group">
+                        {(updateClassData.weekly_plan || []).length > 0 && (() => {
+                          const planLen = (updateClassData.weekly_plan || []).length;
+                          const curIdx = Math.min(selectedWeekIdx, planLen - 1);
+                          return (
+                            <div
+                              role="tablist"
+                              aria-label="차시 선택"
+                              className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x"
+                              style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'thin' }}
+                            >
+                              {(updateClassData.weekly_plan || []).map((w: any, i: number) => {
+                                const active = i === curIdx;
+                                const empty = !(w.topic || '').trim();
+                                return (
+                                  <button
+                                    key={i}
+                                    ref={el => { weekTabRefs.current[i] = el; }}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={active}
+                                    onClick={() => {
+                                      setSelectedWeekIdx(i);
+                                      setMaterialDropdownIdx(null);
+                                      weekTabRefs.current[i]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                                    }}
+                                    className={`snap-start shrink-0 min-h-[40px] px-4 rounded-xl text-sm font-black border-2 transition-all flex items-center gap-1.5 ${
+                                      active
+                                        ? 'bg-primary text-white border-primary shadow-md'
+                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-primary/40'
+                                    }`}
+                                  >
+                                    {w.week}주차
+                                    {empty && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : 'bg-amber-400'}`} title="주제 미입력" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                        <div className="space-y-3">
+                          {(updateClassData.weekly_plan || []).map((item: any, idx: number) => idx !== Math.min(selectedWeekIdx, (updateClassData.weekly_plan || []).length - 1) ? null : (
+                            <div key={idx} className="p-4 sm:p-6 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-4 relative group">
                               <button 
                                 type="button"
                                 onClick={() => {
                                   const plan = updateClassData.weekly_plan.filter((_: any, i: number) => i !== idx);
                                   setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                  setSelectedWeekIdx(Math.max(0, idx - 1));
                                 }}
-                                className="absolute top-4 right-4 text-neutral-300 hover:text-error transition-colors"
+                                aria-label="이 차시 삭제"
+                                className="absolute top-3 right-3 p-2 text-neutral-300 hover:text-error transition-colors"
                               ><X size={16} /></button>
-                              
-                              <div className="flex items-center gap-4">
+
+                              <div className="flex items-start sm:items-center gap-3 sm:gap-4">
                                 <div className="w-12 h-12 bg-white border-2 border-neutral-100 rounded-xl flex flex-col items-center justify-center shrink-0">
                                   <span className="text-[10px] font-black text-neutral-500 uppercase">Week</span>
                                   <span className="text-sm font-black text-primary">{item.week}</span>
@@ -4284,6 +4425,62 @@ const Classroom = () => {
                                     )}
                                   </div>
 
+                                  {/* ── 오늘 수업 키워드 (학생 활동 기록 작성 시 "오늘 뭘 했지?" 떠올리는 단서) ── */}
+                                  <div className="space-y-2 p-3 bg-amber-50/60 border border-amber-200/70 rounded-xl">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <label className="text-xs font-black text-neutral-700 ml-1">
+                                        💡 오늘 수업 키워드 <span className="normal-case font-bold text-neutral-500">(학생 기록 화면에 힌트로 보여요)</span>
+                                      </label>
+                                      <button
+                                        type="button"
+                                        disabled={!item.material_id || recapBusyIdx !== null}
+                                        onClick={() => handleGenerateRecap(idx)}
+                                        title={item.material_id ? '' : '수업자료 에디터 자료를 연결하면 AI가 키워드 초안을 만들어 줘요'}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-primary/30 text-xs font-black text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                      >
+                                        {recapBusyIdx === idx ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                        {recapBusyIdx === idx ? '만드는 중...' : 'AI로 초안 만들기'}
+                                      </button>
+                                    </div>
+                                    {!item.material_id && (
+                                      <p className="text-[11px] font-bold text-neutral-500 ml-1">에디터 자료를 연결하면 AI 초안을 만들 수 있어요. 직접 입력도 가능해요.</p>
+                                    )}
+                                    {(item.recap || []).length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {(item.recap as string[]).map((kw: string, ki: number) => (
+                                          <span key={ki} className="inline-flex items-center gap-1 pl-3 pr-1.5 py-1 bg-white border border-amber-300 rounded-full text-xs font-bold text-neutral-800">
+                                            {kw}
+                                            <button
+                                              type="button"
+                                              onClick={() => setRecapAt(idx, (item.recap as string[]).filter((_: string, i: number) => i !== ki))}
+                                              className="p-0.5 text-neutral-400 hover:text-error transition-colors"
+                                              aria-label="키워드 삭제"
+                                            ><X size={12} /></button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={recapDraft[idx] || ''}
+                                        maxLength={40}
+                                        onChange={(e) => setRecapDraft(prev => ({ ...prev, [idx]: e.target.value }))}
+                                        onKeyDown={(e) => {
+                                          if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                                          e.preventDefault();
+                                          const v = (recapDraft[idx] || '').trim();
+                                          if (!v || (item.recap || []).length >= 5) return;
+                                          setRecapAt(idx, [...(item.recap || []), v]);
+                                          setRecapDraft(prev => ({ ...prev, [idx]: '' }));
+                                        }}
+                                        placeholder={(item.recap || []).length >= 5 ? '키워드는 최대 5개까지예요' : '직접 추가 (입력 후 Enter) 예: 코드 진행 만들기'}
+                                        disabled={(item.recap || []).length >= 5}
+                                        className="flex-1 px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs font-bold focus:border-primary/40 outline-none disabled:bg-neutral-50"
+                                      />
+                                    </div>
+                                  </div>
+
                                   {/* ── 퀴즈 / 화이트보드 연결 (학생 자료 페이지 주차 카드에 함께 표시) ── */}
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {([
@@ -4316,6 +4513,32 @@ const Classroom = () => {
                               </div>
                             </div>
                           ))}
+                          {(updateClassData.weekly_plan || []).length > 1 && (() => {
+                            const planLen = updateClassData.weekly_plan.length;
+                            const curIdx = Math.min(selectedWeekIdx, planLen - 1);
+                            const go = (i: number) => {
+                              setSelectedWeekIdx(i);
+                              setMaterialDropdownIdx(null);
+                              requestAnimationFrame(() => weekTabRefs.current[i]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }));
+                            };
+                            return (
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  disabled={curIdx === 0}
+                                  onClick={() => go(curIdx - 1)}
+                                  className="flex-1 min-h-[44px] rounded-xl border border-neutral-200 bg-white text-sm font-black text-neutral-600 hover:border-primary/40 hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                >← 이전 차시</button>
+                                <span className="text-xs font-black text-neutral-500 shrink-0">{curIdx + 1} / {planLen}</span>
+                                <button
+                                  type="button"
+                                  disabled={curIdx === planLen - 1}
+                                  onClick={() => go(curIdx + 1)}
+                                  className="flex-1 min-h-[44px] rounded-xl border border-neutral-200 bg-white text-sm font-black text-neutral-600 hover:border-primary/40 hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                >다음 차시 →</button>
+                              </div>
+                            );
+                          })()}
                           {(!updateClassData.weekly_plan || updateClassData.weekly_plan.length === 0) && (
                             <div className="py-10 text-center border-2 border-dashed border-neutral-100 rounded-[1.5rem]">
                               <p className="text-xs font-bold text-neutral-400">등록된 주차별 계획이 없습니다. 상단 [+ 주차 추가] 버튼을 눌러보세요!</p>

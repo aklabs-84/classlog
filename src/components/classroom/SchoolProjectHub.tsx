@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import RecapKeywordsEditor from './RecapKeywordsEditor';
 import { School, Users, Calendar, Plus, Trash2, Save, BookOpen, Package, ExternalLink, Link2, ChevronDown } from 'lucide-react';
 
 interface Props {
@@ -270,6 +271,15 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal, onSa
                     <button onClick={() => removeWeek(idx)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/10 rounded-lg text-error/60 hover:text-error transition-all">
                       <Trash2 size={12} />
                     </button>
+                  </div>
+                  <div className="mt-2">
+                    <RecapKeywordsEditor
+                      recap={item.recap}
+                      materialId={item.material_id}
+                      topic={item.topic}
+                      classId={classInfo.id}
+                      onChange={(recap) => setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, recap } : p))}
+                    />
                   </div>
                 </div>
               );
