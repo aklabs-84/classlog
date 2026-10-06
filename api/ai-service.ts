@@ -254,8 +254,8 @@ async function handleSubmission(req: any, res: any) {
       class_id: targetClassId,
       title,
       result_type,
-      link_url: link_url ?? null,
-      text_content: text_content ?? null,
+      link_url: link_url || null,
+      text_content: text_content || null,
       status: 'submitted',
     })
     .select('id')
