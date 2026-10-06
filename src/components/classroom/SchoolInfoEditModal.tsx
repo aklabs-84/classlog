@@ -7,13 +7,17 @@ interface Props {
   schoolId: string;
   initialName: string;
   initialRegion: string | null;
+  initialStartDate: string | null;
+  initialEndDate: string | null;
   onClose: () => void;
-  onSaved: (name: string, region: string | null) => void;
+  onSaved: (name: string, region: string | null, startDate: string, endDate: string) => void;
 }
 
-const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, onClose, onSaved }: Props) => {
+const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStartDate, initialEndDate, onClose, onSaved }: Props) => {
   const [name, setName] = useState(initialName);
   const [region, setRegion] = useState(initialRegion || '');
+  const [startDate, setStartDate] = useState(initialStartDate || '');
+  const [endDate, setEndDate] = useState(initialEndDate || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,12 +25,20 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, onClose, on
     const nextName = name.trim();
     const nextRegion = region.trim() || null;
     if (!nextName) return;
+    if (!startDate || !endDate) {
+      setError('수업 시작일과 종료일을 입력해주세요.');
+      return;
+    }
+    if (endDate < startDate) {
+      setError('종료일은 시작일 이후여야 합니다.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       const { error: updateError } = await supabase
         .from('school_projects')
-        .update({ name: nextName, school_name: nextName, region: nextRegion })
+        .update({ name: nextName, school_name: nextName, region: nextRegion, start_date: startDate, end_date: endDate })
         .eq('id', schoolId);
       if (updateError) throw updateError;
       // 학교 대표 반 이름("○○학교 (전체)")도 함께 변경
@@ -35,7 +47,7 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, onClose, on
         .update({ name: `${nextName} (전체)` })
         .eq('school_project_id', schoolId)
         .is('parent_class_id', null);
-      onSaved(nextName, nextRegion);
+      onSaved(nextName, nextRegion, startDate, endDate);
       onClose();
     } catch (err) {
       console.error('school info update error:', err);
@@ -75,6 +87,27 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, onClose, on
               placeholder="예: 서울"
               className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-bold text-on-surface-variant">수업 시작일 *</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-on-surface-variant">수업 종료일 *</label>
+              <input
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={e => setEndDate(e.target.value)}
+                className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
           </div>
           {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
         </div>

@@ -233,13 +233,23 @@ const Dashboard = () => {
     if (projects.length > 0) {
       const { data: children } = await supabase
         .from('school_projects')
-        .select('id, parent_project_id')
+        .select('id, parent_project_id, start_date, end_date')
         .in('parent_project_id', projects.map(p => p.id));
       const childCountMap: Record<string, number> = {};
+      // 프로젝트 자체에 기간이 없으면 하위 학교들의 가장 빠른 시작일~가장 늦은 종료일로 대신 보여준다
+      const childStartMap: Record<string, string> = {};
+      const childEndMap: Record<string, string> = {};
       (children || []).forEach((c: any) => {
         childCountMap[c.parent_project_id] = (childCountMap[c.parent_project_id] || 0) + 1;
+        if (c.start_date && (!childStartMap[c.parent_project_id] || c.start_date < childStartMap[c.parent_project_id])) childStartMap[c.parent_project_id] = c.start_date;
+        if (c.end_date && (!childEndMap[c.parent_project_id] || c.end_date > childEndMap[c.parent_project_id])) childEndMap[c.parent_project_id] = c.end_date;
       });
-      setMyProjects(projects.map(p => ({ ...p, schoolCount: childCountMap[p.id] || 0 })));
+      setMyProjects(projects.map(p => ({
+        ...p,
+        start_date: p.start_date ?? childStartMap[p.id] ?? null,
+        end_date: p.end_date ?? childEndMap[p.id] ?? null,
+        schoolCount: childCountMap[p.id] || 0,
+      })));
     } else {
       setMyProjects([]);
     }

@@ -156,6 +156,8 @@ interface SchoolRow {
   status: string;
   entry_code: string | null;
   created_at: string;
+  start_date: string | null;
+  end_date: string | null;
   rootClassId: string | null;
   classCount: number;
   teacherCount: number;
@@ -219,6 +221,8 @@ const SchoolProjectSchoolsPage = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [newSchoolName, setNewSchoolName] = useState('');
   const [newRegion, setNewRegion] = useState('');
+  const [newStartDate, setNewStartDate] = useState('');
+  const [newEndDate, setNewEndDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState('');
 
@@ -576,7 +580,7 @@ const SchoolProjectSchoolsPage = () => {
 
       const { data: subProjects } = await supabase
         .from('school_projects')
-        .select('id, name, school_name, region, status, entry_code, created_at')
+        .select('id, name, school_name, region, status, entry_code, created_at, start_date, end_date')
         .eq('parent_project_id', projectId)
         .order('created_at', { ascending: false });
 
@@ -625,6 +629,9 @@ const SchoolProjectSchoolsPage = () => {
           status: s.status,
           entry_code: s.entry_code,
           created_at: s.created_at,
+          // 기존 프로젝트: 학교에 날짜가 없으면 프로젝트 날짜를 대신 보여준다
+          start_date: s.start_date ?? proj?.start_date ?? null,
+          end_date: s.end_date ?? proj?.end_date ?? null,
           rootClassId: rootClassBySchool[s.id] || null,
           classCount: myClasses.length,
           teacherCount: new Set(assigned.map(c => c.assigned_teacher_id)).size,
@@ -643,6 +650,15 @@ const SchoolProjectSchoolsPage = () => {
       });
 
       setSchools(rows);
+
+      // 프로젝트 자체에 기간이 없으면 학교들의 가장 빠른 시작일~가장 늦은 종료일로 자동 계산
+      const starts = rows.map(r => r.start_date).filter(Boolean) as string[];
+      const ends = rows.map(r => r.end_date).filter(Boolean) as string[];
+      setProgram(prev => prev ? {
+        ...prev,
+        start_date: prev.start_date ?? (starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null),
+        end_date: prev.end_date ?? (ends.length ? ends.reduce((a, b) => (a > b ? a : b)) : null),
+      } : prev);
     } finally {
       setLoading(false);
     }
@@ -684,6 +700,14 @@ const SchoolProjectSchoolsPage = () => {
 
   const handleAddSchool = async () => {
     if (!newSchoolName.trim() || !user || !projectId || !program) return;
+    if (!newStartDate || !newEndDate) {
+      setAddError('수업 시작일과 종료일을 입력해주세요.');
+      return;
+    }
+    if (newEndDate < newStartDate) {
+      setAddError('종료일은 시작일 이후여야 합니다.');
+      return;
+    }
     setSaving(true);
     setAddError('');
     try {
@@ -695,6 +719,8 @@ const SchoolProjectSchoolsPage = () => {
           admin_id: user.id,
           parent_project_id: projectId,
           region: newRegion.trim() || null,
+          start_date: newStartDate,
+          end_date: newEndDate,
           entry_code: generateEntryCode(),
           status: 'active',
         })
@@ -724,6 +750,8 @@ const SchoolProjectSchoolsPage = () => {
 
       setNewSchoolName('');
       setNewRegion('');
+      setNewStartDate('');
+      setNewEndDate('');
       setAddOpen(false);
       fetchData();
     } finally {
@@ -1876,6 +1904,27 @@ const SchoolProjectSchoolsPage = () => {
                   className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant">수업 시작일 *</label>
+                  <input
+                    type="date"
+                    value={newStartDate}
+                    onChange={e => setNewStartDate(e.target.value)}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant">수업 종료일 *</label>
+                  <input
+                    type="date"
+                    value={newEndDate}
+                    min={newStartDate || undefined}
+                    onChange={e => setNewEndDate(e.target.value)}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </div>
               {addError && <p className="text-xs text-red-500 font-bold">{addError}</p>}
             </div>
             <div className="flex gap-2 mt-5">
@@ -1888,7 +1937,7 @@ const SchoolProjectSchoolsPage = () => {
               </button>
               <button
                 onClick={handleAddSchool}
-                disabled={saving || !newSchoolName.trim()}
+                disabled={saving || !newSchoolName.trim() || !newStartDate || !newEndDate}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all"
               >
                 {saving ? '추가 중...' : '추가'}
@@ -1903,6 +1952,8 @@ const SchoolProjectSchoolsPage = () => {
           schoolId={editTarget.id}
           initialName={editTarget.school_name || editTarget.name}
           initialRegion={editTarget.region}
+          initialStartDate={editTarget.start_date}
+          initialEndDate={editTarget.end_date}
           onClose={() => setEditTarget(null)}
           onSaved={() => fetchData()}
         />

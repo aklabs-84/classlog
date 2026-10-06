@@ -135,7 +135,7 @@ const SchoolProjectDetailPage = () => {
     try {
       const { data: s } = await supabase
         .from('school_projects')
-        .select('id, name, school_name, region, status, entry_code, created_at, parent_project_id')
+        .select('id, name, school_name, region, status, entry_code, created_at, parent_project_id, start_date, end_date')
         .eq('id', schoolId)
         .single();
       setSchool(s || null);
@@ -714,8 +714,10 @@ const SchoolProjectDetailPage = () => {
           schoolId={school.id}
           initialName={school.school_name || school.name}
           initialRegion={school.region}
+          initialStartDate={school.start_date ?? null}
+          initialEndDate={school.end_date ?? null}
           onClose={() => setEditInfoOpen(false)}
-          onSaved={(name, region) => setSchool((prev: any) => ({ ...prev, name, school_name: name, region }))}
+          onSaved={(name, region, start_date, end_date) => setSchool((prev: any) => ({ ...prev, name, school_name: name, region, start_date, end_date }))}
         />
       )}
 

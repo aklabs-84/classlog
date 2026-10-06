@@ -659,7 +659,9 @@ const SchoolProjectShareView = () => {
 
               <div className="flex items-center gap-4 text-sm flex-wrap mb-8 text-gray-400">
                 {project?.end_date && (
-                  <span className="flex items-center gap-1.5"><Calendar size={14} /> 종료일: {new Date(project.end_date).toLocaleDateString('ko-KR')}</span>
+                  <span className="flex items-center gap-1.5"><Calendar size={14} /> {project.start_date
+                    ? `기간: ${new Date(project.start_date).toLocaleDateString('ko-KR')} ~ ${new Date(project.end_date).toLocaleDateString('ko-KR')}`
+                    : `종료일: ${new Date(project.end_date).toLocaleDateString('ko-KR')}`}</span>
                 )}
                 {isClosed && (
                   <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: `${theme.from}14`, color: theme.from }}>

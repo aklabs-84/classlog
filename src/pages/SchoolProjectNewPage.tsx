@@ -18,8 +18,6 @@ const SchoolProjectNewPage = () => {
 
   const [projectName, setProjectName] = useState('');
   const [schoolName, setSchoolName] = useState(profile?.school_name || '');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState('');
   const [bannerColor, setBannerColor] = useState('violet');
   const [saving, setSaving] = useState(false);
 
@@ -33,8 +31,6 @@ const SchoolProjectNewPage = () => {
           name: projectName.trim(),
           school_name: schoolName.trim() || null,
           admin_id: user.id,
-          start_date: startDate || null,
-          end_date: endDate || null,
           banner_color: bannerColor,
           entry_code: generateEntryCode(),
         })
@@ -98,27 +94,6 @@ const SchoolProjectNewPage = () => {
             className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-2">수업 시작일 *</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-2">수업 종료일 *</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
-              className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
-            />
-          </div>
-        </div>
-
         {/* 배너 테마 */}
         <div>
           <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-3">공유 페이지 배너 색상</label>
@@ -151,8 +126,8 @@ const SchoolProjectNewPage = () => {
           <div>
             <p className="text-xs font-black text-on-surface">Pro 크레딧 자동 공유</p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              초대한 선생님들은 <strong>수업 기간 동안</strong> Pro 기능(AI, 화이트보드 등)을 무제한으로 사용할 수 있습니다.
-              수업 종료일 이후 자동으로 혜택이 만료됩니다.
+              초대한 선생님들은 <strong>학교별 수업 기간 동안</strong> Pro 기능(AI, 화이트보드 등)을 무제한으로 사용할 수 있습니다.
+              수업 기간은 프로젝트 안에서 학교를 추가할 때 정하고, 해당 학교의 종료일 이후 자동으로 혜택이 만료됩니다.
             </p>
           </div>
         </div>
@@ -166,7 +141,7 @@ const SchoolProjectNewPage = () => {
 
         <button
           onClick={handleCreate}
-          disabled={!projectName.trim() || !startDate || !endDate || saving}
+          disabled={!projectName.trim() || saving}
           className="w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-95 bg-primary hover:bg-primary-dim text-white"
         >
           {saving ? '생성 중...' : <><ChevronRight size={16} /> 만들기</>}
