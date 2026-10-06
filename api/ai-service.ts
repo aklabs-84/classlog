@@ -247,6 +247,20 @@ async function handleSubmission(req: any, res: any) {
     return res.status(404).json({ error: 'STUDENT_NOT_FOUND' });
   }
 
+  // 같은 학생이 1분 안에 5건 넘게 제출하면 잠시 막는다. (도배 방지)
+  // 조회가 실패하면 학생 제출을 막지 않고 그냥 통과시킨다.
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const { count: recentCount, error: countError } = await supabaseAdmin
+    .from('student_results')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', resolvedStudentId)
+    .gte('created_at', since);
+  if (countError) {
+    console.error('[api/ai-service:submission] rate-limit check failed:', countError.message);
+  } else if ((recentCount ?? 0) >= 5) {
+    return res.status(429).json({ error: '잠시 뒤에 다시 제출해 주세요. (1분에 5번까지 가능해요)' });
+  }
+
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from('student_results')
     .insert({
