@@ -10,6 +10,7 @@
 // 여러 엔드포인트를 하나로 합쳤다 — ?resource=... 로 구분.
 
 import { createClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'crypto';
 
 const ENTRY_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동되는 0/O, 1/I 제외
 
@@ -33,7 +34,10 @@ function getSupabaseAdmin() {
 function checkWebhookSecret(req: any, res: any): boolean {
   const expected = process.env.AISERVICEHUB_WEBHOOK_SECRET;
   const provided = req.headers['x-webhook-secret'];
-  if (!expected || provided !== expected) {
+  // 응답 시간으로 시크릿을 추측하지 못하도록 일정 시간 비교를 쓴다.
+  const a = Buffer.from(typeof provided === 'string' ? provided : '');
+  const b = Buffer.from(expected ?? '');
+  if (!expected || a.length !== b.length || !timingSafeEqual(a, b)) {
     res.status(401).json({ error: 'invalid webhook secret' });
     return false;
   }
@@ -178,13 +182,26 @@ async function handleSubmission(req: any, res: any) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  const { entry_code, student_id, student_name, title, result_type, link_url, text_content } = req.body || {};
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  // 문자열만 받고 길이를 제한한다. (이 엔드포인트를 직접 호출해도 같은 기준 적용)
+  const cap = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const entry_code = cap(body.entry_code, 100);
+  const student_id = cap(body.student_id, 100);
+  const student_name = cap(body.student_name, 100);
+  const title = cap(body.title, 200);
+  const result_type = body.result_type;
+  const link_url = cap(body.link_url, 2000);
+  const text_content = cap(body.text_content, 20000);
 
   if (!entry_code || !title || !result_type) {
     return res.status(400).json({ error: 'entry_code, title, result_type은 필수입니다.' });
   }
   if (result_type !== 'link' && result_type !== 'text') {
     return res.status(400).json({ error: 'result_type must be "link" or "text"' });
+  }
+  // javascript: 같은 위험한 주소를 막는다. (선생님이 링크를 눌렀을 때 실행되는 것 방지)
+  if (link_url && !/^https:\/\//i.test(link_url)) {
+    return res.status(400).json({ error: 'link_url은 https:// 로 시작해야 합니다.' });
   }
   if (result_type === 'link' && !link_url) {
     return res.status(400).json({ error: 'result_type=link일 때 link_url은 필수입니다.' });
