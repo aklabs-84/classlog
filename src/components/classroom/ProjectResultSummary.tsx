@@ -99,7 +99,7 @@ export default function ProjectResultSummary({ projectId, program, totals }: Pro
       const overviewRows: (XCell | null)[][] = [
         [{ value: '사업 개요', style: 'header', span: 2 }, null],
         [{ value: '사업명' }, { value: program?.name ?? '-' }],
-        [{ value: '학교/기관' }, { value: program?.school_name ?? '-' }],
+        [{ value: '학교/기관' }, { value: program?.school_name ?? `학교 ${totals.schoolCount}곳` }],
         [{ value: '기간' }, { value: `${fmtDate(program?.start_date ?? null)} ~ ${fmtDate(program?.end_date ?? null)}` }],
         [{ value: '참여 학교 수' }, { value: totals.schoolCount }],
         [{ value: '참여 강사 수' }, { value: totals.teacherCount }],

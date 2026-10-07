@@ -13,11 +13,10 @@ const generateEntryCode = () => {
 };
 
 const SchoolProjectNewPage = () => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [projectName, setProjectName] = useState('');
-  const [schoolName, setSchoolName] = useState(profile?.school_name || '');
   const [bannerColor, setBannerColor] = useState('violet');
   const [saving, setSaving] = useState(false);
 
@@ -29,7 +28,6 @@ const SchoolProjectNewPage = () => {
         .from('school_projects')
         .insert({
           name: projectName.trim(),
-          school_name: schoolName.trim() || null,
           admin_id: user.id,
           banner_color: bannerColor,
           entry_code: generateEntryCode(),
@@ -81,16 +79,6 @@ const SchoolProjectNewPage = () => {
             placeholder="예: 바이브코딩 수업"
             value={projectName}
             onChange={e => setProjectName(e.target.value)}
-            className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-2">학교 이름</label>
-          <input
-            type="text"
-            placeholder="예: 대건고등학교"
-            value={schoolName}
-            onChange={e => setSchoolName(e.target.value)}
             className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
           />
         </div>
