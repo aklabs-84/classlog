@@ -392,7 +392,12 @@ const SchoolProjectSchoolsPage = () => {
         if (error) throw error;
         setClassPlans(prev => ({ ...prev, [planTarget]: weeklyPlan }));
         const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === planTarget)?.name || '이 반';
-        setPlanToast({ msg: `'${clsName}'의 주차별 계획이 저장되었습니다 (이 반만 적용)`, type: 'success' });
+        setPlanToast({
+          msg: samePlan(weeklyPlan, commonPlan)
+            ? `'${clsName}'은(는) 공통 계획과 내용이 같아 '공통'으로 표시됩니다. 내용을 바꿔서 저장하면 '개별 수정'으로 표시돼요`
+            : `'${clsName}'의 주차별 계획이 저장되었습니다 (이 반만 적용)`,
+          type: 'success',
+        });
         setPlanView('status');
         return;
       }
