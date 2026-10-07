@@ -17,6 +17,7 @@ interface SurveyForm {
   redirect_url: string | null;
   class_id: string | null;
   school_project_id: string | null;
+  school_id?: string | null;
 }
 
 interface SchoolOption {
@@ -313,7 +314,8 @@ export default function SurveyStudent() {
       setErrorMsg('');
       setLoading(true);
       const { data: schools } = await supabase.rpc('survey_school_options', { p_project_id: form.school_project_id! });
-      setSchoolOptions((schools as any[]) ?? []);
+      const all = (schools as any[]) ?? [];
+      setSchoolOptions(form.school_id ? all.filter(sc => sc.id === form.school_id) : all);
       setLoading(false);
       setStep('select-class');
       return;

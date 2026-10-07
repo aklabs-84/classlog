@@ -43,8 +43,8 @@ export async function fetchProjectTeacherStats(projectId: string): Promise<Teach
   return (data ?? []) as TeacherStatRow[];
 }
 
-export async function fetchProjectSummaryStats(projectId: string): Promise<ProjectSummaryStats> {
-  const { data, error } = await supabase.rpc('get_project_summary_stats', { p_project_id: projectId });
+export async function fetchProjectSummaryStats(projectId: string, schoolId: string | null = null): Promise<ProjectSummaryStats> {
+  const { data, error } = await supabase.rpc('get_project_summary_stats', { p_project_id: projectId, p_school_id: schoolId });
   if (error) throw error;
   const d = (data ?? {}) as Partial<ProjectSummaryStats>;
   return { schools: d.schools ?? [], weekly: d.weekly ?? [] };

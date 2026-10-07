@@ -94,6 +94,7 @@ import AutoGradingPanel from '../components/classroom/AutoGradingPanel';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
+import ProjectMaterialsForTeacher from '../components/classroom/ProjectMaterialsForTeacher';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 import AiCreditCost from '../components/common/AiCreditCost';
@@ -2870,6 +2871,9 @@ const Classroom = () => {
               {/* ─── 선생님 전용 자료 탭 ─── */}
               {activeTab === 'teacher_materials' && activeClassId && (
                 <div className="max-w-2xl mx-auto space-y-6">
+                  {classInfo?.school_project_id && classInfo?.parent_class_id && (
+                    <ProjectMaterialsForTeacher schoolId={classInfo.school_project_id} />
+                  )}
                   {/* 헤더 */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

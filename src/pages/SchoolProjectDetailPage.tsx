@@ -24,6 +24,10 @@ import {
   Pencil,
 } from 'lucide-react';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
+import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
+import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
+import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
+import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
 
 interface TeachingClass {
   id: string;
@@ -95,6 +99,10 @@ const TABS = [
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
   { key: 'records', label: '기록' },
+  { key: 'materials', label: '수업 자료' },
+  { key: 'plan', label: '주차별 계획' },
+  { key: 'survey', label: '설문' },
+  { key: 'summary', label: '결과 요약' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -438,12 +446,12 @@ const SchoolProjectDetailPage = () => {
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b border-surface-container-high">
+      <div className="flex gap-1 border-b border-surface-container-high overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-all ${
+            className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${
               tab === t.key
                 ? 'border-primary text-primary'
                 : 'border-transparent text-on-surface-variant/60 hover:text-on-surface-variant'
@@ -453,6 +461,32 @@ const SchoolProjectDetailPage = () => {
           </button>
         ))}
       </div>
+
+      {tab === 'materials' && projectId && schoolId && (
+        <SchoolMaterialsTab projectId={projectId} schoolId={schoolId} schoolName={school?.name || '이 학교'} />
+      )}
+
+      {tab === 'survey' && projectId && schoolId && (
+        <SchoolProjectSurveyTab
+          projectId={projectId}
+          schoolId={schoolId}
+          schoolName={school?.name || '이 학교'}
+          schools={[{ id: schoolId, name: school?.name || '이 학교', school_name: school?.school_name ?? null, classes: classes.map(c => ({ id: c.id, name: c.name })) }]}
+        />
+      )}
+
+      {tab === 'summary' && projectId && schoolId && (
+        <ProjectResultSummary
+          projectId={projectId}
+          schoolId={schoolId}
+          program={{ name: school?.name || program?.name || '', school_name: school?.school_name ?? null, start_date: school?.start_date ?? null, end_date: school?.end_date ?? null }}
+          totals={{ schoolCount: 1, teacherCount: totals.teacherCount, studentCount: totals.studentCount }}
+        />
+      )}
+
+      {tab === 'plan' && projectId && schoolId && (
+        <SchoolPlanTab projectId={projectId} schoolId={schoolId} />
+      )}
 
       {tab === 'overview' && (
         <div className="space-y-4">

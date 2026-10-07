@@ -58,8 +58,8 @@ interface RpcPair {
 }
 
 /** 사업(school_project_id) 소속 사전/사후 설문 쌍을 전부 찾아 비교 요약을 만든다. */
-export async function fetchProjectSurveyComparisons(projectId: string): Promise<SurveyPairSummary[]> {
-  const { data, error } = await supabase.rpc('get_project_survey_comparisons', { p_project_id: projectId });
+export async function fetchProjectSurveyComparisons(projectId: string, schoolId: string | null = null): Promise<SurveyPairSummary[]> {
+  const { data, error } = await supabase.rpc('get_project_survey_comparisons', { p_project_id: projectId, p_school_id: schoolId });
   if (error) throw error;
   const pairs = (data ?? []) as RpcPair[];
 

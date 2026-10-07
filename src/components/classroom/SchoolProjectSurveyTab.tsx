@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Reorder } from 'framer-motion';
 import {
   Plus, X, Copy, Check, Trash2, ChevronDown, ChevronRight,
-  Play, StopCircle, Users, BarChart2, ArrowRight, ArrowLeft, Edit3, GripVertical,
+  Play, StopCircle, Users, BarChart2, ArrowRight, ArrowLeft, Edit3, GripVertical, Pencil,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -21,6 +21,7 @@ interface SurveyFormRow {
   is_anonymous: boolean;
   survey_phase: 'pre' | 'post' | null;
   paired_form_id: string | null;
+  school_id: string | null;
   created_at: string;
 }
 
@@ -38,7 +39,9 @@ interface SurveyResponseRow {
 const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
 const NUMERIC_TYPES: QuestionType[] = ['star_rating', 'opinion_scale'];
 
-export default function SchoolProjectSurveyTab({ projectId, schools }: { projectId: string; schools: SchoolOption[] }) {
+export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = null, schoolName = '' }: {
+  projectId: string; schools: SchoolOption[]; schoolId?: string | null; schoolName?: string;
+}) {
   const { user } = useAuth();
 
   const [forms, setForms] = useState<SurveyFormRow[]>([]);
@@ -77,7 +80,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
     if (!user) return;
     const pin = generatePin();
     const { data, error } = await supabase.from('survey_forms').insert({
-      teacher_id: user.id, school_project_id: projectId, survey_phase: 'pre',
+      teacher_id: user.id, school_project_id: projectId, school_id: schoolId, survey_phase: 'pre',
       title: '사전 설문', pin_code: pin, status: 'draft', is_anonymous: false,
     }).select().single();
     if (error || !data) return;
@@ -92,7 +95,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
       .eq('form_id', preForm.id).order('order_index');
     const pin = generatePin();
     const { data: postForm, error } = await supabase.from('survey_forms').insert({
-      teacher_id: user.id, school_project_id: projectId, survey_phase: 'post',
+      teacher_id: user.id, school_project_id: projectId, school_id: preForm.school_id, survey_phase: 'post',
       paired_form_id: preForm.id, title: preForm.title.replace(/^사전/, '사후') || '사후 설문',
       pin_code: pin, status: 'draft', is_anonymous: false,
     }).select().single();
@@ -141,6 +144,26 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
     setQuestions(prev => prev.filter(q => q.id !== id));
   };
 
+  // ── 설문 이름 변경 ────────────────────────────────────────────────────────
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const startRename = (form: SurveyFormRow) => { setRenamingId(form.id); setRenameValue(form.title); };
+  const commitRename = async (form: SurveyFormRow) => {
+    const title = renameValue.trim();
+    setRenamingId(null);
+    if (!title || title === form.title) return;
+    const { error } = await supabase.from('survey_forms').update({ title }).eq('id', form.id);
+    if (error) { window.alert('이름을 바꾸지 못했습니다. 잠시 후 다시 시도해주세요.'); return; }
+    setForms(prev => prev.map(f => f.id === form.id ? { ...f, title } : f));
+    if (editingForm?.id === form.id) setEditingForm(prev => prev ? { ...prev, title } : prev);
+  };
+  const renameInput = (form: SurveyFormRow, cls = '') => (
+    <input autoFocus value={renameValue} maxLength={60} onChange={e => setRenameValue(e.target.value)}
+      onBlur={() => commitRename(form)}
+      onKeyDown={e => { if (e.key === 'Enter') commitRename(form); if (e.key === 'Escape') setRenamingId(null); }}
+      className={`min-w-0 px-2 py-1 rounded-lg border border-primary/40 bg-surface-container-lowest outline-none text-sm font-bold ${cls}`} />
+  );
+
   const handleToggleStatus = async (form: SurveyFormRow, next: 'open' | 'closed') => {
     await supabase.from('survey_forms').update({ status: next }).eq('id', form.id);
     setForms(prev => prev.map(f => f.id === form.id ? { ...f, status: next } : f));
@@ -172,7 +195,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
   // ── 결과 보기 ──────────────────────────────────────────────────────────────
   const openResults = async (form: SurveyFormRow) => {
     setResultsForm(form);
-    setFilterSchoolId('all');
+    setFilterSchoolId(schoolId ?? 'all');
     setFilterClassId('all');
     setResultsLoading(true);
     const [{ data: qs }, { data: ans }, { data: resp }] = await Promise.all([
@@ -180,9 +203,16 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
       supabase.from('survey_answers').select('*').eq('form_id', form.id),
       supabase.from('survey_responses').select('id, respondent_name, student_id, class_id, submitted_at').eq('form_id', form.id),
     ]);
+    const onlyThisSchool = (list: any[] | null) => {
+      if (!schoolId) return list ?? [];
+      const classIds = new Set((schools.find(sc => sc.id === schoolId)?.classes ?? []).map(c => c.id));
+      return (list ?? []).filter(r => r.class_id && classIds.has(r.class_id));
+    };
+    const answersOf = (a: any[] | null, r: any[]) => { const ids = new Set(r.map(x => x.id)); return (a ?? []).filter(x => ids.has(x.response_id)); };
+    const respScoped = onlyThisSchool(resp);
     setResultsQuestions((qs ?? []).map(q => ({ ...q, options: q.options ?? [] })));
-    setResultsAnswers(ans ?? []);
-    setResultsResponses(resp ?? []);
+    setResultsAnswers(answersOf(ans, respScoped));
+    setResultsResponses(respScoped);
 
     // 페어링된 설문(사전↔사후)이 있으면 비교용 데이터도 로드
     const pairedId = form.survey_phase === 'pre'
@@ -198,8 +228,9 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
           supabase.from('survey_responses').select('id, respondent_name, student_id, class_id, submitted_at').eq('form_id', pairedForm.id),
         ]);
         setCompareQuestions((cqs ?? []).map(q => ({ ...q, options: q.options ?? [] })));
-        setCompareAnswers(cans ?? []);
-        setCompareResponses(cresp ?? []);
+        const cScoped = onlyThisSchool(cresp);
+        setCompareAnswers(answersOf(cans, cScoped));
+        setCompareResponses(cScoped);
       }
     } else {
       setCompareForm(null);
@@ -294,7 +325,16 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
   };
 
   // ── 사전 설문 목록 (사후는 사전 아래 묶어서 표시) ───────────────────────────
-  const preForms = forms.filter(f => f.survey_phase === 'pre' || !f.survey_phase);
+  // 학교 화면: 이 학교 전용 설문이 있으면 그것만, 없으면 공통 설문을 읽기 전용으로 보여준다
+  const schoolMode = !!schoolId;
+  const hasOwn = schoolMode && forms.some(f => f.school_id === schoolId);
+  const showingCommon = schoolMode && !hasOwn;
+  const [formFilter, setFormFilter] = useState<string>('all'); // 프로젝트 화면 전용: 'all' | 'common' | 학교 id
+  const visibleForms = schoolMode
+    ? forms.filter(f => hasOwn ? f.school_id === schoolId : !f.school_id)
+    : forms.filter(f => formFilter === 'all' ? true : formFilter === 'common' ? !f.school_id : f.school_id === formFilter);
+  const preForms = visibleForms.filter(f => f.survey_phase === 'pre' || !f.survey_phase);
+  const schoolLabel = (f: SurveyFormRow) => f.school_id ? `${schools.find(s => s.id === f.school_id)?.school_name || schools.find(s => s.id === f.school_id)?.name || '학교'} 전용` : '공통';
 
   if (loading) {
     return <div className="flex items-center justify-center py-16 text-on-surface-variant/60 text-sm">불러오는 중...</div>;
@@ -302,17 +342,41 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/10">
-        <BarChart2 size={16} className="text-primary mt-0.5 shrink-0" />
-        <p className="text-xs text-on-surface-variant">
-          여기서 만든 설문은 <span className="font-bold text-primary">프로젝트 소속 모든 학교/반</span>에서 공통 PIN으로 참여할 수 있습니다.
-          학생이 학생 로그인으로 참여하면 개인별 사전-사후 비교가 가능하고, PIN만으로 참여한 경우 학교/반을 직접 선택하게 됩니다.
-        </p>
-      </div>
+      {schoolMode ? (
+        <div className={`flex items-start gap-3 p-4 rounded-2xl border ${showingCommon ? 'bg-surface-container border-surface-container-high' : 'bg-amber-50 border-amber-200'}`}>
+          <BarChart2 size={16} className="text-primary mt-0.5 shrink-0" />
+          <p className="text-xs text-on-surface-variant">
+            {showingCommon
+              ? <>지금 <span className="font-bold text-primary">프로젝트 공통 설문</span>을 보여드리고 있습니다 (결과는 {schoolName || '이 학교'} 학생 응답만). 이 학교만의 설문을 만들면 <span className="font-bold">공통 설문 대신 그 설문이 표시</span>됩니다.</>
+              : <><span className="font-bold text-amber-700">{schoolName || '이 학교'} 전용 설문</span>이 있어 공통 설문 대신 표시됩니다. 이 학교 학생만 참여할 수 있습니다.</>}
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+          <BarChart2 size={16} className="text-primary mt-0.5 shrink-0" />
+          <p className="text-xs text-on-surface-variant">
+            여기서 만든 설문은 <span className="font-bold text-primary">프로젝트 소속 모든 학교/반</span>에서 공통 PIN으로 참여할 수 있습니다.
+            학교 전용 설문은 각 학교 상세 화면의 "설문" 탭에서 만들며, 그 학교에서는 공통 설문 대신 전용 설문이 사용됩니다.
+          </p>
+        </div>
+      )}
 
-      <button onClick={handleCreatePre} className="w-full py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5">
-        <Plus size={16} /> 새 사전 설문 만들기
-      </button>
+      {!schoolMode && schools.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[{ id: 'all', label: '전체' }, { id: 'common', label: '공통만' }, ...schools.map(sc => ({ id: sc.id, label: sc.name }))].map(c => (
+            <button key={c.id} onClick={() => setFormFilter(c.id)}
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all ${formFilter === c.id ? 'bg-primary text-white border-primary' : 'bg-surface-container-lowest text-on-surface-variant border-surface-container-high hover:border-primary/40'}`}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(!schoolMode || !hasOwn || preForms.length === 0) && (
+        <button onClick={handleCreatePre} className="w-full py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5">
+          <Plus size={16} /> {schoolMode ? `${schoolName || '이 학교'} 전용 사전 설문 만들기` : '새 사전 설문 만들기'}
+        </button>
+      )}
 
       <div className="space-y-3">
         {preForms.length === 0 && (
@@ -331,6 +395,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${preForm.status === 'open' ? 'bg-green-100 text-green-600' : preForm.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-600'}`}>
                       {preForm.status === 'open' ? '진행 중' : preForm.status === 'closed' ? '종료' : '준비 중'}
                     </span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${preForm.school_id ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-on-surface-variant'}`}>{schoolLabel(preForm)}</span>
                     {postForm && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">사후 설문 연결됨</span>}
                   </div>
                 </div>
@@ -341,26 +406,34 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
                   {[preForm, ...(postForm ? [postForm] : [])].map(form => (
                     <div key={form.id} className="bg-surface-container rounded-xl p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-black text-on-surface-variant/70">{form.survey_phase === 'post' ? '사후' : '사전'} 설문</span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="text-[10px] font-black text-on-surface-variant/60 bg-surface-container-lowest px-1.5 py-0.5 rounded-full shrink-0">{form.survey_phase === 'post' ? '사후' : '사전'}</span>
+                          {renamingId === form.id ? renameInput(form, 'flex-1') : (
+                            <>
+                              <span className="text-xs font-black text-on-surface-variant/80 truncate">{form.title}</span>
+                              {!showingCommon && <button onClick={() => startRename(form)} className="p-1 rounded-lg text-on-surface-variant/50 hover:text-primary shrink-0" title="이름 바꾸기"><Pencil size={12} /></button>}
+                            </>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => handleCopyPin(form.pin_code)} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg bg-surface-container-lowest border border-surface-container-high">
                             PIN {form.pin_code} {copiedPin === form.pin_code ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
                           </button>
-                          <button onClick={() => handleDeleteForm(form)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="설문 삭제">
+                          {!showingCommon && <button onClick={() => handleDeleteForm(form)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="설문 삭제">
                             <Trash2 size={12} />
-                          </button>
+                          </button>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <button onClick={() => openEditor(form)} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface-container-lowest border border-surface-container-high hover:border-primary/40">
+                        {!showingCommon && <button onClick={() => openEditor(form)} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface-container-lowest border border-surface-container-high hover:border-primary/40">
                           문항 편집
-                        </button>
-                        {form.status !== 'open' && (
+                        </button>}
+                        {!showingCommon && form.status !== 'open' && (
                           <button onClick={() => handleToggleStatus(form, 'open')} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-green-500 text-white flex items-center gap-1">
                             <Play size={12} /> 설문 시작
                           </button>
                         )}
-                        {form.status === 'open' && (
+                        {!showingCommon && form.status === 'open' && (
                           <button onClick={() => handleToggleStatus(form, 'closed')} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-gray-500 text-white flex items-center gap-1">
                             <StopCircle size={12} /> 종료
                           </button>
@@ -371,7 +444,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
                       </div>
                     </div>
                   ))}
-                  {!postForm && (
+                  {!postForm && !showingCommon && (
                     <button onClick={() => handleCreatePost(preForm)} className="w-full py-2.5 rounded-xl border-2 border-dashed border-blue-200 hover:border-blue-400 text-xs font-bold text-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5">
                       <Plus size={14} /> 사후 설문 만들기 (동일 문항 복제)
                     </button>
@@ -391,7 +464,12 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
               <button onClick={() => setEditingForm(null)} className="text-on-surface-variant/60 hover:text-on-surface flex items-center gap-1 text-sm shrink-0">
                 <ArrowLeft size={16} /> 목록
               </button>
-              <h2 className="flex-1 font-black text-lg truncate">{editingForm.title}</h2>
+              {renamingId === editingForm.id ? renameInput(editingForm, 'flex-1 !text-base') : (
+                <h2 className="flex-1 font-black text-lg truncate flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">{editingForm.title}</span>
+                  <button onClick={() => startRename(editingForm)} className="p-1 rounded-lg text-on-surface-variant/50 hover:text-primary shrink-0" title="이름 바꾸기"><Pencil size={14} /></button>
+                </h2>
+              )}
               <button onClick={() => handleCopyPin(editingForm.pin_code)} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface-container border border-surface-container-high shrink-0">
                 PIN {editingForm.pin_code} {copiedPin === editingForm.pin_code ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
               </button>
@@ -475,7 +553,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
                   <span className="text-xs font-bold text-on-surface-variant/70">전체 {resultsResponses.length}명 참여</span>
                 </div>
 
-                <div className="flex gap-2 mb-4">
+                {!schoolMode && <div className="flex gap-2 mb-4">
                   <select value={filterSchoolId} onChange={e => { setFilterSchoolId(e.target.value); setFilterClassId('all'); }}
                     className="flex-1 text-xs font-bold px-2.5 py-2 rounded-lg bg-surface-container border border-surface-container-high outline-none">
                     <option value="all">전체 학교</option>
@@ -486,7 +564,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools }: { project
                     <option value="all">전체 반</option>
                     {(schools.find(s => s.id === filterSchoolId)?.classes ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                </div>
+                </div>}
 
                 <div className="space-y-4">
                   {resultsQuestions.map(q => (

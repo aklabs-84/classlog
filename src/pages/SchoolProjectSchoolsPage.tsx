@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import RichEditor from '../components/RichEditor';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
 import ProjectTeacherStatus from '../components/classroom/ProjectTeacherStatus';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
@@ -26,14 +25,11 @@ import {
   ArchiveRestore,
   Trash2,
   BookOpen,
-  Eye,
-  EyeOff,
   Pencil,
   Copy,
   Check,
   UserPlus,
   UserMinus,
-  Download,
   Link as LinkIcon,
   Save,
   CalendarRange,
@@ -42,15 +38,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
-
-interface ProgramMaterial {
-  id: string;
-  title: string;
-  content: string | null;
-  week_number: number | null;
-  is_published: boolean;
-  updated_at: string;
-}
+import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
 
 interface ImportableMaterial {
   id: string;
@@ -182,28 +170,6 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 
 const generateEntryCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
-const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
-  new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxWidth / img.width);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { reject(new Error('canvas context 생성 실패')); return; }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => {
-        if (!blob) { reject(new Error('이미지 변환 실패')); return; }
-        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.webp', { type: 'image/webp' }));
-      }, 'image/webp', quality);
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
-
 const SchoolProjectSchoolsPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { user, profile } = useAuth();
@@ -238,21 +204,6 @@ const SchoolProjectSchoolsPage = () => {
   const [startGuidePref, setStartGuidePref] = useState<string | null>(() => {
     try { return localStorage.getItem(START_GUIDE_KEY); } catch { return null; }
   });
-  const [materials, setMaterials] = useState<ProgramMaterial[]>([]);
-  const [materialsLoading, setMaterialsLoading] = useState(false);
-  const [materialModalOpen, setMaterialModalOpen] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState<ProgramMaterial | null>(null);
-  const [materialTitle, setMaterialTitle] = useState('');
-  const [materialContent, setMaterialContent] = useState('');
-  const [materialWeek, setMaterialWeek] = useState('');
-  const [materialPublished, setMaterialPublished] = useState(false);
-  const [materialSaving, setMaterialSaving] = useState(false);
-  const [materialUploading, setMaterialUploading] = useState(false);
-  const [materialDeleteTarget, setMaterialDeleteTarget] = useState<ProgramMaterial | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importCandidates, setImportCandidates] = useState<ImportableMaterial[]>([]);
-  const [importLoading, setImportLoading] = useState(false);
-
   const [projectRootClassId, setProjectRootClassId] = useState<string | null>(null);
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanItem[]>([]);
   const [planTarget, setPlanTarget] = useState<string>('common'); // 'common' 또는 반 id
@@ -296,26 +247,6 @@ const SchoolProjectSchoolsPage = () => {
     // 처음 들어오거나 다른 프로젝트로 바뀔 때만 전체 로딩 화면을 보여준다 (저장 뒤 재조회는 화면 유지)
     if (projectId) { setLoading(true); fetchData(); }
   }, [projectId]);
-
-  const fetchMaterials = async () => {
-    if (!projectId) return;
-    setMaterialsLoading(true);
-    try {
-      const { data } = await supabase
-        .from('program_materials')
-        .select('id, title, content, week_number, is_published, updated_at')
-        .eq('program_project_id', projectId)
-        .order('week_number', { ascending: true, nullsFirst: true })
-        .order('updated_at', { ascending: false });
-      setMaterials(data || []);
-    } finally {
-      setMaterialsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (projectId && activeTab === 'materials') fetchMaterials();
-  }, [projectId, activeTab]);
 
   const fetchPlan = async () => {
     if (!projectId) return;
@@ -557,80 +488,6 @@ const SchoolProjectSchoolsPage = () => {
     }
   };
 
-  const openAddMaterial = () => {
-    setEditingMaterial(null);
-    setMaterialTitle('');
-    setMaterialContent('');
-    setMaterialWeek('');
-    setMaterialPublished(false);
-    setMaterialModalOpen(true);
-  };
-
-  const openEditMaterial = (m: ProgramMaterial) => {
-    setEditingMaterial(m);
-    setMaterialTitle(m.title);
-    setMaterialContent(m.content || '');
-    setMaterialWeek(m.week_number != null ? String(m.week_number) : '');
-    setMaterialPublished(m.is_published);
-    setMaterialModalOpen(true);
-  };
-
-  const handleUploadMaterialImage = async (file: File): Promise<string> => {
-    if (!user) throw new Error('로그인 필요');
-    if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
-      throw new Error('파일 크기 초과');
-    }
-    const compressed = await compressToWebP(file);
-    if (compressed.size > 20 * 1024 * 1024) {
-      alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
-      throw new Error('파일 크기 초과');
-    }
-    const path = `program-materials/${user.id}/${Date.now()}.webp`;
-    const { error } = await supabase.storage.from('student-attachments').upload(path, compressed);
-    if (error) throw error;
-    const { data } = supabase.storage.from('student-attachments').getPublicUrl(path);
-    return data.publicUrl;
-  };
-
-  const handleSaveMaterial = async () => {
-    if (!materialTitle.trim() || !user || !projectId) return;
-    setMaterialSaving(true);
-    try {
-      const payload = {
-        title: materialTitle.trim(),
-        content: materialContent.trim() || null,
-        week_number: materialWeek.trim() ? Number(materialWeek.trim()) : null,
-        is_published: materialPublished,
-      };
-      if (editingMaterial) {
-        await supabase.from('program_materials').update(payload).eq('id', editingMaterial.id);
-      } else {
-        await supabase.from('program_materials').insert({
-          ...payload,
-          program_project_id: projectId,
-          admin_id: user.id,
-        });
-      }
-      setMaterialModalOpen(false);
-      fetchMaterials();
-    } finally {
-      setMaterialSaving(false);
-    }
-  };
-
-  const handleToggleMaterialPublish = async (m: ProgramMaterial) => {
-    await supabase.from('program_materials').update({ is_published: !m.is_published }).eq('id', m.id);
-    setMaterials(prev => prev.map(x => x.id === m.id ? { ...x, is_published: !x.is_published } : x));
-  };
-
-  const handleDeleteMaterial = async () => {
-    if (!materialDeleteTarget) return;
-    await supabase.from('program_materials').delete().eq('id', materialDeleteTarget.id);
-    setMaterials(prev => prev.filter(x => x.id !== materialDeleteTarget.id));
-    setMaterialDeleteTarget(null);
-  };
-
   const loadImportableMaterials = async (): Promise<ImportableMaterial[]> => {
     if (!user) return [];
     const classMap: Record<string, string> = {};
@@ -658,24 +515,6 @@ const SchoolProjectSchoolsPage = () => {
       className: m.class_id ? (classMap[m.class_id] || '') : '자료실 (수업 미배정)',
       activity_urls: m.activity_urls || [],
     }));
-  };
-
-  const handleOpenImport = async () => {
-    if (!user) return;
-    setImportOpen(true);
-    setImportLoading(true);
-    try {
-      setImportCandidates(await loadImportableMaterials());
-    } finally {
-      setImportLoading(false);
-    }
-  };
-
-  const handleImportMaterial = (m: ImportableMaterial) => {
-    setMaterialTitle(m.title);
-    setMaterialContent(m.content || '');
-    setMaterialWeek(m.week_number ? String(m.week_number) : '');
-    setImportOpen(false);
   };
 
   const handlePickPlanMaterial = async (idx: number, m: ImportableMaterial) => {
@@ -1755,83 +1594,8 @@ const SchoolProjectSchoolsPage = () => {
         </div>
       )}
 
-      {activeTab === 'materials' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-on-surface-variant">
-              여기 등록한 자료는 이 프로그램의 각 반에 배정된 강사에게 <span className="font-bold text-primary">공개(발행)</span> 상태일 때만 노출됩니다.
-            </p>
-            <button
-              onClick={openAddMaterial}
-              className="flex items-center gap-1.5 text-sm font-bold text-white bg-primary hover:bg-primary-dim px-4 py-2.5 rounded-xl transition-all shrink-0"
-            >
-              <Plus size={16} /> 자료 추가
-            </button>
-          </div>
-
-          {materialsLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="animate-spin text-primary" size={24} />
-            </div>
-          ) : materials.length === 0 ? (
-            <button
-              onClick={openAddMaterial}
-              className="w-full surface-card p-10 border-2 border-dashed border-surface-container-high hover:border-primary/40 text-center text-on-surface-variant/60 hover:text-primary transition-all"
-            >
-              <BookOpen size={32} className="mx-auto mb-2" />
-              <p className="text-sm font-bold">아직 등록된 공용 수업 자료가 없습니다</p>
-              <p className="text-xs mt-1 opacity-70">일반 자료 또는 주차별 자료를 추가해보세요</p>
-            </button>
-          ) : (
-            <div className="surface-card border border-surface-container-high divide-y divide-surface-container-high">
-              {materials.map(m => (
-                <div key={m.id} className="flex items-start gap-3 px-4 py-3.5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {m.week_number != null && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
-                          {m.week_number}주차
-                        </span>
-                      )}
-                      <span className="font-bold text-sm truncate">{m.title}</span>
-                      <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${m.is_published ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                        {m.is_published ? <Eye size={10} /> : <EyeOff size={10} />}
-                        {m.is_published ? '공개' : '비공개'}
-                      </span>
-                    </div>
-                    {m.content && (
-                      <p className="text-xs text-on-surface-variant mt-1.5 line-clamp-2 whitespace-pre-wrap">{m.content}</p>
-                    )}
-                    <p className="text-[10px] text-on-surface-variant/50 mt-1.5">
-                      {new Date(m.updated_at).toLocaleDateString('ko-KR')} 수정
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleToggleMaterialPublish(m)}
-                      className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-primary hover:bg-surface-container-high transition-all"
-                      title={m.is_published ? '비공개로 전환' : '공개로 전환'}
-                    >
-                      {m.is_published ? <Eye size={14} /> : <EyeOff size={14} />}
-                    </button>
-                    <button
-                      onClick={() => openEditMaterial(m)}
-                      className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high transition-all"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setMaterialDeleteTarget(m)}
-                      className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-all"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {activeTab === 'materials' && projectId && (
+        <SchoolMaterialsTab projectId={projectId} schoolId={null} schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} />
       )}
 
       {activeTab === 'plan' && (
@@ -2330,168 +2094,6 @@ const SchoolProjectSchoolsPage = () => {
         </div>
       )}
 
-      {/* 자료 추가/수정 전체화면 */}
-      {materialModalOpen && createPortal(
-        <div className="fixed inset-0 bg-surface-container-lowest z-50 flex flex-col">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-surface-container-high shrink-0">
-            <h2 className="font-black text-lg">{editingMaterial ? '자료 수정' : '자료 추가'}</h2>
-            <div className="flex items-center gap-2">
-              {!editingMaterial && (
-                <button
-                  onClick={handleOpenImport}
-                  className="flex items-center gap-1.5 text-xs font-bold text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-all"
-                >
-                  <Download size={13} /> 가져오기
-                </button>
-              )}
-              <button onClick={() => setMaterialModalOpen(false)} className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant">
-                <X size={18} />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            <div className="max-w-3xl mx-auto space-y-4">
-              <div className="flex flex-wrap gap-3">
-                <div className="flex-1 min-w-[220px]">
-                  <label className="text-xs font-bold text-on-surface-variant">제목</label>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={materialTitle}
-                    onChange={e => setMaterialTitle(e.target.value)}
-                    placeholder="예: 1주차 오리엔테이션 자료"
-                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-                <div className="w-32">
-                  <label className="text-xs font-bold text-on-surface-variant">주차 (선택)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={materialWeek}
-                    onChange={e => setMaterialWeek(e.target.value)}
-                    placeholder="예: 1"
-                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-on-surface-variant mb-1 block">내용</label>
-                <div className="rounded-xl border border-surface-container-high">
-                  <RichEditor
-                    value={materialContent}
-                    onChange={setMaterialContent}
-                    onUploadImage={handleUploadMaterialImage}
-                    onUploadingChange={setMaterialUploading}
-                    uploading={materialUploading}
-                    minHeight="420px"
-                    stickyToolbar={false}
-                    toolbarRoundedClassName="rounded-t-xl"
-                    contentRoundedClassName="rounded-b-xl"
-                  />
-                </div>
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={materialPublished}
-                  onChange={e => setMaterialPublished(e.target.checked)}
-                  className="w-4 h-4 rounded accent-primary"
-                />
-                <span className="text-xs font-bold text-on-surface-variant">강사에게 바로 공개</span>
-              </label>
-            </div>
-          </div>
-          <div className="shrink-0 border-t border-surface-container-high px-6 py-4">
-            <div className="max-w-3xl mx-auto flex gap-2">
-              <button
-                onClick={() => setMaterialModalOpen(false)}
-                disabled={materialSaving}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleSaveMaterial}
-                disabled={materialSaving || materialUploading || !materialTitle.trim()}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all"
-              >
-                {materialSaving ? '저장 중...' : materialUploading ? '이미지 업로드 중...' : '저장'}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* 자료 가져오기 모달 */}
-      {importOpen && createPortal(
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={() => setImportOpen(false)}>
-          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-lg h-full max-h-[75vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-surface-container-high shrink-0">
-              <h3 className="font-black text-sm">내 수업 자료에서 가져오기</h3>
-              <button onClick={() => setImportOpen(false)} className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {importLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 size={20} className="animate-spin text-on-surface-variant/40" />
-                </div>
-              ) : importCandidates.length === 0 ? (
-                <p className="text-xs text-on-surface-variant/50 text-center py-10">가져올 수 있는 수업 자료가 없습니다</p>
-              ) : (
-                importCandidates.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => handleImportMaterial(m)}
-                    className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-primary/5 transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-on-surface truncate">{m.title}</p>
-                      {m.week_number != null && (
-                        <span className="text-[10px] font-black text-on-surface-variant/60 bg-surface-container px-1.5 py-0.5 rounded-full shrink-0">{m.week_number}주차</span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-on-surface-variant/60 mt-0.5">{m.className}</p>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* 자료 삭제 확인 모달 */}
-      {materialDeleteTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setMaterialDeleteTarget(null)}>
-          <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3 text-red-500">
-              <AlertTriangle size={20} />
-              <h2 className="font-black text-lg">자료 삭제</h2>
-            </div>
-            <p className="text-sm text-on-surface-variant">
-              <span className="font-bold text-on-surface">{materialDeleteTarget.title}</span> 자료를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-            </p>
-            <div className="flex gap-2 mt-5">
-              <button
-                onClick={() => setMaterialDeleteTarget(null)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleDeleteMaterial}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-all"
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 반 추가 모달 */}
       {addClassOpen && createPortal(

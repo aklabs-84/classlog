@@ -33,6 +33,8 @@ interface Props {
   totals: Totals;
   /** 학교별 비교 표에서 학교 이름을 누르면 해당 학교 상세로 이동 */
   onSchoolClick?: (schoolId: string) => void;
+  /** 지정하면 이 학교 하나만의 요약을 보여 준다 (설문은 학교 전용 우선, 없으면 공통) */
+  schoolId?: string | null;
 }
 
 function fmtDate(v: string | null): string {
@@ -50,7 +52,7 @@ function fmtPct(v: number | null): string {
   return v === null ? '-' : `${v}%`;
 }
 
-export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick }: Props) {
+export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick, schoolId = null }: Props) {
   const [stats, setStats] = useState<ProjectSummaryStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyPairSummary[] | null>(null);
   const [courseStats, setCourseStats] = useState<ProjectCourseStats | null>(null);
@@ -60,15 +62,15 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    Promise.all([fetchProjectSummaryStats(projectId), fetchProjectSurveyComparisons(projectId)])
+    Promise.all([fetchProjectSummaryStats(projectId, schoolId), fetchProjectSurveyComparisons(projectId, schoolId)])
       .then(([s, sv]) => { if (!cancelled) { setStats(s); setSurveys(sv); } })
       .catch(() => { if (!cancelled) { setStats({ schools: [], weekly: [] }); setSurveys([]); setFailed(true); } });
     // 과목별 합산은 부가 정보라 실패해도 나머지 화면에는 영향 없게 따로 불러온다.
-    fetchProjectCourseStats(projectId)
+    (schoolId ? Promise.resolve(null) : fetchProjectCourseStats(projectId))
       .then(c => { if (!cancelled) setCourseStats(c); })
       .catch(() => { if (!cancelled) setCourseStats(null); });
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, schoolId]);
 
   // 과목이 하나라도 만들어져 있어야 "과목별" 구역을 보여 준다.
   const hasCourses = !!courseStats && courseStats.courses.some(c => c.course_id !== null);
@@ -195,7 +197,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
       <div className="flex items-center justify-between gap-2 no-print">
         <span className="text-sm font-bold flex items-center gap-1.5">
           <FileBarChart size={14} className="text-on-surface-variant/50" />
-          사업 결과 요약
+          {schoolId ? '학교 결과 요약' : '사업 결과 요약'}
         </span>
         <div className="flex items-center gap-1.5">
           <button
@@ -218,7 +220,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
 
       {/* 사업 개요 */}
       <div className="surface-card border border-surface-container-high p-4">
-        <h3 className="text-sm font-black mb-3">사업 개요</h3>
+        <h3 className="text-sm font-black mb-3">{schoolId ? '학교 개요' : '사업 개요'}</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div>
             <div className="text-[11px] text-on-surface-variant/60">사업명</div>
@@ -392,7 +394,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
       )}
 
       {/* 학교별 비교표 */}
-      {schoolRows.length > 0 && (
+      {!schoolId && schoolRows.length > 0 && (
         <div className="surface-card border border-surface-container-high overflow-hidden">
           <div className="px-4 py-2.5 border-b border-surface-container-high bg-surface-container-low/40">
             <span className="text-sm font-bold">학교별 비교</span>
