@@ -31,6 +31,8 @@ interface Props {
   projectId: string;
   program: ProgramLite | null;
   totals: Totals;
+  /** 학교별 비교 표에서 학교 이름을 누르면 해당 학교 상세로 이동 */
+  onSchoolClick?: (schoolId: string) => void;
 }
 
 function fmtDate(v: string | null): string {
@@ -48,7 +50,7 @@ function fmtPct(v: number | null): string {
   return v === null ? '-' : `${v}%`;
 }
 
-export default function ProjectResultSummary({ projectId, program, totals }: Props) {
+export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick }: Props) {
   const [stats, setStats] = useState<ProjectSummaryStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyPairSummary[] | null>(null);
   const [courseStats, setCourseStats] = useState<ProjectCourseStats | null>(null);
@@ -409,7 +411,11 @@ export default function ProjectResultSummary({ projectId, program, totals }: Pro
               <tbody>
                 {schoolRows.map(s => (
                   <tr key={s.school_id} className="border-b border-surface-container-high last:border-0">
-                    <td className="px-4 py-2.5 font-bold whitespace-nowrap">{s.school_name}</td>
+                    <td className="px-4 py-2.5 font-bold whitespace-nowrap">
+                      {onSchoolClick ? (
+                        <button type="button" onClick={() => onSchoolClick(s.school_id)} className="text-primary hover:underline">{s.school_name}</button>
+                      ) : s.school_name}
+                    </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{s.class_count}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{s.student_count}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatRate(attendanceRate(s))}</td>

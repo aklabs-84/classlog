@@ -16,6 +16,8 @@ interface Props {
   teacherNames: Record<string, string>;
   /** 반 배정이 바뀌면 값을 올려서 다시 조회 */
   refreshKey?: number | string;
+  /** 지정하면 이 강사들만 표시 (학교별 보기) */
+  onlyTeacherIds?: string[];
 }
 
 const STATUS_STYLE: Record<TeacherStatus, string> = {
@@ -31,7 +33,7 @@ function formatLastActivity(row: TeacherStatRow): string {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 }
 
-export default function ProjectTeacherStatus({ projectId, teacherNames, refreshKey = 0 }: Props) {
+export default function ProjectTeacherStatus({ projectId, teacherNames, refreshKey = 0, onlyTeacherIds }: Props) {
   const [rows, setRows] = useState<TeacherStatRow[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -50,9 +52,10 @@ export default function ProjectTeacherStatus({ projectId, teacherNames, refreshK
   if (failed) {
     return <div className="surface-card border border-surface-container-high p-4 text-xs text-red-500">강사 현황을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>;
   }
-  if (rows.length === 0) return null; // 배정된 강사가 없으면 안내 문구 없이 숨김
+  const shownRows = onlyTeacherIds ? rows.filter(r => onlyTeacherIds.includes(r.teacher_id)) : rows;
+  if (shownRows.length === 0) return null; // 배정된 강사가 없으면 안내 문구 없이 숨김
 
-  const sorted = [...rows].sort((a, b) => (teacherNames[a.teacher_id] || '').localeCompare(teacherNames[b.teacher_id] || '', 'ko'));
+  const sorted = [...shownRows].sort((a, b) => (teacherNames[a.teacher_id] || '').localeCompare(teacherNames[b.teacher_id] || '', 'ko'));
 
   return (
     <div className="surface-card border border-surface-container-high overflow-hidden">
