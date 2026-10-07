@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote } from 'lucide-react';
+import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
 
@@ -237,6 +237,14 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const [tocOpen, setTocOpen] = useState<boolean>(readTocPref);
+  const relatedRef = useRef<HTMLElement>(null);
+  // 단계별 보기: 본문을 `##`(없으면 `#`) 제목 단위로 나눠 한 단계씩 보여 준다. 기본은 전체 보기.
+  // 안 보이는 단계는 지우지 않고 숨기기만 해서(DOM 유지) 학생 입력칸 순번이 밀리지 않는다.
+  const [stepMode, setStepMode] = useState(false);
+  const [step, setStep] = useState(0);
+  const [groups, setGroups] = useState<HTMLElement[][]>([]);
+  const [stepOf, setStepOf] = useState<Record<string, number>>({});
+  const [stepLabels, setStepLabels] = useState<string[]>([]);
 
   const hasRelated = relatedMaterials.length > 0 || extraItems.length > 0;
 
@@ -364,11 +372,81 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
     }).filter(it => it.text);
     setToc(items);
     setActiveId(items[0]?.id || '');
+
+    // 단계 묶음 — 제목(h1/h2)마다 새 단계를 시작하되, 아직 본문이 없는 `#` 제목이나 첫 제목 앞 안내문은 다음 단계에 합친다
+    const isHead = (el: Element) => el.tagName === 'H1' || el.tagName === 'H2';
+    const next: HTMLElement[][] = [];
+    let cur: HTMLElement[] = [];
+    let hasHead = false, hasH2 = false, bodyAfterHead = false;
+    Array.from(root.children).forEach(node => {
+      const el = node as HTMLElement;
+      if (isHead(el)) {
+        if (cur.length > 0 && hasHead && (hasH2 || bodyAfterHead)) {
+          next.push(cur);
+          cur = [];
+          hasHead = false; hasH2 = false; bodyAfterHead = false;
+        }
+        hasHead = true;
+        if (el.tagName === 'H2') hasH2 = true;
+      } else if (hasHead) {
+        bodyAfterHead = true;
+      }
+      cur.push(el);
+    });
+    if (cur.length > 0) next.push(cur);
+
+    const idOfStep = new Map<Element, number>();
+    next.forEach((g, i) => g.forEach(el => idOfStep.set(el, i)));
+    const map: Record<string, number> = {};
+    items.forEach(it => {
+      let a: HTMLElement | null = document.getElementById(it.id);
+      while (a && a.parentElement !== root) a = a.parentElement;
+      const idx = a ? idOfStep.get(a) : undefined;
+      if (idx !== undefined) map[it.id] = idx;
+    });
+    setGroups(next);
+    setStepOf(map);
+    setStepLabels(next.map((g, i) => {
+      const h = g.find(e => e.tagName === 'H2') || g.find(e => e.tagName === 'H1');
+      return (h?.textContent || '').trim() || `${i + 1}단계`;
+    }));
+    setStep(0);
   }, [content]);
+
+  const canStep = groups.length >= 2;
+  const stepCount = groups.length + (hasRelated ? 1 : 0);
+  const stepping = stepMode && canStep;
+
+  // 단계별 보기일 때 현재 단계만 보이게 한다(전체 보기면 모두 보임)
+  useLayoutEffect(() => {
+    groups.forEach((g, i) => {
+      const show = !stepping || i === step;
+      g.forEach(el => { el.style.display = show ? '' : 'none'; });
+    });
+    if (relatedRef.current) relatedRef.current.style.display = !stepping || step === groups.length ? '' : 'none';
+  }, [groups, stepping, step, hasRelated]);
+
+  const goStep = (n: number) => {
+    setStep(Math.max(0, Math.min(stepCount - 1, n)));
+    scrollRef.current?.scrollTo({ top: 0 });
+  };
+
+  const switchMode = (toStep: boolean) => {
+    if (toStep === stepMode) return;
+    if (toStep) {
+      setStep(activeId === RELATED_ID ? groups.length : (stepOf[activeId] ?? 0));
+      setStepMode(true);
+      scrollRef.current?.scrollTo({ top: 0 });
+    } else {
+      const target = step < groups.length ? groups[step]?.[0] : relatedRef.current;
+      setStepMode(false);
+      requestAnimationFrame(() => target?.scrollIntoView({ block: 'start' }));
+    }
+  };
 
   const handleScroll = useCallback(() => {
     const sc = scrollRef.current;
-    if (!sc) return;
+    if (!sc || stepping) return;
     const top = sc.getBoundingClientRect().top;
     const ids = [...toc.map(t => t.id), ...(hasRelated ? [RELATED_ID] : [])];
     let current = ids[0] || '';
@@ -379,9 +457,15 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
     // 맨 아래까지 내렸으면 마지막 항목을 활성으로
     if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4 && ids.length) current = ids[ids.length - 1];
     setActiveId(current);
-  }, [toc, hasRelated]);
+  }, [toc, hasRelated, stepping]);
 
   const goTo = (id: string) => {
+    if (stepping) {
+      const n = id === RELATED_ID ? groups.length : stepOf[id];
+      if (n !== undefined) goStep(n);
+      if (window.innerWidth < 1024) setTocOpen(false);
+      return;
+    }
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (window.innerWidth < 1024) setTocOpen(false);
   };
@@ -400,6 +484,11 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
     ...(hasRelated ? [{ id: RELATED_ID, text: '이 차시 관련 자료', indent: false, icon: true }] : []),
   ];
 
+  // 단계별 보기에서는 지금 단계의 마지막 제목(`##`)을 강조
+  const shownActiveId = stepping
+    ? (step === groups.length ? RELATED_ID : ([...toc].reverse().find(t => stepOf[t.id] === step)?.id ?? ''))
+    : activeId;
+
   const tocList = (
     <nav aria-label="목차" className="space-y-1">
       {entries.map(e => (
@@ -407,7 +496,7 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
           key={e.id}
           onClick={() => goTo(e.id)}
           className={`w-full text-left rounded-xl px-3 py-2.5 text-[15px] leading-snug font-bold transition-colors flex items-start gap-2 ${e.indent ? 'pl-6' : ''} ${
-            activeId === e.id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container-low'
+            shownActiveId === e.id ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container-low'
           }`}
         >
           {e.icon && <Paperclip size={15} className="shrink-0 mt-0.5" />}
@@ -442,6 +531,24 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
         )}
         {teacherTools && <TeacherPageTools scrollRef={scrollRef} />}
         <ActivityLinksButton links={links} dark />
+        {canStep && (
+          <div className="flex items-center gap-0.5 p-1 rounded-xl bg-white/10 shrink-0" role="group" aria-label="보기 방식">
+            {([false, true] as const).map(toStep => (
+              <button
+                key={String(toStep)}
+                onClick={() => switchMode(toStep)}
+                aria-pressed={stepping === toStep}
+                title={toStep ? '한 단계씩 보기' : '전체 한 번에 보기'}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-black text-sm sm:text-base transition-all ${
+                  stepping === toStep ? 'bg-white text-slate-800' : 'text-white/80 hover:bg-white/15'
+                }`}
+              >
+                {toStep ? <Layers size={17} /> : <ScrollText size={17} />}
+                <span className="hidden sm:inline">{toStep ? '단계별' : '전체'}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {entries.length > 0 && (
           <button
             onClick={toggleToc}
@@ -465,7 +572,7 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
             </div>
 
             {hasRelated && (
-              <section id={RELATED_ID} className="mt-14 pt-8 border-t-2 border-surface-container" style={{ scrollMarginTop: '16px' }}>
+              <section id={RELATED_ID} ref={relatedRef} className="mt-14 pt-8 border-t-2 border-surface-container" style={{ scrollMarginTop: '16px' }}>
                 <h2 className="text-2xl sm:text-3xl font-black mb-2 flex items-center gap-2.5">
                   <Paperclip size={26} className="text-primary shrink-0" /> 이 차시 관련 자료
                 </h2>
@@ -525,6 +632,27 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
                   })}
                 </div>
               </section>
+            )}
+            {stepping && (
+              <div className="mt-10 pt-6 border-t-2 border-surface-container flex items-stretch gap-3">
+                <button
+                  onClick={() => goStep(step - 1)}
+                  disabled={step === 0}
+                  className="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-surface-container font-black text-base text-on-surface hover:border-primary/40 hover:bg-primary/5 disabled:opacity-30 disabled:pointer-events-none transition-all text-left"
+                >
+                  <ChevronLeft size={20} className="shrink-0" />
+                  <span className="min-w-0"><span className="block text-xs text-on-surface-variant">이전 단계</span><span className="block truncate">{step > 0 ? (stepLabels[step - 1] ?? '') : ''}</span></span>
+                </button>
+                <span className="self-center shrink-0 text-sm font-black text-on-surface-variant">{step + 1} / {stepCount}</span>
+                <button
+                  onClick={() => goStep(step + 1)}
+                  disabled={step >= stepCount - 1}
+                  className="flex-1 min-w-0 flex items-center justify-end gap-2 px-4 py-3 rounded-2xl bg-primary text-white font-black text-base hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition-all text-right"
+                >
+                  <span className="min-w-0"><span className="block text-xs text-white/70">다음 단계</span><span className="block truncate">{step + 1 < stepCount ? (step + 1 < groups.length ? (stepLabels[step + 1] ?? '') : '이 차시 관련 자료') : ''}</span></span>
+                  <ChevronRight size={20} className="shrink-0" />
+                </button>
+              </div>
             )}
             <div className="h-16" />
           </div>
