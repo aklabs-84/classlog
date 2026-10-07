@@ -62,6 +62,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
+    setStats(null); setSurveys(null); setCourseStats(null);
     Promise.all([fetchProjectSummaryStats(projectId, schoolId), fetchProjectSurveyComparisons(projectId, schoolId)])
       .then(([s, sv]) => { if (!cancelled) { setStats(s); setSurveys(sv); } })
       .catch(() => { if (!cancelled) { setStats({ schools: [], weekly: [] }); setSurveys([]); setFailed(true); } });

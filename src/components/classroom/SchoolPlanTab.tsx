@@ -27,6 +27,9 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
   const [schoolClassIds, setSchoolClassIds] = useState<string[]>([]);
   const [fixed, setFixed] = useState(false);
   const [plan, setPlan] = useState<WeeklyPlanItem[]>([]);
+  const [commonLoaded, setCommonLoaded] = useState(false);
+  const [classRows, setClassRows] = useState<{ id: string; custom: boolean; plan: WeeklyPlanItem[] }[]>([]);
+  const [pendingPublishIds, setPendingPublishIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -38,22 +41,35 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
   const load = useCallback(async () => {
     setLoading(true);
+    // 다른 학교로 바뀌었을 때 이전 학교의 열림/선택/대기 상태가 남지 않도록 초기화
+    setOpenIdx(null);
+    setPickIdx(null);
+    setPendingPublishIds([]);
+    setCommonLoaded(false);
     try {
-      const { data: common } = await supabase
+      const { data: common, error: commonErr } = await supabase
         .from('classes').select('id, weekly_plan')
         .eq('school_project_id', projectId).is('parent_class_id', null).maybeSingle();
+      if (commonErr) throw commonErr;
       const commonP = (common?.weekly_plan || []) as WeeklyPlanItem[];
       setCommonPlan(commonP);
+      setCommonLoaded(true);
 
-      const { data: rows } = await supabase
+      const { data: rows, error: rowsErr } = await supabase
         .from('classes').select('id, parent_class_id, weekly_plan, weekly_plan_custom, created_at')
         .eq('school_project_id', schoolId).order('created_at', { ascending: true });
-      const list = rows || [];
-      setSchoolClassIds(list.map((r: any) => r.id));
-      const root: any = list.find((r: any) => r.parent_class_id === null);
-      const isFixed = !!root?.weekly_plan_custom;
+      if (rowsErr) throw rowsErr;
+      const list = (rows || []) as any[];
+      setSchoolClassIds(list.map(r => r.id));
+      setClassRows(list.map(r => ({ id: r.id, custom: !!r.weekly_plan_custom, plan: r.weekly_plan || [] })));
+      const root = list.find(r => r.parent_class_id === null);
+      // 학교 대표 반이 없으면 반들 중 하나라도 고정이면 고정으로 본다
+      const isFixed = root ? !!root.weekly_plan_custom : list.some(r => r.weekly_plan_custom);
       setFixed(isFixed);
-      setPlan(isFixed ? ((root?.weekly_plan || []) as WeeklyPlanItem[]) : commonP);
+      const base = root ?? list.find(r => r.weekly_plan_custom);
+      setPlan(isFixed ? ((base?.weekly_plan || []) as WeeklyPlanItem[]) : commonP);
+    } catch (e: any) {
+      setToast({ msg: '계획을 불러오지 못했습니다: ' + (e?.message || '알 수 없는 오류'), type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -75,13 +91,13 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
     });
   }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handlePick = async (m: ImportableMaterial) => {
+  const handlePick = (m: ImportableMaterial) => {
     if (pickIdx === null) return;
     update(pickIdx, { topic: m.title, material_id: m.id, url: m.activity_urls?.[0]?.url || plan[pickIdx]?.url || '' });
     setMaterialTitles(prev => ({ ...prev, [m.id]: m.title }));
     setPickIdx(null);
-    // 계획에 연결된 자료는 다른 강사·학생도 봐야 하므로 공개 상태로 전환
-    await supabase.from('class_materials').update({ is_published: true, updated_at: new Date().toISOString() }).eq('id', m.id);
+    // 공개 전환은 "저장"을 눌렀을 때 한 번에 처리 (연결만 하고 저장 안 하면 공개되지 않음)
+    setPendingPublishIds(prev => (prev.includes(m.id) ? prev : [...prev, m.id]));
   };
 
   const update = (idx: number, patch: Partial<WeeklyPlanItem>) =>
@@ -92,9 +108,25 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
     setSaving(true);
     try {
       const cleaned = plan.map((p, i) => ({ ...p, week: i + 1 }));
+      // 반마다 따로 고정해 둔 계획이 있으면 덮어쓰기 전에 확인
+      const cleanedJson = JSON.stringify(cleaned);
+      const overwritten = classRows.filter(r => r.custom && JSON.stringify(r.plan) !== cleanedJson);
+      if (!fixed && overwritten.length > 0 &&
+        !confirm(`이 학교의 ${overwritten.length}개 반은 따로 고정된 주차별 계획이 있습니다. 저장하면 그 계획이 지금 계획으로 덮어씌워집니다. 계속할까요?`)) {
+        return;
+      }
+      // 계획에 연결한 자료는 다른 강사·학생도 봐야 하므로 이때 공개로 전환
+      const stillLinked = pendingPublishIds.filter(id => cleaned.some(p => p.material_id === id));
+      if (stillLinked.length > 0) {
+        const { error: pubErr } = await supabase.from('class_materials')
+          .update({ is_published: true, updated_at: new Date().toISOString() }).in('id', stillLinked);
+        if (pubErr) throw new Error('연결한 자료를 공개로 바꾸지 못했습니다: ' + pubErr.message);
+      }
       const { error } = await supabase.from('classes')
         .update({ weekly_plan: cleaned, weekly_plan_custom: true }).in('id', schoolClassIds);
       if (error) throw error;
+      setPendingPublishIds([]);
+      setClassRows(prev => prev.map(r => ({ ...r, custom: true, plan: cleaned })));
       setPlan(cleaned);
       setFixed(true);
       setToast({ msg: '이 학교 전체 반에 주차별 계획을 저장했습니다. (학교 단위로 고정됨)', type: 'success' });
@@ -107,12 +139,21 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
   const handleReset = async () => {
     if (schoolClassIds.length === 0) return;
-    if (!confirm('이 학교 전체 반을 공통 주차별 계획으로 되돌릴까요? 이 학교에서 따로 만든 계획은 사라집니다.')) return;
+    if (!commonLoaded) {
+      setToast({ msg: '공통 계획을 불러오지 못해 되돌릴 수 없습니다. 새로고침 후 다시 시도해 주세요.', type: 'error' });
+      return;
+    }
+    const msg = commonPlan.length === 0
+      ? '공통 주차별 계획이 비어 있습니다. 되돌리면 이 학교의 계획도 빈 상태가 됩니다. 그래도 되돌릴까요?'
+      : '이 학교 전체 반을 공통 주차별 계획으로 되돌릴까요? 이 학교에서 따로 만든 계획은 사라집니다.';
+    if (!confirm(msg)) return;
     setSaving(true);
     try {
       const { error } = await supabase.from('classes')
         .update({ weekly_plan: commonPlan, weekly_plan_custom: false }).in('id', schoolClassIds);
       if (error) throw error;
+      setClassRows(prev => prev.map(r => ({ ...r, custom: false, plan: commonPlan })));
+      setPendingPublishIds([]);
       setPlan(commonPlan);
       setFixed(false);
       setToast({ msg: '공통 주차별 계획으로 되돌렸습니다.', type: 'success' });

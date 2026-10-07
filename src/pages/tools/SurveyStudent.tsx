@@ -285,23 +285,24 @@ export default function SurveyStudent() {
     if (pin) loadFormByPin(pin);
   }, [pin]);
 
-  const loadFormByPin = async (p: string) => {
+  const loadFormByPin = async (p: string): Promise<boolean> => {
     setLoading(true);
     const { data: bundle, error } = await supabase.rpc('survey_by_pin', { p_pin: p.trim() });
     const data = (bundle as any)?.form;
-    if (error || !data) { setErrorMsg('설문을 찾을 수 없어요. PIN을 다시 확인해주세요.'); setLoading(false); return; }
-    if (data.status !== 'open') { setErrorMsg('이 설문은 현재 진행 중이 아닙니다.'); setLoading(false); return; }
+    if (error || !data) { setErrorMsg('설문을 찾을 수 없어요. PIN을 다시 확인해주세요.'); setLoading(false); return false; }
+    if (data.status !== 'open') { setErrorMsg('이 설문은 현재 진행 중이 아닙니다.'); setLoading(false); return false; }
     setForm(data);
     const qs = (bundle as any).questions as any[];
     setQuestions((qs ?? []).map((q: any) => ({ ...q, options: q.options ?? [] })));
     setLoading(false);
+    return true;
   };
 
   const handlePinSubmit = async () => {
     if (!pinInput.trim()) return;
     setErrorMsg('');
-    await loadFormByPin(pinInput);
-    if (form) setStep('name');
+    const ok = await loadFormByPin(pinInput);
+    if (ok) setStep('name');
   };
 
   // 응답에 붙일 반 id를 결정: 학생 세션 > 개별 반 전용 설문(자동) > 학교/반 선택 필요 여부

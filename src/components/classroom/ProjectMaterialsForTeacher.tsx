@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { supabase } from '../../lib/supabase';
+import { safeHttpUrl } from '../../lib/safeUrl';
 import { BookOpen, ChevronDown, ExternalLink, FileText, Loader2 } from 'lucide-react';
 
 interface Item {
@@ -62,12 +63,12 @@ export default function ProjectMaterialsForTeacher({ schoolId }: { schoolId: str
               {(m.links.length > 0 || m.files.length > 0) && (
                 <div className="flex flex-wrap gap-1.5">
                   {m.links.map((l, i) => (
-                    <a key={`l${i}`} href={l.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg max-w-full">
+                    <a key={`l${i}`} href={safeHttpUrl(l.url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg max-w-full">
                       <ExternalLink size={12} className="shrink-0" /> <span className="truncate">{l.label || l.url}</span>
                     </a>
                   ))}
                   {m.files.map((f, i) => (
-                    <a key={`f${i}`} href={f.url} target="_blank" rel="noopener noreferrer" download={f.name} className="flex items-center gap-1 text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg max-w-full">
+                    <a key={`f${i}`} href={safeHttpUrl(f.url)} target="_blank" rel="noopener noreferrer" download={f.name} className="flex items-center gap-1 text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg max-w-full">
                       <FileText size={12} className="shrink-0" /> <span className="truncate">{f.name}</span>
                       <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
                     </a>

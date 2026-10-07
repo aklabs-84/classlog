@@ -6,7 +6,11 @@ import RichEditor from '../RichEditor';
 import ImportableMaterialPicker, { type ImportableMaterial } from './ImportableMaterialPicker';
 import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, Link2, Loader2, Paperclip, Pencil, Plus, Trash2, X, AlertTriangle } from 'lucide-react';
 
+import { safeHttpUrl, isUuid } from '../../lib/safeUrl';
+
 const MAX_FILE_MB = 20;
+// 올릴 수 있는 파일 종류 (웹페이지·스크립트처럼 실행될 수 있는 형식은 막는다)
+const ALLOWED_EXT = new Set(['pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'hwp', 'hwpx', 'txt', 'csv', 'md', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp3', 'mp4', 'm4a', 'mov']);
 const formatSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
 
 interface Material {
@@ -91,7 +95,10 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
         .from('program_materials')
         .select('id, title, content, week_number, is_published, updated_at, school_id, links, files')
         .eq('program_project_id', projectId);
-      if (schoolId) q = q.or(`school_id.is.null,school_id.eq.${schoolId}`);
+      if (schoolId) {
+        if (!isUuid(schoolId)) { setMaterials([]); return; }
+        q = q.or(`school_id.is.null,school_id.eq.${schoolId}`);
+      }
       const { data } = await q
         .order('week_number', { ascending: true, nullsFirst: true })
         .order('updated_at', { ascending: false });
@@ -118,9 +125,14 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     setModalOpen(true);
   };
 
+  const busy = saving || uploading || uploadingFile;
+
   const closeModal = async () => {
+    // 저장·업로드 중에 닫으면 파일이 고아로 남거나 저장 직전 파일이 지워질 수 있어 막는다
+    if (busy) return;
     // 저장하지 않고 닫으면 이번에 올린 파일은 정리
     if (newPaths.length > 0) await supabase.storage.from('student-attachments').remove(newPaths);
+    setNewPaths([]);
     setModalOpen(false);
   };
 
@@ -159,14 +171,20 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     if (tooBig.length > 0) {
       setFileError(`${tooBig.map(f => `"${f.name}"(${formatSize(f.size)})`).join(', ')} 은(는) ${MAX_FILE_MB}MB를 넘어 올릴 수 없습니다. 구글 드라이브·네이버 MYBOX 같은 곳에 올린 뒤 "공유 링크"를 만들어 위의 '링크' 칸에 붙여 넣어 주세요.`);
     }
-    const ok = picked.filter(f => f.size <= MAX_FILE_MB * 1024 * 1024);
+    const sized = picked.filter(f => f.size <= MAX_FILE_MB * 1024 * 1024);
+    const extOf = (f: File) => (f.name.includes('.') ? f.name.split('.').pop() || '' : '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const blocked = sized.filter(f => !ALLOWED_EXT.has(extOf(f)));
+    if (blocked.length > 0) {
+      setFileError(prev => `${prev ? prev + ' ' : ''}${blocked.map(f => `"${f.name}"`).join(', ')} 은(는) 올릴 수 없는 파일 형식입니다. (PDF·한글·오피스 문서·이미지·압축파일 등만 가능)`);
+    }
+    const ok = sized.filter(f => ALLOWED_EXT.has(extOf(f)));
     if (ok.length === 0) return;
     setUploadingFile(true);
     try {
       for (const f of ok) {
-        const ext = (f.name.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'bin';
+        const ext = extOf(f);
         const path = `program-materials/${user.id}/files/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error } = await supabase.storage.from('student-attachments').upload(path, f);
+        const { error } = await supabase.storage.from('student-attachments').upload(path, f, { contentType: f.type || 'application/octet-stream' });
         if (error) { setFileError(`"${f.name}" 업로드에 실패했습니다: ${error.message}`); continue; }
         const url = supabase.storage.from('student-attachments').getPublicUrl(path).data.publicUrl;
         setFiles(prev => [...prev, { name: f.name, path, url, size: f.size }]);
@@ -221,14 +239,17 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
   };
 
   const handleTogglePublish = async (m: Material) => {
-    await supabase.from('program_materials').update({ is_published: !m.is_published }).eq('id', m.id);
+    const { error } = await supabase.from('program_materials').update({ is_published: !m.is_published }).eq('id', m.id);
+    if (error) { alert('공개 설정을 바꾸지 못했습니다: ' + error.message); return; }
     setMaterials(prev => prev.map(x => x.id === m.id ? { ...x, is_published: !x.is_published } : x));
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await supabase.from('program_materials').delete().eq('id', deleteTarget.id);
+    const { error } = await supabase.from('program_materials').delete().eq('id', deleteTarget.id);
+    if (error) { alert('삭제하지 못했습니다: ' + error.message); return; }
     if (deleteTarget.files.length > 0) {
+      // 다른 관리자가 올린 파일은 권한상 지워지지 않을 수 있다(자료 자체는 이미 삭제됨)
       await supabase.storage.from('student-attachments').remove(deleteTarget.files.map(f => f.path));
     }
     setMaterials(prev => prev.filter(x => x.id !== deleteTarget.id));
@@ -282,13 +303,13 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
         {(m.links.length > 0 || m.files.length > 0) && (
           <div className="flex flex-wrap gap-1.5">
             {m.links.map((l, i) => (
-              <a key={`l${i}`} href={l.url} target="_blank" rel="noopener noreferrer"
+              <a key={`l${i}`} href={safeHttpUrl(l.url)} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1 text-[11px] font-bold text-primary bg-primary/5 hover:bg-primary/10 px-2.5 py-1 rounded-lg transition-all max-w-full">
                 <ExternalLink size={11} className="shrink-0" /> <span className="truncate">{l.label || l.url}</span>
               </a>
             ))}
             {m.files.map((f, i) => (
-              <a key={`f${i}`} href={f.url} target="_blank" rel="noopener noreferrer" download={f.name}
+              <a key={`f${i}`} href={safeHttpUrl(f.url)} target="_blank" rel="noopener noreferrer" download={f.name}
                 className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-2.5 py-1 rounded-lg transition-all max-w-full">
                 <FileText size={11} className="shrink-0" /> <span className="truncate">{f.name}</span>
                 <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
@@ -380,7 +401,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                     <Download size={13} /> 수업 도구에서 가져오기
                   </button>
                 )}
-                <button onClick={closeModal} className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant"><X size={18} /></button>
+                <button onClick={closeModal} disabled={busy} className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant disabled:opacity-40"><X size={18} /></button>
               </div>
             </div>
 
@@ -468,7 +489,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
             </div>
 
             <div className="shrink-0 border-t border-surface-container-high px-5 py-3.5 flex gap-2">
-              <button onClick={closeModal} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all">취소</button>
+              <button onClick={closeModal} disabled={busy} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high disabled:opacity-50 transition-all">취소</button>
               <button onClick={handleSave} disabled={saving || uploading || uploadingFile || !title.trim()} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all">
                 {saving ? '저장 중...' : uploadingFile ? '파일 올리는 중...' : uploading ? '이미지 업로드 중...' : '저장'}
               </button>
