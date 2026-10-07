@@ -386,6 +386,7 @@ const SchoolProjectSchoolsPage = () => {
     if (target === 'common') return commonPlan;
     const sc = schoolOfTarget(target);
     const key = sc ? sc.rootClassId : target;
+    if (key && customFlags[key]) return classPlans[key] || [];
     return (key && classPlans[key]?.length) ? classPlans[key] : commonPlan;
   };
   const isCustomSchool = (sc: SchoolRow) => !!(sc.rootClassId && customFlags[sc.rootClassId]);
@@ -399,17 +400,40 @@ const SchoolProjectSchoolsPage = () => {
     setWeeklyPlan(planForTarget(next));
   };
 
+  // 학교 단위로 계획 저장 (그 학교 전체 반 + 학교 대표 반, 학교 단위 고정)
+  const persistSchoolPlan = async (sc: SchoolRow, plan: WeeklyPlanItem[]) => {
+    const ids = [...(sc.rootClassId ? [sc.rootClassId] : []), ...sc.classes.map(c => c.id)];
+    const { error } = await supabase.from('classes').update({ weekly_plan: plan, weekly_plan_custom: true }).in('id', ids);
+    if (error) throw error;
+    setClassPlans(prev => { const next = { ...prev }; ids.forEach(id => { next[id] = plan; }); return next; });
+    setCustomFlags(prev => { const next = { ...prev }; ids.forEach(id => { next[id] = true; }); return next; });
+  };
+
+  // 공통 계획 저장 (개별로 고정된 반·학교는 건너뜀)
+  const persistCommonPlan = async (plan: WeeklyPlanItem[]) => {
+    const rootIds = [projectRootClassId, ...schools.filter(s => !isCustomSchool(s)).map(s => s.rootClassId).filter(Boolean)] as string[];
+    const allClassIds = schools.flatMap(sc => sc.classes.map(c => c.id));
+    const fixedSchoolClassIds = new Set(schools.filter(isCustomSchool).flatMap(sc => sc.classes.map(c => c.id)));
+    const skipped = allClassIds.filter(id => isCustomPlan(id) || fixedSchoolClassIds.has(id));
+    const followIds = allClassIds.filter(id => !skipped.includes(id));
+    const { error } = await supabase.from('classes').update({ weekly_plan: plan }).in('id', [...rootIds, ...followIds]);
+    if (error) throw error;
+    setCommonPlan(plan);
+    setClassPlans(prev => {
+      const next = { ...prev };
+      followIds.forEach(id => { next[id] = plan; });
+      return next;
+    });
+    return { followIds, skipped };
+  };
+
   const handleSavePlan = async () => {
     if (!projectRootClassId) return;
     setPlanSaving(true);
     try {
       const targetSchool = schoolOfTarget(planTarget);
       if (targetSchool) {
-        const ids = [...(targetSchool.rootClassId ? [targetSchool.rootClassId] : []), ...targetSchool.classes.map(c => c.id)];
-        const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan, weekly_plan_custom: true }).in('id', ids);
-        if (error) throw error;
-        setClassPlans(prev => { const next = { ...prev }; ids.forEach(id => { next[id] = weeklyPlan; }); return next; });
-        setCustomFlags(prev => { const next = { ...prev }; ids.forEach(id => { next[id] = true; }); return next; });
+        await persistSchoolPlan(targetSchool, weeklyPlan);
         setPlanToast({ msg: `'${targetSchool.name}' 전체 ${targetSchool.classes.length}개 반에 적용되었고, 이 학교는 개별로 고정되었습니다`, type: 'success' });
         setPlanView('status');
         return;
@@ -429,20 +453,7 @@ const SchoolProjectSchoolsPage = () => {
         setPlanView('status');
         return;
       }
-      const rootIds = [projectRootClassId, ...schools.filter(s => !isCustomSchool(s)).map(s => s.rootClassId).filter(Boolean)] as string[];
-      const allClassIds = schools.flatMap(sc => sc.classes.map(c => c.id));
-      const fixedSchoolClassIds = new Set(schools.filter(isCustomSchool).flatMap(sc => sc.classes.map(c => c.id)));
-      const skipped = allClassIds.filter(id => isCustomPlan(id) || fixedSchoolClassIds.has(id));
-      const followIds = allClassIds.filter(id => !skipped.includes(id));
-      const targetIds = [...rootIds, ...followIds];
-      const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan }).in('id', targetIds);
-      if (error) throw error;
-      setCommonPlan(weeklyPlan);
-      setClassPlans(prev => {
-        const next = { ...prev };
-        followIds.forEach(id => { next[id] = weeklyPlan; });
-        return next;
-      });
+      const { followIds, skipped } = await persistCommonPlan(weeklyPlan);
       setPlanToast({
         msg: skipped.length > 0
           ? `공통 계획이 저장되었습니다 · ${followIds.length}개 반에 적용, 개별 수정된 ${skipped.length}개 반은 건너뛰었습니다`
@@ -498,11 +509,17 @@ const SchoolProjectSchoolsPage = () => {
   // 적용 현황 계산: 주차별로 공통/개별 구분
   const planStatus = useMemo(() => {
     const allClasses = visibleSchools.flatMap(sc => sc.classes.map(c => ({ ...c, schoolName: sc.name })));
-    const customClasses = allClasses.filter(c => isCustomOf(c.id, classPlans, customFlags, commonPlan));
-    const weekSet = new Set<number>(commonPlan.map(p => p.week));
+    // 학교를 하나 골랐고 그 학교가 학교 단위로 고정돼 있으면, 그 학교의 계획이 기준이 된다
+    const scopeSchool = activeSchoolId !== 'all' ? schools.find(sc => sc.id === activeSchoolId) : undefined;
+    const schoolFixed = !!(scopeSchool && isCustomSchool(scopeSchool));
+    const basePlan = schoolFixed ? (classPlans[scopeSchool!.rootClassId!] || []) : commonPlan;
+    const customClasses = schoolFixed
+      ? allClasses.filter(c => !samePlan(classPlans[c.id] || [], basePlan))
+      : allClasses.filter(c => isCustomOf(c.id, classPlans, customFlags, commonPlan));
+    const weekSet = new Set<number>(basePlan.map(p => p.week));
     customClasses.forEach(c => (classPlans[c.id] || []).forEach(p => weekSet.add(p.week)));
     const weeks = Array.from(weekSet).sort((a, b) => a - b).map(week => {
-      const base = commonPlan.find(p => p.week === week);
+      const base = basePlan.find(p => p.week === week);
       const diffs = customClasses.flatMap(c => {
         const item = (classPlans[c.id] || []).find(p => p.week === week);
         if (JSON.stringify(item ?? null) === JSON.stringify(base ?? null)) return [];
@@ -510,8 +527,35 @@ const SchoolProjectSchoolsPage = () => {
       });
       return { week, base, diffs };
     });
-    return { totalClasses: allClasses.length, customClasses, weeks };
-  }, [visibleSchools, classPlans, commonPlan, customFlags]);
+    return { totalClasses: allClasses.length, customClasses, weeks, basePlan, schoolFixed, scopeSchool };
+  }, [visibleSchools, activeSchoolId, schools, classPlans, commonPlan, customFlags]);
+
+  // 주차 삭제 / 계획 전체 삭제 (선택한 범위: 전체=공통 계획, 학교=그 학교 전체 반)
+  const handleDeletePlanWeeks = async (week: number | 'all') => {
+    const sc = planStatus.scopeSchool;
+    const scopeLabel = sc ? `'${sc.name}' 전체 반` : '공통 계획';
+    const msg = week === 'all'
+      ? (sc ? `${scopeLabel}의 주차별 계획을 모두 삭제할까요?` : `공통 계획의 주차를 모두 삭제할까요? 개별로 고정된 반·학교는 그대로 남습니다.`)
+      : (sc ? `${scopeLabel}에서 ${week}주차를 삭제할까요?` : `공통 계획에서 ${week}주차를 삭제할까요? 개별로 고정된 반·학교는 그대로 남습니다.`);
+    if (!window.confirm(msg)) return;
+    const base = planStatus.basePlan;
+    const nextPlan = week === 'all' ? [] : base.filter(p => p.week !== week).map((p, i) => ({ ...p, week: i + 1 }));
+    setPlanSaving(true);
+    try {
+      if (sc) await persistSchoolPlan(sc, nextPlan);
+      else await persistCommonPlan(nextPlan);
+      if ((sc && planTarget === `school:${sc.id}`) || (!sc && planTarget === 'common')) setWeeklyPlan(nextPlan);
+      setPlanToast({
+        msg: week === 'all' ? `${scopeLabel}의 주차별 계획을 모두 삭제했습니다` : `${scopeLabel}에서 ${week}주차를 삭제했습니다 (뒤 주차 번호는 앞으로 당겨졌어요)`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error('handleDeletePlanWeeks error:', err);
+      setPlanToast({ msg: '삭제 중 오류가 발생했습니다. 다시 시도해 주세요.', type: 'error' });
+    } finally {
+      setPlanSaving(false);
+    }
+  };
 
   const openAddMaterial = () => {
     setEditingMaterial(null);
@@ -1818,13 +1862,25 @@ const SchoolProjectSchoolsPage = () => {
                 <span className={`text-xs font-black px-3 py-1.5 rounded-full ${planStatus.customClasses.length > 0 ? 'bg-amber-100 text-amber-700' : 'bg-surface-container text-on-surface-variant'}`}>
                   개별 수정 {planStatus.customClasses.length}개 반
                 </span>
-                <button
-                  type="button"
-                  onClick={() => { handleChangePlanTarget('common'); setPlanView('edit'); }}
-                  className="ml-auto text-xs font-bold text-primary hover:text-primary-dim px-3 py-1.5 rounded-xl border border-primary/20"
-                >
-                  공통 계획 편집
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  {planStatus.basePlan.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={planSaving}
+                      onClick={() => handleDeletePlanWeeks('all')}
+                      className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-xl border border-red-200 disabled:opacity-50"
+                    >
+                      계획 전체 삭제
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { handleChangePlanTarget(planStatus.scopeSchool ? `school:${planStatus.scopeSchool.id}` : 'common'); setPlanView('edit'); }}
+                    className="text-xs font-bold text-primary hover:text-primary-dim px-3 py-1.5 rounded-xl border border-primary/20"
+                  >
+                    {planStatus.scopeSchool ? '이 학교 계획 편집' : '공통 계획 편집'}
+                  </button>
+                </div>
               </div>
 
               {planStatus.weeks.length === 0 ? (
@@ -1840,6 +1896,17 @@ const SchoolProjectSchoolsPage = () => {
                           <span className="text-[11px] font-black px-2 py-1 rounded-full bg-primary/10 text-primary shrink-0">공통</span>
                         ) : (
                           <span className="text-[11px] font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700 shrink-0">{w.diffs.length}개 반 개별</span>
+                        )}
+                        {w.base && (
+                          <button
+                            type="button"
+                            disabled={planSaving}
+                            onClick={() => handleDeletePlanWeeks(w.week)}
+                            title={`${w.week}주차 삭제`}
+                            className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-all shrink-0 disabled:opacity-50"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         )}
                       </div>
                       {w.diffs.length > 0 && (
