@@ -260,6 +260,8 @@ const SchoolProjectSchoolsPage = () => {
   const [classPlans, setClassPlans] = useState<Record<string, WeeklyPlanItem[]>>({});
   const [planLoading, setPlanLoading] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
+  const [planView, setPlanView] = useState<'status' | 'edit'>('status');
+  const [planToast, setPlanToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [planMaterials, setPlanMaterials] = useState<ImportableMaterial[]>([]);
   const [planMaterialsLoading, setPlanMaterialsLoading] = useState(false);
   const [planMaterialDropdownIdx, setPlanMaterialDropdownIdx] = useState<number | null>(null);
@@ -289,7 +291,8 @@ const SchoolProjectSchoolsPage = () => {
   const [decidingRequestId, setDecidingRequestId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (projectId) fetchData();
+    // 처음 들어오거나 다른 프로젝트로 바뀔 때만 전체 로딩 화면을 보여준다 (저장 뒤 재조회는 화면 유지)
+    if (projectId) { setLoading(true); fetchData(); }
   }, [projectId]);
 
   const fetchMaterials = async () => {
@@ -358,6 +361,12 @@ const SchoolProjectSchoolsPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (!planToast) return;
+    const timer = setTimeout(() => setPlanToast(null), 4500);
+    return () => clearTimeout(timer);
+  }, [planToast]);
+
   const samePlan = (a: WeeklyPlanItem[], b: WeeklyPlanItem[]) => JSON.stringify(a) === JSON.stringify(b);
   // 공통 계획과 다르게 직접 입력된 반 = 개별 수정된 반 (빈 계획은 공통을 따르는 것으로 본다)
   const isCustomPlan = (classId: string) => {
@@ -382,7 +391,9 @@ const SchoolProjectSchoolsPage = () => {
         const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan }).eq('id', planTarget);
         if (error) throw error;
         setClassPlans(prev => ({ ...prev, [planTarget]: weeklyPlan }));
-        alert('이 반의 주차별 계획이 저장되었습니다.');
+        const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === planTarget)?.name || '이 반';
+        setPlanToast({ msg: `'${clsName}'의 주차별 계획이 저장되었습니다 (이 반만 적용)`, type: 'success' });
+        setPlanView('status');
         return;
       }
       const rootIds = [projectRootClassId, ...schools.map(s => s.rootClassId).filter(Boolean)] as string[];
@@ -398,16 +409,54 @@ const SchoolProjectSchoolsPage = () => {
         followIds.forEach(id => { next[id] = weeklyPlan; });
         return next;
       });
-      alert(skipped.length > 0
-        ? `공통 주차별 계획이 저장되었습니다. 개별 수정된 ${skipped.length}개 반은 건너뛰었습니다.`
-        : '주차별 계획이 저장되었습니다. 모든 학교의 반에 적용됩니다.');
+      setPlanToast({
+        msg: skipped.length > 0
+          ? `공통 계획이 저장되었습니다 · ${followIds.length}개 반에 적용, 개별 수정된 ${skipped.length}개 반은 건너뛰었습니다`
+          : `공통 계획이 저장되었습니다 · ${followIds.length}개 반 모두에 적용되었습니다`,
+        type: 'success',
+      });
+      setPlanView('status');
     } catch (err) {
       console.error('handleSavePlan error:', err);
-      alert('저장 중 오류가 발생했습니다.');
+      setPlanToast({ msg: '저장 중 오류가 발생했습니다. 다시 시도해 주세요.', type: 'error' });
     } finally {
       setPlanSaving(false);
     }
   };
+
+  // 개별 수정된 반을 공통 계획으로 되돌리기
+  const handleResetClassPlan = async (classId: string) => {
+    const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === classId)?.name || '이 반';
+    if (!window.confirm(`'${clsName}'의 개별 수정을 지우고 공통 계획으로 되돌릴까요?`)) return;
+    const { error } = await supabase.from('classes').update({ weekly_plan: commonPlan }).eq('id', classId);
+    if (error) {
+      setPlanToast({ msg: '되돌리는 중 오류가 발생했습니다.', type: 'error' });
+      return;
+    }
+    setClassPlans(prev => ({ ...prev, [classId]: commonPlan }));
+    setPlanToast({ msg: `'${clsName}'을(를) 공통 계획으로 되돌렸습니다`, type: 'success' });
+  };
+
+  // 적용 현황 계산: 주차별로 공통/개별 구분
+  const planStatus = useMemo(() => {
+    const allClasses = schools.flatMap(sc => sc.classes.map(c => ({ ...c, schoolName: sc.name })));
+    const customClasses = allClasses.filter(c => {
+      const plan = classPlans[c.id] || [];
+      return plan.length > 0 && JSON.stringify(plan) !== JSON.stringify(commonPlan);
+    });
+    const weekSet = new Set<number>(commonPlan.map(p => p.week));
+    customClasses.forEach(c => (classPlans[c.id] || []).forEach(p => weekSet.add(p.week)));
+    const weeks = Array.from(weekSet).sort((a, b) => a - b).map(week => {
+      const base = commonPlan.find(p => p.week === week);
+      const diffs = customClasses.flatMap(c => {
+        const item = (classPlans[c.id] || []).find(p => p.week === week);
+        if (JSON.stringify(item ?? null) === JSON.stringify(base ?? null)) return [];
+        return [{ classId: c.id, className: c.name, schoolName: c.schoolName, topic: item ? (item.topic || '(주제 없음)') : '(이 주차 없음)' }];
+      });
+      return { week, base, diffs };
+    });
+    return { totalClasses: allClasses.length, customClasses, weeks };
+  }, [schools, classPlans, commonPlan]);
 
   const openAddMaterial = () => {
     setEditingMaterial(null);
@@ -561,7 +610,6 @@ const SchoolProjectSchoolsPage = () => {
 
   const fetchData = async () => {
     if (!projectId) return;
-    setLoading(true);
     try {
       const { data: proj } = await supabase
         .from('school_projects')
@@ -1662,6 +1710,98 @@ const SchoolProjectSchoolsPage = () => {
 
       {activeTab === 'plan' && (
         <div className="space-y-4">
+          <div className="flex gap-1 p-1 bg-surface-container rounded-xl w-fit">
+            {([['status', '적용 현황'], ['edit', '편집']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPlanView(key)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${planView === key ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {planView === 'status' && (planLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="animate-spin text-primary" size={24} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black px-3 py-1.5 rounded-full bg-primary/10 text-primary">
+                  공통 적용 {planStatus.totalClasses - planStatus.customClasses.length}개 반
+                </span>
+                <span className={`text-xs font-black px-3 py-1.5 rounded-full ${planStatus.customClasses.length > 0 ? 'bg-amber-100 text-amber-700' : 'bg-surface-container text-on-surface-variant'}`}>
+                  개별 수정 {planStatus.customClasses.length}개 반
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { handleChangePlanTarget('common'); setPlanView('edit'); }}
+                  className="ml-auto text-xs font-bold text-primary hover:text-primary-dim px-3 py-1.5 rounded-xl border border-primary/20"
+                >
+                  공통 계획 편집
+                </button>
+              </div>
+
+              {planStatus.weeks.length === 0 ? (
+                <p className="text-sm text-on-surface-variant/60 text-center py-10">아직 등록된 주차별 계획이 없습니다. '편집'에서 추가해 주세요.</p>
+              ) : (
+                <div className="space-y-2">
+                  {planStatus.weeks.map(w => (
+                    <div key={w.week} className="surface-card p-4 border border-surface-container-high space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black px-2 py-1 rounded-full bg-primary/10 text-primary shrink-0">{w.week}주차</span>
+                        <span className="text-sm font-bold text-on-surface flex-1 min-w-0 truncate">{w.base ? (w.base.topic || '(주제 없음)') : '(공통 계획 없음)'}</span>
+                        {w.diffs.length === 0 ? (
+                          <span className="text-[11px] font-black px-2 py-1 rounded-full bg-primary/10 text-primary shrink-0">공통</span>
+                        ) : (
+                          <span className="text-[11px] font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700 shrink-0">{w.diffs.length}개 반 개별</span>
+                        )}
+                      </div>
+                      {w.diffs.length > 0 && (
+                        <ul className="space-y-1 pl-1">
+                          {w.diffs.map(d => (
+                            <li key={d.classId} className="text-xs text-on-surface-variant">
+                              <span className="font-bold text-amber-700">{d.schoolName} · {d.className}</span> → {d.topic}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {planStatus.customClasses.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-black text-on-surface-variant">개별 수정된 반</p>
+                  {planStatus.customClasses.map(c => (
+                    <div key={c.id} className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                      <span className="text-xs font-bold text-on-surface flex-1 min-w-0 truncate">{c.schoolName} · {c.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => { handleChangePlanTarget(c.id); setPlanView('edit'); }}
+                        className="text-xs font-bold text-primary px-2 py-1"
+                      >
+                        이 반 편집
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResetClassPlan(c.id)}
+                        className="text-xs font-bold text-on-surface-variant hover:text-red-500 px-2 py-1"
+                      >
+                        공통으로 되돌리기
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {planView === 'edit' && (<>
           <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/10">
             <CalendarRange size={16} className="text-primary mt-0.5 shrink-0" />
             <p className="text-xs text-on-surface-variant">
@@ -1857,7 +1997,20 @@ const SchoolProjectSchoolsPage = () => {
               </button>
             </>
           )}
+          </>)}
         </div>
+      )}
+
+      {planToast && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-4 w-full max-w-md pointer-events-none">
+          <div className={`flex items-start gap-2 px-4 py-3 rounded-2xl shadow-xl border bg-surface-container-lowest ${planToast.type === 'success' ? 'border-primary/30' : 'border-red-300'}`}>
+            {planToast.type === 'success'
+              ? <Check size={16} className="text-primary mt-0.5 shrink-0" />
+              : <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />}
+            <span className="text-sm font-bold text-on-surface">{planToast.msg}</span>
+          </div>
+        </div>,
+        document.body
       )}
 
       {activeTab === 'survey' && projectId && (
