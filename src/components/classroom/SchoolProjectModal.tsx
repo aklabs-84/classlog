@@ -29,13 +29,10 @@ export const BANNER_THEMES = [
 ];
 
 const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolProjectModalProps) => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [projectName, setProjectName] = useState('');
-  const [schoolName, setSchoolName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
   const [bannerColor, setBannerColor] = useState('violet');
   const [saving, setSaving] = useState(false);
   const [savedInfo, setSavedInfo] = useState(false);
@@ -44,15 +41,9 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
     if (isOpen) {
       if (editProject) {
         setProjectName(editProject.name || '');
-        setSchoolName(editProject.school_name || '');
-        setStartDate(editProject.start_date || '');
-        setEndDate(editProject.end_date || '');
         setBannerColor(editProject.banner_color || 'violet');
       } else {
         setProjectName('');
-        setSchoolName(profile?.school_name || '');
-        setStartDate(new Date().toISOString().split('T')[0]);
-        setEndDate('');
         setBannerColor('violet');
       }
     }
@@ -77,9 +68,6 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         // 편집: 기본 정보만 업데이트
         await supabase.from('school_projects').update({
           name: projectName.trim(),
-          school_name: schoolName.trim() || null,
-          start_date: startDate || null,
-          end_date: endDate || null,
           banner_color: bannerColor,
         }).eq('id', editProject.id);
         setSavedInfo(true);
@@ -94,10 +82,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         .from('school_projects')
         .insert({
           name: projectName.trim(),
-          school_name: schoolName.trim() || null,
           admin_id: user.id,
-          start_date: startDate || null,
-          end_date: endDate || null,
           banner_color: bannerColor,
           entry_code: generateEntryCode(),
         })
@@ -165,37 +150,6 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
                       className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
                     />
                   </div>
-                  <div>
-                    <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-2">학교 이름</label>
-                    <input
-                      type="text"
-                      placeholder="예: 대건고등학교"
-                      value={schoolName}
-                      onChange={e => setSchoolName(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-2">수업 시작일 *</label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={e => setStartDate(e.target.value)}
-                        className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-2">수업 종료일 *</label>
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={e => setEndDate(e.target.value)}
-                        className="w-full px-4 py-3.5 bg-surface-container rounded-2xl text-sm font-bold border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-lowest outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-
                   {/* 배너 테마 */}
                   <div>
                     <label className="text-xs font-black text-on-surface-variant uppercase tracking-widest block mb-3">공유 페이지 배너 색상</label>
@@ -245,7 +199,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
 
                   <button
                     onClick={handleSaveInfo}
-                    disabled={!projectName.trim() || !startDate || !endDate || saving}
+                    disabled={!projectName.trim() || saving}
                     className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-95 ${
                       savedInfo
                         ? 'bg-emerald-500 text-white'
