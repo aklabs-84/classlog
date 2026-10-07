@@ -6,10 +6,9 @@ import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText, proofreadMaterialContent, type ProofreadIssue } from '../../lib/gemini';
 import { LessonPlanModal } from '../../components/LessonPlanModal';
 import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
-import ActivityLinksButton, { type ActivityLink } from '../../components/ActivityLinksButton';
+import { type ActivityLink } from '../../components/ActivityLinksButton';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import { useScrollLock } from '../../hooks/useScrollLock';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -36,15 +35,15 @@ import ReactMarkdown from 'react-markdown';
 import {
   Save, Trash2, Copy, Plus,
   Loader2, ChevronDown, Globe, Lock,
-  BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
+  BookOpen, Pencil, ArrowLeft, Eye,
   Users, Presentation, ChevronRight, X as XIcon,
-  Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
+  Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
   Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List, PenLine,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
-import { AnswerPreviewMarkdown } from '../../components/StudentMaterialPage';
+import StudentMaterialPage from '../../components/StudentMaterialPage';
 import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal, { renderCallout } from '../../components/PresentationModal';
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
@@ -477,6 +476,8 @@ const LinkToClassModal = ({
 };
 
 // ── 미리보기 전체화면 모달 ────────────────────────────────────────────────────
+// 학생 화면(본문 + 목차)과 똑같이 보여 주고, 입력칸은 써볼 수 있지만 저장하지 않는다.
+const PREVIEW_ANSWERS = { load: async () => ({}), save: async () => {} };
 const PreviewFullscreenModal = ({
   title,
   content,
@@ -488,8 +489,6 @@ const PreviewFullscreenModal = ({
   links?: ActivityLink[];
   onClose: () => void;
 }) => {
-  useScrollLock(true);
-
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
@@ -497,31 +496,16 @@ const PreviewFullscreenModal = ({
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9998] bg-white flex flex-col overflow-hidden">
-      {/* 상단 헤더 */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
-        >
-          <ArrowLeft size={15} /> 나가기
-        </button>
-        <div className="flex items-center gap-2 ml-2">
-          <Eye size={15} className="text-white/60" />
-          <span className="font-black text-sm text-white/80 truncate max-w-xs">{title || '미리보기'}</span>
-        </div>
-        <ActivityLinksButton links={links} dark />
-      </div>
-      {/* 본문 */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-8 py-10">
-          <p className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-bold text-emerald-800">
-            ✍ 학생 입력칸(표 빈 칸·체크·밑줄)은 눌러서 써볼 수 있어요. 미리보기라서 적은 내용은 저장되지 않아요.
-          </p>
-          <AnswerPreviewMarkdown content={highlightFillPlaceholders(content)} mdComponents={mdComponents} />
-        </div>
-      </div>
-    </div>,
+    <StudentMaterialPage
+      title={title || '미리보기'}
+      content={highlightFillPlaceholders(content)}
+      links={links}
+      mdComponents={mdComponents}
+      answers={PREVIEW_ANSWERS}
+      teacherTools
+      previewOnly
+      onClose={onClose}
+    />,
     document.body
   );
 };
@@ -1272,7 +1256,6 @@ const MaterialEditor = () => {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // UI 상태
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -1432,7 +1415,7 @@ const MaterialEditor = () => {
   const resetForm = () => {
     autoSavedRef.current = false;
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
-    setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
+    setEditingMaterial(null); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
     setActivityLinks([]); setNewLinkUrl('');
     setExpansionGuide(null); setShowExpansionGuide(false);
@@ -1553,7 +1536,6 @@ const MaterialEditor = () => {
     setWeekNumber(material.week_number ?? 1);
     setContent(material.content || '');
     setIsPublished(material.is_published || false);
-    setViewMode('edit');
     setAiVersions(material.ai_versions ?? []);
     setCoverImageUrl(material.cover_image_url ?? null);
     setCoverSource(material.cover_source ?? 'template');
@@ -2541,24 +2523,15 @@ const MaterialEditor = () => {
                   : (editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성')}
               </span>
               <div className="flex items-center gap-2 ml-auto shrink-0">
-                {/* 뷰 모드 토글 */}
-                <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1 shrink-0">
-                  {(['edit', 'preview'] as const).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setViewMode(mode)}
-                      title={mode === 'edit' ? '편집 모드' : '미리보기'}
-                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                        viewMode === mode
-                          ? 'bg-white shadow text-primary'
-                          : 'text-on-surface-variant hover:text-on-surface'
-                      }`}
-                    >
-                      {mode === 'edit' ? <Pencil size={12} /> : <Eye size={12} />}
-                      <span className="hidden sm:inline">{mode === 'edit' ? '편집' : '미리보기'}</span>
-                    </button>
-                  ))}
-                </div>
+                {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
+                <button
+                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks })}
+                  title="학생 화면처럼 전체화면으로 미리보기"
+                  className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:text-primary hover:bg-white transition-all shrink-0"
+                >
+                  <Eye size={12} />
+                  <span className="hidden sm:inline">미리보기</span>
+                </button>
                 {/* 저장 (가장 중요한 동작이므로 항상 눈에 띄게 우측 고정) */}
                 <button
                   onClick={handleSave}
@@ -2913,40 +2886,15 @@ const MaterialEditor = () => {
           </details>
 
           {/* 편집 / 미리보기 영역 */}
-          {viewMode === 'edit' ? (
-            <RichEditor
-              value={content}
-              onChange={setContent}
-              onUploadImage={handleUploadImage}
-              uploading={uploading}
-              toolbarRoundedClassName=""
-              contentRoundedClassName="rounded-b-3xl"
-              classId={selectedClass?.id}
-            />
-          ) : (
-            <div className="relative min-h-[440px] p-6 overflow-auto bg-white rounded-b-3xl">
-              {content.trim() ? (
-                <>
-                  <button
-                    onClick={() => setFullscreenPreview({ title, content, links: activityLinks })}
-                    className="absolute top-3 right-3 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors z-10"
-                    title="전체 화면으로 보기"
-                  >
-                    <Maximize2 size={15} />
-                  </button>
-                  <p className="mb-5 mr-10 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-bold text-emerald-800">
-                    ✍ 학생 입력칸(표 빈 칸·체크·밑줄)은 눌러서 써볼 수 있어요. 미리보기라서 적은 내용은 저장되지 않아요.
-                  </p>
-                  <AnswerPreviewMarkdown content={highlightFillPlaceholders(content)} mdComponents={mdComponents} />
-                </>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">
-                  <EyeOff size={32} />
-                  <p className="text-sm font-bold">편집창에 내용을 작성하면 미리보기가 표시됩니다</p>
-                </div>
-              )}
-            </div>
-          )}
+          <RichEditor
+            value={content}
+            onChange={setContent}
+            onUploadImage={handleUploadImage}
+            uploading={uploading}
+            toolbarRoundedClassName=""
+            contentRoundedClassName="rounded-b-3xl"
+            classId={selectedClass?.id}
+          />
 
           {/* 하단 액션 바. 설명 텍스트는 모바일에서 숨기고, 취소/저장 버튼은 항상 오른쪽 고정 */}
           <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-surface-container bg-surface-container-low/50">

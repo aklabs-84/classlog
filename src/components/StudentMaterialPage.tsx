@@ -50,6 +50,8 @@ interface Props {
   onOpenFile?: (mat: RelatedMaterial, download: boolean) => void;
   /** 선생님 미리보기일 때만 켜는 수업 도구(돋보기·펜·스포트라이트, PC 화면 전용) */
   teacherTools?: boolean;
+  /** 에디터 미리보기용 — 입력은 써볼 수 있지만 저장되지 않으므로 "저장됨" 표시를 숨긴다 */
+  previewOnly?: boolean;
   onClose: () => void;
 }
 
@@ -229,7 +231,7 @@ const readTocPref = (): boolean => {
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, previewOnly = false, onClose }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -428,7 +430,7 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
           <Eye size={17} className="text-white/60 shrink-0" />
           <span className="font-black text-base text-white/90 truncate">{title}</span>
         </div>
-        {answers?.save && status !== 'idle' && (
+        {answers?.save && !previewOnly && status !== 'idle' && (
           <span
             className={`flex items-center gap-1.5 text-sm font-black shrink-0 ${status === 'error' ? 'text-red-300' : status === 'saved' ? 'text-emerald-300' : 'text-white/70'}`}
             role="status"
