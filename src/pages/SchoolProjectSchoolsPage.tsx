@@ -260,6 +260,7 @@ const SchoolProjectSchoolsPage = () => {
   const [classPlans, setClassPlans] = useState<Record<string, WeeklyPlanItem[]>>({});
   const [planLoading, setPlanLoading] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
+  const [customFlags, setCustomFlags] = useState<Record<string, boolean>>({});
   const [planView, setPlanView] = useState<'status' | 'edit'>('status');
   const [planToast, setPlanToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [planMaterials, setPlanMaterials] = useState<ImportableMaterial[]>([]);
@@ -332,12 +333,15 @@ const SchoolProjectSchoolsPage = () => {
       setPlanTarget('common');
       const classIds = schools.flatMap(sc => sc.classes.map(c => c.id));
       if (classIds.length > 0) {
-        const { data: rows } = await supabase.from('classes').select('id, weekly_plan').in('id', classIds);
+        const { data: rows } = await supabase.from('classes').select('id, weekly_plan, weekly_plan_custom').in('id', classIds);
         const map: Record<string, WeeklyPlanItem[]> = {};
-        (rows || []).forEach((r: any) => { map[r.id] = r.weekly_plan || []; });
+        const flags: Record<string, boolean> = {};
+        (rows || []).forEach((r: any) => { map[r.id] = r.weekly_plan || []; flags[r.id] = !!r.weekly_plan_custom; });
         setClassPlans(map);
+        setCustomFlags(flags);
       } else {
         setClassPlans({});
+        setCustomFlags({});
       }
     } finally {
       setPlanLoading(false);
@@ -368,11 +372,13 @@ const SchoolProjectSchoolsPage = () => {
   }, [planToast]);
 
   const samePlan = (a: WeeklyPlanItem[], b: WeeklyPlanItem[]) => JSON.stringify(a) === JSON.stringify(b);
-  // 공통 계획과 다르게 직접 입력된 반 = 개별 수정된 반 (빈 계획은 공통을 따르는 것으로 본다)
-  const isCustomPlan = (classId: string) => {
-    const plan = classPlans[classId] || [];
-    return plan.length > 0 && !samePlan(plan, commonPlan);
+  // 개별 관리 중인 반 = 고정 표시가 있거나, 공통 계획과 다르게 직접 입력된 반 (빈 계획은 공통을 따르는 것으로 본다)
+  const isCustomOf = (classId: string, plans: Record<string, WeeklyPlanItem[]>, flags: Record<string, boolean>, common: WeeklyPlanItem[]) => {
+    if (flags[classId]) return true;
+    const plan = plans[classId] || [];
+    return plan.length > 0 && !samePlan(plan, common);
   };
+  const isCustomPlan = (classId: string) => isCustomOf(classId, classPlans, customFlags, commonPlan);
   const currentPlanBaseline = planTarget === 'common' ? commonPlan : ((classPlans[planTarget]?.length ? classPlans[planTarget] : commonPlan));
 
   const handleChangePlanTarget = (next: string) => {
@@ -388,13 +394,14 @@ const SchoolProjectSchoolsPage = () => {
     setPlanSaving(true);
     try {
       if (planTarget !== 'common') {
-        const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan }).eq('id', planTarget);
+        const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan, weekly_plan_custom: true }).eq('id', planTarget);
         if (error) throw error;
         setClassPlans(prev => ({ ...prev, [planTarget]: weeklyPlan }));
+        setCustomFlags(prev => ({ ...prev, [planTarget]: true }));
         const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === planTarget)?.name || '이 반';
         setPlanToast({
           msg: samePlan(weeklyPlan, commonPlan)
-            ? `'${clsName}'은(는) 공통 계획과 내용이 같아 '공통'으로 표시됩니다. 내용을 바꿔서 저장하면 '개별 수정'으로 표시돼요`
+            ? `'${clsName}'이(가) 개별 반으로 고정되었습니다 (내용은 공통과 같고, 이후 공통 계획이 바뀌어도 이 반은 그대로예요)`
             : `'${clsName}'의 주차별 계획이 저장되었습니다 (이 반만 적용)`,
           type: 'success',
         });
@@ -433,22 +440,21 @@ const SchoolProjectSchoolsPage = () => {
   const handleResetClassPlan = async (classId: string) => {
     const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === classId)?.name || '이 반';
     if (!window.confirm(`'${clsName}'의 개별 수정을 지우고 공통 계획으로 되돌릴까요?`)) return;
-    const { error } = await supabase.from('classes').update({ weekly_plan: commonPlan }).eq('id', classId);
+    const { error } = await supabase.from('classes').update({ weekly_plan: commonPlan, weekly_plan_custom: false }).eq('id', classId);
     if (error) {
       setPlanToast({ msg: '되돌리는 중 오류가 발생했습니다.', type: 'error' });
       return;
     }
     setClassPlans(prev => ({ ...prev, [classId]: commonPlan }));
+    setCustomFlags(prev => ({ ...prev, [classId]: false }));
+    if (planTarget === classId) setWeeklyPlan(commonPlan);
     setPlanToast({ msg: `'${clsName}'을(를) 공통 계획으로 되돌렸습니다`, type: 'success' });
   };
 
   // 적용 현황 계산: 주차별로 공통/개별 구분
   const planStatus = useMemo(() => {
     const allClasses = schools.flatMap(sc => sc.classes.map(c => ({ ...c, schoolName: sc.name })));
-    const customClasses = allClasses.filter(c => {
-      const plan = classPlans[c.id] || [];
-      return plan.length > 0 && JSON.stringify(plan) !== JSON.stringify(commonPlan);
-    });
+    const customClasses = allClasses.filter(c => isCustomOf(c.id, classPlans, customFlags, commonPlan));
     const weekSet = new Set<number>(commonPlan.map(p => p.week));
     customClasses.forEach(c => (classPlans[c.id] || []).forEach(p => weekSet.add(p.week)));
     const weeks = Array.from(weekSet).sort((a, b) => a - b).map(week => {
@@ -461,7 +467,7 @@ const SchoolProjectSchoolsPage = () => {
       return { week, base, diffs };
     });
     return { totalClasses: allClasses.length, customClasses, weeks };
-  }, [schools, classPlans, commonPlan]);
+  }, [schools, classPlans, commonPlan, customFlags]);
 
   const openAddMaterial = () => {
     setEditingMaterial(null);
@@ -1840,7 +1846,7 @@ const SchoolProjectSchoolsPage = () => {
             {planTarget !== 'common' && isCustomPlan(planTarget) && (
               <button
                 type="button"
-                onClick={() => setWeeklyPlan(commonPlan)}
+                onClick={() => handleResetClassPlan(planTarget)}
                 className="text-xs font-bold text-primary hover:text-primary-dim px-2 py-1.5"
               >
                 공통 계획으로 되돌리기
