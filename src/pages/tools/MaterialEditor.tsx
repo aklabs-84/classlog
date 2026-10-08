@@ -1922,12 +1922,17 @@ const MaterialEditor = () => {
     }
   };
 
-  const visibleMaterials = activeFolderId === 'all'
-    ? materials
-    : materials
-        .filter(m => (m.folder_id ?? null) === activeFolderId)
-        // 폴더 안에서는 제목 기준 자연 정렬(숫자→가나다→abc 순)로 보여준다
-        .sort((a, b) => a.title.localeCompare(b.title, 'ko', { numeric: true, sensitivity: 'base' }));
+  // 주차 오름차순 → 같은 주차(또는 주차 없음)는 제목 자연 정렬. 주차 없는 자료는 맨 뒤
+  const byWeekThenTitle = (a: Material, b: Material) => {
+    const wa = a.week_number ?? Infinity;
+    const wb = b.week_number ?? Infinity;
+    if (wa !== wb) return wa < wb ? -1 : 1;
+    return a.title.localeCompare(b.title, 'ko', { numeric: true, sensitivity: 'base' });
+  };
+  const visibleMaterials = (activeFolderId === 'all'
+    ? [...materials]
+    : materials.filter(m => (m.folder_id ?? null) === activeFolderId)
+  ).sort(byWeekThenTitle);
 
   // 카드/리스트 보기가 함께 쓰는 자료별 빠른 보기 버튼 (발표 모드·슬라이드·미리보기)
   const renderQuickButtons = (material: Material, size = 16, compact = false) => {
