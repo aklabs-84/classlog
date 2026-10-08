@@ -49,6 +49,7 @@ import PresentationModal, { renderCallout } from '../../components/PresentationM
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
 const SlideModeView = lazy(() => import('../../components/SlideModeView'));
 import MaterialCoverPage from '../../components/MaterialCoverPage';
+import MaterialThumbTile from '../../components/MaterialThumbTile';
 import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
 import LimitToast, { useLimitToast, ActionToast, useActionToast } from '../../components/ui/LimitToast';
 import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
@@ -3090,10 +3091,12 @@ const MaterialEditor = () => {
                       title="열어서 수정"
                       className="shrink-0 w-14 aspect-[210/297] rounded-lg overflow-hidden cursor-pointer border border-surface-container"
                     >
-                      <MaterialCoverPage
-                        title=""
+                      <MaterialThumbTile
+                        title={material.title}
                         imageUrl={material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null}
-                        thumbnail
+                        weekNumber={libraryMode ? null : material.week_number}
+                        folderIndex={material.folder_id ? folders.findIndex(f => f.id === material.folder_id) : null}
+                        compact
                       />
                     </div>
                     <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleEdit(material)}>
@@ -3137,11 +3140,11 @@ const MaterialEditor = () => {
                     title="열어서 수정"
                     className="relative w-full aspect-[210/297] rounded-t-2xl overflow-hidden cursor-pointer"
                   >
-                    <MaterialCoverPage
+                    <MaterialThumbTile
                       title={material.title}
-                      subtitle={libraryMode ? null : `${material.week_number}주차`}
                       imageUrl={material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null}
-                      thumbnail
+                      weekNumber={libraryMode ? null : material.week_number}
+                      folderIndex={material.folder_id ? folders.findIndex(f => f.id === material.folder_id) : null}
                     />
 
                     {/* 상태 배지 */}
