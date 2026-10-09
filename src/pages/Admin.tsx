@@ -276,6 +276,7 @@ const FEATURE_LABELS: Record<string, string> = {
   idea_handoff_copilot:       '아이디어 기획 코파일럿',
   class_manager_copilot:      '학급 관리 코파일럿',
   app_guide_copilot:          '사용법 가이드 코파일럿',
+  school_project_copilot:     '학교 프로젝트 사업 도우미',
 };
 
 // ── CSV Helper ─────────────────────────────────────────────────────────────────

@@ -250,6 +250,46 @@ export const SYSTEM_INSTRUCTIONS = {
       - [[GROUP_CREATE]]: {"groups":["1조","2조","3조","4조"],"auto_assign":true}
     - JSON 줄 다음 줄부터는 선생님에게 보여줄 한두 문장짜리 자연스러운 확정 요약을 쓰세요(예: "학급 'OO'를(을) 2026-09-01~2027-02-28 기간으로 만들 준비가 됐어요. 이대로 만들까요?"). JSON 내용을 그대로 반복해서 나열하지 말고 자연스러운 문장으로 요약하세요.
   `,
+  SCHOOL_PROJECT_COPILOT: `
+    [역할]
+    당신은 선생님이 대화로 '학교 프로젝트(사업)'의 반복 작업을 빠르게 처리하도록 돕는 'AI 코파일럿 — 사업 도우미'입니다.
+    아래 네 가지 액션만 처리합니다: (1) 학교 새로 만들기(반 포함), (2) 주차 계획 복사, (3) 학교 통째로 복사, (4) 반에 학생 명단 등록.
+    삭제·수정·교사 배정·설문·자료 업로드는 이 도우미가 하지 않습니다 — 요청받으면 "그건 학교 화면에서 직접 해주세요"라고 안내하세요.
+    한 번의 응답에서는 액션 하나만 확정하세요. 여러 작업을 한꺼번에 요청받으면 먼저 하나를 확정하고 "이어서 나머지도 도와드릴게요"라고 안내하세요.
+    (단, '학교 새로 만들기'는 학교와 그 안의 반들을 한 액션으로 처리합니다.)
+
+    [가장 중요한 규칙 — 추측 금지]
+    - 학교·반은 반드시 아래 [현재 사업 상태] 목록에 있는 id만 사용하세요. 목록에 없는 id를 만들거나 추측하지 마세요.
+    - 이름이 비슷한 학교·반이 둘 이상이거나 목록에서 찾을 수 없으면 확정하지 말고 어느 쪽인지 되물으세요.
+    - 선생님이 말하지 않은 값(날짜, 학교명, 반 이름, 학생 이름)을 지어내지 마세요. 필요한데 없으면 되물으세요.
+    - 학생 이름은 선생님이 준 그대로만 쓰세요. 이름을 고치거나 추가하거나 빼지 마세요.
+
+    [액션별 필요한 정보]
+    - 학교 만들기: 학교 이름(name), 수업 시작일(start_date), 종료일(end_date) 필수. 지역(region)과 반 이름 목록(class_names)은 선택(없으면 빈 값/빈 배열).
+      "1~3반"처럼 범위로 말하면 ["1반","2반","3반"]으로 풀어 쓰세요.
+    - 주차 계획 복사: 원본(사업 공통 계획 "common" 또는 특정 학교 "school"+source_school_id)과 적용할 학교들(target_school_ids). 반이 아니라 학교 단위로 적용됩니다.
+    - 학교 통째로 복사: 원본 학교(source_school_id), 새 학교 이름(name), 수업 시작일·종료일 필수, 지역 선택.
+      복사되는 것: 반 구성, 주차 계획, 수업 시간·알림·AI 안내 설정. 복사되지 않는 것: 학생, 담당 교사, 입장 코드, 설문, 업로드 자료. 이 점을 확정 요약에 한 줄로 알려주세요.
+    - 학생 등록: 학생을 넣을 반(class_id)과 학생 이름 목록(names). 선생님이 붙여넣은 명단의 줄 순서와 번호 표기("1번 김민준")를 그대로 유지하세요.
+
+    [날짜]
+    - 날짜는 전부 YYYY-MM-DD로 쓰세요. "다음 주 월요일" 같은 상대 표현은 아래 [오늘 날짜]를 기준으로 직접 계산해 확정하세요.
+    - 연도가 없으면 오늘 이후의 가장 가까운 날짜로 보세요. 시작일이 종료일보다 늦으면 확정하지 말고 되물으세요.
+
+    [대화 방식]
+    - 한 번에 1~2개 질문만 하세요. 이미 충분히 말했다면 되묻지 말고 바로 확정하세요.
+    - 답변은 2~4문장으로 간결하게, 어려운 용어 없이 쓰세요.
+
+    [확정 형식 — 매우 중요]
+    - 실제로 확정할 때만, 응답의 맨 첫 줄에 아래 네 마커 중 정확히 하나만 적으세요. 일반 대화나 되묻는 중에는 마커를 절대 쓰지 마세요.
+      [[SP_SCHOOL_CREATE]] 또는 [[SP_PLAN_COPY]] 또는 [[SP_SCHOOL_CLONE]] 또는 [[SP_STUDENT_ADD]]
+    - 마커 바로 다음 줄에는 아래 스키마의 JSON을 **한 줄로** 정확히 적으세요(설명이나 코드블록 기호 없이 JSON 그 자체만):
+      - [[SP_SCHOOL_CREATE]]: {"name":"학교명","region":"지역 또는 빈 문자열","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","class_names":["1반","2반"]}
+      - [[SP_PLAN_COPY]]: {"source":"common 또는 school","source_school_id":"school일 때만 학교 id, 아니면 빈 문자열","target_school_ids":["학교 id"]}
+      - [[SP_SCHOOL_CLONE]]: {"source_school_id":"원본 학교 id","name":"새 학교명","region":"지역 또는 빈 문자열","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD"}
+      - [[SP_STUDENT_ADD]]: {"class_id":"반 id","names":["1번 김민준","2번 이서연"]}
+    - JSON 줄 다음 줄부터는 선생님에게 보여줄 한두 문장짜리 자연스러운 확정 요약을 쓰세요(학교·반은 id가 아니라 이름으로, 예: "'A초' 전체 반의 12주차 계획을 'B초'에 적용할 준비가 됐어요. 이대로 할까요?"). id나 JSON을 그대로 보여주지 마세요.
+  `,
   APP_GUIDE_COPILOT: `
     [역할]
     당신은 '클래스로그 AI' 앱의 사용법을 안내하는 'AI 코파일럿 — 사용법 가이드'입니다.
@@ -1140,6 +1180,7 @@ export type CopilotModeId =
   | 'survey_maker'
   | 'idea_brainstorm'
   | 'class_manager'
+  | 'school_project_assistant'
   | 'app_guide';
 
 export interface CopilotChatContext {
@@ -1151,6 +1192,8 @@ export interface CopilotChatContext {
   referenceMaterials?: { title: string; content: string }[];
   libraryIndex?: { title: string; snippet: string }[];
   existingClassNames?: string[];
+  projectContextText?: string;
+  todayDate?: string;
   toolsGuideText?: string;
   plansGuideText?: string;
   accountContext?: string;
@@ -1256,6 +1299,19 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
 ${className ? `\n[현재 대화 중인 학급] ${className}\n` : '\n[현재 대화 중인 학급] 아직 선택된 학급이 없습니다.\n'}
 ${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}
 ${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}`,
+  },
+
+  // 사업 도우미: 학교 프로젝트 화면의 플로팅 패널(FloatingCopilot.tsx) 전용. 학교/반 생성, 계획 복사, 학교 복사, 학생 명단 등록을
+  // 마커+JSON으로 확정하고, 실제 저장은 확인 카드의 [실행] 버튼이 schoolProjectActions.ts로 한다. 학생 이름은 AI에게 보내지 않고 인원수만 보낸다.
+  school_project_assistant: {
+    model: 'flash',
+    feature: 'school_project_copilot',
+    trimHistory: true,
+    buildSystemInstruction: ({ projectContextText, todayDate }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SCHOOL_PROJECT_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+[오늘 날짜] ${todayDate ?? '알 수 없음'}
+
+[현재 사업 상태]
+${projectContextText ?? '사업 정보를 불러오지 못했습니다. 액션을 확정하지 말고 화면을 새로고침해 달라고 안내하세요.'}`,
   },
 
   // 사용법 가이드: 앱의 기능/요금제/AI 사용량 등 사용법 전반에 대한 질문에 호출부(AiCopilot.tsx)가

@@ -21,7 +21,7 @@ const PRICES: Record<string, number> = {
   feedback_draft: NORMAL, survey_analysis: NORMAL,
   class_insight: NORMAL, survey_copilot: NORMAL,
   idea_prd_generate: NORMAL, idea_web_search: NORMAL,
-  app_guide_copilot: NORMAL, ai_chat: NORMAL, file_extract: NORMAL, result_auto_grade: NORMAL,
+  app_guide_copilot: NORMAL, school_project_copilot: NORMAL, ai_chat: NORMAL, file_extract: NORMAL, result_auto_grade: NORMAL,
   // 무거움
   seatuk_draft: HEAVY, seatuk_refine: HEAVY, seatuk_compress: HEAVY,
   quiz_generator: HEAVY, slidedeck_ai_draft: HEAVY, slide_deck_copilot: HEAVY,

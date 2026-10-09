@@ -10,6 +10,7 @@ import FloatingTimer from '../FloatingTimer';
 import FloatingAIProgress from '../FloatingAIProgress';
 import ScrollToTopButton from './ScrollToTopButton';
 import CopilotReturnBadge from '../CopilotReturnBadge';
+import FloatingCopilot from '../copilot/FloatingCopilot';
 
 const MainLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -37,6 +38,7 @@ const MainLayout = () => {
       <FloatingAIProgress />
       <ScrollToTopButton />
       <CopilotReturnBadge />
+      <FloatingCopilot />
     </div>
   );
 };
