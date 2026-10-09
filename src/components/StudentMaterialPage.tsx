@@ -6,6 +6,7 @@ import rehypeRaw from 'rehype-raw';
 import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
+import MaterialAttachments, { type MaterialAttachment } from './MaterialAttachments';
 
 // 학생용 수업 자료 "한 페이지" 뷰어 — 본문 + 오른쪽 목차(접고 펼치기) + 이 차시에 등록된 일반 자료를
 // 한 화면에서 이어서 볼 수 있게 한다. 목차는 실제 렌더된 화면의 h1/h2에서 뽑아 토글·HTML 제목이
@@ -43,6 +44,7 @@ interface Props {
   title: string;
   content: string;
   links?: ActivityLink[];
+  attachments?: MaterialAttachment[];
   mdComponents: any;
   relatedMaterials?: RelatedMaterial[];
   extraItems?: WeekExtraItem[];
@@ -231,7 +233,7 @@ const readTocPref = (): boolean => {
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, previewOnly = false, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, previewOnly = false, onClose }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -570,6 +572,8 @@ const StudentMaterialPage = ({ title, content, links, mdComponents, relatedMater
                 {markdown}
               </AnswerContext.Provider>
             </div>
+
+            <MaterialAttachments attachments={attachments} />
 
             {hasRelated && (
               <section id={RELATED_ID} ref={relatedRef} className="mt-14 pt-8 border-t-2 border-surface-container" style={{ scrollMarginTop: '16px' }}>

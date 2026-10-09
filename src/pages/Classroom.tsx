@@ -75,6 +75,7 @@ const BodyPortal = ({ children }: { children: React.ReactNode }) => createPortal
 
 const SlideModeView = lazy(() => import('../components/SlideModeView'));
 import type { ActivityLink } from '../components/ActivityLinksButton';
+import type { MaterialAttachment } from '../components/MaterialAttachments';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
@@ -366,8 +367,8 @@ const Classroom = () => {
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[] } | null>(null);
-  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[] } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
+  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
   // 연결된 주차만 모아 정렬. content는 fetchResources에서 이미 함께 불러와두므로 추가 API 호출 없이 즉시 전환 가능.
   const weekNavList = useMemo(() => {
@@ -381,6 +382,7 @@ const Classroom = () => {
           title: (mat?.title as string) || `${p.week}주차`,
           content: (mat?.content as string) ?? null,
           activity_urls: mat?.activity_urls as ActivityLink[] | undefined,
+          attachments: mat?.attachments as MaterialAttachment[] | undefined,
         };
       })
       .filter((w: any) => w.content !== null)
@@ -390,7 +392,7 @@ const Classroom = () => {
   const handleNavigateWeek = (week: number) => {
     const target = weekNavList.find((w: any) => w.week === week);
     if (!target) return;
-    setFullscreenMaterial({ title: target.title, content: target.content, weekNumber: week, activity_urls: target.activity_urls });
+    setFullscreenMaterial({ title: target.title, content: target.content, weekNumber: week, activity_urls: target.activity_urls, attachments: target.attachments });
   };
 
   // 학급정보 수정 팝업에서 에디터 자료 선택용
@@ -1743,11 +1745,11 @@ const Classroom = () => {
       const planMaterialIds = [...new Set(effectivePlan.map((p: any) => p.material_id).filter(Boolean))] as string[];
 
       const [matsRes, generalRes, toolsRes, planMatsRes] = await Promise.all([
-        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls').eq('class_id', sourceId).order('week_number', { ascending: true }),
+        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
         supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
         planMaterialIds.length > 0
-          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls').in('id', planMaterialIds)
+          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments').in('id', planMaterialIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
       const mergedMaterials = [...(matsRes.data || [])];
@@ -2021,11 +2023,11 @@ const Classroom = () => {
     try {
       const { data, error } = await supabase
         .from('class_materials')
-        .select('title, content, activity_urls')
+        .select('title, content, activity_urls, attachments')
         .eq('id', materialId)
         .single();
       if (error || !data) { showToast('원본 자료를 찾을 수 없습니다. 삭제되었을 수 있어요.'); return; }
-      setFullscreenMaterial({ title: data.title, content: data.content || '', activity_urls: data.activity_urls });
+      setFullscreenMaterial({ title: data.title, content: data.content || '', activity_urls: data.activity_urls, attachments: data.attachments });
     } catch {
       showToast('자료를 불러오는 중 오류가 발생했습니다.');
     } finally {
@@ -5218,7 +5220,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls });
+                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5264,7 +5266,7 @@ const Classroom = () => {
                               {/* 슬라이드 모드로 보기 (자료 에디터 자료만) */}
                               {isMaterial && matInfo && (
                                 <button
-                                  onClick={() => setSlideModeMaterial({ title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls })}
+                                  onClick={() => setSlideModeMaterial({ title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls, attachments: matInfo.attachments })}
                                   title="슬라이드 모드로 보기"
                                   className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-sky-50 hover:text-sky-600 transition-colors shrink-0"
                                 >
@@ -5276,7 +5278,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls });
+                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5337,7 +5339,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls })}
+                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
@@ -5356,7 +5358,7 @@ const Classroom = () => {
                               </div>
                             </button>
                             <button
-                              onClick={() => setSlideModeMaterial({ title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls })}
+                              onClick={() => setSlideModeMaterial({ title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, attachments: mat.attachments })}
                               title="슬라이드 모드로 보기"
                               className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-sky-50 hover:text-sky-600 transition-colors shrink-0"
                             >

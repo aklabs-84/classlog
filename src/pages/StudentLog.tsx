@@ -73,6 +73,7 @@ import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import RichEditor from '../components/RichEditor';
 import { type ActivityLink } from '../components/ActivityLinksButton';
+import { type MaterialAttachment } from '../components/MaterialAttachments';
 import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMaterialPage';
 import { getAiApps, type AiApp } from '../lib/aiApps';
 
@@ -347,7 +348,7 @@ const StudentLog = () => {
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
   // 주차 카드에 함께 보여줄 연결된 퀴즈/보드 (진행 중 여부는 10초 폴링되는 activeQuizSessions 사용, DB 함수가 없거나 실패해도 카드는 정상 표시)
   const [weekLinks, setWeekLinks] = useState<{ quizzes: any[]; boards: any[] }>({ quizzes: [], boards: [] });
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ id?: string; title: string; content: string; links?: ActivityLink[]; week?: number | null } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ id?: string; title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[]; week?: number | null } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
@@ -2437,6 +2438,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         title={fullscreenMaterial.title}
         content={fullscreenMaterial.content}
         links={fullscreenMaterial.links}
+        attachments={fullscreenMaterial.attachments}
         mdComponents={MATERIAL_MD_COMPONENTS}
         teacherTools={!!session?.is_teacher || teacherLoggedIn}
         answers={fullscreenMaterial.id && session?.token ? {
@@ -3800,7 +3802,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                               className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-cyan-200 hover:shadow-sm transition-all"
                               onClick={() => {
                                 recordMaterialView(mat.id);
-                                setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls, week: res.week });
+                                setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls, attachments: mat.attachments, week: res.week });
                               }}
                             >
                               <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-sm font-black shrink-0">
@@ -3877,7 +3879,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-violet-200 hover:shadow-sm transition-all"
                           onClick={() => {
                             recordMaterialView(mat.id);
-                            setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls });
+                            setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls, attachments: mat.attachments });
                           }}
                         >
                           <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">

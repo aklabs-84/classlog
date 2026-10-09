@@ -7,6 +7,8 @@ import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REOR
 import { LessonPlanModal } from '../../components/LessonPlanModal';
 import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
 import { type ActivityLink } from '../../components/ActivityLinksButton';
+import { type MaterialAttachment, formatFileSize } from '../../components/MaterialAttachments';
+import { toStorageUploadError, isStorageQuotaError } from '../../lib/storageCleanup';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -33,7 +35,7 @@ const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<Fi
   });
 import ReactMarkdown from 'react-markdown';
 import {
-  Save, Trash2, Copy, Plus,
+  Save, Trash2, Copy, Plus, Paperclip,
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye,
   Users, Presentation, ChevronRight, X as XIcon,
@@ -94,6 +96,7 @@ interface Material {
   content: string;
   url: string;
   activity_urls?: ActivityLink[];
+  attachments?: MaterialAttachment[];
   is_published: boolean;
   created_at: string;
   updated_at: string;
@@ -131,7 +134,7 @@ const ImportFromClassModal = ({
 }: {
   currentClassId?: string;
   userId: string;
-  onImport: (title: string, content: string, weekNumber: number, sourceMaterialId: string, sourceIsLibrary: boolean) => void;
+  onImport: (title: string, content: string, weekNumber: number, sourceMaterialId: string, sourceIsLibrary: boolean, attachments: MaterialAttachment[]) => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<'class' | 'material'>('class');
@@ -159,7 +162,7 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, week_number, created_at')
+      .select('id, title, content, is_published, week_number, created_at, attachments')
       .eq('class_id', cls.id)
       .order('week_number', { ascending: true });
     if (error) console.error('[ImportModal] class_materials fetch error:', error);
@@ -174,7 +177,7 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, week_number, created_at')
+      .select('id, title, content, is_published, week_number, created_at, attachments')
       .is('class_id', null)
       .eq('teacher_id', userId)
       .order('created_at', { ascending: false });
@@ -186,7 +189,7 @@ const ImportFromClassModal = ({
 
   const handleSelectMaterial = (material: Material) => {
     if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
-    onImport(material.title, material.content ?? '', material.week_number ?? 1, material.id, isLibrary);
+    onImport(material.title, material.content ?? '', material.week_number ?? 1, material.id, isLibrary, material.attachments ?? []);
     onClose();
   };
 
@@ -368,6 +371,7 @@ const LinkToClassModal = ({
         title: material.title,
         content: material.content ?? '',
         ai_versions: material.ai_versions ?? [],
+        attachments: material.attachments ?? [],
         is_published: publishOnLink,
         source_material_id: material.id,
       }));
@@ -483,11 +487,13 @@ const PreviewFullscreenModal = ({
   title,
   content,
   links,
+  attachments,
   onClose,
 }: {
   title: string;
   content: string;
   links?: ActivityLink[];
+  attachments?: MaterialAttachment[];
   onClose: () => void;
 }) => {
   useEffect(() => {
@@ -501,6 +507,7 @@ const PreviewFullscreenModal = ({
       title={title || '미리보기'}
       content={highlightFillPlaceholders(content)}
       links={links}
+      attachments={attachments}
       mdComponents={mdComponents}
       answers={PREVIEW_ANSWERS}
       teacherTools
@@ -1255,6 +1262,38 @@ const MaterialEditor = () => {
   const [activityLinks, setActivityLinks] = useState<ActivityLink[]>([]);
   const [showAiServicePicker, setShowAiServicePicker] = useState(false);
   const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [attachments, setAttachments] = useState<MaterialAttachment[]>([]);
+  const [attachUploading, setAttachUploading] = useState(false);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+
+  // 수업 첨부파일 업로드 — 클래스에 연결할 때 같은 파일을 그대로 가리키므로 다시 올릴 필요가 없다
+  const handleUploadAttachments = async (files: FileList | null) => {
+    if (!user || !files || files.length === 0) return;
+    const picked = Array.from(files);
+    if (picked.some(f => f.size > 50 * 1024 * 1024)) {
+      alert('파일 크기는 50MB 이하여야 합니다.');
+      return;
+    }
+    setAttachUploading(true);
+    const added: MaterialAttachment[] = [];
+    try {
+      for (const file of picked) {
+        const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+        const path = `material-attachments/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext ? `.${ext}` : ''}`;
+        const { error } = await supabase.storage.from('student-attachments').upload(path, file);
+        if (error) throw toStorageUploadError(error);
+        added.push({ name: file.name, path, size: file.size });
+      }
+    } catch (err: any) {
+      alert(isStorageQuotaError(err)
+        ? '저장 용량을 초과했어요. 안 쓰는 파일을 정리하거나 플랜을 확인해주세요.'
+        : `첨부파일 업로드 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+    } finally {
+      if (added.length > 0) setAttachments(prev => [...prev, ...added]);
+      setAttachUploading(false);
+      if (attachInputRef.current) attachInputRef.current.value = '';
+    }
+  };
 
   // UI 상태
   const [saving, setSaving] = useState(false);
@@ -1275,8 +1314,8 @@ const MaterialEditor = () => {
   // 발표 모드에서 "저장" 시 어디에 반영할지 (원본 draft / 특정 AI 버전 / DB 직접 저장 등 호출부마다 다름)
   const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
-  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null; activity_urls?: ActivityLink[] } | null>(null);
-  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[] } | null>(null);
+  const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
+  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [answersMaterial, setAnswersMaterial] = useState<Material | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
@@ -1418,7 +1457,7 @@ const MaterialEditor = () => {
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
-    setActivityLinks([]); setNewLinkUrl('');
+    setActivityLinks([]); setNewLinkUrl(''); setAttachments([]);
     setExpansionGuide(null); setShowExpansionGuide(false);
     setFromLessonPlan(false);
   };
@@ -1541,6 +1580,7 @@ const MaterialEditor = () => {
     setCoverImageUrl(material.cover_image_url ?? null);
     setCoverSource(material.cover_source ?? 'template');
     setActivityLinks(material.activity_urls ?? []);
+    setAttachments(material.attachments ?? []);
     setNewLinkUrl('');
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
@@ -1672,6 +1712,7 @@ const MaterialEditor = () => {
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
         cover_source: coverSource,
         activity_urls: activityLinks,
+        attachments,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -1682,7 +1723,7 @@ const MaterialEditor = () => {
           // 공통 자료 원본 수정 시, 이미 연결된 클래스 자료들의 에디터 내용도 함께 반영
           const { error: syncError } = await supabase
             .from('class_materials')
-            .update({ content: payload.content, ai_versions: payload.ai_versions, updated_at: payload.updated_at })
+            .update({ content: payload.content, ai_versions: payload.ai_versions, attachments: payload.attachments, updated_at: payload.updated_at })
             .eq('source_material_id', editingMaterial.id);
           if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
         }
@@ -1720,6 +1761,7 @@ const MaterialEditor = () => {
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
         cover_source: coverSource,
         activity_urls: activityLinks,
+        attachments,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -1731,7 +1773,7 @@ const MaterialEditor = () => {
         if (libraryMode) {
           const { error: syncError } = await supabase
             .from('class_materials')
-            .update({ content: payload.content, ai_versions: payload.ai_versions, updated_at: payload.updated_at })
+            .update({ content: payload.content, ai_versions: payload.ai_versions, attachments: payload.attachments, updated_at: payload.updated_at })
             .eq('source_material_id', editingMaterial.id);
           if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
         }
@@ -1787,7 +1829,7 @@ const MaterialEditor = () => {
     autosaveTimerRef.current = timer;
     return () => { clearTimeout(timer); if (autosaveTimerRef.current === timer) autosaveTimerRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks]);
+  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks, attachments]);
 
   // ── 공통 자료함 원본에 동기화 ─────────────────────────────────────────────
   // 공통 자료함에서 가져와(연결해) 만든 클래스 사본을 이 클래스 맥락에 맞게 편집한 뒤,
@@ -1965,6 +2007,7 @@ const MaterialEditor = () => {
                               content: getActiveVersion(material).content,
                               coverImageUrl: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
                               activity_urls: material.activity_urls,
+                              attachments: material.attachments,
                             });
                           }}
                           title="슬라이드로 보기"
@@ -1976,7 +2019,7 @@ const MaterialEditor = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls });
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments });
                         }}
                         title="내용 미리보기"
                         className={`${qcls} text-on-surface hover:bg-white transition-colors`}
@@ -2214,10 +2257,11 @@ const MaterialEditor = () => {
       <ImportFromClassModal
         currentClassId={selectedClass?.id}
         userId={user.id}
-        onImport={(importedTitle, importedContent, importedWeek, sourceMaterialId, sourceIsLibrary) => {
+        onImport={(importedTitle, importedContent, importedWeek, sourceMaterialId, sourceIsLibrary, importedAttachments) => {
           setTitle(importedTitle ?? '');
           setWeekNumber(importedWeek ?? 1);
           setContent(importedContent ?? '');
+          setAttachments(importedAttachments);
           // 공통 자료함에서 가져온 경우에만 원본으로 기록 — 다음 클래스 자료로 저장될 때 source_material_id로 연결되어
           // 이후 "원본에 동기화" 버튼으로 편집 내용을 그 공통 자료함 원본에 반영할 수 있게 된다
           setImportedSourceMaterialId(sourceIsLibrary ? sourceMaterialId : null);
@@ -2306,6 +2350,7 @@ const MaterialEditor = () => {
         title={fullscreenPreview.title}
         content={fullscreenPreview.content}
         links={fullscreenPreview.links}
+        attachments={fullscreenPreview.attachments}
         onClose={() => setFullscreenPreview(null)}
       />
     )}
@@ -2355,6 +2400,7 @@ const MaterialEditor = () => {
             content: newVersion.content,
             url: '',
             activity_urls: activityLinks,
+            attachments,
             is_published: isPublished,
             created_at: newVersion.created_at,
             updated_at: newVersion.created_at,
@@ -2531,7 +2577,7 @@ const MaterialEditor = () => {
               <div className="flex items-center gap-2 ml-auto shrink-0">
                 {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
                 <button
-                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks })}
+                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments })}
                   title="학생 화면처럼 전체화면으로 미리보기"
                   className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:text-primary hover:bg-white transition-all shrink-0"
                 >
@@ -2612,6 +2658,7 @@ const MaterialEditor = () => {
                                     content: v.content,
                                     url: '',
                                     activity_urls: activityLinks,
+                                    attachments,
                                     is_published: isPublished,
                                     created_at: v.created_at,
                                     updated_at: new Date().toISOString(),
@@ -2677,6 +2724,7 @@ const MaterialEditor = () => {
                     content,
                     url: '',
                     activity_urls: activityLinks,
+                    attachments,
                     is_published: isPublished,
                     created_at: editingMaterial?.created_at ?? new Date().toISOString(),
                     updated_at: new Date().toISOString(),
@@ -2823,6 +2871,42 @@ const MaterialEditor = () => {
             </div>
           </div>
           )}
+
+          {/* 수업 첨부파일 — 클래스에 연결하면 그대로 따라가고, 수업 화면(학생 포함)에서 내려받을 수 있다 */}
+          <div className="flex flex-wrap items-center gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={e => handleUploadAttachments(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => attachInputRef.current?.click()}
+              disabled={attachUploading}
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary/30 font-bold text-[11px] transition-colors disabled:opacity-50"
+            >
+              <Paperclip size={12} /> {attachUploading ? '올리는 중...' : '수업 첨부파일 추가'}
+            </button>
+            {attachments.length === 0 && !attachUploading && (
+              <span className="text-[11px] font-bold text-on-surface-variant/60">여기에 올린 파일은 클래스에 연결해도 다시 올릴 필요가 없어요</span>
+            )}
+            {attachments.map((a, i) => (
+              <span key={`${a.path}-${i}`} className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-lg bg-white border border-surface-container text-xs font-bold max-w-[240px]">
+                <span className="truncate">{a.name}</span>
+                <span className="shrink-0 text-[10px] opacity-50">{formatFileSize(a.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+                  title="목록에서 제거"
+                  className="shrink-0 p-1 rounded-md text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors"
+                >
+                  <XIcon size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
 
           {/* 확장 가이드 팝업 — 닫아도 expansionGuide 자체는 유지되어 위 토글 버튼으로 다시 열 수 있다 */}
           {showExpansionGuide && expansionGuide && expansionGuide.length > 0 && (

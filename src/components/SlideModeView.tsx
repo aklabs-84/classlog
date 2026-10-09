@@ -5,6 +5,7 @@ import { renderMarpSlides } from '../lib/marpConvert';
 import { exportMarpSlidesToPdf } from '../lib/exportMarpPdf';
 import type { PresentationMaterial } from './PresentationModal';
 import ActivityLinksButton from './ActivityLinksButton';
+import { MaterialAttachmentsButton } from './MaterialAttachments';
 import {
   ArrowLeft, ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
   Sun, Moon, X as XIcon, ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2,
@@ -259,6 +260,7 @@ const SlideModeView = ({
           <span className={`text-sm font-bold truncate ${dark ? 'text-white/60' : 'text-slate-500'}`}>{material.title} · 슬라이드 보기</span>
         </div>
 
+        <MaterialAttachmentsButton attachments={material.attachments} dark={dark} />
         <ActivityLinksButton links={material.activity_urls} dark={dark} />
 
         {/* 슬라이드 이동 */}
