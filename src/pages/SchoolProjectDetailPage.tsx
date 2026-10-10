@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Pencil,
 } from 'lucide-react';
+import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
 import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
@@ -127,6 +128,14 @@ const SchoolProjectDetailPage = () => {
   const [archiving, setArchiving] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingSchool, setDeletingSchool] = useState(false);
+
+  // 반 수정/삭제
+  const [editingClass, setEditingClass] = useState<TeachingClass | null>(null);
+  const [editClassName, setEditClassName] = useState('');
+  const [savingClass, setSavingClass] = useState(false);
+  const [deletingClass, setDeletingClass] = useState<TeachingClass | null>(null);
+  const [deletingClassBusy, setDeletingClassBusy] = useState(false);
+  const [classActionError, setClassActionError] = useState('');
 
   const [obsRecords, setObsRecords] = useState<ObservationRow[]>([]);
   const [resultRecords, setResultRecords] = useState<ResultRow[]>([]);
@@ -352,6 +361,51 @@ const SchoolProjectDetailPage = () => {
     }
   };
 
+  const handleSaveClassName = async () => {
+    const name = editClassName.trim();
+    if (!editingClass || !name) return;
+    setSavingClass(true);
+    setClassActionError('');
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .update({ name })
+        .eq('id', editingClass.id)
+        .select('id');
+      if (error || !data || data.length === 0) {
+        setClassActionError('반 이름을 바꾸지 못했습니다. 권한이 없거나 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      setClasses(prev => prev.map(c => (c.id === editingClass.id ? { ...c, name } : c)));
+      setEditingClass(null);
+    } finally {
+      setSavingClass(false);
+    }
+  };
+
+  const handleDeleteClass = async () => {
+    if (!deletingClass) return;
+    setDeletingClassBusy(true);
+    setClassActionError('');
+    try {
+      const filePaths = await collectClassResultPaths(deletingClass.id);
+      const { data, error } = await supabase
+        .from('classes')
+        .delete()
+        .eq('id', deletingClass.id)
+        .select('id');
+      if (error || !data || data.length === 0) {
+        setClassActionError('반을 삭제하지 못했습니다. 권한이 없거나 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      await removeStoragePaths(filePaths);
+      setClasses(prev => prev.filter(c => c.id !== deletingClass.id));
+      setDeletingClass(null);
+    } finally {
+      setDeletingClassBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -519,7 +573,25 @@ const SchoolProjectDetailPage = () => {
                       {c.teacherName || <span className="text-orange-500">담당 강사 미배정</span>}
                     </p>
                   </div>
-                  <span className="text-xs font-bold text-on-surface-variant/70">학생 {c.studentCount}명</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-bold text-on-surface-variant/70 mr-2">학생 {c.studentCount}명</span>
+                    <button
+                      onClick={() => { setClassActionError(''); setEditClassName(c.name); setEditingClass(c); }}
+                      className="p-1.5 rounded-lg text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface transition-all"
+                      aria-label="반 이름 수정"
+                      title="반 이름 수정"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => { setClassActionError(''); setDeletingClass(c); }}
+                      className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                      aria-label="반 삭제"
+                      title="반 삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -753,6 +825,72 @@ const SchoolProjectDetailPage = () => {
           onClose={() => setEditInfoOpen(false)}
           onSaved={(name, region, start_date, end_date) => setSchool((prev: any) => ({ ...prev, name, school_name: name, region, start_date, end_date }))}
         />
+      )}
+
+      {/* 반 이름 수정 모달 */}
+      {editingClass && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !savingClass && setEditingClass(null)}>
+          <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h2 className="font-black text-lg mb-3">반 이름 수정</h2>
+            <input
+              autoFocus
+              value={editClassName}
+              onChange={e => setEditClassName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveClassName(); }}
+              maxLength={50}
+              className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            {classActionError && <p className="text-xs text-red-500 mt-2">{classActionError}</p>}
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setEditingClass(null)}
+                disabled={savingClass}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSaveClassName}
+                disabled={savingClass || !editClassName.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:opacity-90 disabled:opacity-50 transition-all"
+              >
+                {savingClass ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 반 삭제 확인 모달 */}
+      {deletingClass && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !deletingClassBusy && setDeletingClass(null)}>
+          <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3 text-red-500">
+              <AlertTriangle size={20} />
+              <h2 className="font-black text-lg">반 삭제</h2>
+            </div>
+            <p className="text-sm text-on-surface-variant">
+              <span className="font-bold text-on-surface">{deletingClass.name}</span> 반을 삭제하면 학생 {deletingClass.studentCount}명, 수업 자료 {deletingClass.materialCount}개, 출결·제출 기록이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </p>
+            {classActionError && <p className="text-xs text-red-500 mt-2">{classActionError}</p>}
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setDeletingClass(null)}
+                disabled={deletingClassBusy}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDeleteClass}
+                disabled={deletingClassBusy}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-all"
+              >
+                {deletingClassBusy ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 학교 삭제 확인 모달 */}
