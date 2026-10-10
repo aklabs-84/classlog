@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
@@ -422,19 +423,52 @@ const StudentLog = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [feeling, setFeeling] = useState('');
+  // 4칸 기록: ① 오늘 배운 것(learned) ② 내가 한 것·만든 것(content) ③ 고민하고 고친 점(process) ④ 한 줄 느낌(feeling)
+  const [learned, setLearned] = useState('');
+  const [process, setProcess] = useState('');
+  // 제출 직전 "② 가 짧아요" 안내를 한 번 보여 줬는지 (안내 후 다시 누르면 그대로 제출)
+  const [shortWarned, setShortWarned] = useState(false);
 
   // 작성 가이드(오늘 수업 되짚어 보기) — 문장을 대신 넣어 주지 않고, 학생마다 답이 달라지는 질문만 힌트로 보여 줌
   const [guideOpen, setGuideOpen] = useState(true);
+  const guideAutoSet = useRef(false);
+  // 기록 작성 가이드 영상 — 접어 두고 필요할 때만 펼침
+  const [videoOpen, setVideoOpen] = useState(false);
   const [activeGuideKey, setActiveGuideKey] = useState<string | null>(null);
   const [usedGuideChips, setUsedGuideChips] = useState<Set<string>>(new Set());
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const feelingRef = useRef<HTMLTextAreaElement>(null);
-  const WRITING_GUIDE_CHIPS: { key: string; label: string; target: 'content' | 'feeling'; question: string }[] = [
-    { key: 'choice', label: '🎯 내가 직접 고르고 결정한 것', target: 'content', question: '오늘 활동에서 내가 직접 선택하거나 결정한 것은 무엇인가요? 왜 그렇게 했나요?' },
-    { key: 'stuck', label: '🧩 가장 막혔던 순간', target: 'content', question: '가장 막혔던 순간은 언제였나요? 그때 어떻게 넘겼나요?' },
+  const learnedRef = useRef<HTMLTextAreaElement>(null);
+  const processRef = useRef<HTMLTextAreaElement>(null);
+
+  type RecordFieldKey = 'learned' | 'content' | 'process' | 'feeling';
+  // 칸이 이 글자 수보다 짧으면 바로 아래에 "한 문장 더" 질문을 보여 줌 (AI 호출 없는 고정 문구)
+  const FIELD_SHORT_CHARS = 20;
+  const RECORD_FIELDS: { key: RecordFieldKey; label: string; hint: string; placeholder: string; followUp: string | null; minH: string }[] = [
+    { key: 'learned', label: '① 오늘 배운 것', hint: '새로 알게 된 것 1~2개를 써 보세요.', placeholder: '예) 오늘 나는 ○○을(를) 배웠다.', followUp: '그걸 친구에게 설명한다면 한 문장으로 어떻게 말할 수 있나요?', minH: 'min-h-[110px]' },
+    { key: 'content', label: '② 내가 한 것·만든 것', hint: '무엇을 만들었고, 내 역할은 무엇이었나요?', placeholder: '예) ○○으로 ○○을(를) 만들었다. 나는 ○○ 부분을 맡았다.', followUp: '어떻게 만들었나요? 한 문장만 더 써 볼까요?', minH: 'min-h-[170px]' },
+    { key: 'process', label: '③ 고민하고 고친 점', hint: '무엇을 골랐고, 어디서 막혔고, 어떻게 넘겼나요?', placeholder: '예) 처음에는 ○○했는데, ○○ 때문에 ○○으로 바꿨다.', followUp: '처음과 달라진 점이 있나요? 왜 바꿨나요?', minH: 'min-h-[140px]' },
+    { key: 'feeling', label: '④ 한 줄 느낌', hint: '오늘 수업을 한 줄로 말하면?', placeholder: '예) ○○해서 ○○했다.', followUp: null, minH: 'min-h-[70px]' },
+  ];
+  const fieldValue: Record<RecordFieldKey, string> = { learned, content, process, feeling };
+  const fieldSetter: Record<RecordFieldKey, (v: string) => void> = { learned: setLearned, content: setContent, process: setProcess, feeling: setFeeling };
+  const fieldRef: Record<RecordFieldKey, React.RefObject<HTMLTextAreaElement | null>> = { learned: learnedRef, content: contentRef, process: processRef, feeling: feelingRef };
+  // ①~③ (사실 근거가 되는 칸)만 합쳐서 글자 수·AI 검토에 사용. ④ 느낌은 제외
+  const CORE_FIELDS: { key: RecordFieldKey; title: string }[] = [
+    { key: 'learned', title: '오늘 배운 것' },
+    { key: 'content', title: '내가 한 것·만든 것' },
+    { key: 'process', title: '고민하고 고친 점' },
+  ];
+  const coreText = CORE_FIELDS.filter(f => fieldValue[f.key].trim()).map(f => `[${f.title}]\n${fieldValue[f.key].trim()}`).join('\n\n');
+  const coreLength = CORE_FIELDS.reduce((sum, f) => sum + fieldValue[f.key].trim().length, 0);
+
+  const WRITING_GUIDE_CHIPS: { key: string; label: string; target: RecordFieldKey; question: string }[] = [
+    { key: 'choice', label: '🎯 내가 직접 고르고 결정한 것', target: 'process', question: '오늘 활동에서 내가 직접 선택하거나 결정한 것은 무엇인가요? 왜 그렇게 했나요?' },
+    { key: 'stuck', label: '🧩 가장 막혔던 순간', target: 'process', question: '가장 막혔던 순간은 언제였나요? 그때 어떻게 넘겼나요?' },
     { key: 'diff', label: '✨ 내 결과물만의 특징', target: 'content', question: '내가 만든 결과물이 다른 친구 것과 다른 점은 무엇인가요?' },
     { key: 'next', label: '🔁 다음에 다르게 해보고 싶은 것', target: 'feeling', question: '다음에 다시 한다면 무엇을 다르게 해보고 싶나요? 그 이유는요?' },
   ];
+  const CHIP_TARGET_LABEL: Record<RecordFieldKey, string> = { learned: '① 배운 것', content: '② 한 것·만든 것', process: '③ 고민·고친 점', feeling: '④ 한 줄 느낌' };
   const activeGuideChip = WRITING_GUIDE_CHIPS.find(c => c.key === activeGuideKey) || null;
   // 선생님이 저장해 둔 "오늘 수업 키워드" — 선택한 주제(차시)와 일치하는 계획표 항목에서 가져옴
   const [pickedRecap, setPickedRecap] = useState<Set<string>>(new Set());
@@ -445,9 +479,14 @@ const StudentLog = () => {
     if (next.has(kw)) next.delete(kw); else next.add(kw);
     return next;
   });
-  const selectGuideChip = (chip: { key: string; target: 'content' | 'feeling' }) => {
+  const selectGuideChip = (chip: { key: string; target: RecordFieldKey }) => {
     setActiveGuideKey(prev => (prev === chip.key ? null : chip.key));
-    (chip.target === 'content' ? contentRef.current : feelingRef.current)?.focus();
+    // 플로팅 질문 카드에 가리지 않도록 입력칸을 화면 가운데로 맞춘 뒤 커서를 둠
+    const el = fieldRef[chip.target].current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus({ preventScroll: true });
+    }
   };
   const toggleGuideDone = (key: string) => {
     setUsedGuideChips(prev => {
@@ -1101,7 +1140,14 @@ const StudentLog = () => {
       if (error) {
         console.error('fetchHistory RLS/DB 오류:', error);
       }
-      if (data) setHistoryLogs(data);
+      if (data) {
+        setHistoryLogs(data);
+        // 처음 쓰는 학생은 가이드를 펼쳐 두고, 이미 기록이 있으면 접어 둠 (한 번만 자동 적용)
+        if (!guideAutoSet.current) {
+          guideAutoSet.current = true;
+          if (data.length > 0) setGuideOpen(false);
+        }
+      }
     } catch (err) {
       console.error('Error fetching history:', err);
     } finally {
@@ -2207,22 +2253,28 @@ const StudentLog = () => {
       showToast(hasTopics ? '주차를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error');
       return;
     }
-    if (!content) {
-      showToast('활동 내용을 입력해주세요.', 'error');
+    if (!content.trim()) {
+      showToast('"② 내가 한 것·만든 것"을 입력해주세요.', 'error');
       return;
     }
 
     if (!session?.student_id || !teacherId) return;
 
     // ── 최소 글자수 검사 (하드 차단) ────────────────────────────────────────
-    if (minObsChars > 0 && content.trim().length < minObsChars) {
-      showToast(`주요 활동 내용을 최소 ${minObsChars}자 이상 작성해주세요. (현재 ${content.trim().length}자)`, 'error');
+    if (minObsChars > 0 && coreLength < minObsChars) {
+      showToast(`①~③번 내용을 합쳐 최소 ${minObsChars}자 이상 작성해주세요. (현재 ${coreLength}자)`, 'error');
+      return;
+    }
+
+    // ── ② 가 너무 짧으면 한 번만 부드럽게 안내 (막지 않음 — 다시 누르면 제출) ──────
+    if (content.trim().length < FIELD_SHORT_CHARS && !shortWarned) {
+      setShortWarned(true);
       return;
     }
 
     // ── 금지어 검사 (하드 차단) ───────────────────────────────────────────────
     if (blockedKeywords.length > 0) {
-      const fullText = `${title} ${content} ${feeling}`.toLowerCase();
+      const fullText = `${title} ${learned} ${content} ${process} ${feeling}`.toLowerCase();
       const hit = blockedKeywords.find(kw => kw && fullText.includes(kw.toLowerCase()));
       if (hit) {
         showToast(`"${hit}"은(는) 사용할 수 없는 단어입니다. 내용을 수정한 후 다시 제출해주세요.`, 'error');
@@ -2242,7 +2294,7 @@ const StudentLog = () => {
 
       if (guidePrompt && aiReviewEnabled) {
         try {
-          const contentLength = content.trim().length;
+          const contentLength = coreLength;
 
           // 같은 차시의 직전 제출 기록 (최신순) → 연속 반려 횟수와 직전 반려 사유
           let rejectStreak = 0;
@@ -2272,8 +2324,8 @@ ${guidePrompt}
 
 [학생이 제출한 활동 정보]
 제목: "${title}"
-주요 활동 내용(${contentLength}자): "${content}"
-(참고) 배운 점 및 느낀 점: "${feeling}"
+주요 활동 내용(${contentLength}자): "${coreText}"
+(참고) 한 줄 느낌: "${feeling}"
 ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevReason ? `\n[직전 제출이 반려된 사유] ${prevReason}\n→ 이 사유가 이번 글에서 해결되었다면 다른 새로운 이유를 찾아 반려하지 말고 good으로 처리하세요.\n` : ''}
 ━━ 판정 체크리스트 ━━
 아래 "반려 사유"에 명백히 해당할 때만 review_needed, 그 외는 모두 good입니다.
@@ -2327,7 +2379,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         p_token: session.token,
         p_class_id: session.class_id,
         p_activity_name: title,
-        p_content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
+        p_content: feeling.trim() ? `${coreText}\n\n[한 줄 느낌]\n${feeling.trim()}` : coreText,
         p_category: session?.subject || '학생 제출',
         p_week_number: weekMatch?.week ?? null,
         p_status: obsStatus,
@@ -2406,6 +2458,9 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       setTitle('');
       setContent('');
       setFeeling('');
+      setLearned('');
+      setProcess('');
+      setShortWarned(false);
       setUsedGuideChips(new Set());
       setActiveGuideKey(null);
       setPickedRecap(new Set());
@@ -3046,6 +3101,44 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 )}
 
                 {!isClassClosed && (<>
+                {/* 기록 작성 가이드 영상 — 접힌 한 줄. 펼치면 영상 + 아쉬운/좋은 예시 */}
+                <div className="rounded-[1.75rem] border-2 border-amber-300/60 bg-amber-50 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setVideoOpen(o => !o)}
+                    className="w-full flex items-center justify-between gap-3 px-8 py-5 text-left"
+                    aria-expanded={videoOpen}
+                  >
+                    <span className="flex items-center gap-3 font-black text-amber-900 text-base">
+                      <span className="w-9 h-9 rounded-full bg-amber-400 text-white flex items-center justify-center shrink-0"><Play size={16} fill="currentColor" /></span>
+                      <span>기록, 이렇게 쓰면 돼요 <span className="text-sm font-bold text-amber-800/70 ml-1">영상 2분 23초{historyLogs.length === 0 ? ' · 처음이라면 먼저 보세요' : ''}</span></span>
+                    </span>
+                    <span className="text-amber-800/70 text-sm font-black shrink-0">{videoOpen ? '접기 ▲' : '보기 ▼'}</span>
+                  </button>
+                  {videoOpen && (
+                    <div className="px-8 pb-7 space-y-4">
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        src="/guide/record-guide.mp4"
+                        className="w-full rounded-2xl bg-black aspect-video"
+                      >
+                        영상을 재생할 수 없는 브라우저예요.
+                      </video>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3">
+                          <p className="text-xs font-black text-rose-700 mb-1">✕ 이렇게 쓰면 아쉬워요</p>
+                          <p className="text-sm font-bold text-rose-900 leading-relaxed">"오늘 수업은 재미있었다. 열심히 했다."</p>
+                        </div>
+                        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+                          <p className="text-xs font-black text-emerald-700 mb-1">✓ 이렇게 쓰면 좋아요</p>
+                          <p className="text-sm font-bold text-emerald-900 leading-relaxed">"반복문을 배웠다. 별 5개를 그리는 코드를 직접 만들었고, 각도를 틀려서 144도로 고쳤다."</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {/* 오늘 수업 되짚어 보기 — 무엇을 써야 할지 막막한 학생을 위한 질문 칩 */}
                 <div className="rounded-[1.75rem] border-2 border-primary/15 bg-primary/5 overflow-hidden">
                   <button
@@ -3067,7 +3160,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       )}
                       {activeRecap.length > 0 && (
                         <div className="space-y-2.5">
-                          <p className="text-sm font-black text-on-surface">① 오늘 수업에서 이런 걸 했어요. <span className="text-primary">내가 직접 한 것</span>을 눌러 보세요.</p>
+                          <p className="text-sm font-black text-on-surface">오늘 수업에서 이런 걸 했어요. <span className="text-primary">내가 직접 한 것</span>을 눌러 보세요.</p>
                           <div className="flex flex-wrap gap-2.5">
                             {activeRecap.map(kw => {
                               const picked = pickedRecap.has(kw);
@@ -3093,7 +3186,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         </div>
                       )}
                       <p className="text-sm font-black text-on-surface">
-                        {activeRecap.length > 0 ? '② ' : ''}막막하면 질문을 눌러 보세요. 정답은 없고, 내 말로 직접 쓰면 돼요.
+                        막막하면 질문을 눌러 보세요. 정답은 없고, 내 말로 직접 쓰면 돼요.
                       </p>
                       <div className="flex flex-wrap gap-2.5">
                         {WRITING_GUIDE_CHIPS.map(chip => {
@@ -3113,103 +3206,97 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                               }`}
                             >
                               {used ? '✓ ' : ''}{chip.label}
-                              <span className="ml-1.5 text-xs opacity-60 font-bold">→ {chip.target === 'content' ? '활동 내용' : '배운 점'}</span>
+                              <span className="ml-1.5 text-xs opacity-60 font-bold">→ {CHIP_TARGET_LABEL[chip.target]}</span>
                             </button>
                           );
                         })}
                       </div>
-                      {activeGuideChip && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white border border-primary/20 px-5 py-4">
-                          <p className="text-sm font-bold text-on-surface leading-relaxed">💭 {activeGuideChip.question}</p>
-                          <button
-                            type="button"
-                            onClick={() => toggleGuideDone(activeGuideChip.key)}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-black border transition-all whitespace-nowrap ${
-                              usedGuideChips.has(activeGuideChip.key)
-                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                : 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10'
-                            }`}
-                          >
-                            {usedGuideChips.has(activeGuideChip.key) ? '✓ 답했어요' : '답했어요'}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  <div className="space-y-4">
-                    <label className="text-sm font-black text-primary uppercase tracking-[0.2em] ml-2">주요 활동 내용</label>
-                    <textarea
-                      ref={contentRef}
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="오늘 수업에서 내가 어떤 역할을 맡았고, 어떤 구체적인 활동 과정을 거쳤는지 자세히 입력하세요..."
-                      className={`w-full min-h-[350px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[1.75rem] text-base leading-relaxed font-semibold focus:ring-8 transition-all border-2 resize-none shadow-sm ${
-                        minObsChars > 0 && content.trim().length < minObsChars && content.trim().length > 0
-                          ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100'
-                          : minObsChars > 0 && content.trim().length >= minObsChars
-                          ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-100'
-                          : 'border-neutral-200/50 focus:border-primary/30 focus:ring-primary/10'
-                      }`}
-                    />
-                    {minObsChars > 0 && (
-                      <div className="mt-3 px-2 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm font-black ${
-                            content.trim().length === 0 ? 'text-neutral-400' :
-                            content.trim().length < minObsChars ? 'text-amber-500' : 'text-emerald-600'
-                          }`}>
-                            {content.trim().length === 0
-                              ? `최소 ${minObsChars}자 이상 작성해야 제출할 수 있어요`
-                              : content.trim().length < minObsChars
-                              ? `${minObsChars - content.trim().length}자 더 작성해야 제출할 수 있어요`
-                              : '✓ 충분히 작성됐어요!'}
-                          </span>
-                          <span className={`text-sm font-black tabular-nums ${
-                            content.trim().length < minObsChars ? 'text-amber-500' : 'text-emerald-600'
-                          }`}>
-                            {content.trim().length} / {minObsChars}자
-                          </span>
+                <div className="space-y-8">
+                  {RECORD_FIELDS.map(f => {
+                    const val = fieldValue[f.key];
+                    const len = val.trim().length;
+                    const isCore = f.key !== 'feeling';
+                    const showFollowUp = !!f.followUp && len > 0 && len < FIELD_SHORT_CHARS;
+                    return (
+                      <div key={f.key} className="space-y-3">
+                        <div className="ml-2 space-y-1">
+                          <label className="text-sm font-black text-primary tracking-[0.1em]">{f.label}</label>
+                          <p className="text-sm font-bold text-on-surface-variant">{f.hint}</p>
                         </div>
-                        <div className="w-full h-1.5 bg-neutral-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              content.trim().length >= minObsChars ? 'bg-emerald-400' : 'bg-amber-400'
-                            }`}
-                            style={{ width: `${Math.min((content.trim().length / minObsChars) * 100, 100)}%` }}
-                          />
-                        </div>
+                        <textarea
+                          ref={fieldRef[f.key]}
+                          value={val}
+                          onChange={(e) => {
+                            fieldSetter[f.key](e.target.value);
+                            if (f.key === 'content') setShortWarned(false);
+                          }}
+                          placeholder={f.placeholder}
+                          className={`w-full ${f.minH} p-6 bg-neutral-100/80 rounded-[1.5rem] text-base leading-relaxed font-semibold focus:ring-8 transition-all border-2 resize-none shadow-sm ${
+                            isCore && f.key === 'content' && shortWarned
+                              ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100'
+                              : 'border-neutral-200/50 focus:border-primary/30 focus:ring-primary/10'
+                          }`}
+                        />
+                        {showFollowUp && (
+                          <p className="ml-2 text-sm font-bold text-amber-600">💭 {f.followUp}</p>
+                        )}
+                        {f.key === 'process' && minObsChars > 0 && (
+                          <div className="px-2 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-sm font-black ${
+                                coreLength === 0 ? 'text-neutral-400' :
+                                coreLength < minObsChars ? 'text-amber-500' : 'text-emerald-600'
+                              }`}>
+                                {coreLength === 0
+                                  ? `①~③번을 합쳐 최소 ${minObsChars}자 이상 작성해야 제출할 수 있어요`
+                                  : coreLength < minObsChars
+                                  ? `${minObsChars - coreLength}자 더 작성해야 제출할 수 있어요`
+                                  : '✓ 충분히 작성됐어요!'}
+                              </span>
+                              <span className={`text-sm font-black tabular-nums ${
+                                coreLength < minObsChars ? 'text-amber-500' : 'text-emerald-600'
+                              }`}>
+                                {coreLength} / {minObsChars}자
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  coreLength >= minObsChars ? 'bg-emerald-400' : 'bg-amber-400'
+                                }`}
+                                style={{ width: `${Math.min((coreLength / minObsChars) * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
 
-                  <div className="flex flex-col gap-10">
-                    <div className="space-y-4 flex-1">
-                      <label className="text-sm font-black text-primary uppercase tracking-[0.2em] ml-2">배운 점 및 느낀 점</label>
-                      <textarea
-                        ref={feelingRef}
-                        value={feeling}
-                        onChange={(e) => setFeeling(e.target.value)}
-                        placeholder="활동을 통해 새롭게 깨달은 지식, 확장된 호기심, 또는 어려웠던 점을 어떻게 해결했는지 기록하세요."
-                        className="w-full min-h-[220px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[1.75rem] text-sm leading-relaxed font-bold focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 resize-none shadow-sm"
-                      />
+                  <div className="glass p-8 rounded-[1.75rem] flex items-start gap-6 border border-primary/10 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-2 h-full bg-primary/20 group-hover:bg-primary transition-all duration-500" />
+                    <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm mt-1 shrink-0">
+                      <Lightbulb size={24} />
                     </div>
-
-                    <div className="glass p-10 rounded-[1.75rem] flex items-start gap-6 border border-primary/10 relative overflow-hidden group">
-                      <div className="absolute top-0 left-0 w-2 h-full bg-primary/20 group-hover:bg-primary transition-all duration-500" />
-                      <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm mt-1 shrink-0">
-                        <Lightbulb size={24} />
-                      </div>
-                      <div className="space-y-2">
-                        <h4 className="font-black text-lg text-primary tracking-tight">작성 팁 (Saenggi Tips)</h4>
-                        <p className="text-sm text-on-surface leading-relaxed font-bold opacity-80">
-                          {guidePrompt || '수동적인 학습 태도보다는 본인이 직접 시도한 능동적인 탐구 과정을 중심으로 작성하는 것이 생활기록부 작성에 큰 도움이 됩니다.'}
-                        </p>
-                      </div>
+                    <div className="space-y-2">
+                      <h4 className="font-black text-lg text-primary tracking-tight">작성 팁 (Saenggi Tips)</h4>
+                      <p className="text-sm text-on-surface leading-relaxed font-bold opacity-80">
+                        {guidePrompt || '수동적인 학습 태도보다는 본인이 직접 시도한 능동적인 탐구 과정을 중심으로 작성하는 것이 생활기록부 작성에 큰 도움이 됩니다.'}
+                      </p>
                     </div>
                   </div>
                 </div>
+
+                {shortWarned && (
+                  <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4">
+                    <p className="text-sm font-bold text-amber-800 leading-relaxed">
+                      ② "내가 한 것·만든 것"이 아직 짧아요. 무엇을 어떻게 만들었는지 한두 문장만 더 쓰면 나중에 복습할 때와 생활기록부에 큰 도움이 돼요. 그대로 내려면 제출 버튼을 한 번 더 눌러 주세요.
+                    </p>
+                  </div>
+                )}
 
                 {/* 제출 버튼 — 입력창 바로 아래 */}
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
@@ -3226,6 +3313,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     )}
                   </button>
                 </div>
+                {activeGuideChip && <div aria-hidden className="h-28" />}
                 </>)}
               </motion.div>
             )}
@@ -3457,6 +3545,9 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                           setTitle(log.activity_name || '');
                                           setContent('');
                                           setFeeling('');
+                                          setLearned('');
+                                          setProcess('');
+                                          setShortWarned(false);
                                           setActiveTab('record');
                                         }}
                                         className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-black transition-all"
@@ -6988,6 +7079,40 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         )}
       </AnimatePresence>
     </div>
+      {/* 플로팅 질문 카드 — 입력칸으로 스크롤돼도 질문이 계속 보이게 화면 아래에 고정 */}
+      {activeGuideChip && createPortal(
+        <div
+          className="fixed inset-x-0 bottom-0 z-[60] px-4 pointer-events-none"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="pointer-events-auto mx-auto max-w-2xl flex items-center gap-3 rounded-2xl bg-white border-2 border-primary/30 shadow-2xl px-5 py-4">
+            <p className="flex-1 text-sm font-bold text-on-surface leading-relaxed">
+              <span className="block text-xs font-black text-primary/70 mb-0.5">{CHIP_TARGET_LABEL[activeGuideChip.target]}에 써 보세요</span>
+              💭 {activeGuideChip.question}
+            </p>
+            <button
+              type="button"
+              onClick={() => toggleGuideDone(activeGuideChip.key)}
+              className={`px-3.5 py-2 rounded-full text-xs font-black border transition-all whitespace-nowrap ${
+                usedGuideChips.has(activeGuideChip.key)
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                  : 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10'
+              }`}
+            >
+              {usedGuideChips.has(activeGuideChip.key) ? '✓ 답했어요' : '답했어요'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveGuideKey(null)}
+              aria-label="질문 닫기"
+              className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100"
+            >
+              ✕
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     <SubmissionViewerModal
       isOpen={!!viewerFile}
       onClose={() => setViewerFile(null)}
