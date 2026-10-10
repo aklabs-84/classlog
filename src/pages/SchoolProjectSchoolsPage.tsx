@@ -37,6 +37,7 @@ import {
   HelpCircle,
   ChevronUp,
 } from 'lucide-react';
+import ClassPeriodInput from '../components/common/ClassPeriodInput';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
 
@@ -2008,24 +2009,13 @@ const SchoolProjectSchoolsPage = () => {
                   className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-bold text-on-surface-variant">수업 시작일 *</label>
-                  <input
-                    type="date"
-                    value={newStartDate}
-                    onChange={e => setNewStartDate(e.target.value)}
-                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-on-surface-variant">수업 종료일 *</label>
-                  <input
-                    type="date"
-                    value={newEndDate}
-                    min={newStartDate || undefined}
-                    onChange={e => setNewEndDate(e.target.value)}
-                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+              <div>
+                <label className="text-xs font-bold text-on-surface-variant">수업 기간 *</label>
+                <div className="mt-1">
+                  <ClassPeriodInput
+                    startDate={newStartDate}
+                    endDate={newEndDate}
+                    onChange={v => { setNewStartDate(v.startDate); setNewEndDate(v.endDate); }}
                   />
                 </div>
               </div>

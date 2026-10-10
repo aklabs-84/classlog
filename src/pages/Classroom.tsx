@@ -99,6 +99,7 @@ import ProjectMaterialsForTeacher from '../components/classroom/ProjectMaterials
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 import AiCreditCost from '../components/common/AiCreditCost';
+import ClassPeriodInput, { normalizeDates } from '../components/common/ClassPeriodInput';
 import { collapseObservationsByActivity } from '../lib/latestObservations';
 
 type BreakGenSettings = {
@@ -3343,30 +3344,22 @@ const Classroom = () => {
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
                     <CalendarDays size={13} /> 수업 기간 <span className="text-error">*</span>
                   </label>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 space-y-1">
-                      <p className="text-[10px] font-black text-neutral-400 ml-1">시작일</p>
-                      <input
-                        type="date"
-                        value={newClassData.start_date}
-                        onChange={e => setNewClassData({...newClassData, start_date: e.target.value})}
-                        className={`w-full px-4 py-3 bg-neutral-100 border-2 rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none ${!newClassData.start_date ? 'border-error/40 bg-error/5' : 'border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white'}`}
-                        required
-                      />
-                    </div>
-                    <span className="text-neutral-400 font-black text-sm mt-5">~</span>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-[10px] font-black text-neutral-400 ml-1">종료일</p>
-                      <input
-                        type="date"
-                        value={newClassData.end_date}
-                        onChange={e => setNewClassData({...newClassData, end_date: e.target.value})}
-                        className={`w-full px-4 py-3 bg-neutral-100 border-2 rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none ${!newClassData.end_date ? 'border-error/40 bg-error/5' : 'border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white'}`}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
+                  <ClassPeriodInput
+                    variant="neutral"
+                    startDate={newClassData.start_date}
+                    endDate={newClassData.end_date}
+                    onChange={v => setNewClassData(prev => ({
+                      ...prev,
+                      start_date: v.startDate,
+                      end_date: v.endDate,
+                      // 날짜 직접 선택이면 출석 알림 날짜도 같은 날짜로 맞춤
+                      ...(v.mode === 'dates'
+                        ? { schedule_mode: 'dates' as const, class_specific_dates: v.dates }
+                        : v.leftDatesMode && prev.schedule_mode === 'dates'
+                          ? { schedule_mode: null, class_specific_dates: [] }
+                          : {}),
+                    }))}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -3894,28 +3887,28 @@ const Classroom = () => {
                         <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
                           <CalendarDays size={13} /> 수업 기간 (선택)
                         </label>
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 space-y-1">
-                            <p className="text-[10px] font-black text-neutral-400 ml-1">시작일</p>
-                            <input
-                              type="date"
-                              value={updateClassData.start_date || ''}
-                              onChange={e => setUpdateClassData({...updateClassData, start_date: e.target.value || null})}
-                              className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
-                            />
-                          </div>
-                          <span className="text-neutral-400 font-black text-sm mt-5">~</span>
-                          <div className="flex-1 space-y-1">
-                            <p className="text-[10px] font-black text-neutral-400 ml-1">종료일</p>
-                            <input
-                              type="date"
-                              value={updateClassData.end_date || ''}
-                              onChange={e => setUpdateClassData({...updateClassData, end_date: e.target.value || null})}
-                              className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
-                            />
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
+                        <ClassPeriodInput
+                          key={updateClassData.id}
+                          variant="neutral"
+                          startDate={updateClassData.start_date || ''}
+                          endDate={updateClassData.end_date || ''}
+                          initialDates={(() => {
+                            // 저장된 날짜 목록이 시작~종료일과 정확히 맞을 때만 '날짜 직접 선택'으로 열기
+                            const ds: string[] = updateClassData.schedule_mode === 'dates' ? normalizeDates(updateClassData.class_specific_dates || []) : [];
+                            return ds.length > 0 && ds[0] === updateClassData.start_date && ds[ds.length - 1] === updateClassData.end_date ? ds : undefined;
+                          })()}
+                          onChange={v => setUpdateClassData((prev: any) => ({
+                            ...prev,
+                            start_date: v.startDate || null,
+                            end_date: v.endDate || null,
+                            // 날짜 직접 선택이면 알림 날짜도 맞추고, 벗어나면 '날짜 지정' 알림만 매일로 되돌림
+                            ...(v.mode === 'dates'
+                              ? { schedule_mode: 'dates', class_specific_dates: v.dates }
+                              : v.leftDatesMode && prev.schedule_mode === 'dates'
+                                ? { schedule_mode: null, class_specific_dates: [] }
+                                : {}),
+                          }))}
+                        />
                       </div>
 
                       {/* 수업 시간 & 시작·종료 알람 */}

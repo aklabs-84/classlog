@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import ClassPeriodInput from '../common/ClassPeriodInput';
 
 interface Props {
   schoolId: string;
@@ -88,24 +89,13 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStar
               className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-bold text-on-surface-variant">수업 시작일 *</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-on-surface-variant">수업 종료일 *</label>
-              <input
-                type="date"
-                value={endDate}
-                min={startDate || undefined}
-                onChange={e => setEndDate(e.target.value)}
-                className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
+          <div>
+            <label className="text-xs font-bold text-on-surface-variant">수업 기간 *</label>
+            <div className="mt-1">
+              <ClassPeriodInput
+                startDate={startDate}
+                endDate={endDate}
+                onChange={v => { setStartDate(v.startDate); setEndDate(v.endDate); }}
               />
             </div>
           </div>
