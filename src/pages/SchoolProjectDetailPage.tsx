@@ -518,7 +518,6 @@ const SchoolProjectDetailPage = () => {
             </div>
             <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-1">
               {school.region && <span className="flex items-center gap-1"><MapPin size={12} />{school.region}</span>}
-              <span>등록일 {new Date(school.created_at).toLocaleDateString('ko-KR')}</span>
               {(school.start_date || school.end_date) && (
                 <span className="flex items-center gap-1 font-bold text-primary">
                   <CalendarDays size={12} />
