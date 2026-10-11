@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
-import { openFile } from '../lib/fileUtils';
+import { openFile, downloadFile } from '../lib/fileUtils';
 import { fetchOverrides, forkPlanMaterial, applyOriginUpdate, undoOriginUpdate, dismissOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../lib/planMaterialOverride';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
@@ -71,6 +71,10 @@ import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
 import PresentationModal from '../components/PresentationModal';
+import StudentMaterialPage from '../components/StudentMaterialPage';
+import { mdComponents as materialMdComponents } from '../components/materialMdComponents';
+
+const PREVIEW_ANSWERS = { load: async () => ({}), save: async () => {} };
 // AnimatePresence 자식으로 쓸 수 있도록 포탈을 컴포넌트로 감쌈 (createPortal 결과는 유효한 element가 아님)
 const BodyPortal = ({ children }: { children: React.ReactNode }) => createPortal(children, document.body);
 
@@ -377,6 +381,7 @@ const Classroom = () => {
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
+  const [previewMaterial, setPreviewMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
@@ -2344,6 +2349,31 @@ const Classroom = () => {
 
   return (
     <>
+    {previewMaterial && (
+      <BodyPortal>
+        <StudentMaterialPage
+          title={previewMaterial.title || '수업 자료'}
+          content={previewMaterial.content}
+          links={previewMaterial.activity_urls}
+          attachments={previewMaterial.attachments}
+          mdComponents={materialMdComponents}
+          answers={PREVIEW_ANSWERS}
+          relatedMaterials={previewMaterial.weekNumber != null
+            ? (generalMaterials as any[]).filter(g => (g.week_numbers && g.week_numbers.length > 0) ? g.week_numbers.includes(previewMaterial.weekNumber) : g.week_number === previewMaterial.weekNumber)
+            : []}
+          onOpenFile={(mat, download) => {
+            const full = (generalMaterials as any[]).find(g => g.id === mat.id);
+            if (!full?.file_path) return;
+            const { data } = supabase.storage.from('student-attachments').getPublicUrl(full.file_path);
+            if (download) downloadFile(data.publicUrl, full.file_name || full.title);
+            else openGeneralMaterial(full);
+          }}
+          teacherTools
+          previewOnly
+          onClose={() => setPreviewMaterial(null)}
+        />
+      </BodyPortal>
+    )}
     {fullscreenMaterial && (
       <PresentationModal
         material={fullscreenMaterial}
@@ -5327,7 +5357,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
+                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5388,7 +5418,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
+                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5500,7 +5530,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments })}
+                              onClick={() => setPreviewMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
