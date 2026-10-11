@@ -71,6 +71,7 @@ import { setDemoTourState } from '../components/DemoTourOverlay';
 import DemoModeBanner from '../components/DemoModeBanner';
 
 import PresentationModal from '../components/PresentationModal';
+import MaterialAnswersModal from '../components/MaterialAnswersModal';
 import StudentMaterialPage from '../components/StudentMaterialPage';
 import { mdComponents as materialMdComponents } from '../components/materialMdComponents';
 
@@ -381,6 +382,7 @@ const Classroom = () => {
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
+  const [answersMaterial, setAnswersMaterial] = useState<{ id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[] } | null>(null);
   const [previewMaterial, setPreviewMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
@@ -2349,6 +2351,9 @@ const Classroom = () => {
 
   return (
     <>
+    {answersMaterial && (
+      <MaterialAnswersModal material={answersMaterial} mdComponents={materialMdComponents} onClose={() => setAnswersMaterial(null)} />
+    )}
     {previewMaterial && (
       <BodyPortal>
         <StudentMaterialPage
@@ -5403,6 +5408,13 @@ const Classroom = () => {
                                 )}
                               </button>
 
+                              {isMaterial && matInfo && (<button
+                                onClick={() => setAnswersMaterial({ id: matInfo.id, class_id: matInfo.class_id ?? activeClassId ?? null, title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls })}
+                                title="학생 답변 보기"
+                                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                              >
+                                학생 답변
+                              </button>)}
                               {/* 슬라이드 모드로 보기 (자료 에디터 자료만) */}
                               {isMaterial && matInfo && (
                                 <button
@@ -5548,6 +5560,13 @@ const Classroom = () => {
                                 )}
                               </div>
                             </button>
+                            <button
+                                onClick={() => setAnswersMaterial({ id: mat.id, class_id: mat.class_id ?? activeClassId ?? null, title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls })}
+                                title="학생 답변 보기"
+                                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                              >
+                                학생 답변
+                              </button>
                             <button
                               onClick={() => setSlideModeMaterial({ title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, attachments: mat.attachments })}
                               title="슬라이드 모드로 보기"

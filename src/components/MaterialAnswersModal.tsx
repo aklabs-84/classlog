@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, X, PenLine, ChevronRight, ArrowLeft, Monitor } from 'lucide-react';
+import { Loader2, ArrowLeft, Monitor } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import StudentMaterialPage, { AnswerPreviewMarkdown } from './StudentMaterialPage';
 import type { ActivityLink } from './ActivityLinksButton';
@@ -22,12 +22,17 @@ const isFilled = (v: string) => v.trim() !== '' && v !== '0';
 
 // "한눈에 보기"에서 입력칸마다 붙일 이름. 저장된 키는 "n번째 입력칸(f1, f2…)"뿐이라,
 // 자료를 화면 밖에서 한 번 그려 각 칸의 주변 글(표의 왼쪽 칸 · 같은 줄 문장)을 이름으로 뽑는다.
-interface FieldInfo { key: string; label: string; checkbox: boolean }
+interface FieldInfo { key: string; label: string; checkbox: boolean; group: string }
 
 const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim();
 
 const collectFields = (root: HTMLElement): FieldInfo[] => {
-  const els = Array.from(root.querySelectorAll<HTMLElement>('[data-fkey]'));
+  // 입력칸 앞에 나온 가장 가까운 제목을 "묶음 이름"으로 쓴다
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>('h1, h2, h3, [data-fkey]'));
+  const groupOf = new Map<Element, string>();
+  let curGroup = '';
+  nodes.forEach(n => { if (/^H[123]$/.test(n.tagName)) curGroup = clean(n.textContent); else groupOf.set(n, curGroup); });
+  const els = nodes.filter(n => n.hasAttribute('data-fkey'));
   const perParent = new Map<Element, number>();
   return els.map((el, i) => {
     const checkbox = (el as HTMLInputElement).type === 'checkbox';
@@ -50,7 +55,7 @@ const collectFields = (root: HTMLElement): FieldInfo[] => {
       }
     }
     if (label.length > 60) label = `${label.slice(0, 60)}…`;
-    return { key: `f${i + 1}`, label: label || `입력칸 ${i + 1}`, checkbox };
+    return { key: `f${i + 1}`, label: label || `입력칸 ${i + 1}`, checkbox, group: groupOf.get(el) || '' };
   });
 };
 
@@ -61,7 +66,10 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const [byStudent, setByStudent] = useState<Record<string, StudentAnswers>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [mode, setMode] = useState<'student' | 'overview'>('student');
+  const [tab, setTab] = useState<'q' | 'a' | 'map' | 'table'>('q');
+  const [selQ, setSelQ] = useState<string | null>(null);
+  const [showEmpty, setShowEmpty] = useState(false);
+  const [showCheck, setShowCheck] = useState(false);
   const [fields, setFields] = useState<FieldInfo[]>([]);
   const [live, setLive] = useState(false);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -145,7 +153,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const answeredCount = useMemo(() => students.filter(s => (byStudent[s.id]?.filled ?? 0) > 0).length, [students, byStudent]);
   const selected = selectedId ? students.find(s => s.id === selectedId) : null;
 
-  // 학생이 보던 화면을 그대로(읽기 전용) 보여준다. 저장 함수를 주지 않으면 입력칸이 잠긴다.
+  // 학생이 보던 화면을 그대로(읽기 전용)
   if (selected && showOriginal) {
     return (
       <StudentMaterialPage
@@ -160,171 +168,206 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     );
   }
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9998] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className={`w-full ${mode === 'overview' && !selected ? 'max-w-6xl' : selected ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden`}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* 입력칸 이름을 뽑기 위해 화면 밖에서만 그리는 자료 (보이지 않음) */}
-        <div ref={measureRef} aria-hidden style={{ display: 'none' }}>
-          <AnswerPreviewMarkdown content={material.content} mdComponents={mdComponents} />
-        </div>
-        <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-surface-container">
-          <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <PenLine size={20} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-black text-lg leading-tight">{selected ? `${selected.full_name} 학생의 답변` : '학생 답변 보기'}</h3>
-            <p className="text-sm text-on-surface-variant font-bold truncate mt-0.5">{material.title}</p>
-            {!loading && !error && (
-              <p className="text-xs text-on-surface-variant font-bold mt-1 flex items-center gap-2">
-                <span>{students.length}명 중 <span className="text-primary">{answeredCount}명</span>이 입력했어요</span>
-                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600" title="학생이 적으면 자동으로 갱신돼요">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{live ? '실시간' : '5초마다 갱신'}
-                </span>
-              </p>
-            )}
-          </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-surface-container text-on-surface-variant" title="닫기">
-            <X size={18} />
-          </button>
-        </div>
+  const valueOf = (sid: string, key: string) => byStudent[sid]?.values[key] ?? '';
+  const answeredBy = (key: string) => students.filter(s => isFilled(valueOf(s.id, key)));
+  const currentQ = fields.find(f => f.key === selQ) ?? fields.find(f => !f.checkbox) ?? fields[0];
+  const goQuestion = (key: string) => { setSelQ(key); setTab('q'); };
+  const goStudent = (sid: string) => { setSelectedId(sid); setTab('a'); };
+  const mostFilled = students.reduce<StudentRow | undefined>((best, s) => (!best || (byStudent[s.id]?.filled ?? 0) > (byStudent[best.id]?.filled ?? 0) ? s : best), undefined);
+  const currentS = selected ?? mostFilled;
+  const tabs = [['q', '문항별'], ['a', '학생별'], ['map', '한눈 지도'], ['table', '표']] as const;
+  const empty = (msg: string) => <p className="text-base font-bold text-[#6f685c] py-16 text-center">{msg}</p>;
 
-        {!loading && !error && students.length > 0 && !selected && (
-          <div className="flex gap-1 px-6 pt-3">
-            {([['student', '학생별'], ['overview', '한눈에 보기 (표)']] as const).map(([m, label]) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-4 py-1.5 rounded-full text-xs font-black transition-colors ${
-                  mode === m ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+  const questionPane = () => {
+    if (!currentQ) return empty('이 자료에는 학생이 적는 입력칸이 없어요.');
+    const w = answeredBy(currentQ.key);
+    const no = students.filter(s => !isFilled(valueOf(s.id, currentQ.key)));
+    const idx = fields.indexOf(currentQ) + 1;
+    return (
+      <div className="max-w-[820px]">
+        <p className="text-sm font-bold text-[#6f685c]">{currentQ.group}</p>
+        <h2 className="font-serif text-[28px] leading-snug font-bold text-[#1d1b18]">{idx}. {currentQ.label}</h2>
+        <p className="text-[#6f685c] mt-1 mb-6"><b className="text-[#1d1b18] text-xl">{w.length}명</b> 답함 · {no.length}명 아직</p>
+        {currentQ.checkbox ? (
+          <>
+            <div className="flex h-6"><i style={{ width: `${(w.length / Math.max(students.length, 1)) * 100}%` }} className="bg-[#1f7a4d] transition-all" /><i className="flex-1 bg-[#ddd5c6]" /></div>
+            <p className="text-[#6f685c] text-base mt-2">체크함 {w.length}명 · 안 함 {no.length}명</p>
+            <div className="grid grid-cols-[110px_1fr] gap-4 py-3 border-t border-[#ddd5c6] mt-4">
+              <b className="text-[#1f7a4d]">체크함</b><span className="text-xl">{w.map(s => s.full_name).join(', ') || '아직 없어요'}</span>
+            </div>
+          </>
+        ) : w.map(s => (
+          <div key={s.id} className="grid grid-cols-[110px_1fr] gap-4 py-3 border-t border-[#ddd5c6] hover:bg-[#efe9dc] hover:pl-2 transition-all">
+            <button onClick={() => goStudent(s.id)} className="font-bold text-left hover:underline">{s.full_name}</button>
+            <span className="text-xl whitespace-pre-wrap break-words">{valueOf(s.id, currentQ.key)}</span>
+          </div>
+        ))}
+        {no.length > 0 && (
+          <div className="mt-8 border-t-2 border-[#1d1b18] pt-3 text-[#b4531b]">
+            <b>아직 안 쓴 학생 {no.length}명</b>
+            <p className="mt-1">{no.map(s => s.full_name).join(' · ')}</p>
           </div>
         )}
+      </div>
+    );
+  };
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-3">
-          {selected && !loading && !error ? (
-            <div className="px-2 pb-2">
-              <div className="flex items-center gap-2 mb-3">
-                <button onClick={() => setSelectedId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-container text-xs font-black text-on-surface-variant hover:bg-surface-container-high">
-                  <ArrowLeft size={14} />목록
-                </button>
-                <button onClick={() => setShowOriginal(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary/10 text-xs font-black text-primary hover:bg-primary/20">
-                  <Monitor size={14} />학생 화면 그대로 보기
-                </button>
-              </div>
-              {fields.length === 0 ? (
-                <p className="text-sm font-bold text-on-surface-variant px-3 py-10 text-center">이 자료에는 학생이 적는 입력칸이 없어요.</p>
-              ) : (
-                <ol className="space-y-2">
-                  {fields.map((f, i) => {
-                    const v = byStudent[selected.id]?.values[f.key] ?? '';
-                    const filled = isFilled(v);
-                    return (
-                      <li key={f.key} className={`rounded-2xl border px-4 py-3 ${filled ? 'border-primary/25 bg-primary/5' : 'border-surface-container'}`}>
-                        <p className="text-xs font-black text-on-surface-variant mb-1"><span className="text-primary mr-1.5">{i + 1}</span>{f.label}</p>
-                        {!filled ? (
-                          <p className="text-sm font-bold text-on-surface-variant/50">{f.checkbox ? '체크 안 함' : '적지 않았어요'}</p>
-                        ) : f.checkbox ? (
-                          <p className="text-sm font-black text-emerald-600">✔ 체크했어요</p>
-                        ) : (
-                          <p className="text-sm font-bold whitespace-pre-wrap break-words">{v}</p>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </div>
-          ) : !loading && !error && students.length > 0 && mode === 'overview' ? (
-            fields.length === 0 ? (
-              <p className="text-sm font-bold text-on-surface-variant px-3 py-10 text-center">이 자료에는 학생이 적는 입력칸이 없어요.</p>
-            ) : (
-              <div className="overflow-auto max-h-[60vh] rounded-2xl border border-surface-container">
-                <table className="border-separate border-spacing-0 text-sm">
-                  <thead>
-                    <tr>
-                      <th className="sticky top-0 left-0 z-30 bg-surface-container-low border-b border-r border-surface-container px-3 py-2 text-left text-xs font-black text-on-surface-variant min-w-[96px]">학생</th>
-                      {fields.map((f, i) => {
-                        const n = students.filter(s => isFilled(byStudent[s.id]?.values[f.key] ?? '')).length;
-                        return (
-                          <th key={f.key} title={f.label} className="sticky top-0 z-20 bg-surface-container-low border-b border-r border-surface-container px-3 py-2 text-left align-top min-w-[170px] max-w-[260px]">
-                            <span className="block text-[11px] font-black text-primary">{i + 1}번 · {n}/{students.length}명</span>
-                            <span className="block text-xs font-black text-on-surface line-clamp-2">{f.label}</span>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {students.map(s => (
-                      <tr key={s.id}>
-                        <th className="sticky left-0 z-10 bg-white border-b border-r border-surface-container px-3 py-2 text-left font-black whitespace-nowrap">
-                          <button onClick={() => setSelectedId(s.id)} className="hover:text-primary hover:underline">{s.full_name}</button>
-                        </th>
-                        {fields.map(f => {
-                          const v = byStudent[s.id]?.values[f.key] ?? '';
-                          const filled = isFilled(v);
-                          return (
-                            <td key={f.key} className={`border-b border-r border-surface-container px-3 py-2 align-top min-w-[170px] max-w-[260px] ${filled ? 'bg-primary/5' : 'bg-white'}`}>
-                              {!filled ? (
-                                <span className="text-on-surface-variant/30">–</span>
-                              ) : f.checkbox ? (
-                                <span className="font-black text-emerald-600">✔</span>
-                              ) : (
-                                <span className="font-medium whitespace-pre-wrap break-words">{v}</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          ) : loading ? (
-            <div className="flex items-center justify-center py-16 text-on-surface-variant">
-              <Loader2 className="animate-spin" size={24} />
-            </div>
-          ) : error ? (
-            <p className="text-sm font-bold text-red-600 px-3 py-10 text-center">{error}</p>
-          ) : students.length === 0 ? (
-            <p className="text-sm font-bold text-on-surface-variant px-3 py-10 text-center">이 자료가 연결된 반에 등록된 학생이 없어요.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {students.map(s => {
-                const a = byStudent[s.id];
-                const has = !!a && a.filled > 0;
-                return (
-                  <li key={s.id}>
-                    <button
-                      onClick={() => setSelectedId(s.id)}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left border border-surface-container hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                    >
-                      <span className="w-8 text-xs font-black text-on-surface-variant shrink-0 text-center">{s.student_number || ''}</span>
-                      <span className="flex-1 min-w-0 font-black truncate">{s.full_name}</span>
-                      {has ? (
-                        <span className="text-xs font-black text-primary bg-primary/10 rounded-full px-2.5 py-1 shrink-0">
-                          {a.filled}칸 · {new Date(a.updatedAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-bold text-on-surface-variant/60 shrink-0">미작성</span>
-                      )}
-                      <ChevronRight size={16} className="text-on-surface-variant/50 shrink-0" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+  const studentPane = () => {
+    if (!currentS) return null;
+    const A = fields.filter(f => isFilled(valueOf(currentS.id, f.key)));
+    const E = fields.filter(f => !isFilled(valueOf(currentS.id, f.key)));
+    return (
+      <div className="max-w-[820px]">
+        <div className="flex items-center gap-3">
+          <h2 className="font-serif text-[28px] font-bold">{currentS.full_name} 학생</h2>
+          <button onClick={() => { setSelectedId(currentS.id); setShowOriginal(true); }} className="flex items-center gap-1 text-sm font-bold text-[#3b3bd6] hover:underline"><Monitor size={15} />학생 화면 그대로 보기</button>
+        </div>
+        <p className="text-[#6f685c] mt-1 mb-6"><b className="text-[#1d1b18] text-xl">{A.length}칸</b> 작성 · {E.length}칸 비어 있음</p>
+        {A.length === 0 ? <p className="border-t-2 border-[#1d1b18] pt-3 text-[#b4531b]">아직 아무것도 쓰지 않았어요.</p> : A.map(f => (
+          <div key={f.key} className="grid grid-cols-[minmax(0,260px)_1fr] gap-5 py-3 border-t border-[#ddd5c6] hover:bg-[#efe9dc] hover:pl-2 transition-all">
+            <button onClick={() => goQuestion(f.key)} className="text-left text-base font-semibold text-[#6f685c] hover:text-[#3b3bd6]">{fields.indexOf(f) + 1}. {f.label}</button>
+            {f.checkbox ? <span className="text-[#1f7a4d] font-bold">✔ 체크했어요</span> : <span className="text-xl whitespace-pre-wrap break-words">{valueOf(currentS.id, f.key)}</span>}
+          </div>
+        ))}
+        {E.length > 0 && (
+          <button onClick={() => setShowEmpty(v => !v)} className="block w-full text-left border-t border-[#ddd5c6] py-3 text-[#6f685c] hover:text-[#1d1b18]">
+            {showEmpty ? '▾' : '▸'} 안 쓴 칸 {E.length}개 {showEmpty ? '접기' : '보기'}
+          </button>
+        )}
+        {showEmpty && E.map(f => <p key={f.key} className="py-1.5 text-[#6f685c] text-base">{fields.indexOf(f) + 1}. {f.label}</p>)}
+      </div>
+    );
+  };
+
+  const mapPane = () => (
+    <div className="p-8 overflow-auto">
+      <p className="text-sm text-[#6f685c] mb-3">누가 어느 칸을 썼는지 한눈에 봐요 · 칸을 누르면 그 문항으로, 이름을 누르면 그 학생으로 이동해요</p>
+      <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `auto repeat(${fields.length}, 22px)` }}>
+        <div />
+        {fields.map((f, i) => <button key={f.key} title={f.label} onClick={() => goQuestion(f.key)} className="text-[12px] font-semibold text-[#6f685c] hover:text-[#3b3bd6]">{i + 1}</button>)}
+        {students.map(s => (
+          <Fragment key={s.id}>
+            <button onClick={() => goStudent(s.id)} className="text-sm text-[#6f685c] hover:text-[#1d1b18] text-left pr-3 whitespace-nowrap leading-[22px]">{s.full_name}</button>
+            {fields.map(f => {
+              const v = valueOf(s.id, f.key);
+              const ok = isFilled(v);
+              return <button key={f.key} onClick={() => goQuestion(f.key)} title={`${s.full_name} · ${f.label}${ok && !f.checkbox ? ` : ${v}` : ''}`}
+                className={`h-[22px] rounded-[3px] transition-transform hover:scale-125 ${ok ? (f.checkbox ? 'bg-[#1f7a4d]' : 'bg-[#3b3bd6]') : 'bg-[#e6dccb]'}`} />;
+            })}
+          </Fragment>
+        ))}
+      </div>
+      <p className="mt-4 text-sm text-[#6f685c] flex gap-5">
+        <span><i className="inline-block w-3 h-3 rounded-sm bg-[#3b3bd6] mr-1.5" />글로 씀</span>
+        <span><i className="inline-block w-3 h-3 rounded-sm bg-[#1f7a4d] mr-1.5" />체크함</span>
+        <span><i className="inline-block w-3 h-3 rounded-sm bg-[#e6dccb] mr-1.5" />아직 안 씀</span>
+      </p>
+    </div>
+  );
+
+  const tablePane = () => {
+    const cols = fields.filter(f => showCheck || !f.checkbox);
+    return (
+      <div className="p-8 overflow-auto">
+        <label className="flex items-center gap-2 text-base text-[#6f685c] mb-4 cursor-pointer w-fit">
+          <input type="checkbox" checked={showCheck} onChange={e => setShowCheck(e.target.checked)} className="accent-[#3b3bd6]" />체크 문항도 보기 · 붉은 칸은 아직 안 쓴 칸이에요
+        </label>
+        <table className="border-collapse text-base">
+          <thead><tr>
+            <th className="sticky top-0 left-0 z-20 bg-[#f6f2ea] border-b border-[#ddd5c6] px-3 py-2 text-left min-w-[90px]">학생</th>
+            {cols.map(f => (
+              <th key={f.key} className="sticky top-0 z-10 bg-[#f6f2ea] border-b border-[#ddd5c6] px-3 py-2 text-left align-top min-w-[160px] max-w-[260px] font-semibold text-sm text-[#6f685c]">
+                <button onClick={() => goQuestion(f.key)} className="text-left hover:text-[#3b3bd6]">{fields.indexOf(f) + 1}. {f.label}<br /><span className="font-normal">{answeredBy(f.key).length}/{students.length}</span></button>
+              </th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {students.map(s => (
+              <tr key={s.id} className="hover:bg-[#efe9dc]">
+                <th className="sticky left-0 z-10 bg-[#f6f2ea] border-b border-[#ddd5c6] px-3 py-2 text-left"><button onClick={() => goStudent(s.id)} className="hover:underline">{s.full_name}</button></th>
+                {cols.map(f => {
+                  const v = valueOf(s.id, f.key);
+                  const ok = isFilled(v);
+                  return <td key={f.key} className={`border-b border-[#ddd5c6] px-3 py-2 align-top ${ok ? '' : 'bg-[#fbeadb] text-[#b4531b]'}`}>{!ok ? '–' : f.checkbox ? <span className="text-[#1f7a4d] font-bold">✔</span> : <span className="whitespace-pre-wrap break-words">{v}</span>}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const listItem = (on: boolean, onClick: () => void, title: React.ReactNode, sub: string, pct: number) => (
+    <button onClick={onClick} className={`block w-full text-left px-7 py-2.5 border-l-[3px] transition-colors hover:bg-[#efe9dc] ${on ? 'bg-[#efe9dc] border-[#3b3bd6]' : 'border-transparent'}`}>
+      <span className="block text-[17px] leading-snug">{title}</span>
+      <span className="text-sm text-[#6f685c]">{sub}</span>
+      <div className="h-1 bg-[#ddd5c6] mt-1.5 relative"><i className="absolute inset-y-0 left-0 bg-[#3b3bd6] transition-all" style={{ width: `${pct}%` }} /></div>
+    </button>
+  );
+
+  const sidebar = () => {
+    if (tab === 'q') {
+      let g = '\u0000';
+      return fields.map((f, i) => (
+        <Fragment key={f.key}>
+          {f.group !== g && (g = f.group, true) && <p className="text-sm tracking-wide text-[#6f685c] px-7 pt-5 pb-1.5">{f.group || '입력칸'}</p>}
+          {listItem(currentQ?.key === f.key, () => setSelQ(f.key), <><span className="text-sm text-[#6f685c] mr-1.5">{i + 1}</span>{f.label}</>, `${answeredBy(f.key).length}/${students.length}명`, (answeredBy(f.key).length / Math.max(students.length, 1)) * 100)}
+        </Fragment>
+      ));
+    }
+    return (
+      <>
+        <p className="text-sm text-[#6f685c] px-7 pt-5 pb-1.5">학생 {students.length}명</p>
+        {students.map(s => {
+          const c = byStudent[s.id]?.filled ?? 0;
+          return <Fragment key={s.id}>{listItem(currentS?.id === s.id, () => setSelectedId(s.id), <b>{s.full_name}</b>, c ? `${c}/${fields.length}칸` : '미작성', (c / Math.max(fields.length, 1)) * 100)}</Fragment>;
+        })}
+      </>
+    );
+  };
+
+  const showSide = tab === 'q' || tab === 'a';
+  return createPortal(
+    <div className="fixed inset-0 z-[9998] bg-[#f6f2ea] text-[#1d1b18] flex flex-col" style={{ fontFamily: "'Pretendard Variable', system-ui, sans-serif" }}>
+      {/* 입력칸 이름을 뽑기 위해 화면 밖에서만 그리는 자료 (보이지 않음) */}
+      <div ref={measureRef} aria-hidden style={{ display: 'none' }}>
+        <AnswerPreviewMarkdown content={material.content} mdComponents={mdComponents} />
+      </div>
+      <header className="flex items-center gap-6 px-8 py-4 border-b border-[#ddd5c6] flex-wrap">
+        <button onClick={onClose} className="flex items-center gap-1.5 text-[#6f685c] hover:text-[#1d1b18]"><ArrowLeft size={18} />나가기</button>
+        <div className="min-w-0">
+          <h1 className="font-serif text-2xl font-bold truncate">{material.title}</h1>
+          {!loading && !error && (
+            <p className="text-base text-[#6f685c]">{students.length}명 중 <b className="text-[#3b3bd6]">{answeredCount}명</b>이 입력했어요 ·{' '}
+              <span className="text-sm text-[#1f7a4d]"><span className="inline-block w-2 h-2 rounded-full bg-[#1f7a4d] mr-1.5 animate-pulse" />{live ? '실시간' : '5초마다 갱신'}</span></p>
           )}
         </div>
-      </div>
+        <nav className="ml-auto flex gap-6">
+          {tabs.map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)} className={`py-1.5 text-lg font-semibold border-b-[3px] transition-colors ${tab === k ? 'border-[#3b3bd6] text-[#1d1b18]' : 'border-transparent text-[#6f685c] hover:text-[#1d1b18]'}`}>{label}</button>
+          ))}
+        </nav>
+      </header>
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-[#6f685c]"><Loader2 className="animate-spin" size={28} /></div>
+      ) : error ? (
+        <p className="text-base font-bold text-red-600 py-16 text-center">{error}</p>
+      ) : students.length === 0 ? (
+        empty('이 자료가 연결된 반에 등록된 학생이 없어요.')
+      ) : fields.length === 0 ? (
+        empty('이 자료에는 학생이 적는 입력칸이 없어요.')
+      ) : (
+        <div className={`flex-1 min-h-0 grid ${showSide ? 'grid-cols-[340px_1fr]' : 'grid-cols-1'}`}>
+          {showSide && <aside className="border-r border-[#ddd5c6] overflow-y-auto py-3">{sidebar()}</aside>}
+          <section className="overflow-y-auto min-h-0">
+            {tab === 'q' && <div className="px-14 py-9">{questionPane()}</div>}
+            {tab === 'a' && <div className="px-14 py-9">{studentPane()}</div>}
+            {tab === 'map' && mapPane()}
+            {tab === 'table' && tablePane()}
+          </section>
+        </div>
+      )}
     </div>,
     document.body
   );
