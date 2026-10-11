@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
   ArrowLeft,
@@ -22,6 +24,9 @@ import {
   ChevronRight,
   ExternalLink,
   Pencil,
+  Search,
+  X,
+  UserPlus,
 } from 'lucide-react';
 import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
@@ -116,6 +121,13 @@ const SchoolProjectDetailPage = () => {
   const [program, setProgram] = useState<{ id: string; name: string } | null>(null);
   const [school, setSchool] = useState<any>(null);
   const [classes, setClasses] = useState<TeachingClass[]>([]);
+  const { profile } = useAuth();
+
+  // 담당 강사 지정 (강사 관리 화면과 같은 방식)
+  const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  const [projectTeachers, setProjectTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null; school_code?: string | null }[]>([]);
+  const [searchedTeachers, setSearchedTeachers] = useState<{ id: string; full_name: string; avatar_url: string | null; school_code: string | null }[]>([]);
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -361,6 +373,65 @@ const SchoolProjectDetailPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (!profile?.school_code) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('school_code', profile.school_code)
+        .eq('role', 'teacher');
+      setProjectTeachers(data || []);
+    })();
+  }, [profile?.school_code]);
+
+  // 이름을 입력하면 소속과 무관하게 가입된 모든 강사에서 검색
+  useEffect(() => {
+    const q = teacherSearchQuery.trim();
+    if (!assigningClassId || !q) { setSearchedTeachers([]); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const escaped = q.replace(/[%_\\]/g, m => '\\' + m);
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, school_code')
+        .eq('role', 'teacher')
+        .ilike('full_name', `%${escaped}%`)
+        .limit(20);
+      if (!cancelled) setSearchedTeachers(data || []);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [teacherSearchQuery, assigningClassId]);
+
+  const filteredTeachers = teacherSearchQuery.trim() ? searchedTeachers : projectTeachers;
+
+  const closeAssignModal = () => { setAssigningClassId(null); setTeacherSearchQuery(''); };
+
+  const handleAssignTeacher = async (teacherId: string, classId: string, newTeacherName?: string) => {
+    if (!school) return;
+    const target = classes.find(c => c.id === classId);
+    if (target?.assigned_teacher_id && target.assigned_teacher_id !== teacherId) {
+      const oldName = target.teacherName ? `${target.teacherName} 선생님` : '기존 강사';
+      const newName = newTeacherName ? `${newTeacherName} 선생님` : '선택한 강사';
+      if (!confirm(`'${target.name}' 반에는 이미 ${oldName}이 배정되어 있습니다.\n${newName}으로 교체하면 ${oldName}은 이 반에서 빠집니다.\n\n그래도 교체하시겠습니까?`)) return;
+    }
+    const { error } = await supabase.rpc('assign_teacher_to_subclass', {
+      p_class_id: classId,
+      p_teacher_id: teacherId,
+      p_project_id: school.id,
+    });
+    if (error) { setClassActionError('강사 배정에 실패했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    closeAssignModal();
+    fetchData();
+  };
+
+  const handleRemoveTeacher = async (c: TeachingClass) => {
+    if (!c.assigned_teacher_id) return;
+    if (!confirm(`'${c.name}' 반의 담당 강사(${c.teacherName || '선생님'})를 배정 해제할까요?`)) return;
+    await supabase.rpc('remove_teacher_from_subclass', { p_class_id: c.id, p_teacher_id: c.assigned_teacher_id });
+    fetchData();
+  };
+
   const handleSaveClassName = async () => {
     const name = editClassName.trim();
     if (!editingClass || !name) return;
@@ -448,6 +519,13 @@ const SchoolProjectDetailPage = () => {
             <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-1">
               {school.region && <span className="flex items-center gap-1"><MapPin size={12} />{school.region}</span>}
               <span>등록일 {new Date(school.created_at).toLocaleDateString('ko-KR')}</span>
+              {(school.start_date || school.end_date) && (
+                <span className="flex items-center gap-1 font-bold text-primary">
+                  <CalendarDays size={12} />
+                  수업 기간 {school.start_date ? new Date(school.start_date).toLocaleDateString('ko-KR') : '미정'}
+                  {school.end_date && school.end_date !== school.start_date ? ` ~ ${new Date(school.end_date).toLocaleDateString('ko-KR')}` : ''}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -575,6 +653,23 @@ const SchoolProjectDetailPage = () => {
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-bold text-on-surface-variant/70 mr-2">학생 {c.studentCount}명</span>
+                    <button
+                      onClick={() => { setClassActionError(''); setAssigningClassId(c.id); }}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-primary hover:bg-primary/10 transition-all"
+                      title={c.teacherName ? '담당 강사 변경' : '담당 강사 지정'}
+                    >
+                      <UserPlus size={13} /> {c.teacherName ? '강사 변경' : '강사 지정'}
+                    </button>
+                    {c.assigned_teacher_id && (
+                      <button
+                        onClick={() => handleRemoveTeacher(c)}
+                        className="p-1.5 rounded-lg text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface transition-all"
+                        aria-label="담당 강사 해제"
+                        title="담당 강사 해제"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
                     <button
                       onClick={() => { setClassActionError(''); setEditClassName(c.name); setEditingClass(c); }}
                       className="p-1.5 rounded-lg text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface transition-all"
@@ -825,6 +920,58 @@ const SchoolProjectDetailPage = () => {
           onClose={() => setEditInfoOpen(false)}
           onSaved={(name, region, start_date, end_date) => setSchool((prev: any) => ({ ...prev, name, school_name: name, region, start_date, end_date }))}
         />
+      )}
+
+      {/* 담당 강사 지정 모달 */}
+      {assigningClassId && createPortal(
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={closeAssignModal}>
+          <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="font-black text-lg">담당 강사 지정</h2>
+              <button onClick={closeAssignModal} className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container mb-3 shrink-0">
+              <Search size={14} className="text-on-surface-variant/50" />
+              <input
+                type="text"
+                placeholder="선생님 이름 검색..."
+                value={teacherSearchQuery}
+                onChange={e => setTeacherSearchQuery(e.target.value)}
+                className="flex-1 text-sm font-bold outline-none bg-transparent text-on-surface"
+                autoFocus
+              />
+            </div>
+            <div className="overflow-y-auto -mx-2">
+              {filteredTeachers.length === 0 ? (
+                <p className="text-xs text-on-surface-variant/50 text-center py-6">
+                  {teacherSearchQuery.trim() ? '검색 결과 없음' : '같은 소속 선생님이 없습니다. 이름으로 검색해 보세요'}
+                </p>
+              ) : (
+                filteredTeachers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleAssignTeacher(t.id, assigningClassId, t.full_name)}
+                    className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-primary/5 text-left transition-all"
+                  >
+                    <img
+                      src={t.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.full_name)}&background=random`}
+                      alt={t.full_name}
+                      className="w-8 h-8 rounded-full object-cover shrink-0"
+                    />
+                    <p className="text-sm font-bold text-on-surface">{t.full_name} 선생님</p>
+                    {teacherSearchQuery.trim() && t.school_code !== profile?.school_code && (
+                      <span className="ml-auto text-[10px] font-bold text-on-surface-variant/60">{t.school_code ? '다른 소속' : '소속 없음'}</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+            {classActionError && <p className="text-xs text-red-500 mt-2">{classActionError}</p>}
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* 반 이름 수정 모달 */}

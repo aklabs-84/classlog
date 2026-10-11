@@ -1020,6 +1020,7 @@ const Classroom = () => {
   // 학급 설정(수정) 모달 열기 — ClassSelector와 종료된 학급 탭에서 공용으로 사용
   const handleOpenEditClass = async (c: any) => {
     setUpdateClassData(c);
+    if (c.parent_class_id) setEditModalTab('basic');
     setBreakGenEdit(DEFAULT_BREAK_GEN);
     setUpdateModalFull(true); // 열 때 바로 전체화면 (우측 토글로 작게 보기 가능)
     setIsUpdateModalOpen(true);
@@ -3949,11 +3950,11 @@ const Classroom = () => {
                     {updateModalFull ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                   </button>
                 </div>
-                <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
+                {!updateClassData.parent_class_id && <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
                   <button type="button" onClick={() => setEditModalTab('basic')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'basic' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>기본 정보</button>
                   <button type="button" onClick={() => setEditModalTab('syllabus')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'syllabus' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>주차별 계획</button>
                   <button type="button" onClick={() => setEditModalTab('ai')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'ai' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>AI 지침 설정</button>
-                </div>
+                </div>}
               </div>
 
               {/* 학교 프로젝트 부모 클래스 안내 */}
@@ -3988,6 +3989,8 @@ const Classroom = () => {
                       )}
                       <EntryModeSelect value={(updateClassData.entry_mode || 'roster') as EntryMode} onChange={v => setUpdateClassData({...updateClassData, entry_mode: v})} />
 
+                      {/* 학교 프로젝트 하위 반은 기간·시간·종료 설정을 프로젝트에서 관리하므로 숨김 */}
+                      {!updateClassData.parent_class_id && (<>
                       {/* 수업 기간 */}
                       <div className="space-y-2 pt-1">
                         <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
@@ -4305,6 +4308,7 @@ const Classroom = () => {
                         </div>
                         );
                       })()}
+                      </>)}
                     </motion.div>
                   ) : editModalTab === 'syllabus' ? (
                     <motion.div 
