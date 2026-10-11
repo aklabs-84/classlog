@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
-import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound, UserPlus } from 'lucide-react';
+import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound, UserPlus, Users, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AvatarPicker from '../components/AvatarPicker';
@@ -25,6 +25,14 @@ const ClassroomEntry = () => {
   const [selfSignupName, setSelfSignupName] = useState('');
   const [selfSignupLoading, setSelfSignupLoading] = useState(false);
   const [selfSignupError, setSelfSignupError] = useState('');
+
+  // 명단 없는 공통 수업(step 4) / 현장 명단 입력(step 5 입력, step 6 대기)
+  const [commonName, setCommonName] = useState('');
+  const [liveName, setLiveName] = useState('');
+  const [liveNumber, setLiveNumber] = useState('');
+  const [liveCount, setLiveCount] = useState(0);
+  const [stepError, setStepError] = useState('');
+  const [stepLoading, setStepLoading] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -105,6 +113,107 @@ const ClassroomEntry = () => {
     }
   };
 
+  // 학급 명단을 서버 창구로 가져와 이름 선택 화면(step 2)으로 이동
+  // (이름·번호·아바타·PIN 설정 여부만 받음, PIN 값은 받지 않음)
+  const loadRoster = async (fullCode: string) => {
+    const { data: studentData, error: stuError } = await supabase
+      .rpc('student_list_class', { p_entry_code: fullCode });
+    if (stuError) throw stuError;
+
+    // 번호를 기준으로 기수 정렬(Numeric Sort) 수행
+    const sortedStudents = (studentData || []).sort((a: any, b: any) => {
+      const numA = parseInt(a.student_number) || 9999;
+      const numB = parseInt(b.student_number) || 9999;
+      if (numA !== numB) return numA - numB;
+      return a.full_name.localeCompare(b.full_name);
+    });
+
+    setStudents(sortedStudents);
+    setStep(2);
+  };
+
+  // 명단 없는 공통 수업 입장: PIN 없이 서버가 통과 표를 바로 발급
+  const enterCommon = async (cls: any, fullCode: string, name: string) => {
+    const { data: rows, error: cErr } = await supabase.rpc('common_enter', { p_entry_code: fullCode, p_name: name });
+    const r = Array.isArray(rows) ? rows[0] : rows;
+    if (cErr || !r?.session_token) throw cErr || new Error('common_enter failed');
+    sessionStorage.setItem('student_session', JSON.stringify({
+      student_id: r.student_id,
+      student_name: r.student_name,
+      class_id: cls.id,
+      class_name: cls.name,
+      subject: cls.subject,
+      token: r.session_token,
+      is_fresh_entry: true,
+      common_mode: cls.entry_mode,
+    }));
+    navigate('/student-log');
+  };
+
+  const handleCommonNamedSubmit = async () => {
+    const name = commonName.trim();
+    if (!name) { setStepError('이름을 입력해주세요.'); return; }
+    setStepLoading(true);
+    setStepError('');
+    try {
+      await enterCommon(targetClass, codes.join(''), name);
+    } catch {
+      setStepError('입장에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setStepLoading(false);
+    }
+  };
+
+  // 현장 명단 입력: 이름·번호 제출 → 대기 화면
+  const handleLiveSubmit = async () => {
+    const name = liveName.trim();
+    const num = liveNumber.trim();
+    if (!name) { setStepError('이름을 입력해주세요.'); return; }
+    if (!num) { setStepError('번호를 입력해주세요.'); return; }
+    setStepLoading(true);
+    setStepError('');
+    try {
+      const { data: cnt, error: sErr } = await supabase.rpc('live_roster_submit', {
+        p_entry_code: codes.join(''), p_name: name, p_number: num,
+      });
+      if (sErr) {
+        if (String(sErr.message).includes('ROSTER_CLOSED')) {
+          // 그 사이 선생님이 명단을 확정함 → 기존 이름 선택 화면으로
+          await loadRoster(codes.join(''));
+          return;
+        }
+        setStepError('제출에 실패했어요. 이름과 번호를 확인해주세요.');
+        return;
+      }
+      setLiveCount(typeof cnt === 'number' ? cnt : 0);
+      setStep(6);
+    } catch {
+      setStepError('서버 오류가 발생했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setStepLoading(false);
+    }
+  };
+
+  // 대기 화면: 2초마다 입력 인원수 확인, 선생님이 수락하면 이름 선택 화면으로 자동 이동
+  useEffect(() => {
+    if (step !== 6) return;
+    let stopped = false;
+    const tick = async () => {
+      const { data } = await supabase.rpc('live_roster_status', { p_entry_code: codes.join('') });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (stopped || !row) return;
+      setLiveCount(row.pending_count ?? 0);
+      if (row.accepted) {
+        stopped = true;
+        try { await loadRoster(codes.join('')); } catch { setStepError('명단을 불러오지 못했어요. 새로고침해 주세요.'); }
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 2000);
+    return () => { stopped = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const handleEntry = async (forcedCode?: string) => {
     const fullCode = forcedCode || codes.join('');
     if (fullCode.length < 6) return;
@@ -143,23 +252,23 @@ const ClassroomEntry = () => {
 
       setTargetClass(data);
 
-      // 학급 명단은 서버 창구로만 가져온다 (이름·번호·아바타·PIN 설정 여부만 받음, PIN 값은 받지 않음)
-      const { data: studentData, error: stuError } = await supabase
-        .rpc('student_list_class', { p_entry_code: fullCode });
+      // 입장 방식에 따라 갈라짐: 명단 없는 공통 수업 / 현장 명단 입력(수락 전)
+      if (data.entry_mode === 'common_anon') {
+        await enterCommon(data, fullCode, '');
+        return;
+      }
+      if (data.entry_mode === 'common_named') {
+        setStepError('');
+        setStep(4);
+        return;
+      }
+      if (data.entry_mode === 'live_roster' && !data.live_roster_accepted) {
+        setStepError('');
+        setStep(5);
+        return;
+      }
 
-      if (stuError) throw stuError;
-      
-      // 번호를 기준으로 기수 정렬(Numeric Sort) 수행
-      const sortedStudents = (studentData || []).sort((a: any, b: any) => {
-        const numA = parseInt(a.student_number) || 9999;
-        const numB = parseInt(b.student_number) || 9999;
-        if (numA !== numB) return numA - numB;
-        return a.full_name.localeCompare(b.full_name);
-      });
-      
-      setStudents(sortedStudents);
-      setStep(2);
-      
+      await loadRoster(fullCode);
     } catch (err: any) {
       setError('서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
@@ -484,6 +593,81 @@ const ClassroomEntry = () => {
             >
               뒤로가기
             </button>
+          </motion.div>
+        ) : step === 4 ? (
+          /* ── Step 4: 명단 없는 공통 수업 — 이름만 입력 ── */
+          <motion.div key="step4" initial={{ opacity: 0, x: 20, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }}
+            className="w-full max-w-[520px] glass rounded-[3rem] shadow-ambient p-12 relative z-10 border border-white/20 space-y-8 text-center">
+            <div className="space-y-2">
+              <div className="px-4 py-1.5 bg-secondary/10 text-secondary text-[10px] font-black rounded-full w-fit mx-auto uppercase tracking-widest mb-2">Class Confirmed</div>
+              <h2 className="text-3xl font-black font-manrope">{targetClass?.name}</h2>
+              <p className="text-on-surface-variant font-bold">{targetClass?.subject} 수업</p>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-black text-on-surface">내 이름을 입력하세요</p>
+              <input type="text" maxLength={20} placeholder="이름" value={commonName}
+                onChange={(e) => { setStepError(''); setCommonName(e.target.value); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCommonNamedSubmit(); }}
+                className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />
+              {stepError && <p className="text-error text-sm font-black">{stepError}</p>}
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setStep(1)} className="flex-1 py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all">뒤로가기</button>
+              <button onClick={handleCommonNamedSubmit} disabled={stepLoading || !commonName.trim()}
+                className="flex-[2] btn-gradient py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50">
+                {stepLoading ? <Loader2 className="animate-spin" size={22} /> : (<><span>입장하기</span><ArrowRight size={22} /></>)}
+              </button>
+            </div>
+          </motion.div>
+        ) : step === 5 ? (
+          /* ── Step 5: 현장 명단 입력 — 이름·번호 ── */
+          <motion.div key="step5" initial={{ opacity: 0, x: 20, scale: 0.95 }} animate={{ opacity: 1, x: 0, scale: 1 }}
+            className="w-full max-w-[520px] glass rounded-[3rem] shadow-ambient p-12 relative z-10 border border-white/20 space-y-8 text-center">
+            <div className="space-y-2">
+              <div className="px-4 py-1.5 bg-secondary/10 text-secondary text-[10px] font-black rounded-full w-fit mx-auto uppercase tracking-widest mb-2">Class Confirmed</div>
+              <h2 className="text-3xl font-black font-manrope">{targetClass?.name}</h2>
+              <p className="text-on-surface-variant font-bold">{targetClass?.subject} 수업</p>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-black text-on-surface">내 번호와 이름을 입력하세요</p>
+              <input type="text" inputMode="numeric" maxLength={10} placeholder="번호" value={liveNumber}
+                onChange={(e) => { setStepError(''); setLiveNumber(e.target.value); }}
+                className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />
+              <input type="text" maxLength={20} placeholder="이름" value={liveName}
+                onChange={(e) => { setStepError(''); setLiveName(e.target.value); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleLiveSubmit(); }}
+                className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />
+              {stepError && <p className="text-error text-sm font-black">{stepError}</p>}
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setStep(1)} className="flex-1 py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all">뒤로가기</button>
+              <button onClick={handleLiveSubmit} disabled={stepLoading || !liveName.trim() || !liveNumber.trim()}
+                className="flex-[2] btn-gradient py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50">
+                {stepLoading ? <Loader2 className="animate-spin" size={22} /> : (<><span>제출하기</span><ArrowRight size={22} /></>)}
+              </button>
+            </div>
+          </motion.div>
+        ) : step === 6 ? (
+          /* ── Step 6: 대기 화면 — 입력 인원 실시간 표시 ── */
+          <motion.div key="step6" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-[520px] glass rounded-[3rem] shadow-ambient p-12 relative z-10 border border-white/20 space-y-8 text-center">
+            <div className="space-y-3">
+              <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mx-auto text-secondary shadow-inner">
+                <CheckCircle2 size={34} />
+              </div>
+              <h2 className="text-3xl font-black font-manrope">제출했어요!</h2>
+              <p className="text-on-surface-variant font-medium text-sm">
+                {liveNumber}번 {liveName}님, 선생님이 명단을 확인할 때까지 잠시만 기다려 주세요.
+              </p>
+            </div>
+            <div className="bg-surface-container-low rounded-3xl py-6 space-y-1">
+              <div className="flex items-center justify-center gap-2 text-on-surface-variant text-xs font-black"><Users size={16} /> 지금까지 입력한 친구</div>
+              <p className="text-5xl font-black font-manrope text-primary tabular-nums">{liveCount}<span className="text-xl text-on-surface-variant ml-1">명</span></p>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-on-surface-variant text-xs font-bold">
+              <Loader2 className="animate-spin" size={14} /> 선생님이 수락하면 자동으로 넘어가요
+            </div>
+            {stepError && <p className="text-error text-sm font-black">{stepError}</p>}
           </motion.div>
         ) : (
           /* ── Step 3: PIN 설정 / 확인 ── */

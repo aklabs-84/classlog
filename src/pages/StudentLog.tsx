@@ -274,6 +274,9 @@ function applyPlanOverrides(content: any): any[] {
   return replaced;
 }
 
+// 명단 없는 공통 수업(common_mode)에서는 개인 기록 관련 메뉴를 숨긴다
+const COMMON_HIDDEN_TABS: string[] = ['record', 'history', 'unit', 'badges'];
+
 const StudentLog = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -6037,7 +6040,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
             { key: 'meeting' as const,     icon: ExternalLink,    label: '온라인수업', activeColor: 'text-rose-400', live: !!activeMeeting },
             { key: 'unit' as const,        icon: ClipboardList,   label: '단원마무리', activeColor: 'text-amber-400', badge: unitPendingCount },
             { key: 'suggestions' as const, icon: Megaphone,       label: '질문·건의함',  activeColor: 'text-rose-400', badge: unreadReplyCount },
-          ].map((item) => {
+          ].filter((item) => !(session?.common_mode && COMMON_HIDDEN_TABS.includes(item.key))).map((item) => {
             const isActive = activeTab === item.key;
             const isLocked = isClassClosed && (item.key === 'record' || item.key === 'results');
             const badge = (item as any).badge as number | undefined;
@@ -6084,7 +6087,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
             { key: 'record' as const,  icon: MessageSquare,   label: '기록', activeColor: 'text-violet-400',  activeBg: 'bg-violet-400/15' },
             { key: 'results' as const, icon: FolderOpen,      label: '결과', activeColor: 'text-emerald-400', activeBg: 'bg-emerald-400/15' },
             { key: 'board' as const,   icon: Users2,          label: '보드', activeColor: 'text-indigo-400',  activeBg: 'bg-indigo-400/15' },
-          ].map((tab) => {
+          ].filter((tab) => !(session?.common_mode && COMMON_HIDDEN_TABS.includes(tab.key))).map((tab) => {
             const isActive = activeTab === tab.key && !isMoreSheetOpen;
             const isLocked = isClassClosed && (tab.key === 'record' || tab.key === 'results');
             return (
@@ -6176,7 +6179,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   { key: 'meeting' as const,   icon: ExternalLink, label: '온라인수업', color: 'text-rose-600',  activeBg: 'bg-rose-50',  live: !!activeMeeting },
                   { key: 'unit' as const,      icon: ClipboardList, label: '단원마무리', color: 'text-amber-600', activeBg: 'bg-amber-50', badge: unitPendingCount },
                   { key: 'suggestions' as const, icon: Megaphone, label: '질문·건의함',  color: 'text-rose-600',   activeBg: 'bg-rose-50',  badge: unreadReplyCount },
-                ].map((item) => {
+                ].filter((item) => !(session?.common_mode && COMMON_HIDDEN_TABS.includes(item.key))).map((item) => {
                   const isActive = activeTab === item.key;
                   return (
                     <button

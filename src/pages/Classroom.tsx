@@ -85,6 +85,8 @@ import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import ClassroomFabMenu from '../components/classroom/ClassroomFabMenu';
 import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
+import EntryModeSelect, { type EntryMode } from '../components/classroom/EntryModeSelect';
+import LiveRosterPanel from '../components/classroom/LiveRosterPanel';
 import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
@@ -218,6 +220,7 @@ const Classroom = () => {
     name: '',
     subject: '',
     class_type: 'subject',
+    entry_mode: 'roster' as EntryMode,
     student_guide_prompt: '',
     teacher_report_prompt: '',
     weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
@@ -879,6 +882,7 @@ const Classroom = () => {
           name: newClassData.name,
           subject: newClassData.class_type === 'homeroom' ? '담임' : newClassData.subject,
           class_type: newClassData.class_type,
+          entry_mode: newClassData.entry_mode,
           student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요. 의미없이 반복되는 문장이나 맥락상 전혀 이해 할 수 없는 아무 의미없는 내용을 작성하는 것도 지양해 주세요. 글의 일부에라도 같은 글자·자음·모음이 의미 없이 반복되는 부분이 있다면, 앞부분에 정상적인 내용이 있더라도 반드시 반려 처리해 주세요.',
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
@@ -906,6 +910,7 @@ const Classroom = () => {
         name: '',
         subject: '',
         class_type: 'subject',
+        entry_mode: 'roster' as EntryMode,
         student_guide_prompt: '',
         teacher_report_prompt: '',
         weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
@@ -969,6 +974,9 @@ const Classroom = () => {
           subject: updateClassData.subject,
           weekly_plan: updateClassData.weekly_plan || [],
           shared_survey_form_id: updateClassData.shared_survey_form_id || null,
+          entry_mode: updateClassData.entry_mode || 'roster',
+          // 현장 명단 모드로 새로 바꾸면 수락 상태를 처음으로 되돌림
+          ...(updateClassData.entry_mode === 'live_roster' && classes.find((c: any) => c.id === updateClassData.id)?.entry_mode !== 'live_roster' ? { live_roster_accepted: false } : {}),
           ...sharedSettings,
         })
         .eq('id', updateClassData.id);
@@ -3211,6 +3219,28 @@ const Classroom = () => {
                 </div>
               )}
 
+              {activeTab === 'list' && classInfo && (classInfo.entry_mode || 'roster') === 'roster' && students.length === 0 && (
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <p className="text-sm font-bold text-amber-800">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
+                  <button type="button" onClick={() => handleOpenEditClass(classInfo)} className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-amber-800 hover:bg-amber-100 transition-all">입장 방식 바꾸기</button>
+                </div>
+              )}
+
+              {activeTab === 'list' && classInfo?.entry_mode === 'live_roster' && !classInfo.live_roster_accepted && (
+                <LiveRosterPanel
+                  classId={classInfo.id}
+                  onAccepted={async () => {
+                    const { data } = await supabase.from('classes').select('*').eq('id', classInfo.id).single();
+                    if (data) {
+                      setClassInfo(data);
+                      setClasses(prev => prev.map(c => c.id === data.id ? data : c));
+                    }
+                    await fetchStudents(classInfo.id);
+                    showToast('명단을 확정했어요. 학생 화면이 이름 선택 화면으로 넘어갑니다.');
+                  }}
+                />
+              )}
+
               {activeTab === 'list' && classInfo && (() => {
                 const now = new Date();
                 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -3694,6 +3724,7 @@ const Classroom = () => {
                   <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'subject'})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${newClassData.class_type === 'subject' ? 'bg-white shadow-sm text-primary border border-primary/10' : 'text-neutral-500 hover:text-neutral-700'}`}>과목 수업 (세특 기반)</button>
                   <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'homeroom'})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${newClassData.class_type === 'homeroom' ? 'bg-white shadow-sm text-secondary border border-secondary/10' : 'text-neutral-500 hover:text-neutral-700'}`}>담임 반 (행특 기반)</button>
                 </div>
+                <EntryModeSelect value={newClassData.entry_mode} onChange={v => setNewClassData({...newClassData, entry_mode: v})} />
                 
                 <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-500 space-y-3">
                   <details className="group [&_summary::-webkit-details-marker]:hidden [&_summary]:list-none">
@@ -3955,6 +3986,7 @@ const Classroom = () => {
                           <input type="text" placeholder="담당 과목" value={updateClassData.subject} onChange={e => setUpdateClassData({...updateClassData, subject: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none" required />
                         </div>
                       )}
+                      <EntryModeSelect value={(updateClassData.entry_mode || 'roster') as EntryMode} onChange={v => setUpdateClassData({...updateClassData, entry_mode: v})} />
 
                       {/* 수업 기간 */}
                       <div className="space-y-2 pt-1">
