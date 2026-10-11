@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
+import { fetchOverrides, forkPlanMaterial, applyOriginUpdate, undoOriginUpdate, dismissOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../lib/planMaterialOverride';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -196,6 +197,8 @@ const Classroom = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
+  // 담당 반이 속한 학교 프로젝트의 수업 일정 (school_project_id → 시작·종료일)
+  const [schoolSchedules, setSchoolSchedules] = useState<Record<string, { start_date: string | null; end_date: string | null }>>({});
   // student_id → { name, color }
   const [groupMap, setGroupMap] = useState<Record<string, { name: string; color: string }>>({});
   const [activeClassId, setActiveClassId] = useState<string | null>(
@@ -363,6 +366,9 @@ const Classroom = () => {
   // 수업 자료 관리 상태
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  // 학교 프로젝트 담당 강사의 "내 수업용 복사본" — key: 원본 자료 id
+  const [planOverrides, setPlanOverrides] = useState<Record<string, PlanMaterialRow>>({});
+  const [overrideBusyId, setOverrideBusyId] = useState<string | null>(null);
   // 학생 페이지에 공개된 학습 도구 (class_enabled_tools) - key: tool_id
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>({});
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
@@ -377,7 +383,7 @@ const Classroom = () => {
     return effectivePlan
       .filter((p: any) => p.material_id)
       .map((p: any) => {
-        const mat = classMaterials.find((m: any) => m.id === p.material_id);
+        const mat = planOverrides[p.material_id] ?? classMaterials.find((m: any) => m.id === p.material_id);
         return {
           week: p.week as number,
           title: (mat?.title as string) || `${p.week}주차`,
@@ -388,7 +394,7 @@ const Classroom = () => {
       })
       .filter((w: any) => w.content !== null)
       .sort((a: any, b: any) => a.week - b.week);
-  }, [classInfo, parentWeeklyPlan, classMaterials]);
+  }, [classInfo, parentWeeklyPlan, classMaterials, planOverrides]);
 
   const handleNavigateWeek = (week: number) => {
     const target = weekNavList.find((w: any) => w.week === week);
@@ -809,7 +815,14 @@ const Classroom = () => {
         ? combined.filter(c => c.id === activeClassId)
         : combined;
       setClasses(classData);
-      
+
+      // 담당(하위) 반의 수업 일정은 반 자체가 아니라 소속 학교 프로젝트에 입력돼 있으므로 함께 불러온다
+      const schoolIds = [...new Set(classData.filter(c => c.parent_class_id && c.school_project_id).map(c => c.school_project_id as string))];
+      if (schoolIds.length > 0) {
+        const { data: sch } = await supabase.from('school_projects').select('id, start_date, end_date').in('id', schoolIds);
+        setSchoolSchedules(Object.fromEntries((sch || []).map((r: any) => [r.id, { start_date: r.start_date, end_date: r.end_date }])));
+      }
+
       if (classData.length > 0) {
         if (!activeClassId) {
           // URL 파라미터도 없고 현재 선택된 것도 없으면 첫 번째 학급 선택
@@ -1746,11 +1759,11 @@ const Classroom = () => {
       const planMaterialIds = [...new Set(effectivePlan.map((p: any) => p.material_id).filter(Boolean))] as string[];
 
       const [matsRes, generalRes, toolsRes, planMatsRes] = await Promise.all([
-        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments').eq('class_id', sourceId).order('week_number', { ascending: true }),
+        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
         supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
         planMaterialIds.length > 0
-          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments').in('id', planMaterialIds)
+          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at').in('id', planMaterialIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
       const mergedMaterials = [...(matsRes.data || [])];
@@ -1758,6 +1771,18 @@ const Classroom = () => {
         if (!mergedMaterials.some(x => x.id === m.id)) mergedMaterials.push(m);
       });
       setClassMaterials(mergedMaterials);
+      // 배정받은 하위 반이면 내 수업용 복사본을 함께 불러온다 (읽기에서 원본 대신 사용)
+      if (classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id) {
+        try {
+          const map = await fetchOverrides(classId);
+          setPlanOverrides(Object.fromEntries(map));
+        } catch (e) {
+          console.error('fetchOverrides error:', e);
+          setPlanOverrides({});
+        }
+      } else {
+        setPlanOverrides({});
+      }
       setGeneralMaterials(generalRes.data || []);
       const toolMap: Record<string, boolean> = {};
       (toolsRes.data || []).forEach((t: any) => { toolMap[t.tool_id] = t.is_published; });
@@ -2215,6 +2240,46 @@ const Classroom = () => {
     }
   };
 
+  // 주차 자료 "내 수업용 복사본" 동작 — 원본은 그대로 두고 내 반에만 복사본을 만든다
+  const canForkPlanMaterial = !!classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id;
+  const runOverrideAction = async (originalId: string, action: () => Promise<PlanMaterialRow>, okMsg: string) => {
+    setOverrideBusyId(originalId);
+    try {
+      const row = await action();
+      setPlanOverrides(prev => ({ ...prev, [originalId]: row }));
+      showToast(okMsg);
+    } catch (err) {
+      console.error('plan override action error:', err);
+      showToast('처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setOverrideBusyId(null);
+    }
+  };
+  const handleForkPlanMat = (originalId: string) => {
+    if (!activeClassId || !user) return;
+    runOverrideAction(
+      originalId,
+      () => forkPlanMaterial({ originalId, classId: activeClassId, teacherId: user.id }),
+      '내 수업용 복사본을 만들었어요. 원본은 그대로예요.',
+    );
+  };
+  const handleApplyOrigin = (originalId: string) => {
+    const copy = planOverrides[originalId];
+    if (!copy) return;
+    if (!window.confirm('내 버전을 원본 내용으로 바꿀까요?\n바꾸기 직전 내용은 한 번 되돌릴 수 있게 보관돼요.')) return;
+    runOverrideAction(originalId, () => applyOriginUpdate(copy), '원본 내용으로 바꿨어요. 필요하면 되돌릴 수 있어요.');
+  };
+  const handleUndoOrigin = (originalId: string) => {
+    const copy = planOverrides[originalId];
+    if (!copy) return;
+    runOverrideAction(originalId, () => undoOriginUpdate(copy), '이전 내 버전으로 되돌렸어요.');
+  };
+  const handleDismissOrigin = (originalId: string, originalUpdatedAt: string) => {
+    const copy = planOverrides[originalId];
+    if (!copy) return;
+    runOverrideAction(originalId, () => dismissOriginUpdate(copy, originalUpdatedAt), '내 버전을 유지할게요. 원본이 또 바뀌면 알려드려요.');
+  };
+
   // ImportMaterialModal에서 선택한 자료를 이 클래스의 "자료 에디터" 자료로 추가
   // 이미 이 클래스 소속이면 공개 처리만, 다른 클래스/공통 자료함이면 복사본을 만들어 연결
   const handleImportEditorMat = async (m: ImportableMaterial) => {
@@ -2326,6 +2391,15 @@ const Classroom = () => {
         onEditClass={handleOpenEditClass}
         onDeleteClass={handleDeleteClass}
         currentUserId={user?.id}
+        schoolSchedules={schoolSchedules}
+        projectProDaysLeft={(() => {
+          // 유료 플랜·베타가 아니고 프로젝트 기간제 Pro만 남은 경우에만 표시 (Settings의 isProjectPro와 동일 조건)
+          const until = profile?.project_pro_until ? new Date(profile.project_pro_until).getTime() : 0;
+          if (!until || until <= Date.now()) return null;
+          if (['pro', 'school', 'admin'].includes(profile?.plan ?? 'free')) return null;
+          if (profile?.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return null;
+          return Math.ceil((until - Date.now()) / 86400000);
+        })()}
         onOpenArchive={() => {
           setArchiveModalTab('archived');
           fetchArchivedClasses();
@@ -5198,13 +5272,17 @@ const Classroom = () => {
                         <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1">주차별 자료</p>
                         {planItems.map((item: any) => {
                           const isMaterial = !!item.material_id;
-                          const matInfo = isMaterial
+                          const origInfo = isMaterial
                             ? classMaterials.find((m: any) => m.id === item.material_id)
                             : null;
+                          const myCopy = isMaterial ? planOverrides[item.material_id] : undefined;
+                          const matInfo = (myCopy ?? origInfo) as any;
+                          const originUpdated = !!(myCopy && origInfo && hasOriginUpdate(origInfo, myCopy));
+                          const overrideBusy = overrideBusyId === item.material_id;
 
                           return (
+                            <div key={`plan-${item.week}`} className="space-y-1">
                             <div
-                              key={`plan-${item.week}`}
                               className={`w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container-high group transition-all ${
                                 isMaterial && !matInfo ? 'opacity-50' : ''
                               }`}
@@ -5251,6 +5329,9 @@ const Classroom = () => {
                                 </div>
 
                                 {/* 뱃지 */}
+                                {myCopy && (
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md shrink-0">내 버전</span>
+                                )}
                                 {isMaterial && matInfo?.is_published && (
                                   <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md shrink-0">공개</span>
                                 )}
@@ -5289,6 +5370,57 @@ const Classroom = () => {
                                   : <ExternalLink size={14} />
                                 }
                               </button>
+                            </div>
+
+                            {/* 내 수업용으로 수정 (원본은 그대로 두고 내 반에만 복사본 생성) */}
+                            {canForkPlanMaterial && isMaterial && origInfo && !myCopy && (
+                              <button
+                                onClick={() => handleForkPlanMat(item.material_id)}
+                                disabled={overrideBusy}
+                                title="원본은 그대로 두고, 내 수업용 복사본을 만들어 고칠 수 있어요"
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-amber-500 text-white text-sm font-black shadow-sm hover:bg-amber-600 active:scale-[0.99] transition-all disabled:opacity-50"
+                              >
+                                {overrideBusy ? <Loader2 size={15} className="animate-spin" /> : <Pencil size={15} />} 내 수업용으로 수정
+                              </button>
+                            )}
+
+                            {/* 내 버전 편집: 자료 에디터에서 열기 */}
+                            {myCopy && (
+                              <button
+                                onClick={() => navigate('/teaching-tools', { state: { activeToolId: 'material-editor', openMaterialId: myCopy.id } })}
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-black hover:bg-amber-100 transition-all"
+                              >
+                                <Pencil size={13} /> 내 버전 편집하기
+                              </button>
+                            )}
+
+                            {/* 원본이 업데이트됐을 때 안내 */}
+                            {originUpdated && origInfo && (
+                              <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                                <span className="text-[11px] font-black text-amber-800 flex-1 min-w-[10rem]">원본이 업데이트됐어요</span>
+                                <button
+                                  onClick={() => handleApplyOrigin(item.material_id)}
+                                  disabled={overrideBusy}
+                                  className="text-[10px] font-black px-2 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-all disabled:opacity-50"
+                                >원본으로 교체</button>
+                                <button
+                                  onClick={() => handleDismissOrigin(item.material_id, origInfo.content_updated_at)}
+                                  disabled={overrideBusy}
+                                  className="text-[10px] font-black px-2 py-1 rounded-lg bg-white text-amber-800 border border-amber-200 hover:bg-amber-100 transition-all disabled:opacity-50"
+                                >내 버전 유지</button>
+                              </div>
+                            )}
+
+                            {/* 원본으로 교체한 직후 되돌리기 */}
+                            {myCopy?.origin_backup && !originUpdated && (
+                              <div className="flex justify-end px-1">
+                                <button
+                                  onClick={() => handleUndoOrigin(item.material_id)}
+                                  disabled={overrideBusy}
+                                  className="text-[10px] font-black text-on-surface-variant/60 hover:bg-surface-container px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                                >원본으로 교체하기 전으로 되돌리기</button>
+                              </div>
+                            )}
                             </div>
                           );
                         })}

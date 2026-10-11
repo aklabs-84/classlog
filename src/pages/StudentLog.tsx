@@ -256,6 +256,24 @@ const STUDENT_LEARNING_TOOLS: { id: string; label: string; description: string; 
   },
 ];
 
+// 학교 프로젝트 담당 강사가 "내 수업용으로" 고친 복사본이 있으면 원본 대신 보여준다.
+// 복사본의 id를 원본 id로 맞춰 두어, 주차 계획의 material_id로 찾는 기존 로직이 그대로 동작한다.
+function applyPlanOverrides(content: any): any[] {
+  const mats: any[] = content?.plan_materials || [];
+  const overrides: any[] = content?.plan_overrides || [];
+  if (overrides.length === 0) return mats;
+  const byOrigin = new Map<string, any>(overrides.map(o => [o.plan_origin_id, o]));
+  const replaced = mats.map(m => {
+    const o = byOrigin.get(m.id);
+    return o ? { ...o, id: m.id } : m;
+  });
+  // 원본이 응답에 없더라도 복사본은 보여준다
+  overrides.forEach(o => {
+    if (!replaced.some(m => m.id === o.plan_origin_id)) replaced.push({ ...o, id: o.plan_origin_id });
+  });
+  return replaced;
+}
+
 const StudentLog = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -935,7 +953,7 @@ const StudentLog = () => {
         const planIds = plan.map((p: any) => p.material_id).filter(Boolean);
         const { data: content, error } = await supabase.rpc('student_class_content', { p_token: token, p_plan_ids: planIds });
         if (cancelled || error || !content) return;
-        setClassMaterials(keep(content.plan_materials || []));
+        setClassMaterials(keep(applyPlanOverrides(content)));
         setGeneralMaterials(keep(content.general || []));
         setEditorMaterials(keep(content.editor || []));
         setEnabledToolIds(keep((content.enabled_tools || []) as string[]));
@@ -1106,7 +1124,7 @@ const StudentLog = () => {
               p_token: JSON.parse(sessionStorage.getItem('student_session') || '{}').token,
               p_plan_ids: materialIds,
             });
-            if (content?.plan_materials) setClassMaterials(content.plan_materials);
+            if (content?.plan_materials) setClassMaterials(applyPlanOverrides(content));
           }
         }
       }
@@ -1168,7 +1186,7 @@ const StudentLog = () => {
       });
       if (contentError) throw contentError;
 
-      setClassMaterials(content?.plan_materials || []);
+      setClassMaterials(applyPlanOverrides(content));
       setGeneralMaterials(content?.general || []);
       setEditorMaterials(content?.editor || []);
       setEnabledToolIds((content?.enabled_tools || []) as string[]);

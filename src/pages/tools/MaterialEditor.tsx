@@ -104,6 +104,7 @@ interface Material {
   ai_versions?: AiVersion[];
   teacher_id?: string | null;
   source_material_id?: string | null;
+  plan_origin_id?: string | null; // 학교 프로젝트 주차 자료의 "내 수업용 복사본"이면 원본 id
   cover_image_url?: string | null;
   cover_source?: 'template' | 'upload' | null;
   folder_id?: string | null;
@@ -1349,7 +1350,17 @@ const MaterialEditor = () => {
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
-    if (data) setClasses(data);
+    // 학교 프로젝트에서 배정받은 하위 반도 함께 보여준다 ("프로젝트 자료 · 내 버전" 편집용)
+    const { data: assigned } = await supabase
+      .from('classes')
+      .select('id, name, subject, class_type, weekly_plan')
+      .eq('assigned_teacher_id', user!.id)
+      .not('parent_class_id', 'is', null)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false });
+    const merged: any[] = [...(data ?? [])];
+    (assigned ?? []).forEach(c => { if (!merged.some(x => x.id === c.id)) merged.push({ ...c, _assignedOnly: true }); });
+    if (merged.length > 0) setClasses(merged);
   };
 
   const fetchMaterials = async (classId: string) => {
@@ -2494,7 +2505,8 @@ const MaterialEditor = () => {
           <Library size={15} /> 공통 자료함
         </button>
 
-        {(selectedClass || libraryMode) && !isEditorOpen && (
+        {/* 배정받은 프로젝트 반은 "내 버전" 수정만 가능 — 새 자료는 만들 수 없다(권한상 저장도 거부됨) */}
+        {(selectedClass || libraryMode) && !isEditorOpen && !(!libraryMode && (selectedClass?._assignedOnly || (selectedClass?.parent_class_id && selectedClass?.teacher_id && selectedClass.teacher_id !== user?.id))) && (
           <button
             onClick={handleNew}
             className="flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-2xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
@@ -3199,6 +3211,9 @@ const MaterialEditor = () => {
                         {!libraryMode && (
                           <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">{material.week_number}주차</span>
                         )}
+                        {material.plan_origin_id && (
+                          <span className="shrink-0 whitespace-nowrap text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
+                        )}
                         {material.content && (
                           <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>
                         )}
@@ -3259,6 +3274,10 @@ const MaterialEditor = () => {
                   {/* 정보 + 액션 */}
                   <div className="p-3 flex flex-col gap-2 flex-1">
                     <p className="font-black text-sm truncate" title={material.title}>{material.title}</p>
+
+                    {material.plan_origin_id && (
+                      <span className="self-start shrink-0 whitespace-nowrap text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
+                    )}
 
                     {material.content && (
                       <span className="self-start shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>

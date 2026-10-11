@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown, Lock, X, Search } from 'lucide-react';
+import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown, Lock, X, Search, CalendarDays } from 'lucide-react';
 
 interface ClassSelectorProps {
   classes: any[];
@@ -16,6 +16,31 @@ interface ClassSelectorProps {
   schoolName?: string;
   onSchoolSettings?: () => void;
   currentUserId?: string;
+  // 학교 프로젝트 기간제 Pro 남은 일수 (해당 없으면 null/undefined) — 담당 반을 보고 있을 때만 배지로 표시
+  projectProDaysLeft?: number | null;
+  // 학교 프로젝트가 정한 수업 일정 (반 자체 일정이 비어 있을 때 소속 학교 값을 사용)
+  schoolSchedules?: Record<string, { start_date: string | null; end_date: string | null }>;
+}
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const toYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const parseYmd = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const md = (s: string) => { const [, m, d] = s.split('-').map(Number); return `${m}/${d}`; };
+const dayDiff = (a: string, b: string) => Math.round((parseYmd(a).getTime() - parseYmd(b).getTime()) / 86400000);
+
+// 수업 일정 배지 문구 — 수업 전: D-N, 당일: 오늘 수업, 진행 중: N주차, 이후: 수업 종료
+function getScheduleLabel(start: string | null | undefined, end: string | null | undefined): { text: string; tone: 'upcoming' | 'today' | 'ongoing' | 'ended' } | null {
+  if (!start) return null;
+  const today = toYmd(new Date());
+  const single = !end || end === start;
+  if (today < start) {
+    const range = single ? `${md(start)}(${WEEKDAYS[parseYmd(start).getDay()]}) ${end ? '수업' : '시작'}` : `${md(start)} ~ ${md(end!)}`;
+    return { text: `${range} · D-${dayDiff(start, today)}`, tone: 'upcoming' };
+  }
+  if (end && today > end) return { text: '수업 종료', tone: 'ended' };
+  if (end && single) return { text: '오늘 수업', tone: 'today' };
+  const week = Math.floor(dayDiff(today, start) / 7) + 1;
+  return { text: `${end ? `${md(start)} ~ ${md(end)}` : `${md(start)} 시작`} · ${week}주차`, tone: 'ongoing' };
 }
 
 // 수동 종료(is_closed) 또는 종료일(end_date) 경과 여부
@@ -40,6 +65,8 @@ const ClassSelector = ({
   schoolName,
   onSchoolSettings,
   currentUserId,
+  projectProDaysLeft,
+  schoolSchedules,
 }: ClassSelectorProps) => {
   const [fullOpen, setFullOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -164,6 +191,37 @@ const ClassSelector = ({
             />
           </button>
         </div>
+
+        {/* 학교 프로젝트 수업 일정 배지 — 배정받은 담당 반을 볼 때만 (반 자체 일정이 없으면 소속 학교 일정 사용) */}
+        {activeClass?.parent_class_id && (() => {
+          const school = activeClass.school_project_id ? schoolSchedules?.[activeClass.school_project_id] : undefined;
+          const label = getScheduleLabel(activeClass.start_date || school?.start_date, activeClass.end_date || school?.end_date);
+          if (!label && projectProDaysLeft == null) return null;
+          const tone = label?.tone === 'ended'
+            ? 'bg-neutral-100 border-neutral-200 text-neutral-500'
+            : label?.tone === 'today'
+              ? 'bg-rose-50 border-rose-200 text-rose-600'
+              : 'bg-amber-50 border-amber-200 text-amber-700';
+          return (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {label && (
+                <div className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border ${tone}`} title="학교 프로젝트에서 정한 수업 일정">
+                  <CalendarDays size={14} className="shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-black whitespace-nowrap">{label.text}</span>
+                </div>
+              )}
+              {projectProDaysLeft != null && (
+                <span
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black whitespace-nowrap"
+                  title={`학교 프로젝트 기간 동안 Pro 기능을 모두 사용하실 수 있습니다 (수업 Pro 기간제 · ${projectProDaysLeft === 0 ? '오늘까지' : `${projectProDaysLeft}일 남음`})`}
+                >
+                  <Crown size={11} className="shrink-0" />
+                  <span className="hidden md:inline">기간제</span>
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 학급 수정 버튼 — 배정받은 담당 학급은 설정 불가, 프로젝트 생성자는 가능 */}
         {activeClass && (!activeClass.parent_class_id || activeClass.teacher_id === currentUserId) && (
