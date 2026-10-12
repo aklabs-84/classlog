@@ -105,6 +105,8 @@ import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import ProjectMaterialsForTeacher from '../components/classroom/ProjectMaterialsForTeacher';
+import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
+import ClassroomGuideTour from '../components/classroom/ClassroomGuideTour';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 import AiCreditCost from '../components/common/AiCreditCost';
@@ -2589,7 +2591,7 @@ const Classroom = () => {
                 return (
                   <button
                     key={tab.id}
-                    data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : undefined}
+                    data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : tab.id === 'attendance' ? 'tab-attendance' : tab.id === 'board' ? 'tab-board' : undefined}
                     onClick={() => {
                       setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading');
                       if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
@@ -2616,6 +2618,21 @@ const Classroom = () => {
             </div>
           </div>
 
+          {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
+            <InstructorStartGuide schoolProjectId={classInfo.school_project_id} />
+          )}
+
+          {classInfo && (
+            <ClassroomGuideTour
+              activeTab={activeTab}
+              classId={classInfo.id}
+              eligible={!loading && !!(classInfo.school_project_id && classInfo.parent_class_id && classInfo.assigned_teacher_id === user?.id)}
+              entryCode={classInfo.class_type !== 'homeroom' ? classInfo.entry_code : undefined}
+              entryMode={classInfo.entry_mode || 'roster'}
+              studentCount={students.length}
+            />
+          )}
+
           {loading && !classInfo ? (
             <DashboardSkeleton />
           ) : (
@@ -2630,7 +2647,7 @@ const Classroom = () => {
               )}
 
               {activeTab === 'attendance' && classInfo && (
-                <div className="max-w-4xl mx-auto">
+                <div className="max-w-4xl mx-auto" data-tour="attendance-panel">
                   <AttendanceTab classId={activeClassId!} students={sortedStudents} />
                 </div>
               )}
@@ -2675,7 +2692,7 @@ const Classroom = () => {
               {activeTab === 'board' && activeClassId && (
                 <div>
                   {/* 보드 헤더 */}
-                  <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+                  <div className="flex items-center justify-between mb-8 flex-wrap gap-4" data-tour="board-header">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-2xl bg-indigo-100 flex items-center justify-center">
                         <Users2 size={20} className="text-indigo-600" />
@@ -3264,7 +3281,7 @@ const Classroom = () => {
               )}
 
               {activeTab === 'list' && classInfo && students.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                <div data-tour="entry-mode-banner" className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
                   <p className="text-sm font-bold text-amber-800">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
                   <button type="button" onClick={() => handleReopenEntryMode(classInfo)} className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-amber-800 hover:bg-amber-100 transition-all">입장 방식 바꾸기</button>
                 </div>

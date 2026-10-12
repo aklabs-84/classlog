@@ -373,7 +373,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
 
       {/* ── 날짜 네비게이션 ── */}
       <div className="flex flex-col items-center gap-4">
-        <div className="flex items-center gap-3 flex-wrap justify-center">
+        <div className="flex items-center gap-3 flex-wrap justify-center" data-tour="attendance-date">
           {/* 이전 날짜 */}
           <button
             onClick={() => changeDate(-1)}
@@ -532,7 +532,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
 
         {/* ── 오늘 수업 시작/종료 체크 (지금 필요한 버튼 하나만 보임) ── */}
         {isToday && !showOnlyAttended && (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-3" data-tour="session-control">
             {/* 현재 상태 표시 */}
             {isEndedToday ? (
               <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black bg-rose-50 text-rose-600 border-2 border-rose-200">

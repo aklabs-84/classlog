@@ -143,6 +143,7 @@ const ClassSelector = ({
         {/* 현재 선택된 반 + 드롭다운 */}
         <div className="relative">
           <button
+            data-tour="class-selector"
             onClick={() => setFullOpen(true)}
             className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-2.5 rounded-2xl shadow-sm transition-all group ${
               activeClass?.parent_class_id

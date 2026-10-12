@@ -42,8 +42,9 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List, PenLine,
+  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
 } from 'lucide-react';
+import StudentScreenTour, { type StudentScreenStep } from '../../components/student/StudentScreenTour';
 import { mdComponents } from '../../components/materialMdComponents';
 import RichEditor from '../../components/RichEditor';
 import StudentMaterialPage from '../../components/StudentMaterialPage';
@@ -1128,7 +1129,108 @@ const CoverPickerModal = ({
 
 const FREE_MATERIAL_LIMIT = 5;
 
+// 자료 쓰는 화면 도움말 (보기 전용, 처음 한 번 자동 + 헤더 ? 버튼으로 다시 보기)
+const EDITOR_SCREENS: Record<string, StudentScreenStep> = {
+  edit: {
+    target: 'me-title',
+    title: '① 자료 제목을 써요',
+    lead: '별표(*)가 붙은 이 칸은 꼭 써야 저장돼요. 학생에게 보이는 자료 이름이에요.',
+    more: [
+      {
+        target: 'me-editor',
+        title: '② 본문을 써요',
+        lead: '여기에 수업 내용을 직접 써요. 빈 줄에서 / (슬래시)를 누르고 이름을 이어 쓰면 넣을 수 있는 것들이 나와요.',
+        points: [
+          '/제목, /번호, /표처럼 이름을 쓰면 목록이 걸러져요. 방향키로 고르고 Enter를 눌러요.',
+          '토글(접고 펴기)·콜아웃(강조 상자)·구분선·영상 넣기도 같은 방법이에요.',
+          '"학생 입력 · 메모 표"를 고르면 학생이 화면에서 직접 적는 빈칸이 생겨요.',
+          '글자를 굵게·색깔로 바꾸려면 글자를 고른 뒤 위쪽 도구줄을 눌러요.',
+        ],
+      },
+      {
+        target: 'me-tools',
+        title: '③ AI 도구로 다듬어요',
+        lead: '내용을 쓴 뒤에 쓸 수 있어요. 내용이 없으면 버튼이 꺼져 있어요.',
+        points: [
+          'AI로 정리: 쓴 글을 학습 가이드나 발표 슬라이드 모양으로 나눠 다듬어요. 결과는 정리 히스토리에서 다시 볼 수 있어요.',
+          '오탈자 검수: 내용은 바꾸지 않고 맞춤법·띄어쓰기만 짚어 줘요.',
+        ],
+      },
+      {
+        target: 'me-preview',
+        title: '④ 학생 화면으로 미리 봐요',
+        lead: '"미리보기"를 누르면 학생이 보는 모양 그대로 전체화면으로 열려요. 저장 전에 한 번 확인해 보세요.',
+      },
+      {
+        target: 'me-bottom',
+        title: '⑤ 공개하고 저장해요',
+        lead: '왼쪽 버튼으로 학생에게 공개할지 정하고, 오른쪽 "수정 완료(저장)"로 마무리해요.',
+        points: [
+          '"비공개"일 때는 학생이 수업 자료 탭에서 볼 수 없어요.',
+          '쓰는 동안 자동 저장되지만, 마지막에 "수정 완료"를 눌러야 확실해요.',
+          '내 버전은 내 반 학생에게만 보이고, 원본은 그대로 남아요.',
+        ],
+        missing: '이 칸은 자료 쓰기 화면 맨 아래에 있어요. 아래로 내려 보세요.',
+      },
+    ],
+  },
+};
+
+const LIST_SCREENS: Record<string, StudentScreenStep> = {
+  pick: {
+    target: 'me-class-select',
+    title: '먼저 어느 반의 자료인지 골라요',
+    lead: '여기를 누르면 내 반 목록이 나와요. 반을 고르면 그 반의 수업 자료가 아래에 보여요.',
+    points: [
+      '반을 고르지 않고 "공통 자료함"을 눌러도 돼요. 여러 반에 같이 쓸 자료를 모아 두는 곳이에요.',
+      '프로젝트로 배정받은 반은 원본을 고칠 수 없고, "내 버전"만 고칠 수 있어요.',
+    ],
+  },
+  list: {
+    target: 'me-class-select',
+    title: '① 어느 반 자료인지 골라요',
+    lead: '지금 보고 있는 반이 여기에 적혀 있어요. 눌러서 다른 반으로 바꿀 수 있어요.',
+    more: [
+      {
+        target: 'me-library-btn',
+        title: '② 공통 자료함',
+        lead: '반 구분 없이 쓸 자료를 모아 두는 보관함이에요. 여기서 만든 자료는 나중에 원하는 반에 연결해서 쓸 수 있어요.',
+        points: [
+          '카드의 지구본 버튼: 반을 골라 그 반 학생에게 바로 공개해요.',
+          '카드의 연결(사슬) 버튼: 비공개 복사본으로 반에 붙여요.',
+        ],
+      },
+      {
+        target: 'me-new-btn',
+        title: '③ 새 자료를 써요',
+        lead: '눌러서 빈 자료 쓰기 화면으로 가요. 제목과 본문을 쓰고 저장하면 이 목록에 카드로 생겨요.',
+        missing: '이 반은 프로젝트로 배정받은 반이라 새 자료는 만들 수 없어요. 아래 카드의 "내 버전"만 고칠 수 있어요.',
+      },
+      {
+        target: 'me-ai-btn',
+        title: '④ AI와 아이디어로 만들어요',
+        lead: '아이디어만 말하면 AI가 자료 초안을 만들어 줘요. 초안은 쓰기 화면에서 마음대로 고칠 수 있어요.',
+      },
+      {
+        target: 'me-card-actions',
+        title: '⑤ 자료 카드로 관리해요',
+        lead: '카드를 누르면 쓰기 화면이 열려요. 카드 아래 작은 버튼들(지금 표시된 줄)로 바로 관리할 수 있어요.',
+        points: [
+          '자물쇠/지구본: 학생에게 공개할지 비공개로 둘지 바꿔요.',
+          '복사: 다른 주차로 복사해요. 폴더 모양: 폴더로 옮겨요.',
+          '연필: 수정. 휴지통: 삭제(되돌릴 수 없어요).',
+          '"학생 답변": 학생이 자료에 직접 적은 답을 모아 봐요.',
+          '"프로젝트 자료 · 내 버전" 표시는 원본을 내 수업에 맞게 고친 자료예요.',
+        ],
+        missing: '아직 이 반에는 자료가 없어요. "새 자료 작성"으로 첫 자료를 만들어 보세요.',
+      },
+    ],
+  },
+};
+
 const MaterialEditor = () => {
+  const [editorHelpSignal, setEditorHelpSignal] = useState(0);
+  const [listHelpSignal, setListHelpSignal] = useState(0);
   const { user, profile } = useAuth();
   const { limitToastMessage, showLimitToast } = useLimitToast();
   const { actionToastMessage, showActionToast } = useActionToast();
@@ -1989,8 +2091,8 @@ const MaterialEditor = () => {
   };
 
   // 카드/리스트 보기가 함께 쓰는 자료별 액션 버튼 줄 (공개 전환·복사·폴더 이동·수정·삭제 등)
-  const renderMaterialActions = (material: Material, compact = false) => (
-                    <div className={compact ? 'flex items-center gap-1' : 'flex items-center gap-1 flex-wrap mt-auto pt-2 border-t border-surface-container'}>
+  const renderMaterialActions = (material: Material, compact = false, tourFirst = false) => (
+                    <div data-tour={tourFirst ? 'me-card-actions' : undefined} className={compact ? 'flex items-center gap-1' : 'flex items-center gap-1 flex-wrap mt-auto pt-2 border-t border-surface-container'}>
                       {/* 학생이 표·체크박스·밑줄에 적은 답변 보기 (반에 연결된 자료만) — 마우스를 올리지 않아도 항상 보이게 글자 버튼으로 둔다 */}
                       {material.class_id && material.content && (
                         <button
@@ -2415,7 +2517,7 @@ const MaterialEditor = () => {
             {libraryMode ? '공통 자료 목록' : '자료 목록'}
           </button>
         )}
-        <div className="relative">
+        <div className="relative" data-tour="me-class-select">
           <button
             onClick={() => setClassDropdownOpen(o => !o)}
             className="flex items-center gap-2 px-4 py-2.5 bg-surface-container rounded-2xl border-2 border-transparent hover:border-primary/20 transition-all font-black text-sm"
@@ -2441,6 +2543,7 @@ const MaterialEditor = () => {
         </div>
 
         <button
+          data-tour="me-library-btn"
           onClick={() => { setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); fetchFolders(null); }}
           title="클래스 선택 없이 공통으로 쓸 자료를 만들고, 나중에 원하는 클래스에 연결할 수 있습니다"
           className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all font-black text-sm ${
@@ -2464,10 +2567,22 @@ const MaterialEditor = () => {
         )}
         {(selectedClass || libraryMode) && !isEditorOpen && (
           <button
+            data-tour="me-ai-btn"
             onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setAiIdeaModalOpen(true))}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 border-primary/20 bg-primary-container/40 text-primary font-black text-sm hover:bg-primary-container/70 transition-all"
           >
             <Wand2 size={15} /> AI와 아이디어로 만들기
+          </button>
+        )}
+        {!isEditorOpen && !isDemoTeacher(user) && (
+          <button
+            type="button"
+            onClick={() => setListHelpSignal(n => n + 1)}
+            title="이 화면 도움말"
+            aria-label="이 화면 도움말"
+            className="ml-auto w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+          >
+            <HelpCircle size={16} />
           </button>
         )}
       </div>
@@ -2535,6 +2650,15 @@ const MaterialEditor = () => {
                   : (editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성')}
               </span>
               <div className="flex items-center gap-2 ml-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditorHelpSignal(n => n + 1)}
+                  title="이 화면 도움말"
+                  aria-label="이 화면 도움말"
+                  className="flex items-center justify-center w-8 h-8 rounded-xl bg-surface-container text-primary hover:bg-white transition-all shrink-0"
+                >
+                  <HelpCircle size={16} />
+                </button>
                 {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
                 <button
                   data-tour="me-preview"
@@ -3134,7 +3258,7 @@ const MaterialEditor = () => {
             </div>
           ) : viewLayout === 'list' ? (
             <div className="flex flex-col gap-2">
-              {visibleMaterials.map(material => (
+              {visibleMaterials.map((material, idx) => (
                 <div key={material.id} className="bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/30 hover:shadow-sm p-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div
@@ -3179,14 +3303,14 @@ const MaterialEditor = () => {
                   </div>
                   <div className="shrink-0 flex items-center gap-1">
                     {renderQuickButtons(material, 14, true)}
-                    {renderMaterialActions(material, true)}
+                    {renderMaterialActions(material, true, idx === 0)}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {visibleMaterials.map(material => (
+            <div data-tour="me-card-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {visibleMaterials.map((material, idx) => (
                 <div key={material.id} className="group bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/30 hover:shadow-md flex flex-col">
                   {/* 표지 썸네일 */}
                   <div
@@ -3235,7 +3359,7 @@ const MaterialEditor = () => {
                       <span className="self-start shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>
                     )}
 
-                    {renderMaterialActions(material)}
+                    {renderMaterialActions(material, false, idx === 0)}
                   </div>
                 </div>
               ))}
@@ -3253,6 +3377,20 @@ const MaterialEditor = () => {
         </div>
       )}
     </div>
+    <StudentScreenTour
+      screenKey={isEditorOpen && !isDemoTeacher(user) ? 'edit' : null}
+      screens={EDITOR_SCREENS}
+      storagePrefix="material_editor_help_v1"
+      hideButton
+      openSignal={editorHelpSignal}
+    />
+    <StudentScreenTour
+      screenKey={!isEditorOpen && !isDemoTeacher(user) ? ((selectedClass || libraryMode) ? 'list' : 'pick') : null}
+      screens={LIST_SCREENS}
+      storagePrefix="material_list_help_v1"
+      hideButton
+      openSignal={listHelpSignal}
+    />
     </>
   );
 };

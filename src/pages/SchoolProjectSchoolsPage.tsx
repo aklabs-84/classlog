@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
 import ProjectTeacherStatus from '../components/classroom/ProjectTeacherStatus';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
+import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
 import {
   ArrowLeft,
   School,
@@ -64,6 +65,7 @@ interface WeeklyPlanItem {
 const PAGE_TABS = [
   { key: 'schools', label: '학교 목록' },
   { key: 'teachers', label: '강사 관리' },
+  { key: 'docs', label: '강사 제출 서류' },
   { key: 'materials', label: '수업 자료' },
   { key: 'plan', label: '주차별 계획' },
   { key: 'survey', label: '설문' },
@@ -86,6 +88,14 @@ const TAB_GUIDES: Record<string, { title: string; steps: string[] }> = {
       '[반 추가]로 학교별 반을 만들고 담당 선생님을 정하세요.',
       '선생님은 위쪽의 [선생님 참여 코드]로 합류하거나, 직접 검색해서 배정할 수 있습니다.',
       '같은 수업을 여러 선생님이 진행한다면 [과목 묶음]으로 묶어 두세요. 결과 요약에서 학교가 달라도 합산해 볼 수 있습니다.',
+    ],
+  },
+  docs: {
+    title: '배정된 강사에게 받을 서류를 정하고, 냈는지 확인하는 곳입니다',
+    steps: [
+      '[서류 추가]로 이 사업에 필요한 서류를 만드세요. 파일 올리기·동의 체크·동의 서명·계약서 서명 중에서 고를 수 있습니다.',
+      '강사는 배정받은 반 화면 맨 위의 "시작 안내"에서 이 서류들을 보고 바로 제출합니다.',
+      '아래 제출 현황은 실시간으로 바뀝니다. 동그라미를 눌러 파일을 열어 보고 "확인 완료"나 "다시 내 주세요"를 정하세요.',
     ],
   },
   materials: {
@@ -1593,6 +1603,10 @@ const SchoolProjectSchoolsPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'docs' && projectId && (
+        <InstructorDocsAdminTab projectId={projectId} teacherNames={teacherNames} />
       )}
 
       {activeTab === 'materials' && projectId && (

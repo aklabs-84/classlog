@@ -4,6 +4,53 @@ import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AvatarPicker from '../components/AvatarPicker';
+import StudentScreenTour, { type StudentScreenStep } from '../components/student/StudentScreenTour';
+
+// 학생 입장 화면별 도움말 (화면마다 처음 한 번 자동으로 나타나고, 우측 상단 ? 버튼으로 다시 볼 수 있다)
+const ENTRY_SCREENS: Record<string, StudentScreenStep> = {
+  '1': {
+    target: 'entry-code',
+    title: '선생님이 알려 준 코드를 넣어요',
+    lead: '칠판이나 화면에 적힌 6자리 코드를 한 칸에 한 글자씩 넣어요. 영어는 대문자예요.',
+    points: ['QR 코드로 들어왔다면 코드가 이미 들어가 있을 수 있어요.', '다 넣으면 아래 "수업 확인하기"를 눌러요.'],
+  },
+  '2': {
+    target: 'entry-name-list',
+    title: '내 이름을 찾아 눌러요',
+    lead: '명단에서 내 이름을 눌러요. 이름이 많으면 위 검색 칸에 내 이름을 써서 찾아요.',
+    points: ['다른 친구 이름을 누르지 않게 조심해요.', '내 이름이 없으면 선생님께 말해요.'],
+  },
+  '3-new': {
+    target: 'entry-pin',
+    title: '나만 아는 숫자 4개(PIN)를 만들어요',
+    lead: '처음 들어오면 PIN을 만들어요. 아래 칸에 같은 숫자 4개를 한 번 더 넣어서 확인해요.',
+    points: ['친구에게 알려 주지 않아요.', '다음 수업부터는 이 숫자를 넣고 들어와요.', '잊어버리면 선생님께 말해요.'],
+  },
+  '3-verify': {
+    target: 'entry-pin',
+    title: '내가 만든 PIN 4개를 넣어요',
+    lead: '전에 만든 나만의 숫자 4개를 넣어요.',
+    points: ['여러 번 틀리면 잠시 못 들어가요. 천천히 넣어요.', '잊어버리면 선생님께 말해요.'],
+  },
+  '4': {
+    target: 'entry-common-name',
+    title: '내 이름을 써요',
+    lead: '이름 칸에 내 이름을 쓰고 "입장하기"를 눌러요. PIN은 없어요.',
+    points: ['친구 이름을 쓰면 안 돼요.'],
+  },
+  '5': {
+    target: 'entry-live-form',
+    title: '내 번호와 이름을 써요',
+    lead: '위 칸에는 내 번호, 아래 칸에는 내 이름을 쓰고 "제출하기"를 눌러요.',
+    points: ['친구 것까지 쓰지 않아요.', '잘못 썼다면 선생님께 말해요.'],
+  },
+  '6': {
+    target: 'entry-live-wait',
+    title: '선생님이 확인할 때까지 기다려요',
+    lead: '이 화면이 보이면 잘 낸 거예요. 선생님이 수락하면 자동으로 다음 화면으로 넘어가요.',
+    points: ['화면을 끄거나 나가지 말고 잠깐만 기다려요.'],
+  },
+};
 
 const ClassroomEntry = () => {
   const navigate = useNavigate();
@@ -456,7 +503,7 @@ const ClassroomEntry = () => {
             </div>
 
             <div className="space-y-6">
-              <div className="flex justify-between gap-2 px-2">
+              <div data-tour="entry-code" className="flex justify-between gap-2 px-2">
                 {codes.map((code, i) => (
                   <div key={i} className="flex-1">
                     <input
@@ -529,7 +576,7 @@ const ClassroomEntry = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto px-1 custom-scrollbar">
+              <div data-tour="entry-name-list" className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto px-1 custom-scrollbar">
                 {filteredStudents.map((s) => (
                   <button
                     key={s.id}
@@ -605,7 +652,7 @@ const ClassroomEntry = () => {
             </div>
             <div className="space-y-3">
               <p className="text-sm font-black text-on-surface">내 이름을 입력하세요</p>
-              <input type="text" maxLength={20} placeholder="이름" value={commonName}
+              <input data-tour="entry-common-name" type="text" maxLength={20} placeholder="이름" value={commonName}
                 onChange={(e) => { setStepError(''); setCommonName(e.target.value); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCommonNamedSubmit(); }}
                 className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />
@@ -628,7 +675,7 @@ const ClassroomEntry = () => {
               <h2 className="text-3xl font-black font-manrope">{targetClass?.name}</h2>
               <p className="text-on-surface-variant font-bold">{targetClass?.subject} 수업</p>
             </div>
-            <div className="space-y-3">
+            <div data-tour="entry-live-form" className="space-y-3">
               <p className="text-sm font-black text-on-surface">내 번호와 이름을 입력하세요</p>
               <input type="text" inputMode="numeric" maxLength={10} placeholder="번호" value={liveNumber}
                 onChange={(e) => { setStepError(''); setLiveNumber(e.target.value); }}
@@ -660,7 +707,7 @@ const ClassroomEntry = () => {
                 {liveNumber}번 {liveName}님, 선생님이 명단을 확인할 때까지 잠시만 기다려 주세요.
               </p>
             </div>
-            <div className="bg-surface-container-low rounded-3xl py-6 space-y-1">
+            <div data-tour="entry-live-wait" className="bg-surface-container-low rounded-3xl py-6 space-y-1">
               <div className="flex items-center justify-center gap-2 text-on-surface-variant text-xs font-black"><Users size={16} /> 지금까지 입력한 친구</div>
               <p className="text-5xl font-black font-manrope text-primary tabular-nums">{liveCount}<span className="text-xl text-on-surface-variant ml-1">명</span></p>
             </div>
@@ -699,7 +746,7 @@ const ClassroomEntry = () => {
             </div>
 
             {/* PIN 입력 */}
-            <div className="space-y-2">
+            <div data-tour="entry-pin" className="space-y-2">
               <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
                 {hasPinSet ? 'PIN' : '새 PIN'}
               </p>
@@ -837,6 +884,13 @@ const ClassroomEntry = () => {
         입장 코드가 무엇인가요?
       </button>
 
+      {!showAvatarPicker && (
+        <StudentScreenTour
+          screenKey={step === 3 ? (hasPinSet === null ? null : hasPinSet ? '3-verify' : '3-new') : String(step)}
+          screens={ENTRY_SCREENS}
+          storagePrefix="student_entry_tour_v1"
+        />
+      )}
       <AvatarPicker
         isOpen={showAvatarPicker}
         onClose={() => setShowAvatarPicker(false)}

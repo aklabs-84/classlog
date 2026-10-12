@@ -64,7 +64,7 @@ const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
   const sorted = [...rows].sort((a, b) => (parseInt(a.student_number) || 9999) - (parseInt(b.student_number) || 9999));
 
   return (
-    <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-6 py-5 space-y-4">
+    <div data-tour="live-roster-panel" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-6 py-5 space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><Users size={20} /></div>

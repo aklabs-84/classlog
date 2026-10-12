@@ -63,6 +63,7 @@ import {
   Cpu,
   Sparkles,
   Radio,
+  HelpCircle,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
@@ -72,11 +73,41 @@ import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
+import StudentScreenTour, { type StudentScreenStep } from '../components/student/StudentScreenTour';
 import RichEditor from '../components/RichEditor';
 import { type ActivityLink } from '../components/ActivityLinksButton';
 import { type MaterialAttachment } from '../components/MaterialAttachments';
 import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMaterialPage';
 import { getAiApps, type AiApp } from '../lib/aiApps';
+
+// 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
+const STUDENT_SCREENS: Record<string, StudentScreenStep> = {
+  record: {
+    target: 'student-record-submit',
+    title: '오늘 배운 것을 차례로 써요',
+    lead: '주차를 고르고, 위에서부터 차례로 써 내려가요. 다 썼으면 이 "활동 기록 제출하기"를 눌러요.',
+    points: ['쓰다가 멈춰도 "임시 저장"을 누르면 나중에 이어서 쓸 수 있어요.', '제출한 기록은 위 메뉴의 "나의 기록"에서 다시 볼 수 있어요.'],
+    missing: '수업이 끝나서 지금은 새 기록을 쓸 수 없어요. 이전 기록은 "나의 기록"에서 볼 수 있어요.',
+  },
+  results: {
+    target: 'student-result-submit',
+    title: '만든 결과를 주차별로 제출해요',
+    lead: '주차를 고르고, 링크·이미지·파일·글 중에서 알맞은 것을 넣은 뒤 이 "○주차 결과 제출" 버튼을 눌러요.',
+    points: ['조별 수업이면 누가 제출할지 선생님 안내를 따라요.', '제출한 결과는 "나의 기록"에서 확인할 수 있어요.'],
+    missing: '지금은 결과를 제출할 수 없어요. 선생님께 물어봐요.',
+  },
+  materials: {
+    target: 'student-materials-tabs',
+    title: '선생님이 올린 수업 자료를 봐요',
+    lead: '자료는 3칸으로 나뉘어 있어요. 눌러서 바꿔 볼 수 있어요.',
+    points: [
+      '주차별 자료: 이번 주 수업에서 쓰는 자료예요. 주차 카드를 눌러 열어요.',
+      '자료 에디터: 선생님이 만든 슬라이드·문서 자료예요.',
+      '일반 자료: 링크나 파일 같은 그 밖의 자료예요.',
+    ],
+    missing: '이 화면의 자료 칸을 찾지 못했어요. 잠시 뒤 다시 열어 주세요.',
+  },
+};
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -422,6 +453,7 @@ const StudentLog = () => {
 
   // 가이드 투어 State
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [screenTourSignal, setScreenTourSignal] = useState(0);
 
   // Toast State
   const [toasts, setToasts] = useState<{id: string; msg: string; type: 'success' | 'error'}[]>([]);
@@ -2577,6 +2609,18 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         </div>
         
         <div className="flex items-center gap-6">
+          {/* 이 화면 도움말 (활동 기록·결과 제출 화면에서만) */}
+          {STUDENT_SCREENS[activeTab] && (
+            <button
+              type="button"
+              onClick={() => setScreenTourSignal(n => n + 1)}
+              title="이 화면 도움말"
+              aria-label="이 화면 도움말"
+              className="flex items-center justify-center w-10 h-10 rounded-xl bg-surface-container-high text-primary hover:bg-primary/10 transition-all"
+            >
+              <HelpCircle size={22} />
+            </button>
+          )}
           {/* 교육 신청하기 버튼 */}
           <button
             onClick={() => navigate('/training-request?source=student-log')}
@@ -3320,7 +3364,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 )}
 
                 {/* 제출 버튼 — 입력창 바로 아래 */}
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+                <div data-tour="student-record-submit" className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
                   <button className="flex items-center gap-2 px-5 py-3 text-sm font-black text-slate-500 hover:text-slate-700 transition-all rounded-2xl hover:bg-slate-100 whitespace-nowrap">
                     <Save size={15} />임시 저장
                   </button>
@@ -3819,7 +3863,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 </div>
 
                 {/* 서브탭 */}
-                <div className="flex gap-2">
+                <div className="flex gap-2" data-tour="student-materials-tabs">
                   <button
                     onClick={() => setMaterialsSubTab('weekly')}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${materialsSubTab === 'weekly' ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-cyan-200'}`}
@@ -4447,6 +4491,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 )}
 
                 <button
+                  data-tour="student-result-submit"
                   onClick={handleSubmitResult}
                   disabled={resultSubmitting}
                   className="w-full py-5 btn-gradient rounded-[1.25rem] font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
@@ -6227,6 +6272,16 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
           </>
         )}
       </AnimatePresence>
+
+      {/* 이 화면 도움말 (활동 기록·결과 제출) — 메뉴 소개 투어가 열려 있는 동안은 쉬어 간다 */}
+      <StudentScreenTour
+        screenKey={STUDENT_SCREENS[activeTab] ? activeTab : null}
+        screens={STUDENT_SCREENS}
+        storagePrefix="student_main_tour_v1"
+        suspended={showGuideModal}
+        hideButton
+        openSignal={screenTourSignal}
+      />
 
       {/* 인터랙티브 가이드 투어 */}
       {showGuideModal && (

@@ -42,6 +42,13 @@ const ClassroomFabMenu = ({
     };
   }, [isOpen]);
 
+  // 사용 안내 투어가 다음 단계로 넘어갈 때 펼쳐진 메뉴를 닫아 달라고 보내는 신호
+  useEffect(() => {
+    const close = () => setIsOpen(false);
+    window.addEventListener('classroom-fab-close', close);
+    return () => window.removeEventListener('classroom-fab-close', close);
+  }, []);
+
   const actions: FabAction[] = [
     onOpenStudentPreview && { key: 'studentPreview', label: '학생 화면 미리보기', icon: Smartphone, onClick: onOpenStudentPreview },
     onOpenQR && { key: 'qr', label: '학생 입장용 QR', icon: QrCode, onClick: onOpenQR },
@@ -109,6 +116,7 @@ const ClassroomFabMenu = ({
         animate={{ rotate: isOpen ? 45 : 0 }}
         className="fixed bottom-7 right-7 w-14 h-14 rounded-2xl bg-primary text-white shadow-lg hover:bg-primary/90 active:scale-95 transition-colors flex items-center justify-center"
         style={{ zIndex: 9993 }}
+        data-tour="fab-plus"
         title="빠른 메뉴"
         aria-label="빠른 메뉴"
       >
