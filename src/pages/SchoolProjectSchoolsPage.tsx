@@ -669,6 +669,15 @@ const SchoolProjectSchoolsPage = () => {
     }));
     return map;
   }, [schools]);
+  const teacherSchools = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    schools.forEach(s => s.classes.forEach(c => {
+      if (!c.assigned_teacher_id) return;
+      const arr = map[c.assigned_teacher_id] || (map[c.assigned_teacher_id] = []);
+      if (!arr.includes(s.id)) arr.push(s.id);
+    }));
+    return map;
+  }, [schools]);
   const teacherAssignKey = useMemo(
     () => schools.flatMap(s => s.classes.map(c => `${c.id}:${c.assigned_teacher_id ?? ''}`)).join('|'),
     [schools],
@@ -1606,7 +1615,7 @@ const SchoolProjectSchoolsPage = () => {
       )}
 
       {activeTab === 'docs' && projectId && (
-        <InstructorDocsAdminTab projectId={projectId} teacherNames={teacherNames} />
+        <InstructorDocsAdminTab projectId={projectId} teacherNames={teacherNames} schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherSchools={teacherSchools} />
       )}
 
       {activeTab === 'materials' && projectId && (

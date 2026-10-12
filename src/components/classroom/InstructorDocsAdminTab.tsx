@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import {
@@ -14,6 +14,12 @@ interface Props {
   projectId: string;
   /** teacher_id → 이름 (이미 불러온 반 목록에서 만든 이름표) */
   teacherNames: Record<string, string>;
+  /** 학교 화면에서 쓸 때: 그 학교 id. 없으면 사업(프로젝트) 전체 화면 */
+  schoolId?: string;
+  /** 사업 화면에서 학교 이름표 */
+  schools?: { id: string; name: string }[];
+  /** 강사 id → 맡은 학교 id 목록 (어떤 서류가 누구에게 적용되는지 계산용) */
+  teacherSchools?: Record<string, string[]>;
 }
 
 const KIND_ICON: Record<DocKind, typeof Paperclip> = {
@@ -45,8 +51,44 @@ const emptyEdit = (): EditState => ({
   form_path: null, form_name: null, contract_path: null, contract_name: null,
 });
 
-export default function InstructorDocsAdminTab({ projectId, teacherNames }: Props) {
-  const { reqs, subs, loading, error, live, reload } = useInstructorDocs(projectId, { seed: true });
+type Mode = 'common' | 'custom';
+
+export default function InstructorDocsAdminTab({ projectId, teacherNames, schoolId, schools = [], teacherSchools = {} }: Props) {
+  const { reqs: allReqs, subs, loading, error, live, reload } = useInstructorDocs(projectId, { seed: !schoolId });
+
+  // 학교별 방식 (공통 적용 / 학교별 지정)
+  const [modes, setModes] = useState<Record<string, Mode>>({});
+  const loadModes = useCallback(async () => {
+    const { data } = await supabase.from('instructor_doc_school_settings').select('school_id, mode').eq('project_id', projectId);
+    const m: Record<string, Mode> = {};
+    (data || []).forEach((r: any) => { m[r.school_id] = r.mode; });
+    setModes(m);
+  }, [projectId]);
+  useEffect(() => { loadModes(); }, [loadModes]);
+  const modeOf = (sid: string): Mode => modes[sid] || 'common';
+  const mode: Mode = schoolId ? modeOf(schoolId) : 'common';
+  const schoolName = (sid: string | null) => schools.find(x => x.id === sid)?.name || '학교';
+
+  // 이 화면에서 직접 관리하는 서류: 사업 화면=공통, 학교 화면(학교별 지정일 때)=그 학교 전용
+  const myReqs = useMemo(
+    () => allReqs.filter(r => (r.school_id ?? null) === (schoolId && mode === 'custom' ? schoolId : null)),
+    [allReqs, schoolId, mode],
+  );
+  const commonReqs = useMemo(() => allReqs.filter(r => !r.school_id), [allReqs]);
+  const canEditList = !schoolId || mode === 'custom';
+  // 제출 현황 표에 나오는 서류
+  const reqs = useMemo(() => {
+    if (!schoolId) return allReqs;
+    return mode === 'custom' ? allReqs.filter(r => r.school_id === schoolId) : commonReqs;
+  }, [allReqs, commonReqs, schoolId, mode]);
+  // 이 강사에게 이 서류가 적용되는가
+  const applies = (iid: string, r: DocRequirement) => {
+    if (schoolId) return true;
+    const mine = teacherSchools[iid] || [];
+    if (!r.school_id) return mine.length === 0 || mine.some(sid => modeOf(sid) !== 'custom');
+    return mine.includes(r.school_id) && modeOf(r.school_id) === 'custom';
+  };
+  const [modeBusy, setModeBusy] = useState(false);
   const [edit, setEdit] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<'form' | 'contract' | null>(null);
@@ -63,11 +105,11 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
     subs.forEach(s => m.set(`${s.requirement_id}:${s.instructor_id}`, s));
     return m;
   }, [subs]);
-  const requiredReqs = reqs.filter(r => r.required);
+  const reqsFor = (iid: string) => reqs.filter(r => r.required && applies(iid, r));
   const doneCount = (iid: string) =>
-    requiredReqs.filter(r => subMap.get(`${r.id}:${iid}`)?.status !== undefined).length;
+    reqsFor(iid).filter(r => subMap.get(`${r.id}:${iid}`)?.status !== undefined).length;
   const visibleInstructors = onlyMissing
-    ? instructors.filter(i => doneCount(i.id) < requiredReqs.length)
+    ? instructors.filter(i => doneCount(i.id) < reqsFor(i.id).length)
     : instructors;
 
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3000); };
@@ -109,7 +151,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
     };
     const { error: err } = edit.id
       ? await supabase.from('instructor_doc_requirements').update(row).eq('id', edit.id)
-      : await supabase.from('instructor_doc_requirements').insert({ ...row, project_id: projectId, sort_order: (reqs[reqs.length - 1]?.sort_order ?? 0) + 1 });
+      : await supabase.from('instructor_doc_requirements').insert({ ...row, project_id: projectId, school_id: schoolId && mode === 'custom' ? schoolId : null, sort_order: (myReqs[myReqs.length - 1]?.sort_order ?? 0) + 1 });
     setSaving(false);
     if (err) { flash('저장에 실패했어요. 다시 시도해 주세요.'); return; }
     setEdit(null);
@@ -126,13 +168,36 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
   };
 
   const move = async (idx: number, dir: -1 | 1) => {
-    const a = reqs[idx], b = reqs[idx + dir];
+    const a = myReqs[idx], b = myReqs[idx + dir];
     if (!a || !b) return;
     // 순서값이 같을 수 있어 목록 순서대로 다시 번호를 매겨 두 칸만 바꾼다
-    const order = reqs.map(r => r.id);
+    const order = myReqs.map(r => r.id);
     [order[idx], order[idx + dir]] = [order[idx + dir], order[idx]];
     await Promise.all(order.map((id, i) =>
       supabase.from('instructor_doc_requirements').update({ sort_order: i + 1 }).eq('id', id)));
+    reload();
+  };
+
+  const changeMode = async (next: Mode) => {
+    if (!schoolId || next === mode) return;
+    setModeBusy(true);
+    const { data, error: err } = await supabase.rpc('set_school_docs_mode', { p_school: schoolId, p_mode: next });
+    setModeBusy(false);
+    if (err || (data as any)?.error) { flash('바꾸지 못했어요. 다시 시도해 주세요.'); return; }
+    await loadModes();
+    reload();
+  };
+
+  // 학교별 지정을 처음 켰을 때, 공통 서류를 그대로 복사해서 시작
+  const copyCommon = async () => {
+    if (!schoolId || commonReqs.length === 0) return;
+    const rows = commonReqs.map((r, i) => ({
+      project_id: projectId, school_id: schoolId, title: r.title, description: r.description, kind: r.kind,
+      consent_text: r.consent_text, form_path: r.form_path, form_name: r.form_name,
+      contract_path: r.contract_path, contract_name: r.contract_name, required: r.required, sort_order: i + 1,
+    }));
+    const { error: err } = await supabase.from('instructor_doc_requirements').insert(rows);
+    if (err) { flash('복사하지 못했어요.'); return; }
     reload();
   };
 
@@ -143,31 +208,82 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
     <div className="space-y-6">
       {msg && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] bg-on-surface text-surface px-4 py-2 rounded-full text-sm font-bold shadow-lg">{msg}</div>}
 
+      {schoolId && (
+        <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-4 sm:p-5">
+          <h3 className="font-black text-base mb-1">이 학교는 어떤 서류를 받을까요?</h3>
+          <p className="text-xs text-on-surface-variant mb-3">언제든 바꿀 수 있어요. 이미 낸 기록은 지워지지 않습니다.</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {([
+              ['common', '사업 공통 서류 그대로', `사업 전체에서 정한 서류 ${commonReqs.length}개를 이 학교 강사에게도 똑같이 받아요.`],
+              ['custom', '이 학교만 따로 지정', '이 학교 강사에게는 아래에서 정한 서류만 받아요. (공통 서류는 적용되지 않아요)'],
+            ] as const).map(([k, t, d]) => (
+              <button key={k} disabled={modeBusy} onClick={() => changeMode(k)}
+                className={`text-left rounded-2xl border-2 p-3 transition-all ${mode === k ? 'border-primary bg-primary/5' : 'border-outline-variant/40'}`}>
+                <span className="flex items-center gap-1.5 text-sm font-black">
+                  <span className={`w-4 h-4 rounded-full border-2 ${mode === k ? 'border-primary bg-primary' : 'border-outline-variant'}`} /> {t}
+                </span>
+                <span className="block text-xs text-on-surface-variant mt-1">{d}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ── 필요한 서류 ── */}
       <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
-            <h3 className="font-black text-base">필요한 서류</h3>
-            <p className="text-xs text-on-surface-variant mt-0.5">이 프로젝트에 배정된 모든 강사에게 "시작 안내"로 보여집니다.</p>
+            <h3 className="font-black text-base">{schoolId ? (mode === 'custom' ? '이 학교에서 받을 서류' : '적용 중인 서류 (사업 공통)') : '필요한 서류 (사업 공통)'}</h3>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {schoolId
+                ? (mode === 'custom' ? '이 학교에 배정된 강사에게만 "시작 안내"로 보여집니다.' : '고치려면 사업 화면의 [강사 제출 서류]에서 바꾸거나, 위에서 "이 학교만 따로 지정"을 고르세요.')
+                : '"사업 공통"을 쓰는 학교의 강사에게 "시작 안내"로 보여집니다. 학교별로 다르게 받으려면 각 학교 화면에서 정하세요.'}
+            </p>
+            {!schoolId && schools.some(x => modeOf(x.id) === 'custom') && (
+              <p className="text-xs font-bold text-primary mt-1">학교별 지정 중: {schools.filter(x => modeOf(x.id) === 'custom').map(x => x.name).join(', ')}</p>
+            )}
           </div>
-          <button
-            onClick={() => setEdit(emptyEdit())}
-            className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-primary text-on-primary text-sm font-bold"
-          >
-            <Plus size={15} /> 서류 추가
-          </button>
+          {canEditList && (
+            <button
+              onClick={() => setEdit(emptyEdit())}
+              className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-primary text-on-primary text-sm font-bold"
+            >
+              <Plus size={15} /> 서류 추가
+            </button>
+          )}
         </div>
-        {reqs.length === 0 ? (
-          <p className="text-sm text-on-surface-variant py-6 text-center">아직 서류가 없어요. [서류 추가]로 만들어 주세요.</p>
+        {schoolId && mode === 'common' ? (
+          commonReqs.length === 0 ? (
+            <p className="text-sm text-on-surface-variant py-6 text-center">사업 공통 서류가 아직 없어요.</p>
+          ) : (
+            <ul className="divide-y divide-outline-variant/20">
+              {commonReqs.map((r, i) => (
+                <li key={r.id} className="py-2.5 flex items-center gap-2 text-sm">
+                  <span className="w-6 text-center text-xs font-black text-on-surface-variant">{i + 1}</span>
+                  <span className="flex-1 min-w-0 font-bold truncate">{r.title}</span>
+                  <span className="text-xs text-on-surface-variant">{DOC_KIND_LABEL[r.kind]} · {r.required ? '필수' : '선택'}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : myReqs.length === 0 ? (
+          <div className="py-6 text-center space-y-3">
+            <p className="text-sm text-on-surface-variant">아직 서류가 없어요. [서류 추가]로 만들어 주세요.</p>
+            {schoolId && commonReqs.length > 0 && (
+              <button onClick={copyCommon} className="px-3 py-2 rounded-xl border border-primary text-primary text-sm font-bold">
+                사업 공통 서류 {commonReqs.length}개를 복사해서 시작하기
+              </button>
+            )}
+          </div>
         ) : (
           <ul className="divide-y divide-outline-variant/20">
-            {reqs.map((r, i) => {
+            {myReqs.map((r, i) => {
               const Icon = KIND_ICON[r.kind];
               return (
                 <li key={r.id} className="py-2.5 flex items-center gap-2">
                   <div className="flex flex-col">
                     <button disabled={i === 0} onClick={() => move(i, -1)} aria-label="위로" className="p-0.5 text-on-surface-variant disabled:opacity-25"><ArrowUp size={14} /></button>
-                    <button disabled={i === reqs.length - 1} onClick={() => move(i, 1)} aria-label="아래로" className="p-0.5 text-on-surface-variant disabled:opacity-25"><ArrowDown size={14} /></button>
+                    <button disabled={i === myReqs.length - 1} onClick={() => move(i, 1)} aria-label="아래로" className="p-0.5 text-on-surface-variant disabled:opacity-25"><ArrowDown size={14} /></button>
                   </div>
                   <span className="w-6 text-center text-xs font-black text-on-surface-variant">{i + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -215,7 +331,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
               <thead>
                 <tr className="text-xs text-on-surface-variant">
                   <th className="text-left font-bold py-2 px-1 sticky left-0 bg-surface-container-lowest">강사</th>
-                  {reqs.map(r => <th key={r.id} className="font-bold py-2 px-1 text-center max-w-[96px]"><span className="line-clamp-2">{r.title}</span></th>)}
+                  {reqs.map(r => <th key={r.id} className="font-bold py-2 px-1 text-center max-w-[96px]"><span className="line-clamp-2">{r.title}</span>{r.school_id && !schoolId && <span className="block text-[10px] font-normal text-primary line-clamp-1">{schoolName(r.school_id)}</span>}</th>)}
                   <th className="font-bold py-2 px-1 text-center">진행</th>
                 </tr>
               </thead>
@@ -224,6 +340,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
                   <tr key={inst.id} className="border-t border-outline-variant/20">
                     <td className="py-2 px-1 font-bold sticky left-0 bg-surface-container-lowest whitespace-nowrap">{inst.name} 선생님</td>
                     {reqs.map(r => {
+                      if (!applies(inst.id, r)) return <td key={r.id} className="py-1.5 px-1 text-center text-on-surface-variant/30" title="이 강사에게는 해당 없음">·</td>;
                       const s = subMap.get(`${r.id}:${inst.id}`);
                       const st = subStatusLabel(s);
                       return (
@@ -239,7 +356,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames }: Prop
                         </td>
                       );
                     })}
-                    <td className="py-2 px-1 text-center text-xs font-black whitespace-nowrap">{doneCount(inst.id)}/{requiredReqs.length}</td>
+                    <td className="py-2 px-1 text-center text-xs font-black whitespace-nowrap">{doneCount(inst.id)}/{reqsFor(inst.id).length}</td>
                   </tr>
                 ))}
               </tbody>

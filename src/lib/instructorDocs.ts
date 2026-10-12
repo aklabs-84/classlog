@@ -17,6 +17,8 @@ export interface DocRequirement {
   contract_name: string | null;
   required: boolean;
   sort_order: number;
+  /** null = 사업 공통, 값 = 그 학교 전용 */
+  school_id: string | null;
 }
 
 export interface DocSubmission {

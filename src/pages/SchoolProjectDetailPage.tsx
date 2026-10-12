@@ -34,6 +34,8 @@ import { useNotificationPermission } from '../hooks/useNotificationPermission';
 import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
+import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
+import ClassRosterModal from '../components/classroom/ClassRosterModal';
 import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
@@ -110,6 +112,7 @@ const todayStr = () => new Date().toISOString().split('T')[0];
 
 const TABS = [
   { key: 'overview', label: '개요' },
+  { key: 'docs', label: '강사 제출 서류' },
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
   { key: 'records', label: '기록' },
@@ -154,6 +157,7 @@ const SchoolProjectDetailPage = () => {
   const [deletingSchool, setDeletingSchool] = useState(false);
 
   // 반 수정/삭제
+  const [rosterClass, setRosterClass] = useState<TeachingClass | null>(null);
   const [editingClass, setEditingClass] = useState<TeachingClass | null>(null);
   const [editClassName, setEditClassName] = useState('');
   const [savingClass, setSavingClass] = useState(false);
@@ -170,9 +174,9 @@ const SchoolProjectDetailPage = () => {
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!schoolId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const { data: s } = await supabase
         .from('school_projects')
@@ -700,6 +704,13 @@ const SchoolProjectDetailPage = () => {
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-bold text-on-surface-variant/70 mr-2">학생 {c.studentCount}명</span>
                     <button
+                      onClick={() => setRosterClass(c)}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-primary hover:bg-primary/10 transition-all"
+                      title="학생 명단 등록"
+                    >
+                      <Users size={13} /> 학생 명단
+                    </button>
+                    <button
                       onClick={() => { setClassActionError(''); setAssigningClassId(c.id); }}
                       className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-primary hover:bg-primary/10 transition-all"
                       title={c.teacherName ? '담당 강사 변경' : '담당 강사 지정'}
@@ -738,6 +749,24 @@ const SchoolProjectDetailPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'docs' && projectId && schoolId && (
+        <InstructorDocsAdminTab
+          projectId={projectId}
+          schoolId={schoolId}
+          teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))}
+        />
+      )}
+
+      {rosterClass && (
+        <ClassRosterModal
+          classId={rosterClass.id}
+          className={rosterClass.name}
+          students={classes.find(c => c.id === rosterClass.id)?.students || []}
+          onClose={() => setRosterClass(null)}
+          onSaved={() => { fetchData(true); }}
+        />
       )}
 
       {tab === 'attendance' && (
