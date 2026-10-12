@@ -27,7 +27,10 @@ import {
   Search,
   X,
   UserPlus,
+  Bell,
+  BellOff,
 } from 'lucide-react';
+import { useNotificationPermission } from '../hooks/useNotificationPermission';
 import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
@@ -98,6 +101,11 @@ const ATT_STATUSES = [
   { key: 'excused', label: '공결', className: 'bg-violet-100 text-violet-700' },
 ] as const;
 
+// 반의 오늘 수업 상태 (시작/종료 시각이 '오늘'인지 기기 시간 기준으로 판단)
+interface ClassSession { startedAt: string | null; endedAt: string | null; week: number | null }
+const isToday = (iso: string | null) => !!iso && new Date(iso).toDateString() === new Date().toDateString();
+const SESSION_REFRESH_MS = 30000;
+
 const todayStr = () => new Date().toISOString().split('T')[0];
 
 const TABS = [
@@ -134,6 +142,10 @@ const SchoolProjectDetailPage = () => {
   const [attDate, setAttDate] = useState(todayStr());
   const [attRecords, setAttRecords] = useState<Record<string, string>>({});
   const [attLoading, setAttLoading] = useState(false);
+  const [sessions, setSessions] = useState<Record<string, ClassSession>>({});
+  const [notifyOn, setNotifyOn] = useState(true);
+  const [notifySaving, setNotifySaving] = useState(false);
+  const { permission: notifPermission } = useNotificationPermission();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [editInfoOpen, setEditInfoOpen] = useState(false);
@@ -273,6 +285,41 @@ const SchoolProjectDetailPage = () => {
   useEffect(() => {
     if (tab === 'attendance' && classes.length > 0) fetchAttendance();
   }, [tab, attDate, classes, fetchAttendance]);
+
+  // 출결 탭이 열려 있는 동안 30초마다 각 반의 오늘 수업 상태를 새로 읽는다
+  const classIdKey = classes.map(c => c.id).join(',');
+  useEffect(() => {
+    if (tab !== 'attendance' || !classIdKey) return;
+    const ids = classIdKey.split(',');
+    let stopped = false;
+    const load = async () => {
+      const { data } = await supabase.from('classes').select('id, today_started_at, today_ended_at, active_week').in('id', ids);
+      if (stopped || !data) return;
+      const map: Record<string, ClassSession> = {};
+      data.forEach((r: any) => { map[r.id] = { startedAt: r.today_started_at, endedAt: r.today_ended_at, week: r.active_week }; });
+      setSessions(map);
+    };
+    load();
+    const timer = setInterval(load, SESSION_REFRESH_MS);
+    return () => { stopped = true; clearInterval(timer); };
+  }, [tab, classIdKey]);
+
+  // 수업 시작/종료 알림 받기 스위치 (저장된 값이 없으면 켜짐)
+  useEffect(() => {
+    if (tab !== 'attendance' || !profile?.id) return;
+    supabase.from('class_session_notify_prefs').select('enabled').eq('user_id', profile.id).maybeSingle()
+      .then(({ data }) => { if (data) setNotifyOn(data.enabled); });
+  }, [tab, profile?.id]);
+
+  const toggleNotify = async () => {
+    if (!profile?.id || notifySaving) return;
+    const next = !notifyOn;
+    setNotifySaving(true);
+    const { error } = await supabase.from('class_session_notify_prefs')
+      .upsert({ user_id: profile.id, enabled: next, updated_at: new Date().toISOString() });
+    setNotifySaving(false);
+    if (!error) setNotifyOn(next);
+  };
 
   const totals = useMemo(() => {
     const assigned = classes.filter(c => c.assigned_teacher_id);
@@ -703,7 +750,23 @@ const SchoolProjectDetailPage = () => {
               onChange={e => setAttDate(e.target.value)}
               className="px-3 py-2 rounded-xl text-sm font-bold bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+            <button
+              onClick={toggleNotify}
+              disabled={notifySaving}
+              title="내가 관리하는 프로젝트의 반이 수업을 시작·종료하면 알림을 받습니다"
+              className={`ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition-all disabled:opacity-50 ${
+                notifyOn ? 'text-emerald-600 border-emerald-200 bg-emerald-50/60' : 'text-on-surface-variant/60 border-on-surface/10'
+              }`}
+            >
+              {notifyOn ? <Bell size={13} /> : <BellOff size={13} />}
+              수업 시작·종료 알림 {notifyOn ? 'ON' : 'OFF'}
+            </button>
           </div>
+          {notifyOn && notifPermission !== 'granted' && notifPermission !== 'unsupported' && (
+            <p className="text-xs font-bold text-on-surface-variant/70">
+              이 기기에서는 아직 알림이 허용되지 않았어요. 위쪽 메뉴의 "클래스 알림 켜기"를 눌러 허용하면 폰·PC로 알림이 도착해요.
+            </p>
+          )}
 
           {classes.length === 0 ? (
             <div className="surface-card p-8 text-center text-on-surface-variant/60 text-sm">
@@ -718,7 +781,22 @@ const SchoolProjectDetailPage = () => {
               {classes.map(c => (
                 <div key={c.id} className="surface-card border border-surface-container-high overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-surface-container-high bg-surface-container-low/40 flex items-center justify-between">
-                    <span className="text-sm font-bold">{c.name}</span>
+                    <span className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold">{c.name}</span>
+                      {(() => {
+                        const ss = sessions[c.id];
+                        const started = ss && isToday(ss.startedAt);
+                        const ended = ss && isToday(ss.endedAt);
+                        if (ended) return <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">종료</span>;
+                        if (started) return (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60 animate-ping" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
+                            진행 중{ss.week ? ` · ${ss.week}주차` : ''}
+                          </span>
+                        );
+                        return <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/60">시작 전</span>;
+                      })()}
+                    </span>
                     <span className="text-xs text-on-surface-variant/60">
                       학생 {c.students.length}명 중 {c.students.filter(st => attRecords[st.id]).length}명 기록됨
                     </span>
