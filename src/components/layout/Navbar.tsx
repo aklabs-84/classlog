@@ -14,6 +14,7 @@ import { AI_CREDITS_EVENT, type AiCreditsInfo } from '../../lib/aiCredits';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { useFontScale } from '../../hooks/useFontScale';
 import NotificationPermissionButton from '../NotificationPermissionButton';
+import { displayName } from '../../lib/displayName';
 
 interface NavbarProps {
   isCollapsed: boolean;
@@ -533,7 +534,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
             <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-              <span className="text-white text-xs font-black">{(profile?.full_name || '?').charAt(0).toUpperCase()}</span>
+              <span className="text-white text-xs font-black">{(displayName(profile, '?')).charAt(0).toUpperCase()}</span>
             </div>
           )}
         </div>
@@ -543,7 +544,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
               {profile?.role || 'Teacher'}
             </p>
             <p className="text-[12px] font-black group-hover:text-primary transition-colors tracking-tightest truncate">
-              {profile?.full_name || '사용자'}
+              {displayName(profile)}
             </p>
           </div>
         )}
@@ -636,7 +637,7 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
               <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <span className="text-white text-xs font-black">{(profile?.full_name || '?').charAt(0).toUpperCase()}</span>
+                <span className="text-white text-xs font-black">{(displayName(profile, '?')).charAt(0).toUpperCase()}</span>
               </div>
             )}
           </div>
@@ -677,12 +678,12 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
                   <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                    <span className="text-white text-xs font-black">{(profile?.full_name || '?').charAt(0).toUpperCase()}</span>
+                    <span className="text-white text-xs font-black">{(displayName(profile, '?')).charAt(0).toUpperCase()}</span>
                   </div>
                 )}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-black text-on-surface truncate">{profile?.full_name || '사용자'}</p>
+                <p className="text-sm font-black text-on-surface truncate">{displayName(profile)}</p>
                 <p className="text-[10px] font-bold text-primary/60 uppercase tracking-wider">{profile?.role || 'Teacher'}</p>
               </div>
             </div>

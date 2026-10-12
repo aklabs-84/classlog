@@ -1,3 +1,4 @@
+import { displayName } from '../lib/displayName';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
@@ -85,7 +86,7 @@ type Post = {
   title: string;
   content: string;
   created_at: string;
-  author: { full_name: string | null; avatar_url: string | null } | null;
+  author: { full_name: string | null; nickname: string | null; avatar_url: string | null } | null;
   comments: { count: number }[];
 };
 
@@ -96,7 +97,7 @@ type Comment = {
   parent_id: string | null;
   content: string;
   created_at: string;
-  author: { full_name: string | null; avatar_url: string | null } | null;
+  author: { full_name: string | null; nickname: string | null; avatar_url: string | null } | null;
 };
 
 const formatDate = (d: string) =>
@@ -129,7 +130,7 @@ const Community = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('community_posts')
-      .select('*, author:profiles(full_name, avatar_url), comments:community_comments(count)')
+      .select('*, author:profiles(full_name, nickname, avatar_url), comments:community_comments(count)')
       .order('created_at', { ascending: false });
     if (!error && data) setPosts(data as unknown as Post[]);
     setLoading(false);
@@ -146,7 +147,7 @@ const Community = () => {
         const newId = payload.new.id as string;
         const { data } = await supabase
           .from('community_comments')
-          .select('*, author:profiles(full_name, avatar_url)')
+          .select('*, author:profiles(full_name, nickname, avatar_url)')
           .eq('id', newId)
           .single();
         if (!data) return;
@@ -172,7 +173,7 @@ const Community = () => {
     setCommentsLoading(true);
     const { data, error } = await supabase
       .from('community_comments')
-      .select('*, author:profiles(full_name, avatar_url)')
+      .select('*, author:profiles(full_name, nickname, avatar_url)')
       .eq('post_id', post.id)
       .order('created_at', { ascending: true });
     if (!error && data) setComments(data as unknown as Comment[]);
@@ -185,7 +186,7 @@ const Community = () => {
     const { data, error } = await supabase
       .from('community_comments')
       .insert({ post_id: selectedPost.id, author_id: user.id, content: commentText.trim() })
-      .select('*, author:profiles(full_name, avatar_url)')
+      .select('*, author:profiles(full_name, nickname, avatar_url)')
       .single();
     if (!error && data) {
       setComments(prev => [...prev, data as unknown as Comment]);
@@ -215,7 +216,7 @@ const Community = () => {
     const { data, error } = await supabase
       .from('community_comments')
       .insert({ post_id: selectedPost.id, author_id: user.id, parent_id: parentId, content: replyText.trim() })
-      .select('*, author:profiles(full_name, avatar_url)')
+      .select('*, author:profiles(full_name, nickname, avatar_url)')
       .single();
     if (!error && data) {
       setComments(prev => [...prev, data as unknown as Comment]);
@@ -266,7 +267,7 @@ const Community = () => {
           </div>
           <h1 className="text-xl font-black text-on-surface mb-2">{selectedPost.title}</h1>
           <p className="text-sm font-bold text-on-surface-variant/60 mb-4">
-            {selectedPost.author?.full_name || '탈퇴한 사용자'}
+            {displayName(selectedPost.author, '탈퇴한 사용자')}
           </p>
           <div className="text-sm text-on-surface leading-relaxed">
             <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
@@ -298,11 +299,11 @@ const Community = () => {
                 <div key={c.id}>
                   <div className={`flex items-start gap-3 -mx-2 px-2 py-1.5 rounded-xl transition-colors duration-[2000ms] ${highlightedId === c.id ? 'bg-primary/10' : 'bg-transparent'}`}>
                     <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 text-xs font-black">
-                      {(c.author?.full_name || '?').charAt(0).toUpperCase()}
+                      {(displayName(c.author, '?')).charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-on-surface">{c.author?.full_name || '탈퇴한 사용자'}</span>
+                        <span className="text-xs font-black text-on-surface">{displayName(c.author, '탈퇴한 사용자')}</span>
                         <span className="text-[10px] text-on-surface-variant/40 font-bold">{formatDate(c.created_at)}</span>
                       </div>
                       <p className="text-sm font-medium text-on-surface/90 mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
@@ -327,11 +328,11 @@ const Community = () => {
                     {comments.filter(r => r.parent_id === c.id).map(r => (
                       <div key={r.id} className={`flex items-start gap-2.5 -mx-2 px-2 py-1.5 rounded-xl transition-colors duration-[2000ms] ${highlightedId === r.id ? 'bg-primary/10' : 'bg-transparent'}`}>
                         <div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant shrink-0 text-[11px] font-black">
-                          {(r.author?.full_name || '?').charAt(0).toUpperCase()}
+                          {(displayName(r.author, '?')).charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-on-surface">{r.author?.full_name || '탈퇴한 사용자'}</span>
+                            <span className="text-xs font-black text-on-surface">{displayName(r.author, '탈퇴한 사용자')}</span>
                             <span className="text-[10px] text-on-surface-variant/40 font-bold">{formatDate(r.created_at)}</span>
                           </div>
                           <p className="text-sm font-medium text-on-surface/90 mt-0.5 leading-relaxed whitespace-pre-wrap">{r.content}</p>
@@ -470,7 +471,7 @@ const Community = () => {
                   </div>
                   <p className="font-black text-on-surface text-sm mb-1 truncate">{p.title}</p>
                   <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/60 font-bold">
-                    <span>{p.author?.full_name || '탈퇴한 사용자'}</span>
+                    <span>{displayName(p.author, '탈퇴한 사용자')}</span>
                     <span className="flex items-center gap-1">
                       <MessageSquare size={10} /> {p.comments?.[0]?.count ?? 0}
                     </span>
@@ -547,7 +548,7 @@ const WritePostModal = ({ isOpen, onClose, onCreated }: {
     const { data, error } = await supabase
       .from('community_posts')
       .insert({ author_id: user.id, category, title: title.trim(), content: content.trim() })
-      .select('*, author:profiles(full_name, avatar_url), comments:community_comments(count)')
+      .select('*, author:profiles(full_name, nickname, avatar_url), comments:community_comments(count)')
       .single();
     if (!error && data) {
       if (category === 'bug') {

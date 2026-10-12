@@ -5,6 +5,7 @@ import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiMonthly
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
+import { displayName, validateRealName, validateNickname } from '../lib/displayName';
 import {
   User,
   Camera,
@@ -58,6 +59,7 @@ const Settings = () => {
   // Edit States
   const [editForm, setEditForm] = useState({
     full_name: '',
+    nickname: '',
     school_name: '',
     school_code: '',
     avatar_url: ''
@@ -329,10 +331,17 @@ const Settings = () => {
   }, []);
 
   useEffect(() => {
+    if (!loading && window.location.hash === '#profile') {
+      document.getElementById('profile')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading]);
+
+  useEffect(() => {
     if (authProfile) {
       setProfile(authProfile);
       setEditForm({
         full_name: authProfile.full_name || '',
+        nickname: authProfile.nickname || '',
         school_name: authProfile.school_name || '',
         school_code: authProfile.school_code || '',
         avatar_url: authProfile.avatar_url || ''
@@ -435,13 +444,17 @@ const Settings = () => {
   };
 
   const handleSave = async () => {
+    const nameErr = validateRealName(editForm.full_name) || validateNickname(editForm.nickname);
+    if (nameErr) { alert(nameErr); return; }
     setIsSaving(true);
     try {
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user?.id,
-          full_name: editForm.full_name,
+          full_name: editForm.full_name.trim(),
+          nickname: editForm.nickname.trim() || null,
+          real_name_confirmed: true,
           school_name: editForm.school_name,
           school_code: editForm.school_code,
           avatar_url: editForm.avatar_url,
@@ -467,7 +480,8 @@ const Settings = () => {
       title: '개인 프로필', 
       icon: User, 
       items: [
-        { label: '이름', value: profile?.full_name || '미지정', key: 'full_name', isImage: false, readOnly: false },
+        { label: '실명 (강사 서류·계약서에 쓰여요)', value: profile?.full_name || '미지정', key: 'full_name', isImage: false, readOnly: false },
+        { label: '별명 (앱 메뉴·커뮤니티에 보여요, 비우면 실명)', value: profile?.nickname || '없음', key: 'nickname', isImage: false, readOnly: false },
         { label: '아바타 이미지', value: profile?.avatar_url ? '업로드됨' : '기본 이미지', key: 'avatar_url', isImage: true, readOnly: false },
       ]
     },
@@ -1058,7 +1072,7 @@ const Settings = () => {
                     placeholder="이름 입력"
                   />
                 ) : (
-                  profile?.full_name || '사용자'
+                  displayName(profile)
                 )} 
                 {!isEditing && ' 선생님'}
               </h2>
@@ -1085,7 +1099,7 @@ const Settings = () => {
       {/* Settings Sections */}
       <div className="space-y-6">
         {sections.map((section) => (
-          <div key={section.id} className="surface-card shadow-ambient overflow-hidden transition-all">
+          <div key={section.id} id={section.id} className="surface-card shadow-ambient overflow-hidden transition-all">
             <div className="px-5 md:px-10 py-4 md:py-6 border-b border-surface-container bg-surface-container-low/30 flex items-center justify-between">
               <h3 className="text-lg font-bold flex items-center gap-3">
                 <section.icon size={22} className="text-primary" />

@@ -5,6 +5,7 @@ import AnnouncementBanner from './AnnouncementBanner';
 import BetaWelcomeBanner from './BetaWelcomeBanner';
 import TrialEndedModal from './TrialEndedModal';
 import WaitlistBanner from './WaitlistBanner';
+import RealNameNotice from './RealNameNotice';
 import StoryBanner from './StoryBanner';
 import FloatingTimer from '../FloatingTimer';
 import FloatingAIProgress from '../FloatingAIProgress';
@@ -23,6 +24,7 @@ const MainLayout = () => {
           isCollapsed ? 'lg:pl-[112px]' : 'lg:pl-[292px]'
         }`}
       >
+        <RealNameNotice />
         <AnnouncementBanner />
         <BetaWelcomeBanner />
         <TrialEndedModal />
