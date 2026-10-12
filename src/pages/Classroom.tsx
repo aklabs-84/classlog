@@ -983,8 +983,11 @@ const Classroom = () => {
           weekly_plan: updateClassData.weekly_plan || [],
           shared_survey_form_id: updateClassData.shared_survey_form_id || null,
           entry_mode: updateClassData.entry_mode || 'roster',
-          // 현장 명단 모드로 새로 바꾸면 수락 상태를 처음으로 되돌림
-          ...(updateClassData.entry_mode === 'live_roster' && classes.find((c: any) => c.id === updateClassData.id)?.entry_mode !== 'live_roster' ? { live_roster_accepted: false } : {}),
+          // 현장 명단 모드로 새로 바꾸거나, 수락 후 학생을 모두 지워 다시 고른 경우에도 수락 상태를 처음으로 되돌림
+          ...(updateClassData.entry_mode === 'live_roster' && (
+            classes.find((c: any) => c.id === updateClassData.id)?.entry_mode !== 'live_roster'
+            || (classInfo?.id === updateClassData.id && classInfo.live_roster_accepted && students.length === 0)
+          ) ? { live_roster_accepted: false } : {}),
           ...sharedSettings,
         })
         .eq('id', updateClassData.id);
