@@ -6,3 +6,4 @@
 
 -- 담당자용 진행 보기 (읽기 전용): manager_distribution_status(p_schools uuid[]) → {ok, quizzes[], boards[]}
 -- 퀴즈: 반별 진행 횟수·참여 기록·마지막 진행 / 보드: 틀을 받은 뒤 그 반에서 만든 조 보드 수. 담당자가 아닌 학교는 결과에서 빠진다.
+-- (2026-10-12 추가, migration manager_send_notify_teacher) 보낸 반마다 받는 강사에게 notifications 알림 1건 생성(type 'material_received', link '/teaching-tools'). 건너뛴 반은 알림 없음.

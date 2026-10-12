@@ -6,3 +6,4 @@ ALTER TABLE public.quiz_sets ADD COLUMN IF NOT EXISTS source_set_id uuid;
 -- manager_send_quiz(p_set uuid, p_classes uuid[]) RETURNS jsonb  -- SECURITY DEFINER, authenticated만 실행
 --   검사: 내 퀴즈인가 / 반마다 담당 강사 배정+내가 그 학교 담당자인가 / 최대 100개 반
 --   결과: {ok:true, sent:N, skipped:M} 또는 {error:'FORBIDDEN'|'INVALID_LIST'}
+-- (2026-10-12 추가, migration manager_send_notify_teacher) 보낸 반마다 받는 강사에게 notifications 알림 1건 생성(type 'material_received', link '/teaching-tools'). 건너뛴 반은 알림 없음.
