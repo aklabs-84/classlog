@@ -59,6 +59,7 @@ import {
   Pencil,
   Wand2,
   Cpu,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
 import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
@@ -5475,6 +5476,18 @@ const Classroom = () => {
                             {/* 원본이 업데이트됐을 때 안내 */}
                             {originUpdated && origInfo && (
                               <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                            )}
+
+                            {/* 원본으로 되돌리기: 원본 업데이트 여부와 관계없이 항상 노출 */}
+                            {myCopy && origInfo && !originUpdated && (
+                              <button
+                                onClick={() => handleApplyOrigin(item.material_id)}
+                                disabled={overrideBusy}
+                                title="내가 고친 내용을 버리고 원본 자료로 되돌려요 (직전 내용은 한 번 복구 가능)"
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-white text-on-surface-variant border border-outline-variant/30 text-xs font-black hover:bg-surface-container transition-all disabled:opacity-50"
+                              >
+                                <RotateCcw size={13} /> 원본으로 되돌리기
+                              </button>
                                 <span className="text-[11px] font-black text-amber-800 flex-1 min-w-[10rem]">원본이 업데이트됐어요</span>
                                 <button
                                   onClick={() => handleApplyOrigin(item.material_id)}
