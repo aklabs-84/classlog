@@ -2764,7 +2764,7 @@ const Classroom = () => {
                       </div>
                     );
                     return (
-                      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4">
+                      <div className="@container"><div className="columns-1 @[36rem]:columns-2 @[56rem]:columns-3 @[76rem]:columns-4 gap-4 space-y-4">
                         {filtered.map(post => {
                           const isObs = post._type === 'obs';
                           return (
@@ -2786,7 +2786,7 @@ const Classroom = () => {
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-xs font-black truncate">{post.student_name}</p>
-                                    <p className="text-xs text-on-surface-variant/80 font-bold whitespace-nowrap">
+                                    <p className="text-xs text-on-surface-variant/80 font-bold truncate">
                                       {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
                                     </p>
                                   </div>
@@ -2863,7 +2863,7 @@ const Classroom = () => {
                             </motion.div>
                           );
                         })}
-                      </div>
+                      </div></div>
                     );
                   })()}
                 </div>

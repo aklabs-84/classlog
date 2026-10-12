@@ -358,7 +358,7 @@ const ClassBoard = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-black truncate text-on-surface">{post.student_name}</p>
-                          <p className="text-[10px] text-on-surface-variant font-bold whitespace-nowrap">
+                          <p className="text-[10px] text-on-surface-variant font-bold truncate">
                             {post.week_number ? `${post.week_number}주차 · ` : ''}
                             {new Date(post.created_at).toLocaleDateString('ko-KR')}
                           </p>

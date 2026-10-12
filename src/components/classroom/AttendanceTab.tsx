@@ -530,63 +530,85 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           </button>
         </div>
 
-        {/* ── 오늘 수업 시작/종료 체크 ── */}
+        {/* ── 오늘 수업 시작/종료 체크 (지금 필요한 버튼 하나만 보임) ── */}
         {isToday && !showOnlyAttended && (
-          <div className="flex items-center gap-3 flex-wrap justify-center">
-            {!isStartedToday && weeklyPlan.length > 0 && (
-              <select
-                value={selectedStartWeek}
-                onChange={(e) => setSelectedStartWeek(e.target.value ? Number(e.target.value) : '')}
-                className="px-3 py-2 rounded-xl text-xs font-black border-2 border-blue-200 text-blue-600 bg-white cursor-pointer"
-              >
-                <option value="">오늘 진행 주차 선택...</option>
-                {weeklyPlan.map((w: any, idx: number) => (
-                  <option key={idx} value={w.week}>{w.week}주차{w.topic ? `: ${w.topic}` : ''}</option>
-                ))}
-              </select>
+          <div className="flex flex-col items-center gap-3">
+            {/* 현재 상태 표시 */}
+            {isEndedToday ? (
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black bg-rose-50 text-rose-600 border-2 border-rose-200">
+                <CheckCircle2 size={18} /> 오늘 수업이 종료되었습니다
+              </div>
+            ) : isStartedToday ? (
+              <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl text-sm font-black bg-emerald-50 text-emerald-700 border-2 border-emerald-300">
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                </span>
+                수업 진행 중{activeWeek ? ` · ${activeWeek}주차` : ''}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black bg-surface-container text-on-surface-variant border-2 border-surface-container-high">
+                <Clock size={18} /> 수업 시작 전
+              </div>
             )}
-            {isStartedToday && activeWeek && (
-              <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-blue-50 text-blue-600 border-2 border-blue-200">
-                {activeWeek}주차 진행 중
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={toggleSessionStart}
-              disabled={sessionSaving || (!isStartedToday && weeklyPlan.length > 0 && !selectedStartWeek)}
-              title={!isStartedToday && weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 주차를 선택해주세요' : undefined}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                isStartedToday
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 hover:border-blue-400'
-                  : 'bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700'
-              }`}
-            >
-              {isStartedToday ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-              오늘 수업 시작
-            </button>
-            <button
-              type="button"
-              onClick={toggleSessionEnd}
-              disabled={sessionSaving || !isStartedToday}
-              title={!isStartedToday ? '먼저 수업 시작을 체크해주세요' : undefined}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                isEndedToday
-                  ? 'bg-rose-50 text-rose-500 border-rose-200 hover:border-rose-400'
+
+            <div className="flex items-center gap-3 flex-wrap justify-center">
+              {!isStartedToday && weeklyPlan.length > 0 && (
+                <select
+                  value={selectedStartWeek}
+                  onChange={(e) => setSelectedStartWeek(e.target.value ? Number(e.target.value) : '')}
+                  className="px-3 py-2 rounded-xl text-xs font-black border-2 border-blue-200 text-blue-600 bg-white cursor-pointer"
+                >
+                  <option value="">오늘 진행 주차 선택...</option>
+                  {weeklyPlan.map((w: any, idx: number) => (
+                    <option key={idx} value={w.week}>{w.week}주차{w.topic ? `: ${w.topic}` : ''}</option>
+                  ))}
+                </select>
+              )}
+              {!isStartedToday && (
+                <button
+                  type="button"
+                  onClick={toggleSessionStart}
+                  disabled={sessionSaving || (weeklyPlan.length > 0 && !selectedStartWeek)}
+                  title={weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 주차를 선택해주세요' : undefined}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black border-2 bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Clock size={16} /> 오늘 수업 시작
+                </button>
+              )}
+              {isStartedToday && !isEndedToday && (
+                <button
+                  type="button"
+                  onClick={toggleSessionEnd}
+                  disabled={sessionSaving}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black border-2 bg-rose-600 text-white border-rose-600 shadow-sm hover:bg-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <XCircle size={16} /> 오늘 수업 종료
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <span className="text-[11px] font-bold text-on-surface-variant/50">
+                {isEndedToday
+                  ? '오늘 수업이 종료되어 쉬는시간·수업종료 알람이 더 이상 울리지 않습니다.'
                   : isStartedToday
-                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm hover:bg-rose-700'
-                  : 'bg-white text-rose-500 border-rose-200'
-              }`}
-            >
-              {isEndedToday ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-              오늘 수업 종료
-            </button>
-            <span className="text-[11px] font-bold text-on-surface-variant/50">
-              {isEndedToday
-                ? '오늘 수업이 종료되어 쉬는시간·수업종료 알람이 더 이상 울리지 않습니다.'
-                : isStartedToday
-                ? '수업 진행 중 — 자동 로그아웃이 해제되고 쉬는시간·수업종료 알람이 작동합니다.'
-                : '수업 시작을 체크해야 쉬는시간·수업종료 알람이 작동합니다.'}
-            </span>
+                  ? '자동 로그아웃이 해제되고 쉬는시간·수업종료 알람이 작동합니다.'
+                  : '수업 시작을 체크해야 쉬는시간·수업종료 알람이 작동합니다.'}
+              </span>
+              {isStartedToday && !isEndedToday && (
+                <button type="button" onClick={toggleSessionStart} disabled={sessionSaving}
+                  className="text-[11px] font-black text-on-surface-variant/60 underline hover:text-on-surface disabled:opacity-40">
+                  시작 취소
+                </button>
+              )}
+              {isEndedToday && (
+                <button type="button" onClick={toggleSessionEnd} disabled={sessionSaving}
+                  className="text-[11px] font-black text-on-surface-variant/60 underline hover:text-on-surface disabled:opacity-40">
+                  종료 취소
+                </button>
+              )}
+            </div>
           </div>
         )}
 
