@@ -13,6 +13,7 @@ import {
   Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText, BellOff, ListTree,
 } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { TeacherNote } from './teacherOnly';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 
@@ -72,6 +73,7 @@ const CALLOUT_STYLES_DARK: Record<string, { icon: string; classes: string }> = {
 export const renderCallout = (props: any, dark: boolean) => {
   const { children, ...rest } = props;
   const type = rest['data-callout'];
+  if (type === 'teacher') return <TeacherNote>{children}</TeacherNote>;
   const style = type ? (dark ? CALLOUT_STYLES_DARK : CALLOUT_STYLES)[type] : undefined;
   if (!style) return <div {...rest}>{children}</div>;
   return (

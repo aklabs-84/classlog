@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
+import { createContext, createElement, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,6 +7,8 @@ import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, D
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
 import MaterialAttachments, { type MaterialAttachment } from './MaterialAttachments';
+import { InTeacherNoteContext, TeacherViewContext } from './teacherOnly';
+import { normalizeViewerStyle, viewerStyleInfo } from './materialSkins';
 
 // 학생용 수업 자료 "한 페이지" 뷰어 — 본문 + 오른쪽 목차(접고 펼치기) + 이 차시에 등록된 일반 자료를
 // 한 화면에서 이어서 볼 수 있게 한다. 목차는 실제 렌더된 화면의 h1/h2에서 뽑아 토글·HTML 제목이
@@ -54,6 +56,10 @@ interface Props {
   teacherTools?: boolean;
   /** 에디터 미리보기용 — 입력은 써볼 수 있지만 저장되지 않으므로 "저장됨" 표시를 숨긴다 */
   previewOnly?: boolean;
+  /** 보기 모양(default | mission | storybook | note | challenge). 자료마다 강사가 고른다 */
+  viewerStyle?: string | null;
+  /** 단계 완료 표시를 이 기기에 저장할 때 쓰는 키(보통 자료 id). 없으면 저장하지 않는다 */
+  progressKey?: string;
   onClose: () => void;
 }
 
@@ -161,9 +167,10 @@ const posKey = (node: any) => {
 const buildAnswerComponents = (base: any) => {
   const wrap = (tag: 'p' | 'li' | 'td', extra?: (props: any, ctx: AnswerCtx, key: string) => any) => (props: any) => {
     const ctx = useContext(AnswerContext);
+    const inNote = useContext(InTeacherNoteContext);
     const key = posKey(props.node);
     const Base = base?.[tag] ?? tag;
-    if (!ctx || !key) return createElement(Base, props);
+    if (!ctx || !key || inNote) return createElement(Base, props);
     const next = extra ? extra(props, ctx, key) : props;
     return createElement(Base, next);
   };
@@ -177,9 +184,10 @@ const buildAnswerComponents = (base: any) => {
       : withTokens('td')(props, _ctx, key));
   const LiInner = (props: any) => {
     const ctx = useContext(AnswerContext);
+    const inNote = useContext(InTeacherNoteContext);
     const key = posKey(props.node);
     const BaseLi = base?.li ?? 'li';
-    if (!ctx || !key) return createElement(BaseLi, props);
+    if (!ctx || !key || inNote) return createElement(BaseLi, props);
     const children = renderInteractive(props.children, `li${key}`);
     // 기본 li는 className을 무시하므로 체크박스 항목만 글머리표 없이 직접 그린다
     if (/task-list-item/.test(props.className || '')) {
@@ -195,7 +203,8 @@ const buildAnswerComponents = (base: any) => {
   const Input = (props: any) => {
     const ctx = useContext(AnswerContext);
     const line = useContext(LineContext);
-    if (props.type === 'checkbox' && ctx && line) return <AnswerCheckbox fieldKey={`${line}:gfm`} />;
+    const inNote = useContext(InTeacherNoteContext);
+    if (props.type === 'checkbox' && ctx && line && !inNote) return <AnswerCheckbox fieldKey={`${line}:gfm`} />;
     const { node: _node, ...rest } = props;
     return <input {...rest} />;
   };
@@ -230,10 +239,59 @@ const readTocPref = (): boolean => {
   try { return localStorage.getItem(TOC_PREF_KEY) !== '0'; } catch { return true; }
 };
 
+// ── 보기 모양용 글 규칙 ─────────────────────────────────────────
+// 제목 맨 앞 이모지·이모지로 시작하는 목록·제목 끝 "⏱8분"을 알아보고 모양에 맞게 꾸민다(규칙이 없으면 그대로 둔다)
+const EMOJI_HEAD = /^\s*((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\u200D|\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s*/u;
+const MIN_TAIL = /\s*⏱\s*(\d+\s*분)\s*$/;
+
+const firstText = (children: ReactNode): string | null => {
+  const arr = Children.toArray(children);
+  return typeof arr[0] === 'string' ? (arr[0] as string) : null;
+};
+
+const withSkinComponents = (base: any) => ({
+  ...base,
+  h1: (props: any) => {
+    const t = firstText(props.children);
+    const m = t ? EMOJI_HEAD.exec(t) : null;
+    const H1 = base.h1;
+    const rest = m ? [t!.slice(m[0].length), ...Children.toArray(props.children).slice(1)] : props.children;
+    const h1 = H1 ? <H1 {...props}>{rest}</H1> : <h1>{rest}</h1>;
+    return m ? <><span className="mv-emoji" aria-hidden="true">{m[1]}</span>{h1}</> : h1;
+  },
+  h2: (props: any) => {
+    const kids = Children.toArray(props.children);
+    const last = kids[kids.length - 1];
+    const m = typeof last === 'string' ? MIN_TAIL.exec(last) : null;
+    const H2 = base.h2;
+    // 시간은 글자가 아니라 ::after로 그려 목차 글자에 섞이지 않게 한다
+    const children = m ? [...kids.slice(0, -1), (last as string).slice(0, m.index), <span key="mv-min" className="mv-min" data-min={`⏱ ${m[1].replace(/\s+/g, '')}`} />] : props.children;
+    return H2 ? <H2 {...props}>{children}</H2> : <h2>{children}</h2>;
+  },
+  ul: (props: any) => {
+    const UL = base.ul;
+    const items = Children.toArray(props.children).filter(isValidElement) as any[];
+    const allEmoji = items.length > 0 && items.every(li => { const t = firstText(li.props.children); return !!t && EMOJI_HEAD.test(t); });
+    if (!allEmoji) return UL ? <UL {...props} /> : <ul {...props} />;
+    return (
+      <ul className="mv-chips">
+        {items.map((li, i) => {
+          const kids = Children.toArray(li.props.children);
+          const m = EMOJI_HEAD.exec(kids[0] as string)!;
+          return <li key={i}><b className="mv-chip-e">{m[1]}</b><span>{(kids[0] as string).slice(m[0].length)}{kids.slice(1)}</span></li>;
+        })}
+      </ul>
+    );
+  },
+});
+
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, previewOnly = false, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
+  const skin = normalizeViewerStyle(viewerStyle);
+  const skinInfo = viewerStyleInfo(skin);
+  const skinned = skin !== 'default';
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -249,6 +307,25 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   const [stepLabels, setStepLabels] = useState<string[]>([]);
 
   const hasRelated = relatedMaterials.length > 0 || extraItems.length > 0;
+
+  // 단계 완료 표시 — 이 기기(localStorage)에만 저장한다
+  const doneKey = progressKey ? `mv-done:${progressKey}` : '';
+  const [done, setDone] = useState<number[]>([]);
+  useEffect(() => {
+    if (!doneKey) { setDone([]); return; }
+    try {
+      const raw = localStorage.getItem(doneKey);
+      const arr = raw ? JSON.parse(raw) : [];
+      setDone(Array.isArray(arr) ? arr.filter(n => Number.isInteger(n)) : []);
+    } catch { setDone([]); }
+  }, [doneKey]);
+  const toggleDone = (n: number) => {
+    setDone(prev => {
+      const next = prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n];
+      if (doneKey) { try { localStorage.setItem(doneKey, JSON.stringify(next)); } catch { /* 무시 */ } }
+      return next;
+    });
+  };
 
   // ── 학생 입력칸 답변 ─────────────────────────────────────────────
   // 값은 ref에 두고 각 입력칸이 자기 상태로 들고 있어, 타이핑할 때 본문 전체가 다시 그려지지 않는다.
@@ -329,14 +406,30 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
 
   const components = useMemo(() => (answers ? buildAnswerComponents(mdComponents) : mdComponents), [!!answers, mdComponents]);
   // 상태 표시(저장 중/저장됨)로 다시 그려져도 마크다운은 다시 파싱하지 않도록 엘리먼트를 고정
-  const markdown = useMemo(
-    () => (
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
-        {content}
-      </ReactMarkdown>
-    ),
-    [content, components]
-  );
+  const skinComponents = useMemo(() => (skinned ? withSkinComponents(components) : components), [skinned, components]);
+  // 보기 모양이 있고 글이 `# 제목`으로 시작하면, 첫 `##` 앞까지를 "첫 화면(히어로)" 상자로 묶는다.
+  // 뒷부분 앞에 같은 수의 빈 줄을 채워 줄 번호가 그대로라 체크박스 답변 키가 밀리지 않는다.
+  const startRef = useRef<() => void>(() => {});
+  const markdown = useMemo(() => {
+    const md = (text: string) => (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={skinComponents}>{text}</ReactMarkdown>
+    );
+    const m = skinned && /^\s*# /.test(content) ? /^##[ \t]/m.exec(content) : null;
+    if (!m) return md(content);
+    const head = content.slice(0, m.index);
+    const tail = '\n'.repeat((head.match(/\n/g) || []).length) + content.slice(m.index);
+    return (
+      <>
+        <div className="mv-hero">
+          {md(head)}
+          {skinInfo.startLabel && (
+            <button type="button" className="mv-go" onClick={() => startRef.current()}>{skinInfo.startLabel}</button>
+          )}
+        </div>
+        {md(tail)}
+      </>
+    );
+  }, [content, skinComponents, skinned, skinInfo.startLabel]);
 
   // 본문이 그려진 뒤 입력칸을 문서 순서대로 세어 순번 키를 만들고, 입력칸들이 값을 다시 읽게 한다
   useLayoutEffect(() => {
@@ -376,7 +469,8 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
     setActiveId(items[0]?.id || '');
 
     // 단계 묶음 — 제목(h1/h2)마다 새 단계를 시작하되, 아직 본문이 없는 `#` 제목이나 첫 제목 앞 안내문은 다음 단계에 합친다
-    const isHead = (el: Element) => el.tagName === 'H1' || el.tagName === 'H2';
+    const isHero = (el: Element) => el.classList.contains('mv-hero');
+    const isHead = (el: Element) => el.tagName === 'H1' || el.tagName === 'H2' || isHero(el);
     const next: HTMLElement[][] = [];
     let cur: HTMLElement[] = [];
     let hasHead = false, hasH2 = false, bodyAfterHead = false;
@@ -390,6 +484,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
         }
         hasHead = true;
         if (el.tagName === 'H2') hasH2 = true;
+        if (isHero(el)) bodyAfterHead = true;
       } else if (hasHead) {
         bodyAfterHead = true;
       }
@@ -415,6 +510,18 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
     setStep(0);
   }, [content]);
 
+  // 클리어 대상 = `##` 제목이 있는 단계(첫 화면 안내는 제외). `##`가 하나도 없으면 모든 단계
+  const missions = useMemo(() => {
+    const hasH2 = (g: HTMLElement[]) => g.some(el => el.tagName === 'H2' || !!el.querySelector?.('h2'));
+    const idx = groups.map((g, i) => (hasH2(g) ? i : -1)).filter(i => i >= 0);
+    return idx.length > 0 ? idx : groups.map((_, i) => i);
+  }, [groups]);
+  const doneCount = done.filter(n => missions.includes(n)).length;
+  startRef.current = () => {
+    const n = missions[0] ?? 0;
+    if (stepping) goStep(n);
+    else groups[n]?.[0]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const canStep = groups.length >= 2;
   const stepCount = groups.length + (hasRelated ? 1 : 0);
   const stepping = stepMode && canStep;
@@ -509,8 +616,8 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   );
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-white flex flex-col h-[100dvh]">
-      <div className="flex items-center gap-3 px-4 sm:px-5 py-3 bg-slate-800 shrink-0">
+    <div className={`fixed inset-0 z-[9999] bg-white flex flex-col h-[100dvh] ${skinned ? `mv-skin-${skin}` : ''}`}>
+      <div className="mv-header flex items-center gap-3 px-4 sm:px-5 py-3 bg-slate-800 shrink-0">
         <button
           onClick={onClose}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-slate-800 font-black text-base hover:bg-slate-100 active:scale-95 transition-all shadow shrink-0"
@@ -564,13 +671,22 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
         )}
       </div>
 
+      {skinned && missions.length > 0 && (
+        <div className="mv-progress" aria-label="진행 상황">
+          <div className="mv-bar"><i style={{ width: `${Math.round((doneCount / missions.length) * 100)}%` }} /></div>
+          <span className="mv-meter">{doneCount} / {missions.length} {skinInfo.unit}</span>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 flex relative">
-        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-w-0 overflow-y-auto overscroll-contain">
+        <div ref={scrollRef} onScroll={handleScroll} className="mv-scroll flex-1 min-w-0 overflow-y-auto overscroll-contain">
           <div className="max-w-3xl mx-auto px-5 sm:px-8 py-8 sm:py-12">
-            <div ref={articleRef}>
-              <AnswerContext.Provider value={answerCtx}>
-                {markdown}
-              </AnswerContext.Provider>
+            <div ref={articleRef} className="mv-article">
+              <TeacherViewContext.Provider value={teacherTools}>
+                <AnswerContext.Provider value={answerCtx}>
+                  {markdown}
+                </AnswerContext.Provider>
+              </TeacherViewContext.Provider>
             </div>
 
             <MaterialAttachments attachments={attachments} />
@@ -637,8 +753,25 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
                 </div>
               </section>
             )}
+            {skinned && !stepping && missions.length > 0 && (
+              <div className="mv-board">
+                <h3>{skinInfo.unit === '쪽 읽음' ? '읽은 쪽 표시' : '진행 보드'}</h3>
+                {missions.map(i => (
+                  <button key={i} type="button" className={`mv-clear ${done.includes(i) ? 'is-done' : ''}`} onClick={() => toggleDone(i)} aria-pressed={done.includes(i)}>
+                    {done.includes(i) ? skinInfo.doneLabel : skinInfo.clearLabel} · {stepLabels[i] ?? `${i + 1}단계`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {skinned && stepping && missions.includes(step) && (
+              <div className="mt-8">
+                <button type="button" className={`mv-clear ${done.includes(step) ? 'is-done' : ''}`} onClick={() => toggleDone(step)} aria-pressed={done.includes(step)}>
+                  {done.includes(step) ? skinInfo.doneLabel : skinInfo.clearLabel}
+                </button>
+              </div>
+            )}
             {stepping && (
-              <div className="mt-10 pt-6 border-t-2 border-surface-container flex items-stretch gap-3">
+              <div className="mv-stepnav mt-10 pt-6 border-t-2 border-surface-container flex items-stretch gap-3">
                 <button
                   onClick={() => goStep(step - 1)}
                   disabled={step === 0}
@@ -664,7 +797,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
 
         {/* 데스크톱: 오른쪽 목차 */}
         {tocOpen && entries.length > 0 && (
-          <aside className="hidden lg:block w-80 shrink-0 border-l border-surface-container bg-surface-container-lowest overflow-y-auto overscroll-contain p-5">
+          <aside className="mv-toc hidden lg:block w-80 shrink-0 border-l border-surface-container bg-surface-container-lowest overflow-y-auto overscroll-contain p-5">
             <p className="text-sm font-black text-on-surface-variant/60 tracking-wide mb-3 px-1">목차</p>
             {tocList}
           </aside>
@@ -672,7 +805,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
 
         {/* 모바일/태블릿: 상단 버튼으로 여는 목차 패널 */}
         {tocOpen && entries.length > 0 && (
-          <div className="lg:hidden absolute inset-x-3 top-3 z-10 max-h-[70%] overflow-y-auto overscroll-contain rounded-2xl bg-white border border-surface-container shadow-2xl p-4">
+          <div className="mv-toc lg:hidden absolute inset-x-3 top-3 z-10 max-h-[70%] overflow-y-auto overscroll-contain rounded-2xl bg-white border border-surface-container shadow-2xl p-4">
             <p className="text-sm font-black text-on-surface-variant/60 tracking-wide mb-2 px-1">목차</p>
             {tocList}
           </div>

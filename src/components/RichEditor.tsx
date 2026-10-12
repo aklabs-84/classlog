@@ -41,6 +41,7 @@ const SLASH_COMMANDS = [
   { icon: '—',  title: '구분선',    description: '슬라이드 구분선',   command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
   { icon: '▶',  title: '토글 블록', description: '접을 수 있는 내용', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'details', attrs: { summary: '토글 제목' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '💡', title: '콜아웃',    description: '강조 박스 (정보/주의/팁/중요)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'info' }, content: [{ type: 'paragraph' }] }).run() },
+  { icon: '🧑‍🏫', title: '강사용 쪽지', description: '강사 화면에서만 보이는 메모 (학생에게는 숨김)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'teacher' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '⊞',  title: '표',       description: '표 삽입 (3×3)',     command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { icon: '▶',  title: '영상 임베드', description: 'YouTube 등 영상 삽입', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).run(); (window as any).__openEmbedDialog?.(); } },
   // 학생 화면에서 입력칸으로 바뀌는 요소 — 표의 빈 칸 / 문장 앞 "[ ]" / 밑줄 3개 이상
@@ -634,8 +635,10 @@ const CALLOUT_TYPES: Record<string, { icon: string; label: string; classes: stri
   warning: { icon: '⚠️', label: '주의', classes: 'bg-amber-50 border-amber-300' },
   tip: { icon: '✅', label: '팁', classes: 'bg-emerald-50 border-emerald-300' },
   important: { icon: '❗', label: '중요', classes: 'bg-red-50 border-red-300' },
+  // 강사 화면에서만 보이고 학생 화면·발표·인쇄에서는 사라진다 (viewer: teacherOnly.tsx)
+  teacher: { icon: '🧑‍🏫', label: '강사용 쪽지 (학생에게는 안 보임)', classes: 'bg-violet-50 border-violet-300 border-dashed' },
 };
-const CALLOUT_ORDER = ['info', 'warning', 'tip', 'important'];
+const CALLOUT_ORDER = ['info', 'warning', 'tip', 'important', 'teacher'];
 
 const CalloutView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const type = CALLOUT_TYPES[node.attrs.type] ? node.attrs.type : 'info';

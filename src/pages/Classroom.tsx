@@ -397,8 +397,8 @@ const Classroom = () => {
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
-  const [answersMaterial, setAnswersMaterial] = useState<{ id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[] } | null>(null);
-  const [previewMaterial, setPreviewMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
+  const [answersMaterial, setAnswersMaterial] = useState<{ id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[]; viewer_style?: string | null } | null>(null);
+  const [previewMaterial, setPreviewMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[]; viewer_style?: string | null } | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
@@ -1798,11 +1798,11 @@ const Classroom = () => {
       const planMaterialIds = [...new Set(effectivePlan.map((p: any) => p.material_id).filter(Boolean))] as string[];
 
       const [matsRes, generalRes, toolsRes, planMatsRes] = await Promise.all([
-        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at').eq('class_id', sourceId).order('week_number', { ascending: true }),
+        supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at, viewer_style').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
         supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
         planMaterialIds.length > 0
-          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at').in('id', planMaterialIds)
+          ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at, viewer_style').in('id', planMaterialIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
       const mergedMaterials = [...(matsRes.data || [])];
@@ -2386,6 +2386,8 @@ const Classroom = () => {
           attachments={previewMaterial.attachments}
           mdComponents={materialMdComponents}
           answers={PREVIEW_ANSWERS}
+          viewerStyle={previewMaterial.viewer_style}
+          progressKey="preview"
           relatedMaterials={previewMaterial.weekNumber != null
             ? (generalMaterials as any[]).filter(g => (g.week_numbers && g.week_numbers.length > 0) ? g.week_numbers.includes(previewMaterial.weekNumber) : g.week_number === previewMaterial.weekNumber)
             : []}
@@ -5422,7 +5424,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
+                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5469,7 +5471,7 @@ const Classroom = () => {
                               </button>
 
                               {isMaterial && matInfo && (<button
-                                onClick={() => setAnswersMaterial({ id: matInfo.id, class_id: matInfo.class_id ?? activeClassId ?? null, title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls })}
+                                onClick={() => setAnswersMaterial({ id: matInfo.id, class_id: matInfo.class_id ?? activeClassId ?? null, title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style })}
                                 title="학생 답변 보기"
                                 className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
                               >
@@ -5490,7 +5492,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments });
+                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5614,7 +5616,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setPreviewMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments })}
+                              onClick={() => setPreviewMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments, viewer_style: mat.viewer_style })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
@@ -5633,7 +5635,7 @@ const Classroom = () => {
                               </div>
                             </button>
                             <button
-                                onClick={() => setAnswersMaterial({ id: mat.id, class_id: mat.class_id ?? activeClassId ?? null, title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls })}
+                                onClick={() => setAnswersMaterial({ id: mat.id, class_id: mat.class_id ?? activeClassId ?? null, title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, viewer_style: mat.viewer_style })}
                                 title="학생 답변 보기"
                                 className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
                               >

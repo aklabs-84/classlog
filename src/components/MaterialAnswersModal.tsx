@@ -9,7 +9,7 @@ import type { ActivityLink } from './ActivityLinksButton';
 // 학생별로 골라, 학생이 보던 그 화면 그대로(읽기 전용) 확인한다.
 
 interface Props {
-  material: { id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[] };
+  material: { id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[]; viewer_style?: string | null };
   mdComponents: any;
   onClose: () => void;
 }
@@ -163,6 +163,8 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
         links={material.activity_urls}
         mdComponents={mdComponents}
         answers={{ load: async () => byStudent[selected.id]?.values ?? {} }}
+        viewerStyle={material.viewer_style}
+        progressKey={`answers-${material.id}`}
         onClose={() => setShowOriginal(false)}
       />
     );

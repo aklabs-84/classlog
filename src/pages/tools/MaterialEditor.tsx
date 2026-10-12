@@ -48,6 +48,7 @@ import StudentScreenTour, { type StudentScreenStep } from '../../components/stud
 import { mdComponents } from '../../components/materialMdComponents';
 import RichEditor from '../../components/RichEditor';
 import StudentMaterialPage from '../../components/StudentMaterialPage';
+import { VIEWER_STYLES, normalizeViewerStyle, viewerStyleInfo, type ViewerStyle } from '../../components/materialSkins';
 import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal from '../../components/PresentationModal';
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
@@ -110,6 +111,7 @@ interface Material {
   cover_image_url?: string | null;
   cover_source?: 'template' | 'upload' | null;
   folder_id?: string | null;
+  viewer_style?: string | null;
 }
 
 interface MaterialFolder {
@@ -491,12 +493,14 @@ const PreviewFullscreenModal = ({
   content,
   links,
   attachments,
+  viewerStyle,
   onClose,
 }: {
   title: string;
   content: string;
   links?: ActivityLink[];
   attachments?: MaterialAttachment[];
+  viewerStyle?: ViewerStyle;
   onClose: () => void;
 }) => {
   useEffect(() => {
@@ -513,6 +517,8 @@ const PreviewFullscreenModal = ({
       attachments={attachments}
       mdComponents={mdComponents}
       answers={PREVIEW_ANSWERS}
+      viewerStyle={viewerStyle}
+      progressKey="preview"
       teacherTools
       previewOnly
       onClose={onClose}
@@ -1280,6 +1286,7 @@ const MaterialEditor = () => {
   const [title, setTitle] = useState('');
   const [weekNumber, setWeekNumber] = useState(1);
   const [content, setContent] = useState('');
+  const [viewerStyle, setViewerStyle] = useState<ViewerStyle>('default');
   const [aiIdeaModalOpen, setAiIdeaModalOpen] = useState(false);
   const [aiIdeaText, setAiIdeaText] = useState('');
   const [aiWizardOpen, setAiWizardOpen] = useState(false);
@@ -1353,7 +1360,7 @@ const MaterialEditor = () => {
   const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
-  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
+  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[]; viewerStyle?: ViewerStyle } | null>(null);
   const [answersMaterial, setAnswersMaterial] = useState<Material | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
@@ -1514,7 +1521,7 @@ const MaterialEditor = () => {
 
   const resetForm = () => {
     autoSavedRef.current = false;
-    setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
+    setTitle(''); setWeekNumber(1); setContent(''); setViewerStyle('default'); setIsPublished(false);
     setEditingMaterial(null); setAiVersions([]);
     setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
     setActivityLinks([]); setNewLinkUrl(''); setAttachments([]);
@@ -1635,6 +1642,7 @@ const MaterialEditor = () => {
     setTitle(material.title || '');
     setWeekNumber(material.week_number ?? 1);
     setContent(material.content || '');
+    setViewerStyle(normalizeViewerStyle(material.viewer_style));
     setIsPublished(material.is_published || false);
     setAiVersions(material.ai_versions ?? []);
     setCoverImageUrl(material.cover_image_url ?? null);
@@ -1767,6 +1775,7 @@ const MaterialEditor = () => {
         week_number: weekNumber,
         title: title.trim(),
         content: (content ?? '').trim(),
+        viewer_style: viewerStyle,
         is_published: libraryMode ? false : isPublished,
         ai_versions: aiVersions,
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
@@ -1816,6 +1825,7 @@ const MaterialEditor = () => {
         week_number: weekNumber,
         title: title.trim(),
         content: (content ?? '').trim(),
+        viewer_style: viewerStyle,
         is_published: libraryMode ? false : isPublished,
         ai_versions: aiVersions,
         cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
@@ -1889,7 +1899,7 @@ const MaterialEditor = () => {
     autosaveTimerRef.current = timer;
     return () => { clearTimeout(timer); if (autosaveTimerRef.current === timer) autosaveTimerRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks, attachments]);
+  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks, attachments, viewerStyle]);
 
   // ── 공통 자료함 원본에 동기화 ─────────────────────────────────────────────
   // 공통 자료함에서 가져와(연결해) 만든 클래스 사본을 이 클래스 맥락에 맞게 편집한 뒤,
@@ -2411,6 +2421,7 @@ const MaterialEditor = () => {
         content={fullscreenPreview.content}
         links={fullscreenPreview.links}
         attachments={fullscreenPreview.attachments}
+        viewerStyle={fullscreenPreview.viewerStyle}
         onClose={() => setFullscreenPreview(null)}
       />
     )}
@@ -2662,7 +2673,7 @@ const MaterialEditor = () => {
                 {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
                 <button
                   data-tour="me-preview"
-                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments })}
+                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments, viewerStyle })}
                   title="학생 화면처럼 전체화면으로 미리보기"
                   className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:text-primary hover:bg-white transition-all shrink-0"
                 >
@@ -2887,6 +2898,18 @@ const MaterialEditor = () => {
               placeholder="자료 제목을 입력하세요 *"
               className="flex-1 min-w-[180px] px-4 py-2 bg-white rounded-xl border border-surface-container font-black text-sm focus:outline-none focus:border-primary/40"
             />
+            <label className="flex items-center gap-1.5 shrink-0" title={viewerStyleInfo(viewerStyle).desc}>
+              <span className="text-xs font-black text-on-surface-variant">보기 모양</span>
+              <select
+                value={viewerStyle}
+                onChange={e => setViewerStyle(normalizeViewerStyle(e.target.value))}
+                data-tour="me-viewer-style"
+                className="px-2.5 py-2 bg-white rounded-xl border border-surface-container font-black text-xs focus:outline-none focus:border-primary/40"
+              >
+                {VIEWER_STYLES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+              </select>
+              <span className="hidden md:inline text-[11px] text-on-surface-variant">{viewerStyleInfo(viewerStyle).grade}</span>
+            </label>
           </div>
 
           {/* 연결할 활동 앱 URL — 학생 화면에 "체험해보기" 버튼으로 표시됨. 여러 개 연결 가능. 관리자 전용 베타 */}
