@@ -8,6 +8,8 @@ import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyT
 import ProjectTeacherStatus from '../components/classroom/ProjectTeacherStatus';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
+import SendQuizTab from '../components/classroom/SendQuizTab';
+import SendBoardTab from '../components/classroom/SendBoardTab';
 import {
   ArrowLeft,
   School,
@@ -67,6 +69,8 @@ const PAGE_TABS = [
   { key: 'teachers', label: '강사 관리' },
   { key: 'docs', label: '강사 제출 서류' },
   { key: 'materials', label: '수업 자료' },
+  { key: 'quiz', label: '공통 퀴즈' },
+  { key: 'board', label: '공통 보드' },
   { key: 'plan', label: '주차별 계획' },
   { key: 'survey', label: '설문' },
   { key: 'summary', label: '결과 요약' },
@@ -96,6 +100,22 @@ const TAB_GUIDES: Record<string, { title: string; steps: string[] }> = {
       '[서류 추가]로 이 사업에 필요한 서류를 만드세요. 파일 올리기·동의 체크·동의 서명·계약서 서명 중에서 고를 수 있습니다.',
       '강사는 배정받은 반 화면 맨 위의 "시작 안내"에서 이 서류들을 보고 바로 제출합니다.',
       '아래 제출 현황은 실시간으로 바뀝니다. 동그라미를 눌러 파일을 열어 보고 "확인 완료"나 "다시 내 주세요"를 정하세요.',
+    ],
+  },
+  quiz: {
+    title: '내가 만든 퀴즈를 여러 반에 한꺼번에 보내는 곳입니다',
+    steps: [
+      '먼저 수업 도구의 퀴즈에서 보낼 퀴즈를 만들어 두세요.',
+      '보낼 퀴즈를 고르고, 받을 반(학교 전체도 가능)에 체크하세요.',
+      '[보내기]를 누르면 각 반 담당 강사의 퀴즈 목록에 복사본이 생깁니다. 점수와 진행은 반마다 따로입니다.',
+    ],
+  },
+  board: {
+    title: '내가 만든 화이트보드를 여러 반에 "보드 틀"로 보내는 곳입니다',
+    steps: [
+      '먼저 수업 도구의 화이트보드에서 활동지처럼 내용을 채운 보드를 만들어 두세요.',
+      '보낼 보드를 고르고 받을 반에 체크한 뒤 [보내기]를 누르세요.',
+      '각 반 강사가 [조별 보드 만들기]에서 이 틀을 고르면 조마다 같은 내용의 보드가 만들어집니다. 조 수는 반마다 달라도 됩니다.',
     ],
   },
   materials: {
@@ -1616,6 +1636,14 @@ const SchoolProjectSchoolsPage = () => {
 
       {activeTab === 'docs' && projectId && (
         <InstructorDocsAdminTab projectId={projectId} teacherNames={teacherNames} schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherSchools={teacherSchools} />
+      )}
+
+      {activeTab === 'quiz' && (
+        <SendQuizTab schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherNames={teacherNames} />
+      )}
+
+      {activeTab === 'board' && (
+        <SendBoardTab schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherNames={teacherNames} />
       )}
 
       {activeTab === 'materials' && projectId && (

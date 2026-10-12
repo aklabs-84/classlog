@@ -45,12 +45,22 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [useClassGroups, setUseClassGroups] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
+  const [templates, setTemplates] = useState<{ id: string; title: string }[]>([]);
+  const [templateId, setTemplateId] = useState('');
 
   useEffect(() => {
     if (!user) return;
     supabase.from('classes').select('id, name, subject, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).eq('is_archived', false).order('name')
       .then(({ data }) => setClasses(filterMyTeachingClasses(data, user.id)));
   }, [user]);
+
+  // 담당자가 보내 준 보드 틀 조회
+  useEffect(() => {
+    setTemplateId('');
+    if (!user || !selectedClassId) { setTemplates([]); return; }
+    supabase.from('whiteboards').select('id, title').eq('created_by', user.id).eq('class_id', selectedClassId).eq('is_template', true)
+      .order('created_at', { ascending: false }).then(({ data }) => setTemplates(data || []));
+  }, [user, selectedClassId]);
 
   // 클래스 선택 시 class_groups 자동 조회
   useEffect(() => {
@@ -166,6 +176,16 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
 
     await supabase.from('whiteboards').insert(boardInserts);
 
+    // 받은 보드 틀의 내용을 조별 보드마다 복사
+    if (templateId) {
+      const { data: objs } = await supabase.from('board_objects')
+        .select('type, x, y, width, height, z_index, content, style').eq('board_id', templateId);
+      if (objs && objs.length > 0) {
+        const rows = boardInserts.flatMap(b => objs.map(o => ({ ...o, board_id: b.id, created_by: user.id })));
+        await supabase.from('board_objects').insert(rows);
+      }
+    }
+
     setCreating(false);
     onCreated?.();
     onClose();
@@ -233,6 +253,17 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
             </div>
           )}
         </div>
+
+        {templates.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ color: '#9CA3AF', fontSize: 12, display: 'block', marginBottom: 6 }}>받은 보드 틀로 시작 (선택)</label>
+            <select value={templateId} onChange={e => setTemplateId(e.target.value)}
+              style={{ width: '100%', background: '#1F2937', border: '1px solid #374151', borderRadius: 8, padding: '9px 12px', color: '#fff', fontSize: 13 }}>
+              <option value="">빈 보드로 시작</option>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* 클래스 조 자동 불러오기 배너 */}
         {selectedClassId && (

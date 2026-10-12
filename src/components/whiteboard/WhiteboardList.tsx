@@ -81,6 +81,7 @@ export default function WhiteboardList() {
       .from('whiteboards')
       .select('id, title, template, group_name, updated_at, snapshot_url, class_id, is_public, archived_at')
       .eq('created_by', user.id)
+      .eq('is_template', false)
       .order('updated_at', { ascending: false });
 
     if (!data) { setLoading(false); return; }

@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../lib/auth';
+import SendQuizTab from '../components/classroom/SendQuizTab';
+import SendBoardTab from '../components/classroom/SendBoardTab';
 import { supabase } from '../lib/supabase';
 import {
   ArrowLeft,
@@ -117,6 +119,8 @@ const TABS = [
   { key: 'results', label: '결과' },
   { key: 'records', label: '기록' },
   { key: 'materials', label: '수업 자료' },
+  { key: 'quiz', label: '퀴즈 보내기' },
+  { key: 'board', label: '보드 보내기' },
   { key: 'plan', label: '주차별 계획' },
   { key: 'survey', label: '설문' },
   { key: 'summary', label: '결과 요약' },
@@ -749,6 +753,14 @@ const SchoolProjectDetailPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'quiz' && schoolId && (
+        <SendQuizTab schools={[{ id: schoolId, name: school?.name || '이 학교' }]} teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))} />
+      )}
+
+      {tab === 'board' && schoolId && (
+        <SendBoardTab schools={[{ id: schoolId, name: school?.name || '이 학교' }]} teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))} />
       )}
 
       {tab === 'docs' && projectId && schoolId && (
