@@ -983,10 +983,11 @@ const Classroom = () => {
           weekly_plan: updateClassData.weekly_plan || [],
           shared_survey_form_id: updateClassData.shared_survey_form_id || null,
           entry_mode: updateClassData.entry_mode || 'roster',
-          // 현장 명단 모드로 새로 바꾸거나, 수락 후 학생을 모두 지워 다시 고른 경우에도 수락 상태를 처음으로 되돌림
+          // 현장 명단 모드로 새로 바꾸거나, 선생님이 "입장 방식 바꾸기"/"전체 취소"로 직접 다시 연 경우에만 수락 상태를 처음으로 되돌림
+          // (일반 학급 수정 저장은 수업 중 학생 화면을 바꾸지 않도록 건드리지 않음)
           ...(updateClassData.entry_mode === 'live_roster' && (
             classes.find((c: any) => c.id === updateClassData.id)?.entry_mode !== 'live_roster'
-            || (classInfo?.id === updateClassData.id && classInfo.live_roster_accepted && students.length === 0)
+            || updateClassData._reopenLiveRoster
           ) ? { live_roster_accepted: false } : {}),
           ...sharedSettings,
         })
@@ -1029,6 +1030,9 @@ const Classroom = () => {
   const isClassClosed = (c: any) => !!c.is_closed || (!!c.end_date && c.end_date < getTodayStr());
 
   // 학급 설정(수정) 모달 열기 — ClassSelector와 종료된 학급 탭에서 공용으로 사용
+  // 입장 방식을 다시 고르기 위해 여는 경우: 저장하면 현장 입력을 처음 상태로 되돌린다
+  const handleReopenEntryMode = (c: any) => handleOpenEditClass({ ...c, _reopenLiveRoster: true });
+
   const handleOpenEditClass = async (c: any) => {
     setUpdateClassData(c);
     if (c.parent_class_id) setEditModalTab('basic');
@@ -3262,14 +3266,14 @@ const Classroom = () => {
               {activeTab === 'list' && classInfo && students.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
                   <p className="text-sm font-bold text-amber-800">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
-                  <button type="button" onClick={() => handleOpenEditClass(classInfo)} className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-amber-800 hover:bg-amber-100 transition-all">입장 방식 바꾸기</button>
+                  <button type="button" onClick={() => handleReopenEntryMode(classInfo)} className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-amber-800 hover:bg-amber-100 transition-all">입장 방식 바꾸기</button>
                 </div>
               )}
 
               {activeTab === 'list' && classInfo?.entry_mode === 'live_roster' && !classInfo.live_roster_accepted && (
                 <LiveRosterPanel
                   classId={classInfo.id}
-                  onReset={() => handleOpenEditClass(classInfo)}
+                  onReset={() => handleReopenEntryMode(classInfo)}
                   onAccepted={async () => {
                     const { data } = await supabase.from('classes').select('*').eq('id', classInfo.id).single();
                     if (data) {
