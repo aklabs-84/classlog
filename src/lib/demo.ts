@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 // 데모 체험(/demo) 전용 고정 교사 계정. 방문자가 여러 명 동시에 체험해도
 // 이 계정 하나를 공유하므로, 화면 단에서는 항상 "본인이 방금 만든 학급"만
 // 보이도록 별도로 필터링해야 한다 (api/demo-provision.ts가 발급한 class_id 기준).
@@ -19,3 +21,23 @@ export function setDemoClassId(classId: string): void {
 export function getDemoClassId(): string | null {
   return localStorage.getItem(LAST_CLASS_ID_KEY);
 }
+
+// /demo 와 같은 방식으로 체험용 학급을 만들고 체험용 선생님 계정으로 로그인한 뒤 class_id를 돌려준다.
+// (서버 함수는 기존 api/demo-provision 을 그대로 재사용 — Vercel 함수 개수 한도 때문)
+export async function provisionDemoClass(): Promise<string> {
+  const res = await fetch('/api/demo-provision', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || '체험 학급 생성에 실패했습니다.');
+
+  const { error: otpError } = await supabase.auth.verifyOtp({
+    token_hash: data.login_token_hash,
+    type: 'magiclink',
+  });
+  if (otpError) throw new Error('체험 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+
+  setDemoClassId(data.class_id);
+  return data.class_id as string;
+}
+
+// 수업 자료 에디터 체험 투어 상태 (세션 단위)
+export const EDITOR_TOUR_KEY = 'demo_editor_tour';

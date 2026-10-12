@@ -64,6 +64,7 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const SchoolIntroPage = lazy(() => import('./pages/SchoolIntroPage'));
 const PortfolioPublic = lazy(() => import('./pages/PortfolioPublic'));
 const Demo = lazy(() => import('./pages/Demo'));
+const DemoMaterialEditor = lazy(() => import('./pages/DemoMaterialEditor'));
 const StoryHub = lazy(() => import('./pages/StoryHub'));
 const SchoolProjectSchoolsPage = lazy(() => import('./pages/SchoolProjectSchoolsPage'));
 const SchoolProjectNewPage = lazy(() => import('./pages/SchoolProjectNewPage'));
@@ -73,6 +74,7 @@ const Community = lazy(() => import('./pages/Community'));
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
+import MaterialEditorTour from './components/MaterialEditorTour';
 
 // 선생님 전용 라우트 가드
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -244,6 +246,7 @@ function App() {
           <FloatingClassAlarm />
           <DemoTourOverlay />
           <DemoSpotlightTour />
+          <MaterialEditorTour />
           <div className="relative z-10">
             <Suspense fallback={<PageLoading />}>
             <Routes>
@@ -273,6 +276,7 @@ function App() {
               <Route path="/school-intro" element={<SchoolIntroPage />} />
               <Route path="/portfolio/:slug" element={<PortfolioPublic />} />
               <Route path="/demo" element={<Demo />} />
+              <Route path="/demo/material-editor" element={<DemoMaterialEditor />} />
               <Route path="/waitlist" element={<Waitlist />} />
               <Route path="/training-request" element={<TrainingRequest />} />
               <Route path="/instructor-application" element={<InstructorApplication />} />

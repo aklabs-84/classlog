@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
+import { isDemoTeacher, getDemoClassId } from '../../lib/demo';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText, proofreadMaterialContent, type ProofreadIssue } from '../../lib/gemini';
 import { LessonPlanModal } from '../../components/LessonPlanModal';
 import AiServiceLinkPicker from '../../components/AiServiceLinkPicker';
@@ -1294,6 +1295,18 @@ const MaterialEditor = () => {
       .order('created_at', { ascending: false });
     const merged: any[] = [...(data ?? [])];
     (assigned ?? []).forEach(c => { if (!merged.some(x => x.id === c.id)) merged.push({ ...c, _assignedOnly: true }); });
+    // 체험 계정은 여러 방문자가 함께 쓰므로 내 체험 학급만 보여주고 바로 선택해 둔다
+    if (isDemoTeacher(user)) {
+      const demoId = getDemoClassId();
+      const mine = merged.filter(c => c.id === demoId);
+      if (mine.length > 0) {
+        setClasses(mine);
+        setSelectedClass(mine[0]);
+        fetchMaterials(mine[0].id);
+        fetchFolders(mine[0].id);
+      }
+      return;
+    }
     if (merged.length > 0) setClasses(merged);
   };
 
@@ -1471,7 +1484,7 @@ const MaterialEditor = () => {
   }, []);
 
   const handleNew = async () => {
-    if (!checkIsBasicOrAbove(profile)) {
+    if (!isDemoTeacher(user) && !checkIsBasicOrAbove(profile)) {
       const { count } = await supabase
         .from('class_materials')
         .select('id', { count: 'exact', head: true })
@@ -2442,6 +2455,7 @@ const MaterialEditor = () => {
         {/* 배정받은 프로젝트 반은 "내 버전" 수정만 가능 — 새 자료는 만들 수 없다(권한상 저장도 거부됨) */}
         {(selectedClass || libraryMode) && !isEditorOpen && !(!libraryMode && (selectedClass?._assignedOnly || (selectedClass?.parent_class_id && selectedClass?.teacher_id && selectedClass.teacher_id !== user?.id))) && (
           <button
+            data-tour="me-new-btn"
             onClick={handleNew}
             className="flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-2xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
           >
@@ -2450,7 +2464,7 @@ const MaterialEditor = () => {
         )}
         {(selectedClass || libraryMode) && !isEditorOpen && (
           <button
-            onClick={() => setAiIdeaModalOpen(true)}
+            onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setAiIdeaModalOpen(true))}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 border-primary/20 bg-primary-container/40 text-primary font-black text-sm hover:bg-primary-container/70 transition-all"
           >
             <Wand2 size={15} /> AI와 아이디어로 만들기
@@ -2523,6 +2537,7 @@ const MaterialEditor = () => {
               <div className="flex items-center gap-2 ml-auto shrink-0">
                 {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
                 <button
+                  data-tour="me-preview"
                   onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments })}
                   title="학생 화면처럼 전체화면으로 미리보기"
                   className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:text-primary hover:bg-white transition-all shrink-0"
@@ -2544,7 +2559,7 @@ const MaterialEditor = () => {
             </div>
 
             {/* 2줄: 부가 도구 — 작고 옅은 톤으로 눌러서 1줄과 위계를 구분 */}
-            <div className="flex items-center flex-wrap gap-1.5 px-3 sm:px-5 pb-3">
+            <div data-tour="me-tools" className="flex items-center flex-wrap gap-1.5 px-3 sm:px-5 pb-3">
               {cameFromIdeaRecord && (
                 <button
                   onClick={() => navigate('/dashboard')}
@@ -2556,7 +2571,7 @@ const MaterialEditor = () => {
               )}
               {/* AI로 정리 */}
               <button
-                onClick={() => setShowAiReorganize(true)}
+                onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setShowAiReorganize(true))}
                 disabled={!content.trim()}
                 title={content.trim() ? 'AI로 학습 가이드/발표 자료 정리' : '내용을 먼저 작성해주세요'}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2565,7 +2580,7 @@ const MaterialEditor = () => {
               </button>
               {/* 오탈자 검수 */}
               <button
-                onClick={() => setShowProofread(true)}
+                onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setShowProofread(true))}
                 disabled={!content.trim()}
                 title={content.trim() ? 'AI로 맞춤법·오탈자만 검수' : '내용을 먼저 작성해주세요'}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2640,7 +2655,7 @@ const MaterialEditor = () => {
               )}
               {/* 계획서 만들기 */}
               <button
-                onClick={() => setShowLessonPlan(true)}
+                onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setShowLessonPlan(true))}
                 disabled={!content.trim() || !editingMaterial}
                 title={!editingMaterial ? '먼저 저장한 뒤 이용할 수 있습니다' : (content.trim() ? '수업 자료로 제출용 계획서 초안 만들기' : '내용을 먼저 작성해주세요')}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2744,6 +2759,7 @@ const MaterialEditor = () => {
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
+              data-tour="me-title"
               placeholder="자료 제목을 입력하세요 *"
               className="flex-1 min-w-[180px] px-4 py-2 bg-white rounded-xl border border-surface-container font-black text-sm focus:outline-none focus:border-primary/40"
             />
@@ -2922,6 +2938,7 @@ const MaterialEditor = () => {
           </details>
 
           {/* 편집 / 미리보기 영역 */}
+          <div data-tour="me-editor">
           <RichEditor
             value={content}
             onChange={setContent}
@@ -2931,9 +2948,10 @@ const MaterialEditor = () => {
             contentRoundedClassName="rounded-b-3xl"
             classId={selectedClass?.id}
           />
+          </div>
 
           {/* 하단 액션 바. 설명 텍스트는 모바일에서 숨기고, 취소/저장 버튼은 항상 오른쪽 고정 */}
-          <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-surface-container bg-surface-container-low/50">
+          <div data-tour="me-bottom" className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-surface-container bg-surface-container-low/50">
             {libraryMode ? (
               <p className="hidden sm:flex min-w-0 text-xs font-bold text-on-surface-variant opacity-60 items-center gap-1.5">
                 <Library size={14} className="shrink-0" /> 공통 자료함에는 학생에게 공개되지 않습니다. 저장 후 원하는 클래스에 연결하면 그 클래스에서 공개 여부를 설정할 수 있습니다.

@@ -175,6 +175,11 @@
     .toc-card:hover { border-color: var(--amber); background: var(--amber-light); }
     .toc-card .toc-icon { font-size: 22px; margin-bottom: 6px; }
     .toc-card .toc-label { font-size: 12px; font-weight: 700; color: var(--gray-800); }
+    .me-shot { margin: 12px 0 4px; }
+    .me-shot img { max-width: 100%; border: 1px solid var(--gray-200); border-radius: 10px; display: block; }
+    .me-shot figcaption { font-size: 12px; color: var(--gray-600); margin-top: 6px; }
+    .me-list { margin: 6px 0 0 18px; padding: 0; }
+    .me-list li { margin: 3px 0; }
 
     /* ── Mobile ── */
     .mobile-header { display: none; }
@@ -246,6 +251,9 @@
   </a>
   <a class="nav-item" data-section="tools" onclick="showSection('tools')">
     <span class="icon">🛠️</span> 수업 도구
+  </a>
+  <a class="nav-item" data-section="material-editor" onclick="showSection('material-editor')">
+    <span class="icon">📚</span> 수업 자료 에디터
   </a>
 
   <div class="nav-section">학생 기능</div>
@@ -407,6 +415,7 @@
       <div class="toc-card" onclick="showSection('observation')"><div class="toc-icon">📝</div><div class="toc-label">활동 기록</div></div>
       <div class="toc-card" onclick="showSection('ai-setech')"><div class="toc-icon">✨</div><div class="toc-label">AI 세특 초안</div></div>
       <div class="toc-card" onclick="showSection('naiss')"><div class="toc-icon">📊</div><div class="toc-label">나이스 내보내기</div></div>
+      <div class="toc-card" onclick="showSection('material-editor')"><div class="toc-icon">📚</div><div class="toc-label">수업 자료 에디터</div></div>
       <div class="toc-card" onclick="showSection('student')"><div class="toc-icon">🎒</div><div class="toc-label">학생 참여</div></div>
       <div class="toc-card" onclick="showSection('academy')"><div class="toc-icon">🏫</div><div class="toc-label">학원 활용</div></div>
       <div class="toc-card" onclick="showSection('faq')"><div class="toc-icon">❓</div><div class="toc-label">자주 묻는 질문</div></div>
@@ -1587,6 +1596,523 @@
       </div>
 
     </div><!-- /tool-tabs -->
+  </div>
+
+  <!-- ── 수업 자료 에디터 ── -->
+  <div class="section" id="sec-material-editor">
+    <div class="page-title">📚 수업 자료 에디터 따라 하기</div>
+    <div class="page-subtitle">처음 써 보는 선생님도 순서대로 따라 하면 수업 자료 1개를 만들어 학생에게 공개할 수 있어요</div>
+
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text"><strong>수업 자료 에디터</strong>는 워드나 노션처럼 글을 쓰는 곳이에요. 글을 쓰고, 사진·표·영상을 넣고, 학생이 직접 적는 칸까지 만든 다음, 우리 반 학생들에게 공개합니다. 메뉴 위치: <code>수업 도구 → 수업 자료 에디터</code></span>
+    </div>
+
+    <div class="callout green">
+      <span class="callout-icon">🖱️</span>
+      <span class="callout-text"><strong>읽기 전에 직접 해보고 싶다면?</strong> 로그인 없이 실제 에디터 화면에서 안내를 따라 눌러 볼 수 있어요. 체험용 학급은 2시간 뒤 자동으로 사라집니다. <a href="/demo/material-editor" style="font-weight:800;text-decoration:underline">▶ 에디터 직접 해보기</a></span>
+    </div>
+
+    <h2>이 가이드로 만들어 볼 것</h2>
+    <p>아래 순서를 한 번만 따라 하면 <strong>"제목 + 안내글 + 사진 + 학생이 적는 칸"이 있는 수업 자료</strong>가 하나 완성돼요. 이미 아는 단계는 건너뛰어도 괜찮습니다.</p>
+    <div class="toc-grid">
+      <div class="toc-card" onclick="document.getElementById('me-s1').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">1️⃣</div><div class="toc-label">자료 시작하기</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s2').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">2️⃣</div><div class="toc-label">글쓰기와 서식</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s3').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">3️⃣</div><div class="toc-label">/ 메뉴 쓰기</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s4').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">4️⃣</div><div class="toc-label">사진·표·영상</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s5').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">5️⃣</div><div class="toc-label">학생이 적는 칸</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s6').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">6️⃣</div><div class="toc-label">첨부파일</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s7').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">7️⃣</div><div class="toc-label">AI 도구</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s8').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">8️⃣</div><div class="toc-label">가져오기·표지·PDF</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s9').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">9️⃣</div><div class="toc-label">미리보기·발표</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s10').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">🔟</div><div class="toc-label">저장·공개</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s11').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">🗂️</div><div class="toc-label">목록 버튼 설명</div></div>
+      <div class="toc-card" onclick="document.getElementById('me-s12').scrollIntoView({behavior:'smooth'})"><div class="toc-icon">✍️</div><div class="toc-label">학생 답변 보기</div></div>
+    </div>
+
+    <!-- STEP 1 -->
+    <h2 id="me-s1">1. 자료 시작하기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">수업 자료 에디터 열기</div>
+          <div class="step-desc">위쪽 메뉴에서 <code>수업 도구</code>를 누르고 <code>수업 자료 에디터</code> 카드를 눌러요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">어디에 만들지 고르기</div>
+          <div class="step-desc">화면 위쪽에 두 가지 선택지가 있어요.
+            <ul class="me-list">
+              <li><code>클래스 선택</code> — 우리 반을 고르면, 그 반의 자료로 바로 만들어요. 그 반 학생들에게 공개할 수 있어요.</li>
+              <li><code>공통 자료함</code> — 반을 정하지 않고 먼저 만들어 두는 서랍이에요. 나중에 원하는 반에 꺼내 쓸 수 있어요. (이 서랍에서는 학생에게 바로 공개되지 않아요)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title"><code>새 자료 작성</code> 누르기</div>
+          <div class="step-desc">파란색 <code>+ 새 자료 작성</code> 버튼을 누르면 빈 에디터가 열려요.</div>
+          <figure class="me-shot"><img src="/guide/material-editor/me-01-start.png" alt="클래스 선택과 새 자료 작성 버튼" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>① 클래스 또는 공통 자료함 고르기 → ② 새 자료 작성</figcaption></figure>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">자료 제목 쓰기</div>
+          <div class="step-desc">맨 위 <code>자료 제목을 입력하세요 *</code> 칸에 제목을 써요. 별표(*)가 붙은 칸은 꼭 써야 저장돼요. 반을 고른 상태라면 옆에 <strong>주차</strong> 숫자 칸도 있어요. 몇 주차 수업인지 숫자로 바꿔 주세요.</div>
+          <figure class="me-shot"><img src="/guide/material-editor/me-02-editor.png" alt="수업 자료 에디터 전체 화면" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>에디터 전체 모습. 위: 도구 버튼 / 가운데: 제목·첨부파일 / 아래: 글쓰기 칸</figcaption></figure>
+        </div>
+      </div>
+    </div>
+    <div class="callout green">
+      <span class="callout-icon">✅</span>
+      <span class="callout-text">글을 쓰는 동안 오른쪽 아래에 <strong>"자동 저장 중..."</strong> 이 떠요. 그래도 중간중간 <code>저장</code> 버튼을 눌러 두면 더 안심돼요.</span>
+    </div>
+    <div class="callout yellow">
+      <span class="callout-icon">📌</span>
+      <span class="callout-text">무료 플랜은 자료를 <strong>5개까지</strong> 만들 수 있어요. Basic·Pro는 개수 제한이 없어요.</span>
+    </div>
+
+    <!-- STEP 2 -->
+    <h2 id="me-s2">2. 글쓰기와 서식 (글자를 꾸미는 법)</h2>
+    <p>글쓰기 칸 바로 위에 <strong>도구 줄</strong>이 있어요. 글자를 드래그해서 선택한 뒤 버튼을 누르면 꾸며집니다. 마우스를 버튼에 올리면 이름이 나와요.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">글자 꾸미기</div>
+          <div class="step-desc">꾸밀 글자를 드래그해서 선택한 뒤 눌러요.
+            <ul class="me-list">
+              <li><strong>B</strong> 굵게 (Ctrl+B, 맥은 ⌘+B)</li>
+              <li><em>I</em> 기울임 (Ctrl+I)</li>
+              <li><strong>A</strong> 글자 색 — 누르면 색 목록이 나와요</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">제목과 목록 만들기</div>
+          <div class="step-desc">줄을 하나 쓰고 그 줄에 커서를 둔 채로 눌러요.
+            <ul class="me-list">
+              <li><code>H1</code> <code>H2</code> <code>H3</code> — 제목. 숫자가 작을수록 커요. 제목을 쓰면 학생 화면의 <strong>목차</strong>에도 올라가요.</li>
+              <li>점 목록 / 번호 목록 — 항목을 나열할 때</li>
+              <li>따옴표 모양 — 인용구</li>
+              <li><code>&lt;/&gt;</code> 모양 — 코드 (한 줄짜리 / 여러 줄짜리 두 가지)</li>
+              <li><code>—</code> 구분선 — 슬라이드로 볼 때는 화면을 나누는 선이 돼요</li>
+              <li>사슬 모양 — 글자를 눌렀을 때 열리는 <strong>링크</strong>로 만들기</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">키보드로 더 빠르게 (마크다운 단축 입력)</div>
+          <div class="step-desc">버튼을 안 눌러도, 줄 맨 앞에 약속된 기호를 쓰고 <strong>한 칸 띄우면</strong> 자동으로 바뀌어요.</div>
+        </div>
+      </div>
+    </div>
+    <table class="guide-table">
+      <thead><tr><th>이렇게 입력하면</th><th>이렇게 바뀌어요</th></tr></thead>
+      <tbody>
+        <tr><td><code># </code> + 글 (샵 한 개, 띄어쓰기)</td><td>제목 1</td></tr>
+        <tr><td><code>## </code> + 글</td><td>제목 2</td></tr>
+        <tr><td><code>### </code> + 글</td><td>제목 3</td></tr>
+        <tr><td><code>- </code> + 글 (하이픈, 띄어쓰기)</td><td>점 목록 (도구 줄 버튼이 더 확실해요)</td></tr>
+        <tr><td><code>1. </code> + 글</td><td>번호 목록</td></tr>
+        <tr><td><code>&gt; </code> + 글</td><td>인용구</td></tr>
+        <tr><td><code>---</code></td><td>구분선</td></tr>
+        <tr><td><code>**굵게**</code></td><td><strong>굵게</strong></td></tr>
+        <tr><td><code>*기울임*</code></td><td><em>기울임</em></td></tr>
+        <tr><td><code>`코드`</code></td><td>짧은 코드 강조</td></tr>
+      </tbody>
+    </table>
+    <div class="callout purple">
+      <span class="callout-icon">❓</span>
+      <span class="callout-text">도구 줄 맨 오른쪽 <strong>? 버튼</strong>을 누르면 이 내용이 작은 도움말로 나와요. 쓰다가 기억이 안 나면 눌러 보세요.</span>
+    </div>
+
+    <!-- STEP 3 -->
+    <h2 id="me-s3">3. <code>/</code> 를 눌러 메뉴 쓰기 (노션처럼)</h2>
+    <p>빈 줄에서 <code>/</code> (슬래시) 키를 누르면 <strong>넣을 수 있는 것들의 목록</strong>이 떠요. 마우스로 고르거나, 위아래 화살표 + Enter로 고를 수 있어요.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">빈 줄에서 <code>/</code> 누르기</div>
+          <div class="step-desc">새 줄을 만들고 <code>/</code> 를 입력해요.</div>
+          <figure class="me-shot"><img src="/guide/material-editor/me-03-slash.png" alt="슬래시 메뉴 목록" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>/ 를 누르면 나오는 메뉴</figcaption></figure>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">찾는 이름을 이어서 쓰기</div>
+          <div class="step-desc">예를 들어 <code>/표</code> 라고 쓰면 목록이 "표"만 남아요. 원하는 항목에서 <strong>Enter</strong>를 누르면 그 자리에 들어갑니다. 그만두려면 <strong>Esc</strong>.</div>
+        </div>
+      </div>
+    </div>
+    <table class="guide-table">
+      <thead><tr><th>메뉴 이름</th><th>들어가는 것</th></tr></thead>
+      <tbody>
+        <tr><td>제목 1 · 2 · 3</td><td>큰 제목 / 중간 제목 / 소제목</td></tr>
+        <tr><td>글머리 목록 · 번호 목록</td><td>점 목록 / 1, 2, 3 목록</td></tr>
+        <tr><td>인용구 · 코드 블록</td><td>인용 문장 / 여러 줄 코드 상자</td></tr>
+        <tr><td>구분선</td><td>가로 선 (슬라이드를 나누는 선)</td></tr>
+        <tr><td>토글 블록</td><td>누르면 펼쳐지는 접이식 칸 (힌트·정답을 숨길 때 좋아요)</td></tr>
+        <tr><td>콜아웃</td><td>색깔 강조 상자. 왼쪽 아이콘을 누르면 정보·주의·팁·중요로 바뀌어요</td></tr>
+        <tr><td>표</td><td>3×3 표</td></tr>
+        <tr><td>영상 임베드</td><td>YouTube 같은 영상 주소를 넣으면 화면 안에서 재생</td></tr>
+        <tr><td>학생 입력 · 메모 표 / 체크 항목 / 밑줄 빈칸</td><td>학생이 직접 적는 칸 (5단계에서 자세히)</td></tr>
+      </tbody>
+    </table>
+
+    <!-- STEP 4 -->
+    <h2 id="me-s4">4. 사진·표·영상 넣기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">사진 넣기 — 3가지 방법</div>
+          <div class="step-desc">
+            <ul class="me-list">
+              <li><strong>올리기</strong>: 도구 줄의 <strong>사진 모양 버튼</strong> → 내 컴퓨터에서 파일 고르기 (용량은 자동으로 줄여져요)</li>
+              <li><strong>붙여넣기</strong>: 사진을 복사한 뒤 글쓰기 칸에서 <code>Ctrl+V</code> (맥은 <code>⌘+V</code>)</li>
+              <li><strong>주소로 넣기</strong>: <strong>지구본 모양 버튼</strong> → 인터넷 사진 주소 붙여넣기</li>
+            </ul>
+            사진을 누르면 <strong>너비·높이</strong> 숫자를 바꾸거나, 모서리를 끌어서 크기를 조절할 수 있어요. 복사·잘라내기·삭제 버튼도 같이 나와요.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">표 만들기</div>
+          <div class="step-desc">도구 줄의 <strong>표 모양 버튼</strong>을 누르고, 나오는 칸 위에서 <strong>원하는 크기만큼 끌어서</strong> 눌러요. 표 안을 누르면 위에 <strong>행·열 추가/삭제</strong>, 제목 줄 켜기/끄기, 칸 배경색 버튼이 나타나요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">영상·구글 자료 넣기</div>
+          <div class="step-desc">도구 줄의 <strong>영상 모양 버튼</strong>(또는 <code>/영상</code>)을 누르고 주소를 붙여넣어요. YouTube, 구글 슬라이드·문서·스프레드시트·설문 주소가 지원돼요. 넣은 뒤에는 크기를 소·중·대·전체로 고를 수 있어요.</div>
+        </div>
+      </div>
+    </div>
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text">길게 덧붙일 설명은 <strong>토글 블록</strong>에 접어 두면 자료가 깔끔해져요. 슬라이드로 볼 때 토글 안에 구분선과 제목을 같이 넣으면 빈 화면이 생길 수 있어서, 에디터에 노란 경고가 뜨면 확인해 주세요.</span>
+    </div>
+
+    <!-- STEP 5 -->
+    <h2 id="me-s5">5. 학생이 직접 적는 칸 만들기</h2>
+    <p>글 쓰는 곳에서 <code>/</code> 를 누르고 <strong>"학생 입력"</strong> 이라고 검색해요. 아래 3가지 중 하나를 고르면 자료에 바로 들어가고, <strong>학생 화면에서는 직접 적는 칸</strong>이 됩니다.</p>
+    <figure class="me-shot"><img src="/guide/material-editor/me-04-student-input.png" alt="학생이 직접 적는 칸 만드는 법 안내" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>에디터 안의 초록색 "학생이 직접 적는 칸 만드는 법"을 누르면 같은 안내가 펼쳐져요</figcaption></figure>
+    <table class="guide-table">
+      <thead><tr><th>종류</th><th>학생 화면에서</th><th>이럴 때 좋아요</th></tr></thead>
+      <tbody>
+        <tr><td>✍ 메모 표</td><td>번호와 빈 칸이 있는 표. <strong>비어 있는 칸</strong>에 글을 적어요 (이미 글자가 있는 칸은 그대로 보여요)</td><td>"내 생각 3가지 적기"</td></tr>
+        <tr><td>☑ 체크 항목</td><td>누르면 체크되는 네모 칸. 뒤에 문장을 이어 써요</td><td>"불편함을 3개 적었어요" 같은 확인 목록</td></tr>
+        <tr><td>＿ 밑줄 빈칸</td><td><code>답: ______</code> 의 밑줄 자리에 한 줄 입력</td><td>짧은 답. "답:" 대신 질문으로 바꿔 써요. 예) 좋아하는 장르는 ______</td></tr>
+      </tbody>
+    </table>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">칸 넣기</div>
+          <div class="step-desc"><code>/</code> → <code>학생 입력</code> 검색 → 원하는 종류 고르기. 질문 문장은 바로 앞이나 위에 써 주세요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">미리보기로 직접 적어 보기</div>
+          <div class="step-desc">위쪽 <code>미리보기</code> 버튼을 눌러 학생 화면처럼 적어 볼 수 있어요. (미리보기에서 적은 내용은 저장되지 않아요)</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">반에 연결하고 공개하기</div>
+          <div class="step-desc">학생이 실제로 적으려면 <strong>반에 연결하고 공개한 자료</strong>여야 해요. (10단계 참고)</div>
+        </div>
+      </div>
+    </div>
+    <div class="callout rose">
+      <span class="callout-icon">⚠️</span>
+      <span class="callout-text"><strong>학생이 답을 적기 시작한 뒤에는 적는 칸을 중간에 넣거나 지우지 마세요.</strong> 답이 위에서부터 순서대로 저장돼서, 뒤쪽 칸의 답이 한 칸씩 밀릴 수 있어요. 글 고치기나 줄 추가는 괜찮아요.</span>
+    </div>
+    <div class="callout purple">
+      <span class="callout-icon">🔧</span>
+      <span class="callout-text">직접 쓰고 싶다면: 체크 칸은 문장 맨 앞에 <code>[ ]</code>, 밑줄 칸은 <code>_</code> 를 3개 이상 이어서 써요. 밑줄만 한 줄에 혼자 쓰면 구분선이 되니 앞에 글을 꼭 붙이세요.</span>
+    </div>
+
+    <!-- STEP 6 -->
+    <h2 id="me-s6">6. 수업 첨부파일 올리기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title"><code>수업 첨부파일 추가</code> 누르기</div>
+          <div class="step-desc">제목 아래 줄에 있는 클립 모양 버튼이에요. 파일을 고르면 올라가고(여러 개 가능), 파일 이름이 작은 칩으로 나타나요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">잘못 올렸다면</div>
+          <div class="step-desc">칩 오른쪽의 <strong>X</strong>를 누르면 목록에서 빠져요.</div>
+        </div>
+      </div>
+    </div>
+    <div class="callout green">
+      <span class="callout-icon">✅</span>
+      <span class="callout-text">여기에 올린 파일은 <strong>클래스에 연결해도 다시 올릴 필요가 없어요.</strong> 수업 화면에서 학생도 내려받을 수 있어요.</span>
+    </div>
+
+    <!-- STEP 7 -->
+    <h2 id="me-s7">7. AI 도구 쓰기</h2>
+    <p>제목 위쪽의 <strong>보라색 작은 버튼들</strong>이 AI 도구예요. 먼저 <strong>글을 조금이라도 써야</strong> 눌려요. (글이 없으면 회색으로 막혀 있어요) 사용할 때마다 월 AI 크레딧이 쓰이고, 다 쓰면 다음 달 1일에 새로 채워져요.</p>
+    <figure class="me-shot"><img src="/guide/material-editor/me-05-ai-tools.png" alt="AI 도구 버튼 줄" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>AI로 정리 · 오탈자 검수 · 계획서 만들기 · 발표 / 가져오기 · 표지 · PDF 다운로드</figcaption></figure>
+
+    <h3>7-1. AI로 정리 — 내 글을 학습 가이드나 슬라이드로</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title"><code>AI로 정리</code> 누르고 종류 고르기</div>
+          <div class="step-desc">
+            <ul class="me-list">
+              <li><strong>학습 가이드</strong> — 학생이 "STEP 1, 2, 3" 순서로 따라 하기 좋은 자료로 바꿔요</li>
+              <li><strong>발표 자료(슬라이드)</strong> — 내용을 바꾸지 않고, 16:9 슬라이드 크기에 맞게 나눠 다듬어요</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">요청사항 쓰고 <code>정리 시작</code></div>
+          <div class="step-desc">"추가로 반영하고 싶은 요청사항" 칸은 비워도 돼요. 예) <em>중학생 눈높이로 쉽게 풀어줘</em></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">결과 확인 후 <code>적용</code> / <code>다시 요청</code></div>
+          <div class="step-desc">결과를 먼저 보여 줘요. 마음에 들면 <code>적용</code>, 아니면 <code>다시 요청</code>. 적용해도 <strong>내가 쓴 원본은 그대로</strong> 있고, 정리 결과는 따로 보관돼요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">나중에 다시 보기 — <code>정리 히스토리</code></div>
+          <div class="step-desc">한 번이라도 정리하면 <code>정리 히스토리 (개수)</code> 버튼이 생겨요. 눌러서 예전 결과를 열어 보거나, 휴지통 아이콘으로 지울 수 있어요.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>7-2. 오탈자 검수 — 맞춤법만 고쳐 주기</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title"><code>오탈자 검수</code> 누르기</div>
+          <div class="step-desc">AI가 글을 꼼꼼히 읽고 틀린 곳을 목록으로 보여 줘요. 글 전체를 다시 쓰지 않아요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">고칠 항목만 체크하고 <code>선택한 N건 적용</code></div>
+          <div class="step-desc">"3건을 찾았어요. 적용할 항목을 고르세요." 라고 나오면, 고치고 싶은 것만 체크해서 적용해요.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>7-3. 계획서 만들기 — 수업 계획서 초안</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">먼저 <code>저장</code>하기</div>
+          <div class="step-desc">이 버튼은 <strong>한 번 저장한 자료에서만</strong> 눌려요. (저장 전에는 마우스를 올리면 "먼저 저장한 뒤 이용할 수 있습니다"라고 나와요)</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title"><code>계획서 만들기</code> → 용도 고르기</div>
+          <div class="step-desc">용도를 고르면 예시 문장이 나와요. 필요하면 추가 요청사항을 쓰고 만들면, 과목·단원·학습목표·도입/전개/정리·준비물·평가계획이 채워진 초안이 나와요. 칸마다 직접 고칠 수 있어요.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>7-4. 아이디어로 자료 만들기</h3>
+    <p>자료 목록 화면(에디터를 열기 전)에 있는 <code>AI와 아이디어로 만들기</code> 버튼은, 떠오른 아이디어를 자유롭게 적으면 AI가 몇 가지 질문을 하고 기획서를 확인받은 뒤 자료 초안을 만들어 줘요.</p>
+
+    <!-- STEP 8 -->
+    <h2 id="me-s8">8. 가져오기 · 표지 정하기 · PDF 받기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">가져오기 — 이미 만든 자료를 불러와 이어서 쓰기</div>
+          <div class="step-desc"><code>가져오기</code>를 누르면 <strong>① 클래스(또는 공통 자료함) 고르기 → ② 그 안의 자료 고르기</strong> 순서로 안내해요. 고른 자료의 내용이 지금 에디터에 들어와서, 새 자료로 고쳐 쓸 수 있어요. 작년 반의 자료를 올해 반으로 가져올 때 편해요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">표지 정하기</div>
+          <div class="step-desc"><code>표지</code>를 누르면 <strong>PDF 맨 앞에 붙는 표지</strong>를 정할 수 있어요.
+            <ul class="me-list">
+              <li><strong>기본 템플릿</strong> — 제목이 들어간 기본 표지 (아무것도 안 해도 돼요)</li>
+              <li><strong>이미지 업로드</strong> — 내가 가진 그림을 표지로 써요. 되돌리려면 "업로드한 이미지 삭제하고 기본 템플릿으로"</li>
+              <li><strong>AI로 표지 이미지 프롬프트 제안받기</strong> — AI가 이미지를 바로 그려 주지는 않아요. 알려 주는 문구를 복사해서 이미지 만드는 도구에 붙여넣고, 만들어진 그림을 다시 업로드하세요.</li>
+            </ul>
+          </div>
+          <figure class="me-shot"><img src="/guide/material-editor/me-06-cover.png" alt="PDF 표지 설정 창" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>PDF 표지 설정 창</figcaption></figure>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">PDF 다운로드</div>
+          <div class="step-desc"><code>PDF 다운로드</code>를 누르면 컴퓨터의 <strong>인쇄 창</strong>이 열려요. 받는 곳(대상)을 <strong>"PDF로 저장"</strong>으로 바꾸고 저장하세요. 화면에 보이는 서식 그대로 저장돼요.</div>
+        </div>
+      </div>
+    </div>
+    <div class="callout yellow">
+      <span class="callout-icon">🔄</span>
+      <span class="callout-text">공통 자료함에서 가져와 만든 사본을 고치는 중이면 <code>원본에 동기화</code> 버튼이 보여요. 눌러서 확인하면 내가 고친 내용이 공통 자료함의 원본에도 반영돼요.</span>
+    </div>
+
+    <!-- STEP 9 -->
+    <h2 id="me-s9">9. 미리보기 · 발표 · 슬라이드로 보기</h2>
+    <table class="guide-table">
+      <thead><tr><th>버튼</th><th>어디에 있나요</th><th>무엇이 되나요</th></tr></thead>
+      <tbody>
+        <tr><td>👁 <strong>미리보기</strong></td><td>에디터 오른쪽 위</td><td>학생 화면과 똑같이 <strong>목차와 함께 전체화면</strong>으로 보여 줘요. 학생 입력 칸도 직접 적어 볼 수 있어요</td></tr>
+        <tr><td>🖥 <strong>발표</strong></td><td>AI 버튼 줄</td><td>지금 쓰는 내용을 바로 <strong>발표 화면</strong>으로 열어요 (구분선 <code>---</code>마다 한 장씩)</td></tr>
+        <tr><td>🎞 <strong>슬라이드로 보기</strong></td><td>자료 목록의 자료 카드</td><td>장면별로 넘겨 보는 슬라이드 모드</td></tr>
+      </tbody>
+    </table>
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text">저장하기 전에 <strong>미리보기</strong>로 학생에게 어떻게 보일지 꼭 한 번 확인하세요. 발표 화면에서 고친 내용은 그 발표 안에서만 쓰이고, 내 원본 글은 바뀌지 않아요.</span>
+    </div>
+
+    <!-- STEP 10 -->
+    <h2 id="me-s10">10. 저장하고 학생에게 공개하기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title"><code>저장</code> 누르기</div>
+          <div class="step-desc">오른쪽 위(또는 맨 아래)의 파란 <code>저장</code> 버튼이에요. 이미 저장한 자료를 고친 때는 <code>수정 완료</code>로 바뀌어요. 사진이 올라가는 중이면 "이미지 업로드 중..."이 끝날 때까지 기다려 주세요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">공개 켜기</div>
+          <div class="step-desc">맨 아래 왼쪽의 <code>🔒 비공개</code> 버튼을 누르면 <code>🌐 학생 공개 중</code>으로 바뀌어요. 공개된 자료는 학생이 <strong>수업자료 탭</strong>에서 볼 수 있어요. 공개 상태는 저장해야 반영돼요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">공통 자료함에서 만들었다면</div>
+          <div class="step-desc">공통 자료함 자료는 학생에게 바로 공개되지 않아요. 저장한 뒤 <strong>자료 목록</strong>에서 아래 둘 중 하나를 눌러요.
+            <ul class="me-list">
+              <li>🌐 <strong>지구본</strong> — 반을 골라 <strong>그 반 학생에게 바로 공개</strong></li>
+              <li>🔗 <strong>사슬</strong> — 반에 <strong>복사해서 연결(비공개)</strong>. 나중에 그 반에서 공개를 켜요</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 11 -->
+    <h2 id="me-s11">11. 자료 목록의 버튼 설명</h2>
+    <p>저장한 자료는 목록에 카드(또는 줄)로 쌓여요. 오른쪽 위의 두 아이콘으로 <strong>카드로 보기 / 리스트로 보기</strong>를 바꿀 수 있어요. 각 자료 오른쪽에 있는 아이콘들은 이런 뜻이에요. (마우스를 올리면 이름이 나와요)</p>
+    <figure class="me-shot"><img src="/guide/material-editor/me-07-list-actions.png" alt="자료 목록의 버튼들" loading="lazy" onerror="this.closest('figure').style.display='none'"><figcaption>자료 한 줄의 버튼들</figcaption></figure>
+    <table class="guide-table">
+      <thead><tr><th>아이콘</th><th>이름</th><th>하는 일</th></tr></thead>
+      <tbody>
+        <tr><td>🖥 (보라)</td><td>전체화면 발표 모드</td><td>이 자료를 발표 화면으로 열어요</td></tr>
+        <tr><td>🎞</td><td>슬라이드로 보기</td><td>장면별로 넘겨 보는 슬라이드 모드</td></tr>
+        <tr><td>👁</td><td>내용 미리보기</td><td>학생 화면처럼 전체화면으로 봐요</td></tr>
+        <tr><td>✍ 학생 답변</td><td>학생들이 적은 답변 보기</td><td>반에 연결된 자료에만 보여요 (12단계)</td></tr>
+        <tr><td>🕘</td><td>보고 싶은 버전 선택</td><td>AI로 정리한 결과가 있을 때, 원본 / 정리 버전을 골라 봐요</td></tr>
+        <tr><td>🌐 / 🔒</td><td>학생에게 공개 / 비공개로 전환</td><td>반 자료의 공개 상태를 바로 바꿔요</td></tr>
+        <tr><td>📄</td><td>다른 주차로 복사</td><td>같은 자료를 다른 주차에도 만들어요</td></tr>
+        <tr><td>📁</td><td>폴더로 이동</td><td>폴더를 만들어 두었다면 정리해 넣어요. 폴더가 없다면 위쪽 <code>새 폴더</code>로 먼저 만들어요</td></tr>
+        <tr><td>✏️</td><td>수정</td><td>에디터로 다시 열어요</td></tr>
+        <tr><td>🗑 (빨강)</td><td>삭제</td><td>자료를 지워요. 신중하게!</td></tr>
+      </tbody>
+    </table>
+    <div class="callout rose">
+      <span class="callout-icon">⚠️</span>
+      <span class="callout-text">공통 자료함에서는 🌐(바로 공개)와 🔗(연결) 버튼이 공개/복사 버튼 자리에 대신 나와요.</span>
+    </div>
+
+    <!-- STEP 12 -->
+    <h2 id="me-s12">12. 학생이 적은 답 확인하기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">반에 연결된 자료에서 <code>학생 답변</code> 누르기</div>
+          <div class="step-desc">초록색 <strong>✍ 학생 답변</strong> 버튼이에요. 학생이 적는 칸(표·체크·밑줄)이 있고, 반에 연결된 자료에서만 보여요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">전체화면에서 4가지 방식으로 보기</div>
+          <div class="step-desc">탭을 바꿔 가며 볼 수 있어요: <strong>문항별</strong>(한 질문에 대한 모든 학생의 답) · <strong>학생별</strong>(한 학생의 모든 답) · <strong>한눈 지도</strong>(누가 어디까지 적었는지 한눈에) · <strong>표</strong>(표로 모아 보기).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 막혔을 때 -->
+    <h2>막혔을 때 확인하세요</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">AI 버튼(AI로 정리·오탈자 검수·발표)이 회색이라 안 눌려요 <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">내용이 비어 있으면 눌리지 않아요. 글을 한 줄이라도 쓰면 눌러져요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">계획서 만들기가 안 눌려요 <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">새로 쓰는 자료는 먼저 <strong>저장</strong>해야 눌러져요. 저장한 뒤 다시 눌러 보세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">학생 화면에 자료가 안 보여요 <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">① 반을 골라 만든 자료인지(공통 자료함 자료는 연결 필요) ② 공개 상태가 <strong>"학생 공개 중"</strong>인지 ③ 공개로 바꾼 뒤 <strong>저장</strong>했는지 확인하세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">저장 버튼이 눌리지 않아요 <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">제목(*)을 안 썼거나, 사진이 아직 올라가는 중일 수 있어요. 제목을 확인하고 "이미지 업로드 중..."이 끝날 때까지 기다려 주세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">AI가 "이번 달 크레딧을 모두 사용했어요"라고 해요 <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">AI 도구는 월 크레딧 안에서 쓸 수 있어요. 다음 달 1일에 새로 채워져요. 글쓰기·저장 같은 기본 기능은 계속 쓸 수 있어요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">슬라이드로 볼 때 빈 화면이 생겨요 <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">토글 블록 안에 구분선(—)과 제목을 같이 넣으면 생길 수 있어요. 에디터에 노란 경고가 뜨면 구분선을 토글 바깥으로 옮겨 보세요.</div>
+      </div>
+    </div>
   </div>
 
   <!-- ── 학생 참여 ── -->
