@@ -24,6 +24,10 @@ interface TourStep {
 
 const q = (sel: string) => document.querySelector(sel) as HTMLElement | null;
 const pm = () => q('[data-tour="me-editor"] .ProseMirror');
+const txt = (el: Element | null | undefined) => (el?.textContent ?? '').trim();
+const anyWithText = (sel: string) => Array.from(pm()?.querySelectorAll(sel) ?? []).some(el => txt(el).length > 0);
+
+const SLASH_TIP = '빈 줄에서 / 를 누르고 이름을 이어 쓰면 목록이 걸러져요. 방향키 ↑↓로 고르고 Enter!';
 
 const STEPS: TourStep[] = [
   {
@@ -41,37 +45,86 @@ const STEPS: TourStep[] = [
   },
   {
     target: 'me-editor',
-    title: '③ / 를 눌러 메뉴 열기',
-    description: '아래 글쓰기 칸의 빈 줄을 누르고 / (슬래시)를 입력해 보세요. 나오는 목록에서 "표"를 골라 Enter!',
-    isDone: () => !!pm()?.querySelector('table'),
-    settleMs: 500,
+    title: '③ 제목 블록 (/제목)',
+    description: `큰 글씨 제목을 만들어요. ${SLASH_TIP} "제목 1"을 고르고 제목 글을 써 보세요. 예) 오늘의 학습 목표`,
+    isDone: () => anyWithText('h1, h2, h3'),
+    settleMs: 1200,
   },
   {
     target: 'me-editor',
-    title: '④ 학생이 적는 칸 만들기',
-    description: '다시 / 를 누르고 "학생 입력"이라고 이어 쓰세요. 메모 표·체크 항목·밑줄 빈칸 중 하나를 골라 넣으면 학생 화면에서 직접 적는 칸이 돼요.',
+    title: '④ 번호 목록 (/번호)',
+    description: `순서가 있는 목록이에요. 한 줄 아래로 내려가 / 를 누르고 "번호 목록"을 고른 뒤, 항목을 2개 적어 보세요. (Enter로 다음 항목)`,
+    isDone: () => Array.from(pm()?.querySelectorAll('ol li') ?? []).filter(li => txt(li).length > 0).length >= 2,
+    settleMs: 1200,
+  },
+  {
+    target: 'me-editor',
+    title: '⑤ 인용구 (/인용)',
+    description: '중요한 문장이나 학생에게 들려줄 말을 따로 보여 줘요. 목록에서 빠져나와(Enter 두 번) / → "인용구"를 고르고 한 줄 써 보세요.',
+    isDone: () => anyWithText('blockquote'),
+    settleMs: 1200,
+  },
+  {
+    target: 'me-editor',
+    title: '⑥ 코드 블록 (/코드)',
+    description: '글자를 그대로 보여 주는 칸이에요. 코딩 수업이나 명령어 안내에 써요. 아래 줄에서 / → "코드 블록"을 고르고 아무 글이나 써 보세요.',
+    isDone: () => anyWithText('pre'),
+    settleMs: 1200,
+  },
+  {
+    target: 'me-editor',
+    title: '⑦ 구분선 (/구분)',
+    description: '내용을 시원하게 나눠 줘요. 슬라이드로 바꿀 때는 화면을 나누는 경계가 되기도 해요. 코드 블록 밖으로 나와 / → "구분선"을 골라 보세요.',
+    isDone: () => !!pm()?.querySelector('hr'),
+    settleMs: 800,
+  },
+  {
+    target: 'me-editor',
+    title: '⑧ 토글 블록 (/토글)',
+    description: '눌러서 접고 펴는 상자예요. 힌트나 정답을 숨겨 둘 때 좋아요. / → "토글 블록"을 고르고 안쪽에 내용을 한 줄 써 보세요.',
+    isDone: () => !!pm()?.querySelector('details, [data-type="details"]') && anyWithText('details p, [data-type="details"] p'),
+    settleMs: 1200,
+  },
+  {
+    target: 'me-editor',
+    title: '⑨ 콜아웃 (/콜아웃)',
+    description: '색깔 있는 강조 상자예요. 정보·주의·팁·중요 중에서 고를 수 있어요. / → "콜아웃"을 고르고 안내 문장을 써 보세요.',
+    isDone: () => anyWithText('[data-callout]'),
+    settleMs: 1200,
+  },
+  {
+    target: 'me-editor',
+    title: '⑩ 표 (/표) + 칸 채우기',
+    description: '/ → "표"를 고르면 3×3 표가 들어가요. 표의 칸을 눌러 내용을 직접 써 보세요. (Tab 키로 다음 칸 이동)',
+    isDone: () => anyWithText('table td'),
+    settleMs: 1200,
+  },
+  {
+    target: 'me-editor',
+    title: '⑪ 학생이 적는 칸 만들기',
+    description: '표 아래 빈 줄을 눌러 / → "학생 입력 · 메모 표"를 고르세요. 번호가 적힌 표가 생기고, 오른쪽 빈 칸은 학생 화면에서 직접 적는 칸이 돼요. 칸 하나에 예시 답을 써 보세요!',
     isDone: () => {
-      const el = pm();
-      if (!el) return false;
-      const text = el.innerText || '';
-      return el.querySelectorAll('table').length >= 2 || text.includes('[ ]') || text.includes('______');
+      const tables = pm()?.querySelectorAll('table');
+      if (!tables || tables.length < 2) return false;
+      const last = tables[tables.length - 1];
+      return Array.from(last.querySelectorAll('tr td:nth-child(2)')).some(td => txt(td).length > 0);
     },
-    settleMs: 500,
+    settleMs: 1200,
   },
   {
     target: 'me-tools',
-    title: '⑤ 도구 버튼 줄',
+    title: '⑫ 도구 버튼 줄',
     description: '보라색 AI 버튼(AI로 정리·오탈자 검수·계획서 만들기), 가져오기, 표지, PDF 다운로드가 여기 모여 있어요. 체험에서는 AI를 실제로 쓰지 않고, 위치만 알려 드려요.',
   },
   {
     target: 'me-bottom',
-    title: '⑥ 공개하고 저장하기',
+    title: '⑬ 공개하고 저장하기',
     description: '왼쪽 "비공개"를 누르면 "학생 공개 중"으로 바뀌어요. 그 뒤 오른쪽 "저장"을 누르면 학생이 수업자료 탭에서 볼 수 있어요.',
   },
   {
     target: 'me-preview',
-    title: '⑦ 학생 화면 미리보기',
-    description: '맨 위 "미리보기"를 눌러 학생에게 어떻게 보일지 확인해 보세요. 학생이 적는 칸도 직접 적어 볼 수 있어요!',
+    title: '⑭ 학생 화면으로 확인',
+    description: '맨 위 "미리보기"를 눌러 보세요. 방금 만든 제목·목록·표가 학생에게 어떻게 보이는지, 학생이 적는 칸은 어떻게 생겼는지 확인할 수 있어요. 칸에 직접 적어 봐도 돼요!',
     clickAdvances: true,
   },
 ];
@@ -113,6 +166,7 @@ const MaterialEditorTour = () => {
   const [tour, setTour] = useState<TourState | null>(() => readTour());
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [cardH, setCardH] = useState(190);
   const [vw, setVw] = useState(() => window.innerWidth);
   const [vh, setVh] = useState(() => window.innerHeight);
@@ -159,6 +213,7 @@ const MaterialEditorTour = () => {
     scrolledForStepRef.current = -1;
     doneSinceRef.current = null;
     setNotFound(false);
+    setCollapsed(false);
     setRect(null);
   }, [tour?.step, tour?.status, onToolsPage]);
 
@@ -264,7 +319,7 @@ const MaterialEditorTour = () => {
             미리보기를 닫고 자유롭게 눌러 보세요. 더 자세한 설명은 가이드에서 볼 수 있어요.
           </p>
           <div className="flex items-center gap-2">
-            <a href="/guide.html" className="flex-1 text-center text-[11px] font-black bg-amber-400 hover:bg-amber-300 text-gray-900 rounded-lg px-3 py-2 transition-colors">자세한 가이드 보기</a>
+            <a href="/guide.html#material-editor" className="flex-1 text-center text-[11px] font-black bg-amber-400 hover:bg-amber-300 text-gray-900 rounded-lg px-3 py-2 transition-colors">자세한 가이드 보기</a>
             <button onClick={() => navigate('/login')} className="text-[11px] font-bold text-white/70 hover:text-white px-2 py-2 transition-colors">내 계정으로 시작</button>
             <button onClick={() => update({ step: STEPS.length - 1, status: 'skipped' })} aria-label="닫기" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"><X className="w-3.5 h-3.5" /></button>
           </div>
@@ -303,6 +358,27 @@ const MaterialEditorTour = () => {
   }
   cardTop = Math.min(Math.max(SIDE, cardTop), Math.max(SIDE, vh - cardH - SIDE));
 
+  // 접어 둔 상태: 슬래시 메뉴나 글쓰기 칸을 가리지 않도록 작은 알약만 남긴다
+  if (collapsed) {
+    return (
+      <>
+        {vis && (
+          <div
+            className="fixed rounded-2xl ring-4 ring-amber-400"
+            style={{ top: vis.top - 6, left: vis.left - 6, width: vis.width + 12, height: vis.height + 12, pointerEvents: 'none', zIndex: 9997 }}
+          />
+        )}
+        <button
+          onClick={() => setCollapsed(false)}
+          className="fixed bottom-4 right-4 flex items-center gap-2 bg-gray-900/95 text-white rounded-full shadow-2xl px-4 py-2.5 text-xs font-black"
+          style={{ zIndex: 9999 }}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" /> STEP {tour.step + 1}/{STEPS.length} · 안내 펼치기
+        </button>
+      </>
+    );
+  }
+
   const isLast = tour.step === STEPS.length - 1;
   const manualNext = !step.isDone && !step.clickAdvances;
 
@@ -310,7 +386,7 @@ const MaterialEditorTour = () => {
     <>
       {vis && (
         <div
-          className="fixed rounded-2xl ring-4 ring-amber-400 animate-pulse"
+          className="fixed rounded-2xl ring-4 ring-amber-400"
           style={{
             top: vis.top - 6,
             left: vis.left - 6,
@@ -330,9 +406,12 @@ const MaterialEditorTour = () => {
       >
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <p className="text-[10px] font-bold text-amber-300">STEP {tour.step + 1}/{STEPS.length} · 에디터 체험</p>
-          <button onClick={skip} aria-label="체험 안내 닫기" className="p-1 -m-1 rounded-lg hover:bg-white/10 transition-colors shrink-0">
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setCollapsed(true)} className="text-[10px] font-bold text-white/60 hover:text-white transition-colors">접기</button>
+            <button onClick={skip} aria-label="체험 안내 닫기" className="p-1 -m-1 rounded-lg hover:bg-white/10 transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
         <p className="text-sm font-black mb-1">{step.title}</p>
         <p className="text-xs font-bold text-white/80 leading-relaxed mb-3">

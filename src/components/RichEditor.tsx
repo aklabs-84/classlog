@@ -70,8 +70,14 @@ interface CmdListHandle { onKeyDown: (p: { event: KeyboardEvent }) => boolean }
 const CommandListComponent = forwardRef(
   ({ items, command }: { items: readonly SlashItem[]; command: (item: SlashItem) => void }, ref: Ref<CmdListHandle>) => {
     const [sel, setSel] = useState(0);
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
     useEffect(() => setSel(0), [items]);
+
+    // 방향키로 고른 항목이 목록 밖으로 나가면 같이 스크롤
+    useEffect(() => {
+      itemRefs.current[sel]?.scrollIntoView({ block: 'nearest' });
+    }, [sel]);
 
     useImperativeHandle(ref, () => ({
       onKeyDown({ event }) {
@@ -96,6 +102,7 @@ const CommandListComponent = forwardRef(
         {(items as SlashItem[]).map((item, index) => (
           <button
             key={index}
+            ref={el => { itemRefs.current[index] = el; }}
             onMouseDown={e => e.preventDefault()}
             onClick={() => command(item)}
             className={`w-full flex items-center gap-3 px-3 py-2 transition-colors text-left ${

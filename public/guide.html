@@ -2569,6 +2569,11 @@
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('overlay').classList.remove('show');
   }
+  // 주소 끝에 #섹션이름이 있으면 그 가이드 화면을 바로 보여준다 (예: /guide.html#material-editor)
+  (function () {
+    const id = decodeURIComponent((location.hash || '').replace('#', ''));
+    if (id && document.getElementById('sec-' + id)) showSection(id);
+  })();
 </script>
 </body>
 </html>
