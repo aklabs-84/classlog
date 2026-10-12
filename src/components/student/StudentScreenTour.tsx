@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { HelpCircle, X } from 'lucide-react';
 
 // 학생 화면용 "지금 화면" 안내
-// - 화면(screenKey)마다 안내가 하나씩 있고, 처음 그 화면에 들어오면 한 번 자동으로 나타난다
+// - 화면(screenKey)마다 안내가 하나씩 있고, 이 기기에서 처음 한 번만 자동으로 나타난다 (그 뒤로는 ? 버튼으로만)
 // - 우측 상단 ? 버튼을 누르면 지금 화면의 안내를 다시 볼 수 있다
 // - 보기 전용: 학생 대신 아무것도 누르지 않는다. 안내 창은 설명 대상 위가 아니라 위/아래 빈 공간에 놓인다
 // - "봤음" 기록은 이 기기(localStorage)에만 남는다
@@ -86,8 +86,10 @@ const StudentScreenTour = ({ screenKey, screens, storagePrefix, suspended = fals
     setRect(null);
     setSub(0);
     if (!screenKey || !screens[screenKey]) return;
-    if (suspended || readSeen(`${storagePrefix}_${screenKey}`)) return;
-    const t = setTimeout(() => setOpen(true), 700);
+    // 이 기기에서 자동 안내는 처음 한 번만 (이후엔 ? 버튼으로만). 뜨는 순간 바로 "봤음"으로 남겨 닫지 않고 지나가도 다시 뜨지 않는다
+    const anyKey = `${storagePrefix}__auto_done`;
+    if (suspended || readSeen(anyKey) || readSeen(`${storagePrefix}_${screenKey}`)) return;
+    const t = setTimeout(() => { writeSeen(anyKey); setOpen(true); }, 700);
     return () => clearTimeout(t);
   }, [screenKey, screens, storagePrefix, suspended]);
 
