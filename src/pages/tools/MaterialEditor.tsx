@@ -2089,7 +2089,7 @@ const MaterialEditor = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments });
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments, viewerStyle: normalizeViewerStyle(material.viewer_style) });
                         }}
                         title="내용 미리보기"
                         className={`${qcls} text-on-surface hover:bg-white transition-colors`}
