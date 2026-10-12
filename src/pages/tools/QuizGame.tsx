@@ -27,6 +27,7 @@ type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
 
 interface QuizSet {
   id: string;
+  teacher_id?: string;
   title: string;
   class_id: string | null;
   created_at: string;
@@ -173,6 +174,7 @@ const QuizGame = () => {
 
   // 연동 학급(교과/협력 교사)의 class row는 linked_class_id로 원본 담임 학급을 가리킴 —
   // 학생은 담임반 입장코드로 로그인하므로, 퀴즈 세션/기록도 항상 담임반 id 기준으로 저장해야 학생 화면에 보임
+  const isSharedSet = (qs?: { teacher_id?: string } | null) => !!qs?.teacher_id && qs.teacher_id !== user?.id;
   const resolveClassId = (cls: any) => cls?.linked_class_id || cls?.id || null;
 
   const fetchClasses = async () => {
@@ -198,7 +200,17 @@ const QuizGame = () => {
       .order('created_at', { ascending: false });
     if (classId) query = query.eq('class_id', classId);
     const { data } = await query;
-    if (data) setQuizSets(data);
+    let list: QuizSet[] = data || [];
+    // 프로젝트 만든 사람이 이 반에 공통으로 지정한 퀴즈(읽기 전용)도 함께 보여 준다
+    if (classId) {
+      const { data: cls } = await supabase.from('classes').select('auto_quiz_set_id').eq('id', classId).maybeSingle();
+      const sharedId = cls?.auto_quiz_set_id;
+      if (sharedId && !list.some(q => q.id === sharedId)) {
+        const { data: shared } = await supabase.from('quiz_sets').select('*').eq('id', sharedId).maybeSingle();
+        if (shared) list = [shared as QuizSet, ...list];
+      }
+    }
+    if (data) setQuizSets(list);
   };
 
   const fetchQuestions = async (quizSetId: string) => {
@@ -501,6 +513,31 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
 
     // 서버-기기 시간 오프셋 조회 (실패해도 0으로 폴백되어 진행에 영향 없음)
     offsetMsRef.current = await getServerTimeOffsetMs();
+
+    // 수업 시간에 자동으로 열린 대기실이 이 퀴즈의 것이면 새로 만들지 않고 그대로 이어서 진행
+    // (학생들이 이미 그 PIN으로 들어와 있을 수 있음)
+    const classIdForSession = resolveClassId(selectedClass);
+    const { data: autoLobby } = await supabase
+      .from('quiz_sessions')
+      .select('id, quiz_set_id, state, pin_code, current_question_index, created_at, updated_at')
+      .eq('teacher_id', user!.id)
+      .eq('class_id', classIdForSession)
+      .eq('auto_created', true)
+      .eq('state', 'LOBBY')
+      .order('created_at', { ascending: false });
+    const sameSetLobby = (autoLobby || []).find(x => x.quiz_set_id === selectedQuizSet.id);
+    if (sameSetLobby) {
+      await handleResumeOpenSession(sameSetLobby);
+      setLoading(false);
+      return;
+    }
+    // 다른 퀴즈로 직접 시작하면, 아직 아무도 시작하지 않은 자동 대기실은 정리
+    if ((autoLobby || []).length > 0) {
+      await supabase
+        .from('quiz_sessions')
+        .update({ state: 'FINAL', updated_at: new Date().toISOString() })
+        .in('id', (autoLobby || []).map(x => x.id));
+    }
 
     // 기존 활성 세션 종료
     await supabase
@@ -996,19 +1033,22 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                               {openSessions.some(o => o.quiz_set_id === qs.id) && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 font-bold shrink-0">진행 중</span>
                               )}
+                              {isSharedSet(qs) && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-600 font-bold shrink-0">공통 퀴즈</span>
+                              )}
                               {otherClassName && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-bold shrink-0">{otherClassName}</span>
                               )}
                             </div>
                             <ChevronRight size={15} className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0" />
                           </button>
-                          <button
+                          {!isSharedSet(qs) && <button
                             onClick={e => { e.stopPropagation(); handleDeleteQuizSet(qs.id, qs.title); }}
                             className="p-2.5 mr-1 text-on-surface-variant/30 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                             title="퀴즈 세트 삭제"
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </button>}
                         </div>
                       );
                     })}
@@ -1053,6 +1093,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
             <h3 className="font-black text-on-surface text-xl gradient-text">{selectedQuizSet?.title}</h3>
             <p className="text-xs text-on-surface-variant mt-0.5">
               {selectedClass?.name} · 문제 {questions.length}개
+              {isSharedSet(selectedQuizSet) && ' · 공통 퀴즈(수정 불가, 진행만 가능)'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1062,6 +1103,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
             >
               세트 변경
             </button>
+            {!isSharedSet(selectedQuizSet) && (<>
             {/* AI 문제 생성 버튼 */}
             {classMaterials.length > 0 ? (
               <button
@@ -1098,6 +1140,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
               <Plus size={14} strokeWidth={3} />
               문제 추가
             </button>
+            </>)}
           </div>
         </div>
 
@@ -1222,7 +1265,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                       <Clock size={10} />
                       {q.time_limit}초
                     </span>
-                    <button
+                    {!isSharedSet(selectedQuizSet) && <><button
                       onClick={() => { setEditingQuestion({ ...q }); setShowQuestionForm(true); }}
                       className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all"
                     >
@@ -1233,7 +1276,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                       className="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-all"
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </button></>}
                   </div>
                 </div>
                 {q.image_url && (

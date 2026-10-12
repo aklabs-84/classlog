@@ -301,6 +301,18 @@ const Classroom = () => {
   const newWeekTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [createModalFull, setCreateModalFull] = useState(true); // 새 학급 만들기 모달 전체화면 토글 (기본: 전체화면)
   useEffect(() => { if (isCreateModalOpen) { setCreateModalFull(true); setSelectedNewWeekIdx(0); } }, [isCreateModalOpen]);
+  // 수업 시작 때 자동으로 열 퀴즈 후보 (학급 수정 모달에서 이 반에 만든 퀴즈 세트 목록)
+  const [autoQuizOptions, setAutoQuizOptions] = useState<{ id: string; title: string }[]>([]);
+  useEffect(() => {
+    const cid = updateClassData?.id;
+    if (!cid || !user) { setAutoQuizOptions([]); return; }
+    let cancelled = false;
+    const resolved = updateClassData?.linked_class_id || cid;
+    supabase.from('quiz_sets').select('id, title').eq('teacher_id', user.id).eq('class_id', resolved)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (!cancelled) setAutoQuizOptions(data || []); });
+    return () => { cancelled = true; };
+  }, [updateClassData?.id, updateClassData?.linked_class_id, user?.id]);
   useEffect(() => {
     if (!isCreateModalOpen || !createModalFull) return;
     const prev = document.body.style.overflow;
@@ -985,6 +997,7 @@ const Classroom = () => {
           weekly_plan: updateClassData.weekly_plan || [],
           shared_survey_form_id: updateClassData.shared_survey_form_id || null,
           entry_mode: updateClassData.entry_mode || 'roster',
+          auto_quiz_set_id: updateClassData.auto_quiz_set_id || null,
           // 현장 명단 모드로 새로 바꾸거나, 선생님이 "입장 방식 바꾸기"/"전체 취소"로 직접 다시 연 경우에만 수락 상태를 처음으로 되돌림
           // (일반 학급 수정 저장은 수업 중 학생 화면을 바꾸지 않도록 건드리지 않음)
           ...(updateClassData.entry_mode === 'live_roster' && (
@@ -4132,6 +4145,27 @@ const Classroom = () => {
                           </div>
                         )}
                         <p className="text-[11px] text-neutral-400 font-bold ml-1">매일 설정한 종료 시각 기준으로 플로팅 알림이 울립니다.</p>
+                      </div>
+
+                      {/* 수업 시작 때 자동으로 열 퀴즈 */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                          <Clock size={13} /> 수업 시작 때 자동으로 열 퀴즈 (선택)
+                        </label>
+                        <select
+                          value={updateClassData.auto_quiz_set_id || ''}
+                          onChange={e => setUpdateClassData({...updateClassData, auto_quiz_set_id: e.target.value || null})}
+                          disabled={!updateClassData.class_start_time}
+                          className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none disabled:opacity-50"
+                        >
+                          <option value="">사용 안 함</option>
+                          {autoQuizOptions.map(q => <option key={q.id} value={q.id}>{q.title}</option>)}
+                        </select>
+                        <p className="text-[11px] text-neutral-400 font-bold ml-1">
+                          {updateClassData.class_start_time
+                            ? '시작 시각이 되면 퀴즈 대기실이 자동으로 열리고, 종료 시각이 되면 자동으로 닫힙니다. 선생님이 수업도구 퀴즈 화면에서 직접 시작·종료하는 것도 그대로 가능합니다.'
+                            : '먼저 위에서 수업 시작 시각을 정해 주세요.'}
+                        </p>
                       </div>
 
                       {/* 출석 알림 요일 */}
