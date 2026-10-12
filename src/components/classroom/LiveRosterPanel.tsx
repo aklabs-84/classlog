@@ -15,6 +15,7 @@ const LiveRosterPanel = ({ classId, onAccepted }: Props) => {
   const [rows, setRows] = useState<Row[]>([]);
   const [open, setOpen] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -44,6 +45,19 @@ const LiveRosterPanel = ({ classId, onAccepted }: Props) => {
     setRows(prev => prev.filter(r => r.id !== id));
   };
 
+  // 입력된 명단을 전부 지우고 처음부터 다시 받는다 (학생은 새로고침 후 다시 입력)
+  const handleResetAll = async () => {
+    if (rows.length === 0) return;
+    if (!window.confirm(`입력된 ${rows.length}명을 모두 지우고 처음부터 다시 받을까요?\n학생들은 화면을 새로고침해서 다시 입력해야 해요.`)) return;
+    setResetting(true);
+    setError('');
+    const results = await Promise.all(rows.map(r => supabase.rpc('live_roster_remove', { p_class_id: classId, p_request_id: r.id })));
+    setResetting(false);
+    if (results.some(r => r.error)) setError('일부를 지우지 못했어요. 다시 시도해주세요.');
+    const { data } = await supabase.rpc('live_roster_teacher_list', { p_class_id: classId });
+    if (Array.isArray(data)) setRows(data as Row[]);
+  };
+
   const sorted = [...rows].sort((a, b) => (parseInt(a.student_number) || 9999) - (parseInt(b.student_number) || 9999));
 
   return (
@@ -59,6 +73,10 @@ const LiveRosterPanel = ({ classId, onAccepted }: Props) => {
         <div className="flex items-center gap-2">
           <button onClick={() => setOpen(o => !o)} className="px-4 py-2 rounded-xl text-xs font-black bg-white border border-surface-container-high text-on-surface-variant hover:bg-surface-container transition-all">
             {open ? '명단 접기' : '명단 보기'}
+          </button>
+          <button onClick={handleResetAll} disabled={resetting || rows.length === 0} title="입력된 명단을 모두 지우고 다시 받기"
+            className="px-4 py-2 rounded-xl text-xs font-black bg-white border border-error/30 text-error hover:bg-error/5 transition-all disabled:opacity-40">
+            {resetting ? '지우는 중…' : '전체 취소·다시 받기'}
           </button>
           <button onClick={handleAccept} disabled={accepting}
             className="px-5 py-2 rounded-xl text-xs font-black bg-primary text-white flex items-center gap-1.5 hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50">

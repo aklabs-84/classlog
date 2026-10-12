@@ -3256,7 +3256,7 @@ const Classroom = () => {
                 </div>
               )}
 
-              {activeTab === 'list' && classInfo && (classInfo.entry_mode || 'roster') === 'roster' && students.length === 0 && (
+              {activeTab === 'list' && classInfo && students.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
                   <p className="text-sm font-bold text-amber-800">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
                   <button type="button" onClick={() => handleOpenEditClass(classInfo)} className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-amber-800 hover:bg-amber-100 transition-all">입장 방식 바꾸기</button>
