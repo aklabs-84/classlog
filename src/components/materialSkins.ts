@@ -28,3 +28,24 @@ const IDS = new Set<string>(VIEWER_STYLES.map(s => s.id));
 export const normalizeViewerStyle = (v: unknown): ViewerStyle => (typeof v === 'string' && IDS.has(v) ? (v as ViewerStyle) : 'default');
 
 export const viewerStyleInfo = (v: unknown): ViewerStyleInfo => VIEWER_STYLES.find(s => s.id === normalizeViewerStyle(v)) ?? VIEWER_STYLES[0];
+
+// 보기 테마(라이트/다크) — 모양마다 처음 보이는 테마가 다르고, 학생이 바꾸면 이 기기에 기억한다
+export type ViewerTheme = 'light' | 'dark';
+const THEME_KEY = 'mv-theme';
+export const defaultViewerTheme = (v: ViewerStyle): ViewerTheme => {
+  if (v === 'mission') return 'dark';
+  if (v === 'note') {
+    try { if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark'; } catch { /* 무시 */ }
+  }
+  return 'light';
+};
+export const readViewerTheme = (v: ViewerStyle): ViewerTheme => {
+  try {
+    const t = localStorage.getItem(`${THEME_KEY}:${v}`);
+    if (t === 'light' || t === 'dark') return t;
+  } catch { /* 무시 */ }
+  return defaultViewerTheme(v);
+};
+export const saveViewerTheme = (v: ViewerStyle, t: ViewerTheme) => {
+  try { localStorage.setItem(`${THEME_KEY}:${v}`, t); } catch { /* 무시 */ }
+};

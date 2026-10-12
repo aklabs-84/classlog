@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
 import MaterialAttachments, { type MaterialAttachment } from './MaterialAttachments';
 import { InTeacherNoteContext, TeacherViewContext } from './teacherOnly';
-import { normalizeViewerStyle, viewerStyleInfo } from './materialSkins';
+import { normalizeViewerStyle, viewerStyleInfo, readViewerTheme, saveViewerTheme, type ViewerTheme } from './materialSkins';
 
 // 학생용 수업 자료 "한 페이지" 뷰어 — 본문 + 오른쪽 목차(접고 펼치기) + 이 차시에 등록된 일반 자료를
 // 한 화면에서 이어서 볼 수 있게 한다. 목차는 실제 렌더된 화면의 h1/h2에서 뽑아 토글·HTML 제목이
@@ -292,6 +292,9 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   const skin = normalizeViewerStyle(viewerStyle);
   const skinInfo = viewerStyleInfo(skin);
   const skinned = skin !== 'default';
+  const [theme, setTheme] = useState<ViewerTheme>(() => readViewerTheme(skin));
+  useEffect(() => { setTheme(readViewerTheme(skin)); }, [skin]);
+  const toggleTheme = () => setTheme(prev => { const next = prev === 'dark' ? 'light' : 'dark'; saveViewerTheme(skin, next); return next; });
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -616,7 +619,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   );
 
   return createPortal(
-    <div className={`fixed inset-0 z-[9999] bg-white flex flex-col h-[100dvh] ${skinned ? `mv-skin-${skin}` : ''}`}>
+    <div className={`fixed inset-0 z-[9999] bg-white flex flex-col h-[100dvh] ${skinned ? `mv-skin-${skin}` : ''}`} data-mv-theme={skinned ? theme : undefined}>
       <div className="mv-header flex items-center gap-3 px-4 sm:px-5 py-3 bg-slate-800 shrink-0">
         <button
           onClick={onClose}
@@ -657,6 +660,17 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
               </button>
             ))}
           </div>
+        )}
+        {skinned && (
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 text-white font-black text-base hover:bg-white/20 active:scale-95 transition-all shrink-0"
+            title={theme === 'dark' ? '밝은 화면으로 바꾸기' : '어두운 화면으로 바꾸기'}
+            aria-label={theme === 'dark' ? '밝은 화면으로 바꾸기' : '어두운 화면으로 바꾸기'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="hidden sm:inline">{theme === 'dark' ? '라이트' : '다크'}</span>
+          </button>
         )}
         {entries.length > 0 && (
           <button

@@ -77,7 +77,7 @@ export const renderCallout = (props: any, dark: boolean) => {
   const style = type ? (dark ? CALLOUT_STYLES_DARK : CALLOUT_STYLES)[type] : undefined;
   if (!style) return <div {...rest}>{children}</div>;
   return (
-    <div className={`my-3 rounded-xl border-2 flex gap-3 px-4 py-3 ${style.classes}`}>
+    <div className={`mv-callout mv-c-${type} my-3 rounded-xl border-2 flex gap-3 px-4 py-3 ${style.classes}`}>
       <span className="shrink-0 text-lg leading-none mt-0.5">{style.icon}</span>
       <div className="flex-1 min-w-0 text-sm [&>p]:m-0 [&>p]:mb-2 [&>p:last-child]:mb-0">{children}</div>
     </div>
