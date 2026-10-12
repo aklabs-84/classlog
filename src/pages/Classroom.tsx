@@ -3266,6 +3266,7 @@ const Classroom = () => {
               {activeTab === 'list' && classInfo?.entry_mode === 'live_roster' && !classInfo.live_roster_accepted && (
                 <LiveRosterPanel
                   classId={classInfo.id}
+                  onReset={() => handleOpenEditClass(classInfo)}
                   onAccepted={async () => {
                     const { data } = await supabase.from('classes').select('*').eq('id', classInfo.id).single();
                     if (data) {

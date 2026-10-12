@@ -8,10 +8,12 @@ interface Props {
   classId: string;
   /** 수락이 끝난 뒤(명단 확정) 부모가 반 정보·학생 목록을 다시 불러오도록 */
   onAccepted: () => void | Promise<void>;
+  /** 전체 취소가 끝난 뒤 호출 — 부모가 입장 방식 선택 창을 열어 준다 */
+  onReset?: () => void;
 }
 
 // 현장 명단 입력 모드에서, 학생들이 입력 중인 명단을 3초마다 갱신해 보여주고 "수락"으로 확정한다
-const LiveRosterPanel = ({ classId, onAccepted }: Props) => {
+const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
   const [rows, setRows] = useState<Row[]>([]);
   const [open, setOpen] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -53,9 +55,10 @@ const LiveRosterPanel = ({ classId, onAccepted }: Props) => {
     setError('');
     const results = await Promise.all(rows.map(r => supabase.rpc('live_roster_remove', { p_class_id: classId, p_request_id: r.id })));
     setResetting(false);
-    if (results.some(r => r.error)) setError('일부를 지우지 못했어요. 다시 시도해주세요.');
     const { data } = await supabase.rpc('live_roster_teacher_list', { p_class_id: classId });
     if (Array.isArray(data)) setRows(data as Row[]);
+    if (results.some(r => r.error)) { setError('일부를 지우지 못했어요. 다시 시도해주세요.'); return; }
+    onReset?.();
   };
 
   const sorted = [...rows].sort((a, b) => (parseInt(a.student_number) || 9999) - (parseInt(b.student_number) || 9999));
