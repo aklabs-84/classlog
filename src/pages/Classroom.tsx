@@ -254,6 +254,7 @@ const Classroom = () => {
   );
   // 메인 탭바 클릭-드래그 가로 스크롤
   const tabBarRef = useRef<HTMLDivElement>(null);
+  const teacherAddingUntil = useRef(0); // 선생님이 직접 학생을 추가하는 동안은 '입장' 토스트를 띄우지 않는다
   const tabDragState = useRef({ isDown: false, moved: false, startX: 0, scrollLeft: 0 });
   const handleTabBarMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = tabBarRef.current;
@@ -780,6 +781,37 @@ const Classroom = () => {
       .subscribe();
 
     return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeClassId]);
+
+  // 학생 입장·퇴장·이름 변경 실시간 반영 (이름만 입력하고 입장하는 방식 포함). 짧게 모아서 한 번만 다시 불러온다
+  useEffect(() => {
+    if (!activeClassId) return;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let toastTimer: ReturnType<typeof setTimeout> | undefined;
+    let joined: string[] = [];
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => fetchStudents(activeClassId), 600);
+    };
+    const channel = supabase
+      .channel(`classroom-students-${activeClassId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students', filter: `class_id=eq.${activeClassId}` }, (payload: any) => {
+        scheduleRefresh();
+        if (payload.eventType !== 'INSERT' || Date.now() < teacherAddingUntil.current) return;
+        joined.push((payload.new?.full_name || '').trim() || '학생');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          const names = joined;
+          joined = [];
+          showToast(names.length === 1 ? `🙋 ${names[0]} 학생이 입장했어요!` : `🙋 ${names[0]} 외 ${names.length - 1}명이 입장했어요!`);
+        }, 1200);
+      })
+      .subscribe();
+    return () => {
+      clearTimeout(refreshTimer);
+      clearTimeout(toastTimer);
       supabase.removeChannel(channel);
     };
   }, [activeClassId]);
@@ -1446,6 +1478,7 @@ const Classroom = () => {
     }
 
     try {
+      teacherAddingUntil.current = Date.now() + 5000;
       const { error } = await supabase
         .from('students')
         .insert({
@@ -1532,6 +1565,7 @@ const Classroom = () => {
         if (!proceed) return;
       }
 
+      teacherAddingUntil.current = Date.now() + 5000;
       const { error } = await supabase.from('students').insert(newStudents);
       if (error) throw error;
 
