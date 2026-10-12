@@ -2777,7 +2777,7 @@ const Classroom = () => {
                                 isObs ? 'bg-violet-50 border-violet-100 hover:border-violet-300 hover:bg-violet-50/80' : 'bg-emerald-50 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50/80'
                               }`}
                             >
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${
                                     isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
@@ -2786,7 +2786,7 @@ const Classroom = () => {
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-xs font-black truncate">{post.student_name}</p>
-                                    <p className="text-xs text-on-surface-variant/80 font-bold">
+                                    <p className="text-xs text-on-surface-variant/80 font-bold whitespace-nowrap">
                                       {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
                                     </p>
                                   </div>

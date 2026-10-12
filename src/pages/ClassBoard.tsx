@@ -347,7 +347,7 @@ const ClassBoard = () => {
                     }`}
                   >
                     {/* 카드 헤더 */}
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[12px] shrink-0 ${
                           isObs
@@ -358,7 +358,7 @@ const ClassBoard = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-black truncate text-on-surface">{post.student_name}</p>
-                          <p className="text-[10px] text-on-surface-variant font-bold">
+                          <p className="text-[10px] text-on-surface-variant font-bold whitespace-nowrap">
                             {post.week_number ? `${post.week_number}주차 · ` : ''}
                             {new Date(post.created_at).toLocaleDateString('ko-KR')}
                           </p>

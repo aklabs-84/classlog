@@ -557,8 +557,8 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
               title={!isStartedToday && weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 주차를 선택해주세요' : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 isStartedToday
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 hover:border-blue-400'
+                  : 'bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700'
               }`}
             >
               {isStartedToday ? <CheckCircle2 size={14} /> : <Clock size={14} />}
@@ -571,8 +571,10 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
               title={!isStartedToday ? '먼저 수업 시작을 체크해주세요' : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                 isEndedToday
-                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                  : 'bg-white text-rose-500 border-rose-200 hover:border-rose-400'
+                  ? 'bg-rose-50 text-rose-500 border-rose-200 hover:border-rose-400'
+                  : isStartedToday
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm hover:bg-rose-700'
+                  : 'bg-white text-rose-500 border-rose-200'
               }`}
             >
               {isEndedToday ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
