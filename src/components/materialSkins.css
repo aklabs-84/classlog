@@ -318,3 +318,17 @@
 .mv-skin-challenge .mv-article .mv-hero blockquote p { color: #16161d !important; }
 .mv-skin-challenge .mv-article .mv-hero h1 :is(strong, b) { color: #16161d; }
 .mv-skin-mission .mv-article .mv-min { color: var(--m-sub); }
+
+/* ═══ 덩어리(안내 상자·목록·표·코드 상자·문단) 사이 여유 간격 ═══
+   본문 직속 덩어리마다 아래쪽을 크게 띄운다. 첫 화면(.mv-hero)과 준비물 칩은 자기 간격을 쓴다. */
+[class*='mv-skin-'] .mv-article > :not(h1, h2, h3, h4, hr, .mv-hero, .mv-chips) { margin-top: 0; margin-bottom: 1.7em; }
+[class*='mv-skin-'] .mv-article > p:has(> strong:only-child):has(+ :is(div.overflow-auto, table, ul, ol, pre)) { margin-bottom: 0.7em; }
+[class*='mv-skin-'] .mv-article > :is(h1, h2, h3, h4) + * { margin-top: 0; }
+[class*='mv-skin-'] .mv-article > hr { margin: 2.4em 0; }
+[class*='mv-skin-'] .mv-article > h3 { margin-top: 2em; margin-bottom: 0.7em; }
+[class*='mv-skin-'] .mv-article :is(ul, ol) > li + li { margin-top: 0.55em; }
+[class*='mv-skin-'] .mv-article :is(ul, ol) :is(ul, ol) { margin: 0.55em 0 0; }
+.mv-skin-mission .mv-article > h2, .mv-skin-challenge .mv-article > h2, .mv-skin-note .mv-article > h2 { margin-top: 2.4em; margin-bottom: 0.9em; }
+.mv-skin-mission .mv-article, .mv-skin-challenge .mv-article { line-height: 1.85; }
+.mv-skin-note .mv-article { line-height: 1.9; }
+.mv-skin-storybook .mv-article > h2 { margin-bottom: 1.2em; }
