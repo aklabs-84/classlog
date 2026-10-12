@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../lib/auth';
+import DailyLogTab from '../components/classroom/DailyLogTab';
 import SendQuizTab from '../components/classroom/SendQuizTab';
 import SendBoardTab from '../components/classroom/SendBoardTab';
 import { supabase } from '../lib/supabase';
@@ -118,6 +119,7 @@ const TABS = [
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
   { key: 'records', label: '기록' },
+  { key: 'daily', label: '일자별' },
   { key: 'materials', label: '수업 자료' },
   { key: 'quiz', label: '퀴즈 보내기' },
   { key: 'board', label: '보드 보내기' },
@@ -126,6 +128,22 @@ const TABS = [
   { key: 'summary', label: '결과 요약' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
+
+/** 위쪽 큰 탭(그룹). 하위 항목이 2개 이상이면 아래에 작은 선택 버튼이 나온다 */
+const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: string }[] }[] = [
+  { key: 'overview', label: '개요', subs: [{ key: 'overview', label: '개요' }] },
+  { key: 'docs', label: '강사 제출 서류', subs: [{ key: 'docs', label: '강사 제출 서류' }] },
+  { key: 'log', label: '수업 기록', subs: [
+    { key: 'attendance', label: '출결' }, { key: 'daily', label: '일자별' },
+    { key: 'results', label: '결과' }, { key: 'records', label: '기록' },
+  ] },
+  { key: 'mat', label: '수업 자료', subs: [
+    { key: 'materials', label: '자료' }, { key: 'quiz', label: '퀴즈 보내기' }, { key: 'board', label: '보드 보내기' },
+  ] },
+  { key: 'plan', label: '주차별 계획', subs: [{ key: 'plan', label: '주차별 계획' }] },
+  { key: 'survey', label: '설문', subs: [{ key: 'survey', label: '설문' }] },
+  { key: 'summary', label: '결과 요약', subs: [{ key: 'summary', label: '결과 요약' }] },
+];
 
 const SchoolProjectDetailPage = () => {
   const { projectId, schoolId } = useParams<{ projectId: string; schoolId: string }>();
@@ -633,20 +651,42 @@ const SchoolProjectDetailPage = () => {
 
       {/* 탭 */}
       <div className="flex gap-1 border-b border-surface-container-high overflow-x-auto">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${
-              tab === t.key
-                ? 'border-primary text-primary'
-                : 'border-transparent text-on-surface-variant/60 hover:text-on-surface-variant'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TAB_GROUPS.map(g => {
+          const active = g.subs.some(x => x.key === tab);
+          return (
+            <button
+              key={g.key}
+              onClick={() => { if (!active) setTab(g.subs[0].key); }}
+              className={`px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${
+                active
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-on-surface-variant/60 hover:text-on-surface-variant'
+              }`}
+            >
+              {g.label}
+            </button>
+          );
+        })}
       </div>
+      {(() => {
+        const g = TAB_GROUPS.find(x => x.subs.some(y => y.key === tab));
+        if (!g || g.subs.length < 2) return null;
+        return (
+          <div className="flex flex-wrap gap-1.5">
+            {g.subs.map(sub => (
+              <button
+                key={sub.key}
+                onClick={() => setTab(sub.key)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  tab === sub.key ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+                }`}
+              >
+                {sub.label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {tab === 'materials' && projectId && schoolId && (
         <SchoolMaterialsTab projectId={projectId} schoolId={schoolId} schoolName={school?.name || '이 학교'} />
@@ -967,6 +1007,10 @@ const SchoolProjectDetailPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'daily' && (
+        <DailyLogTab classes={classes.map(c => ({ id: c.id, name: c.name, students: c.students }))} />
       )}
 
       {tab === 'records' && (
