@@ -75,7 +75,7 @@ const LineContext = createContext<string>('');
 
 const FIELD_CLS = 'rounded-lg border-2 border-primary/25 bg-primary/5 px-3 py-2 text-lg leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-100 disabled:bg-surface-container-low disabled:border-surface-container disabled:text-on-surface';
 
-const AnswerText = ({ fieldKey, inline }: { fieldKey: string; inline?: boolean }) => {
+const AnswerText = ({ fieldKey, inline, rows = 1 }: { fieldKey: string; inline?: boolean; rows?: number }) => {
   const ctx = useContext(AnswerContext)!;
   const [v, setV] = useState(() => ctx.get(fieldKey));
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -108,7 +108,7 @@ const AnswerText = ({ fieldKey, inline }: { fieldKey: string; inline?: boolean }
       ref={taRef}
       data-answer-field
       data-fkey={fieldKey}
-      rows={1}
+      rows={rows}
       value={v}
       maxLength={2000}
       disabled={ctx.readOnly}
@@ -141,7 +141,12 @@ const TOKEN_RE = /(\[ \]|_{3,})/;
 // 문자열 자식 안의 "[ ]"·"___"를 입력칸으로 바꾼다(이스케이프된 \[ \] , \___ 도 마크다운 처리 후엔 일반 글자)
 const renderInteractive = (children: ReactNode, baseKey: string): ReactNode => {
   let idx = 0;
-  return Children.toArray(children).map((c, i) => {
+  const arr = Children.toArray(children);
+  // 밑줄만 한 줄에 홀로 있으면(예: 인용문 속 소감 칸) 문장 속 작은 칸이 아니라 화면 너비의 넓은 칸으로 만든다
+  if (arr.length === 1 && typeof arr[0] === 'string' && /^\s*_{3,}\s*$/.test(arr[0])) {
+    return <AnswerText fieldKey={`${baseKey}:0`} rows={2} />;
+  }
+  return arr.map((c, i) => {
     if (typeof c !== 'string' || !TOKEN_RE.test(c)) return c;
     return (
       <Fragment key={`t${i}`}>
