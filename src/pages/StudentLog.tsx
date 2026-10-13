@@ -22,7 +22,6 @@ import {
   Lightbulb,
   ArrowLeft,
   BookOpen,
-  CheckCircle,
   CheckCircle2,
   Loader2,
   Clock,
@@ -64,6 +63,7 @@ import {
   Sparkles,
   Radio,
   HelpCircle,
+  Video,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
@@ -119,7 +119,7 @@ const TOUR_STEPS: TourStep[] = [
     targetId: 'tour-tab-home',
     emoji: '🏠',
     title: '홈',
-    description: '이번 주 수업 주제와 일정을 확인하고, 활동 기록·결과 제출로 빠르게 이동할 수 있어요.',
+    description: '지금 할 일(기록 → 결과 제출)과 수업 시간에 누르는 것들(자료·온라인수업·보드·퀴즈·설문)을 한눈에 볼 수 있어요.',
     placement: 'top',
   },
   {
@@ -324,9 +324,9 @@ const StudentLog = () => {
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
-  // 데스크탑 사이드바 접기/펼치기 (기본 펼침, localStorage에 저장)
+  // 데스크탑 사이드바 접기/펼치기 (처음엔 접힘, 학생이 바꾸면 localStorage에 저장)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('studentlog_sidebar_collapsed') === 'true'; } catch { return false; }
+    try { const v = localStorage.getItem('studentlog_sidebar_collapsed'); return v === null ? true : v === 'true'; } catch { return true; }
   });
   const toggleSidebarCollapsed = () => {
     setIsSidebarCollapsed(prev => {
@@ -385,6 +385,8 @@ const StudentLog = () => {
   const seenQuizSessionIds = useRef(new Set<string>());
   // 주차 선택 가로 스크롤 칩을 화면 진입 시 1회만 현재 주차 위치로 스크롤하기 위한 플래그
   const homeWeekScrolledRef = useRef(false);
+  // 홈 상단 "주차 바꾸기" 열림 여부
+  const [homeWeekPickerOpen, setHomeWeekPickerOpen] = useState(false);
   const editLogWeekScrolledRef = useRef(false);
   const resultWeekScrolledRef = useRef(false);
   useEffect(() => { editLogWeekScrolledRef.current = false; }, [editingLogId]);
@@ -2550,7 +2552,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         mdComponents={MATERIAL_MD_COMPONENTS}
         viewerStyle={fullscreenMaterial.viewerStyle}
         progressKey={fullscreenMaterial.id ?? fullscreenMaterial.title}
-        teacherTools={!!session?.is_teacher || teacherLoggedIn}
+        teacherTools={typeof session?.is_teacher === 'boolean' ? session.is_teacher : teacherLoggedIn}
         answers={fullscreenMaterial.id && session?.token ? {
           load: async () => {
             const { data, error } = await supabase.rpc('student_material_answers_get', { p_token: session.token, p_material_id: fullscreenMaterial.id });
@@ -2602,15 +2604,15 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
     )}
     <div className={`min-h-screen bg-surface flex flex-col p-6 pb-28 lg:pb-6 transition-[padding] duration-200 ${isSidebarCollapsed ? 'lg:pl-28' : 'lg:pl-72'}`}>
       {/* Top Navbar */}
-      <header className="flex items-center justify-between px-6 py-4 mb-4">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 mb-4">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white rotate-3 shadow-lg shadow-primary/20">
             <GraduationCap size={24} />
           </div>
-          <h1 className="text-xl font-black font-manrope tracking-tighter">클래스로그</h1>
+          <h1 className="hidden min-[480px]:block text-xl font-black font-manrope tracking-tighter">클래스로그</h1>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 sm:gap-6 min-w-0">
           {/* 이 화면 도움말 (활동 기록·결과 제출 화면에서만) */}
           {STUDENT_SCREENS[activeTab] && (
             <button
@@ -2730,10 +2732,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center gap-4 pl-4 border-l border-surface-container">
-            <div className="text-right">
-              <p className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-0.5">STUDENT LOG</p>
-              <p className="text-sm font-black">{session?.student_name}</p>
+          <div className="flex items-center gap-2 sm:gap-4 pl-2 sm:pl-4 border-l border-surface-container min-w-0">
+            <div className="text-right min-w-0">
+              <p className="hidden sm:block text-xs font-black text-primary uppercase tracking-[0.2em] mb-0.5">STUDENT LOG</p>
+              <p className="text-sm font-black truncate max-w-[6rem] sm:max-w-none">{session?.student_name}</p>
               {myClassGroup && (
                 <p className="text-xs font-bold text-on-surface-variant/60 mt-0.5">{myClassGroup.name}</p>
               )}
@@ -2769,49 +2771,30 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         }}
       />
 
-      <div className="max-w-6xl mx-auto w-full py-10 space-y-12">
-        {/* Session Card & Identity */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="col-span-1 md:col-span-8 glass p-12 rounded-[2.5rem] flex items-center justify-between relative overflow-hidden border border-white/20 shadow-ambient h-[280px] group">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-1000" />
-            <div className="relative z-10 space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                <p className="text-primary font-black text-sm uppercase tracking-[0.3em]">Current Active Session</p>
-              </div>
-              <h2 className="text-5xl font-black font-manrope tracking-tighter leading-[0.9]">{session?.class_name}</h2>
-              <h3 className="text-3xl font-bold text-on-surface-variant/40 font-manrope">{session?.subject} 과목</h3>
-            </div>
-            <div className="absolute right-10 bottom-[-40px] opacity-10 group-hover:rotate-12 transition-transform duration-700">
-              <BookOpen size={200} />
-            </div>
-          </div>
-
-          <div className="col-span-1 md:col-span-4 glass p-10 rounded-[2rem] border border-white/20 shadow-ambient flex flex-col justify-center relative overflow-hidden">
-            <div className="absolute -top-10 -left-10 text-primary/5"><User size={120} /></div>
-            <div className="relative z-10 space-y-6">
-              <div className="space-y-1">
-                <p className="text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] opacity-60">Verified Participant</p>
-                <h3 className="text-3xl font-black font-manrope">{session?.student_name}</h3>
-              </div>
-              <div className="pt-4 space-y-2">
-                <div className="flex items-center gap-2 text-sm font-bold text-on-surface-variant">
-                  <CheckCircle size={16} className="text-secondary" />
-                  <span>{session?.class_name} 참여 중</span>
-                </div>
-                <p className="text-sm text-on-surface-variant/60 font-bold ml-6">{new Date().toLocaleDateString('ko-KR')} 기록 활성화</p>
-                {myClassGroup && (
-                  <div className="mt-3 ml-0 p-3 rounded-2xl bg-white/30 border border-white/20 backdrop-blur-sm">
-                    <p className="text-xs font-black text-on-surface-variant/50 uppercase tracking-widest mb-1.5">My Group</p>
-                    <p className="text-lg font-black text-on-surface">{myClassGroup.name}</p>
-                    <p className="text-sm font-bold text-on-surface-variant/60 mt-1">
-                      {myClassGroup.memberNames.join(' · ')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+      <div className="max-w-6xl mx-auto w-full py-5 space-y-5">
+        {/* 학교·학생 한 줄 요약 */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl bg-white border border-surface-container-highest px-5 py-3" style={{ wordBreak: 'keep-all' }}>
+          {activeTab !== 'home' ? (
+            <button
+              onClick={() => handleTabChange('home')}
+              className="group inline-flex items-center gap-2 bg-primary text-white rounded-xl px-4 py-2 text-base font-black hover:bg-primary/90 active:scale-95 transition-all shrink-0"
+            >
+              <ArrowLeft size={18} strokeWidth={3} className="transition-transform group-hover:-translate-x-1" />
+              홈으로
+            </button>
+          ) : (
+            <span className="w-2 h-2 bg-primary rounded-full animate-pulse shrink-0" />
+          )}
+          <span className="text-lg font-black text-on-surface">{session?.class_name}</span>
+          <span className="text-base font-bold text-on-surface-variant">{session?.subject} 과목</span>
+          <span className="hidden sm:inline text-on-surface-variant/30">|</span>
+          <span className="text-lg font-black text-primary">{session?.student_name}</span>
+          {myClassGroup && (
+            <span className="text-base font-bold text-on-surface-variant">
+              · {myClassGroup.name}{myClassGroup.memberNames.length > 0 ? ` (${myClassGroup.memberNames.join(' · ')})` : ''}
+            </span>
+          )}
+          <span className="sm:ml-auto text-base font-bold text-on-surface-variant">{new Date().toLocaleDateString('ko-KR')}</span>
         </div>
 
         {/* Main Card with Tabs */}
@@ -2859,35 +2842,129 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 },
               ];
 
+              // ── 새 홈 화면용 계산 ──
+              const inCommon = !!session?.common_mode;
+              const hidden = (k: string) => inCommon && COMMON_HIDDEN_TABS.includes(k);
+              const visibleSteps = steps.filter(s => !hidden(s.tab));
+              const nextStep = visibleSteps.find(s => !s.done) ?? null;
+              const meetingLive = !!activeMeeting;
+              const quizLive = activeQuizSessions.length > 0;
+              const boardLive = activeBoardSessions.length > 0;
+              const surveyLive = activeSurveyForms.length > 0;
+
+              const LiveDot = () => (
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#e5484d] opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#e5484d]" />
+                </span>
+              );
+
+              const noPlan = displayWeek === null && !hidden('results');
+
+              // 수업 시간에 쓰는 것 (타일)
+              type HomeTile = { key: 'materials' | 'meeting' | 'board' | 'quiz' | 'survey' | 'unit'; label: string; sub: string; Icon: any; live?: boolean; lockable?: boolean; badge?: number; onClick: () => void };
+              const tiles: HomeTile[] = ([
+                { key: 'materials', label: '수업 자료', sub: '이번 주 자료 보기', Icon: BookOpen, onClick: () => handleTabChange('materials') },
+                { key: 'meeting', label: '온라인수업', sub: meetingLive ? '지금 눌러서 들어가요' : '선생님이 열면 들어가요', Icon: Video, live: meetingLive, lockable: true,
+                  onClick: () => (meetingLive ? window.open(activeMeeting.meeting_url, '_blank') : handleTabChange('meeting')) },
+                { key: 'board', label: '우리반 보드', sub: boardLive ? '지금 눌러서 들어가요' : '친구들과 함께 쓰기', Icon: Users2, live: boardLive, onClick: () => handleTabChange('board') },
+                { key: 'quiz', label: '퀴즈 입장', sub: quizLive ? '지금 눌러서 들어가요' : '선생님이 열면 들어가요', Icon: Gamepad2, live: quizLive, lockable: true, onClick: () => handleTabChange('quiz') },
+                { key: 'survey', label: '수업 끝 설문', sub: surveyLive ? '지금 눌러서 참여해요' : '선생님이 열면 참여해요', Icon: BarChart2, live: surveyLive, lockable: true, onClick: () => handleTabChange('survey') },
+                { key: 'unit', label: '단원마무리', sub: unitPendingCount > 0 ? '풀어야 할 게 남아 있어요' : '단원이 끝나면 풀어요', Icon: ClipboardList, badge: unitPendingCount, onClick: () => handleTabChange('unit') },
+              ] as HomeTile[]).filter(t => !hidden(t.key));
+
+              // 아래쪽 "내 것" 링크
+              const myLinks = ([
+                { key: 'history' as const, label: '나의 기록' },
+                { key: 'notes' as const, label: '나의 노트' },
+                ...(enabledToolIds.length > 0 ? [{ key: 'tools' as const, label: '학습 도구' }] : []),
+                { key: 'suggestions' as const, label: '질문·건의함', badge: unreadReplyCount },
+              ] as { key: 'history' | 'notes' | 'tools' | 'suggestions'; label: string; badge?: number }[]).filter(l => !hidden(l.key));
+
               return (
                 <motion.div key="home" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                   className="p-6 md:p-8 space-y-6">
 
-                  {/* 인사 */}
-                  <div>
-                    <p className="text-sm font-bold text-on-surface-variant/60">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}</p>
-                    <h2 className="text-2xl font-black mt-0.5">안녕하세요, {session?.student_name}님! 👋</h2>
+                  {/* 인사 + 오늘 주차 (주차 바꾸기는 작게) */}
+                  <div className="space-y-1" style={{ wordBreak: 'keep-all' }}>
+                    <p className="text-lg font-black">안녕하세요, {session?.student_name}님</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className="text-base font-bold text-on-surface-variant/70">
+                        {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}
+                        {weekInfo ? ` · ${displayWeek}주차 ${weekInfo.topic}` : ''}
+                      </p>
+                      {weeklyPlan.length > 1 && (
+                        <button
+                          onClick={() => setHomeWeekPickerOpen(v => !v)}
+                          className="text-sm font-black text-primary underline underline-offset-4 decoration-2 hover:decoration-primary/50"
+                        >
+                          {homeWeekPickerOpen ? '닫기' : '주차 바꾸기'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  {/* 온라인 수업 배너 */}
-                  {activeMeeting && (
-                    <motion.button
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={() => window.open(activeMeeting.meeting_url, '_blank')}
-                      className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 shadow-lg shadow-rose-200 active:scale-98 transition-all text-left"
-                    >
-                      <div className="w-12 h-12 rounded-2xl bg-white/25 flex items-center justify-center text-2xl shrink-0 shadow-inner">
-                        🎥
+                  {/* 주차 선택 */}
+                  {weeklyPlan.length > 1 && homeWeekPickerOpen && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
+                        {weeklyPlan.map(p => {
+                          const isActive = p.week === displayWeek;
+                          const wObs = historyLogs.some(l => norm(l.activity_name || '') === norm(p.topic));
+                          const wRes = results.some(r => r.week_number === p.week);
+                          const allDone = wObs && wRes;
+                          return (
+                            <button
+                              key={p.week}
+                              ref={(el) => {
+                                if (isActive && el && !homeWeekScrolledRef.current) {
+                                  homeWeekScrolledRef.current = true;
+                                  el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                                }
+                              }}
+                              onClick={() => { setSelectedHomeWeek(p.week); setHomeWeekPickerOpen(false); }}
+                              className={`shrink-0 whitespace-nowrap relative flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-black border-2 transition-all ${
+                                isActive ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-neutral-500 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                              }`}
+                            >
+                              {allDone && <CheckCircle2 size={14} className={isActive ? 'text-white/80' : 'text-emerald-500'} />}
+                              {p.week}주차
+                              <span className={`text-xs font-bold ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>· {p.topic}</span>
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-black text-sm">지금 온라인 수업이 진행 중이에요</p>
-                        <p className="text-white/80 text-sm font-bold truncate">{activeMeeting.title}</p>
-                      </div>
-                      <span className="text-white text-sm font-black shrink-0 bg-white/20 px-3 py-1.5 rounded-full">입장하기 →</span>
-                    </motion.button>
+                    </div>
                   )}
 
+                  {/* 지금 열린 것 알림 띠 (온라인수업·퀴즈) */}
+                  {(meetingLive || quizLive) && (
+                    <div className="space-y-2.5">
+                      {meetingLive && (
+                        <div className="flex flex-wrap items-center gap-3 bg-white border border-[#e5484d] rounded-2xl px-5 py-3.5">
+                          <LiveDot />
+                          <div className="flex-1 min-w-[10rem]">
+                            <p className="text-lg font-black text-[#e5484d]">온라인 수업이 진행 중이에요</p>
+                            <p className="text-base font-semibold text-on-surface-variant/70 truncate">{activeMeeting.title}</p>
+                          </div>
+                          <button onClick={() => window.open(activeMeeting.meeting_url, '_blank')}
+                            className="px-5 py-2.5 rounded-xl bg-[#e5484d] text-white text-base font-black hover:translate-x-0.5 active:scale-95 transition-all">
+                            입장하기
+                          </button>
+                        </div>
+                      )}
+                      {quizLive && (
+                        <div className="flex flex-wrap items-center gap-3 bg-white border border-[#e5484d] rounded-2xl px-5 py-3.5">
+                          <LiveDot />
+                          <p className="flex-1 min-w-[10rem] text-lg font-black text-[#e5484d]">퀴즈가 시작됐어요! 지금 들어가세요</p>
+                          <button onClick={() => handleTabChange('quiz')}
+                            className="px-5 py-2.5 rounded-xl bg-[#e5484d] text-white text-base font-black hover:translate-x-0.5 active:scale-95 transition-all">
+                            입장하기
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {/* 공지사항 */}
                   {announcements.length > 0 && (
                     <div className="space-y-2">
@@ -2930,6 +3007,129 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     </div>
                   )}
 
+                  {/* 지금 할 일 (남색 박스: 기록 / 결과 제출 두 칸) */}
+                  <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] text-white px-5 py-6 md:px-8 md:py-7"
+                    style={{ wordBreak: 'keep-all' }}>
+                    <div className="pointer-events-none absolute -right-14 -top-20 w-72 h-72 rounded-full bg-[radial-gradient(#6d3df055,transparent_70%)]" />
+                    <div className="relative">
+                      <p className="text-base font-bold text-[#a9b0d6] mb-4">
+                        {noPlan ? '지금 할 일' : nextStep ? '지금 할 일 · 아래에서 골라요' : '오늘 할 일을 모두 마쳤어요. 수고했어요!'}
+                      </p>
+                      {noPlan ? (
+                        <div>
+                          <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#ffffff' }}>아직 주차 계획이 없어요</h2>
+                          <p className="text-lg text-[#c4c9e6] mt-2">선생님께 주차 계획을 요청해 주세요.</p>
+                        </div>
+                      ) : (
+                        <div className={`grid gap-3 md:gap-4 ${visibleSteps.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+                          {visibleSteps.map(st => {
+                            const isRecord = st.tab === 'record';
+                            const closed = isClassClosed && !st.done;
+                            const isNext = !closed && nextStep?.step === st.step;
+                            const go = () => {
+                              if (closed) { if (!hidden('history')) handleTabChange('history'); return; }
+                              if (st.tab === 'results') setSelectedWeek(displayWeek);
+                              handleTabChange(st.tab);
+                            };
+                            return (
+                              <button
+                                key={st.step}
+                                onClick={go}
+                                className={`group relative text-left rounded-2xl p-5 md:p-6 min-h-[8.5rem] flex flex-col justify-between gap-4 transition-all active:scale-[0.98] hover:-translate-y-0.5 ${
+                                  isNext
+                                    ? 'bg-white text-[#0f172a] shadow-[0_18px_40px_-18px_rgba(0,0,0,0.6)]'
+                                    : 'bg-white/10 text-white border border-white/25 hover:bg-white/20'
+                                }`}
+                              >
+                                <span className="flex items-start justify-between gap-3">
+                                  <span className={`text-sm font-black rounded-full px-3 py-1 ${isNext ? 'bg-primary text-white' : 'bg-white/20 text-white'}`}>
+                                    {visibleSteps.length > 1 ? `${st.step}. ` : ''}{isRecord ? '수업 기록' : '결과 제출'}
+                                  </span>
+                                  {st.done ? (
+                                    <span className={`flex items-center gap-1 text-base font-black ${isNext ? 'text-emerald-600' : 'text-emerald-300'}`}>
+                                      <Check size={18} strokeWidth={3} /> 완료
+                                    </span>
+                                  ) : closed ? (
+                                    <span className="text-sm font-bold text-[#c4c9e6]">수업 종료</span>
+                                  ) : null}
+                                </span>
+                                <span className="block pr-9">
+                                  <span className="block text-2xl md:text-[1.7rem] font-black leading-tight tracking-tight">
+                                    {closed
+                                      ? '수업이 종료됐어요'
+                                      : isRecord ? '수업 기록하기' : '결과 제출하기'}
+                                  </span>
+                                  <span className={`block text-base md:text-lg mt-1 ${isNext ? 'text-neutral-600' : 'text-[#d5d9ee]'}`}>
+                                    {closed
+                                      ? (hidden('history') ? '새로 쓸 수 없어요.' : '이전 기록은 나의 기록에서 봐요.')
+                                      : isRecord ? '한 활동, 배운 점, 느낀 점을 적어요.' : '글·이미지·링크·파일 중에서 골라 올려요.'}
+                                  </span>
+                                </span>
+                                <ArrowRight size={24} strokeWidth={2.6}
+                                  className={`absolute right-5 bottom-5 transition-transform group-hover:translate-x-1 ${isNext ? 'text-primary' : 'text-white/70'}`} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 수업 시간에 눌러요 */}
+                  <div style={{ wordBreak: 'keep-all' }}>
+                    <p className="text-base font-bold text-on-surface-variant/70 mb-3">수업 시간에 눌러요</p>
+                    <div className="grid grid-cols-2 gap-2.5 md:gap-3.5">
+                      {tiles.map(t => {
+                        const idleLocked = t.lockable && !t.live;
+                        return (
+                          <button
+                            key={t.key}
+                            onClick={t.onClick}
+                            className={`group relative flex flex-col gap-4 md:gap-5 text-left rounded-[20px] border p-4 md:p-6 min-h-[9.5rem] md:min-h-[11rem] transition-all active:scale-[0.98] ${
+                              t.live
+                                ? 'bg-[#fffafa] border-[#e5484d] hover:-translate-y-0.5'
+                                : idleLocked
+                                  ? 'bg-transparent border-dashed border-neutral-300 hover:border-neutral-400'
+                                  : 'bg-white border-neutral-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(109,61,240,0.55)]'
+                            }`}
+                          >
+                            <span className={`w-[52px] h-[52px] rounded-[15px] flex items-center justify-center transition-colors ${
+                              t.live ? 'bg-[#e5484d] text-white'
+                                : idleLocked ? 'bg-neutral-100 text-neutral-400'
+                                : 'bg-violet-50 text-primary group-hover:bg-primary group-hover:text-white'
+                            }`}>
+                              <t.Icon size={26} strokeWidth={2} />
+                            </span>
+                            <span className="block">
+                              <span className={`block text-xl md:text-2xl font-black tracking-tight ${idleLocked ? 'text-neutral-500' : ''}`}>{t.label}</span>
+                              <span className={`block text-base md:text-[1.0625rem] mt-0.5 ${idleLocked ? 'text-neutral-400' : 'text-on-surface-variant/70'}`}>{t.sub}</span>
+                            </span>
+                            {t.live && (
+                              <span className="absolute right-4 top-4 md:right-5 md:top-5 flex items-center gap-1.5 text-sm font-black text-[#e5484d]">
+                                <LiveDot /> 진행 중
+                              </span>
+                            )}
+                            {!t.live && t.badge ? (
+                              <span className="absolute right-4 top-4 md:right-5 md:top-5 text-sm font-black text-white bg-primary rounded-full px-3 py-0.5">{t.badge}개 남음</span>
+                            ) : null}
+                            <ArrowRight size={22} strokeWidth={2.4}
+                              className={`absolute right-4 bottom-4 md:right-5 md:bottom-5 transition-all group-hover:translate-x-1 ${t.live ? 'text-[#e5484d]' : 'text-neutral-300 group-hover:text-primary'} ${idleLocked ? 'hidden' : ''}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 내 것 보기 */}
+                  <div className="flex flex-wrap gap-x-7 gap-y-3 pt-5 border-t border-neutral-200">
+                    {myLinks.map(l => (
+                      <button key={l.key} onClick={() => handleTabChange(l.key)}
+                        className="relative text-lg font-bold pb-0.5 bg-[linear-gradient(currentColor,currentColor)] bg-no-repeat bg-[length:0_2px] bg-[position:0_100%] hover:bg-[length:100%_2px] transition-[background-size] duration-300">
+                        {l.label}
+                        {l.badge ? <span className="ml-1.5 align-middle text-xs font-black text-white bg-rose-500 rounded-full px-2 py-0.5">{l.badge}</span> : null}
+                      </button>
+                    ))}
+                  </div>
                   {/* 퀴즈 배지 카드 (기록이 있을 때만 표시) */}
                   {quizHistory.length > 0 && (() => {
                     const totalScore = quizHistory.reduce((s, h) => s + (h.score ?? 0), 0);
@@ -2964,121 +3164,6 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     );
                   })()}
 
-                  {/* 주차 선택 */}
-                  {weeklyPlan.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
-                      <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
-                        {weeklyPlan.map(p => {
-                          const isActive = p.week === displayWeek;
-                          const wObs = historyLogs.some(l => norm(l.activity_name || '') === norm(p.topic));
-                          const wRes = results.some(r => r.week_number === p.week);
-                          const allDone = wObs && wRes;
-                          return (
-                            <button
-                              key={p.week}
-                              ref={(el) => {
-                                if (isActive && el && !homeWeekScrolledRef.current) {
-                                  homeWeekScrolledRef.current = true;
-                                  el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
-                                }
-                              }}
-                              onClick={() => setSelectedHomeWeek(p.week)}
-                              className={`shrink-0 whitespace-nowrap relative flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-black border-2 transition-all ${
-                                isActive ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-neutral-500 border-neutral-200 hover:border-primary/40 hover:text-primary'
-                              }`}
-                            >
-                              {allDone && <CheckCircle2 size={14} className={isActive ? 'text-white/80' : 'text-emerald-500'} />}
-                              {p.week}주차
-                              <span className={`text-xs font-bold ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>· {p.topic}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 체크리스트 */}
-                  {displayWeek !== null ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">
-                          {displayWeek}주차 할 일
-                        </p>
-                        <span className="text-xs font-black px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500">
-                          {steps.filter(s => s.done).length}/{steps.length} 완료
-                        </span>
-                      </div>
-
-                      {steps.map((s) => (
-                        <div key={s.step} className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${
-                          s.done
-                            ? 'bg-emerald-50 border-emerald-200'
-                            : 'bg-white border-neutral-200 hover:border-primary/30'
-                        }`}>
-                          {/* 완료 아이콘 */}
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-sm ${
-                            s.done ? 'bg-emerald-500 text-white' : 'bg-neutral-100 text-neutral-400'
-                          }`}>
-                            {s.done ? <Check size={18} /> : s.step}
-                          </div>
-
-                          {/* 텍스트 */}
-                          <div className="flex-1 min-w-0">
-                            <p className={`font-black text-sm ${s.done ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-on-surface'}`}>
-                              Step {s.step} · {s.label}
-                            </p>
-                            <p className="text-sm font-bold text-on-surface-variant/60 mt-0.5">{s.desc}</p>
-                          </div>
-
-                          {/* 버튼 */}
-                          {s.done ? (
-                            <span className="text-sm font-black text-emerald-600 shrink-0">완료 ✓</span>
-                          ) : isClassClosed ? (
-                            <span className="flex items-center gap-1 text-sm font-black text-slate-400 shrink-0">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                              종료됨
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                if (s.tab === 'results') setSelectedWeek(displayWeek);
-                                handleTabChange(s.tab);
-                              }}
-                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-sm font-black hover:bg-primary/80 active:scale-95 transition-all shrink-0 shadow-sm"
-                            >
-                              시작하기 <ArrowRight size={13} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-on-surface-variant/40">
-                      <p className="font-black">등록된 주차 계획이 없습니다.</p>
-                      <p className="text-sm font-bold mt-1">선생님께 주차 계획을 요청하세요.</p>
-                    </div>
-                  )}
-
-                  {/* 바로가기 */}
-                  <div className="pt-2 border-t border-neutral-100">
-                    <p className="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest mb-3">바로가기</p>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { key: 'materials' as const,   label: '수업 자료', icon: BookOpen,  iconColor: 'text-cyan-600',   bg: 'bg-cyan-50',   border: 'border-cyan-200',   hoverBg: 'hover:bg-cyan-100' },
-                        { key: 'history' as const,     label: '나의 기록', icon: History,   iconColor: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', hoverBg: 'hover:bg-violet-100' },
-                        { key: 'suggestions' as const, label: '질문·건의함',  icon: Megaphone, iconColor: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200',   hoverBg: 'hover:bg-rose-100' },
-                      ].map(item => (
-                        <button key={item.key} onClick={() => handleTabChange(item.key)}
-                          className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border ${item.bg} ${item.border} ${item.hoverBg} active:scale-95 transition-all`}>
-                          <div className={`w-10 h-10 rounded-xl bg-white/70 flex items-center justify-center shadow-sm`}>
-                            <item.icon size={20} className={item.iconColor} strokeWidth={2} />
-                          </div>
-                          <span className={`text-sm font-black ${item.iconColor}`}>{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </motion.div>
               );
             })()}

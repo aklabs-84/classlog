@@ -5036,7 +5036,23 @@ const Classroom = () => {
         {classInfo && (
           <ClassroomFabMenu
             onOpenStudentPreview={() => setIsStudentPreviewOpen(true)}
-            onOpenQR={classInfo.class_type !== 'homeroom' ? () => setIsQRModalOpen(true) : undefined}
+            onOpenQR={classInfo.class_type !== 'homeroom' ? () => {
+              setIsQRModalOpen(true);
+              const code = classInfo.entry_code;
+              if (!code) return;
+              const done = () => showToast(`✅ 입장 코드 ${code} 가 복사됐어요`);
+              const fallback = () => {
+                try {
+                  const ta = document.createElement('textarea');
+                  ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                  document.body.appendChild(ta); ta.select();
+                  const ok = document.execCommand('copy');
+                  document.body.removeChild(ta);
+                  if (ok) done(); else showToast('입장 코드를 복사하지 못했어요. 화면의 코드를 직접 복사해 주세요');
+                } catch { showToast('입장 코드를 복사하지 못했어요. 화면의 코드를 직접 복사해 주세요'); }
+              };
+              if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(done, fallback); else fallback();
+            } : undefined}
             onOpenResources={() => {
               if (activeClassId) fetchResources(activeClassId);
               setIsResourceModalOpen(true);
@@ -5052,6 +5068,7 @@ const Classroom = () => {
         {isStudentPreviewOpen && activeClassId && (
           <StudentPreviewModal
             classId={activeClassId}
+            students={students.map((st: any) => ({ id: st.id, name: st.name, number: st.number }))}
             onClose={() => setIsStudentPreviewOpen(false)}
           />
         )}
