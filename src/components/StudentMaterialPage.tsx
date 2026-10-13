@@ -77,7 +77,8 @@ const LineContext = createContext<string>('');
 
 const FIELD_CLS = 'rounded-lg border-2 border-primary/25 bg-primary/5 px-3 py-2 text-lg leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-100 disabled:bg-surface-container-low disabled:border-surface-container disabled:text-on-surface';
 
-const AnswerText = ({ fieldKey, inline, rows = 1 }: { fieldKey: string; inline?: boolean; rows?: number }) => {
+// blanks: 문장 속 입력칸일 때 쓰인 밑줄 개수 — 3개는 12rem, 하나 늘 때마다 1.2rem씩 길어지고 화면 너비(max-w-full)에서 멈춘다
+const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3 }: { fieldKey: string; inline?: boolean; rows?: number; blanks?: number }) => {
   const ctx = useContext(AnswerContext)!;
   const [v, setV] = useState(() => ctx.get(fieldKey));
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -101,7 +102,8 @@ const AnswerText = ({ fieldKey, inline, rows = 1 }: { fieldKey: string; inline?:
         disabled={ctx.readOnly}
         placeholder={ctx.readOnly ? '' : '여기에 적어요'}
         onChange={e => onChange(e.target.value)}
-        className={`${FIELD_CLS} inline-block align-baseline mx-1 w-72 max-w-full py-1`}
+        style={{ width: `${12 + Math.max(0, blanks - 3) * 1.2}rem` }}
+        className={`${FIELD_CLS} inline-block align-baseline mx-1 max-w-full py-1`}
       />
     );
   }
@@ -154,7 +156,7 @@ const renderInteractive = (children: ReactNode, baseKey: string): ReactNode => {
       <Fragment key={`t${i}`}>
         {c.split(TOKEN_RE).map((part, j) => {
           if (part === '[ ]') return <AnswerCheckbox key={j} fieldKey={`${baseKey}:${idx++}`} />;
-          if (/^_{3,}$/.test(part)) return <AnswerText key={j} inline fieldKey={`${baseKey}:${idx++}`} />;
+          if (/^_{3,}$/.test(part)) return <AnswerText key={j} inline blanks={part.length} fieldKey={`${baseKey}:${idx++}`} />;
           return part;
         })}
       </Fragment>
