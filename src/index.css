@@ -41,6 +41,7 @@
   --color-primary: #8b5cf6; /* Vibrant Purple */
   --color-primary-dim: #7c3aed;
   --color-primary-container: #ede9fe;
+  --color-on-primary: #ffffff;
   
   --color-secondary: #06b6d4; /* Bright Teal */
   --color-secondary-dim: #0891b2;
@@ -80,6 +81,7 @@
   --color-primary: #a78bfa;
   --color-primary-dim: #8b5cf6;
   --color-primary-container: #4c1d95;
+  --color-on-primary: #ffffff;
   
   --color-secondary: #22d3ee;
   --color-on-surface: #f1f5f9;
