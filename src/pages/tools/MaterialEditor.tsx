@@ -382,6 +382,7 @@ const LinkToClassModal = ({
         // 공통 자료함에서 정한 커버 이미지도 함께 가져온다
         cover_image_url: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
         cover_source: material.cover_source ?? 'template',
+        viewer_style: material.viewer_style ?? 'default',
       }));
       const { error } = await supabase.from('class_materials').insert(rows);
       if (error) throw error;
@@ -542,12 +543,18 @@ type ReorganizeStep = 'configure' | 'loading' | 'preview' | 'error';
 const AiReorganizeModal = ({
   rawContent,
   classId,
+  viewerStyle,
+  onChangeViewerStyle,
   fromLessonPlan = false,
   onApply,
   onClose,
 }: {
   rawContent: string;
   classId?: string;
+  /** 강사가 고른 보기 모양 — 학습 가이드의 분량 단계(간단/자세히)를 정한다 */
+  viewerStyle?: string;
+  /** 안내 상자에서 보기 모양을 바로 바꿀 수 있게 에디터의 선택값을 갱신한다 */
+  onChangeViewerStyle?: (v: ViewerStyle) => void;
   /** 학습 계획서에서 이미 한 번 AI가 정리해 넘어온 자료인지 — 맞다면 "학습 가이드" 모드는 중복이라 숨긴다 */
   fromLessonPlan?: boolean;
   onApply: (newContent: string, mode: 'guide' | 'presentation') => void;
@@ -567,7 +574,7 @@ const AiReorganizeModal = ({
     setStep('loading');
     setFeedback(null);
     try {
-      const generated = await reorganizeMaterialContent(rawContent, mode, userInstruction, classId);
+      const generated = await reorganizeMaterialContent(rawContent, mode, userInstruction, classId, viewerStyle);
       setResult(generated.content);
       setFeedback(generated.feedback);
       setStep('preview');
@@ -660,6 +667,37 @@ const AiReorganizeModal = ({
                   <Presentation size={14} /> 발표 자료(슬라이드)
                 </button>
               </div>
+              {mode === 'guide' && (() => {
+                const info = viewerStyleInfo(viewerStyle);
+                const detailed = viewerStyle === 'note' || viewerStyle === 'challenge';
+                return (
+                  <div className="px-3.5 py-3 rounded-2xl bg-primary/5 border border-primary/20 space-y-2">
+                    <p className="text-xs font-black text-on-surface">📐 고른 보기 모양에 맞춰 글의 양이 달라져요</p>
+                    <p className="text-xs text-on-surface-variant leading-relaxed">
+                      지금 보기 모양은 <b className="text-on-surface">{info.label}</b>이에요.{' '}
+                      {detailed
+                        ? '그래서 설명을 비유와 이유까지 자세히, 쓰는 칸도 넉넉하게 정리해요.'
+                        : '그래서 학생이 겁먹지 않게 짧고 가볍게, 쓰는 칸도 적게 정리해요.'}
+                    </p>
+                    {viewerStyle === 'default' && (
+                      <p className="text-xs font-bold text-amber-700 leading-relaxed">아직 보기 모양을 고르지 않았어요. 학생 나이에 맞는 모양을 고르면 더 알맞게 정리돼요.</p>
+                    )}
+                    {onChangeViewerStyle && (
+                      <label className="flex items-center gap-2">
+                        <span className="text-xs font-black text-on-surface-variant shrink-0">모양 바꾸기</span>
+                        <select
+                          value={normalizeViewerStyle(viewerStyle)}
+                          onChange={e => onChangeViewerStyle(normalizeViewerStyle(e.target.value))}
+                          className="flex-1 min-w-0 px-2.5 py-1.5 bg-white rounded-xl border border-surface-container font-black text-xs focus:outline-none focus:border-primary/40"
+                        >
+                          {VIEWER_STYLES.map(v => <option key={v.id} value={v.id}>{v.label} · {v.grade}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed">짧게는 A·B·기본, 자세히는 C·D예요. 정리한 뒤 화면 위쪽 "보기 모양"에서 언제든 다시 바꿀 수 있어요.</p>
+                  </div>
+                );
+              })()}
               <p className="text-xs text-on-surface-variant leading-relaxed px-0.5">
                 {mode === 'guide'
                   ? '학생이 순서대로 따라가는 STEP 단계 구조로 정리합니다.'
@@ -1535,12 +1573,13 @@ const MaterialEditor = () => {
   // 아이디어 기록에서 "수업 자료로 만들기"로 넘어온 경우 — 공통 자료함에 초안을 프리필한 채 에디터를 바로 연다
   useEffect(() => {
     if (draftHandledRef.current) return;
-    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null; expansionGuide?: string[]; fromLessonPlan?: boolean } } | null)?.draftMaterial;
+    const draft = (location.state as { draftMaterial?: { noteId: string; title: string; content: string; classId?: string | null; expansionGuide?: string[]; fromLessonPlan?: boolean; viewerStyle?: string } } | null)?.draftMaterial;
     if (!draft) return;
     draftHandledRef.current = true;
     resetForm();
     setTitle(draft.title);
     setContent(draft.content);
+    setViewerStyle(normalizeViewerStyle(draft.viewerStyle));
     setLibraryMode(true);
     setSelectedClass(null);
     pendingDraftNoteIdRef.current = draft.noteId;
@@ -1558,7 +1597,7 @@ const MaterialEditor = () => {
   // 수업계획서가 2차시 이상이면 차시별 자료 초안이 배열로 넘어온다 — 각각 검토 없이 바로 저장하고 목록으로 돌아간다.
   useEffect(() => {
     if (draftMaterialsHandledRef.current) return;
-    const drafts = (location.state as { draftMaterials?: Array<{ title: string; content: string; classId?: string | null; expansionGuide?: string[] }> } | null)?.draftMaterials;
+    const drafts = (location.state as { draftMaterials?: Array<{ title: string; content: string; classId?: string | null; expansionGuide?: string[]; viewerStyle?: string }> } | null)?.draftMaterials;
     if (!drafts || drafts.length === 0) return;
     draftMaterialsHandledRef.current = true;
     (async () => {
@@ -1580,6 +1619,7 @@ const MaterialEditor = () => {
         content: (draft.content ?? '').trim(),
         is_published: false,
         ai_versions: [],
+        viewer_style: normalizeViewerStyle(draft.viewerStyle),
       }));
       const { data: inserted, error } = await supabase.from('class_materials').insert(rows).select('id, title, content');
       if (error) {
@@ -1976,6 +2016,7 @@ const MaterialEditor = () => {
       week_number: material.week_number,
       title: `${material.title} (복사)`,
       content: material.content ?? '',
+      viewer_style: material.viewer_style ?? 'default',
       is_published: false,
     });
     if (error) { showActionToast('복사하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
@@ -2473,6 +2514,8 @@ const MaterialEditor = () => {
       <AiReorganizeModal
         rawContent={content}
         classId={selectedClass?.id}
+        viewerStyle={viewerStyle}
+        onChangeViewerStyle={setViewerStyle}
         fromLessonPlan={fromLessonPlan}
         onApply={(newContent, mode) => {
           const newVersion: AiVersion = {

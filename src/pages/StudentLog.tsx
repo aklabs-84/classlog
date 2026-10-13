@@ -109,51 +109,48 @@ const STUDENT_SCREENS: Record<string, StudentScreenStep> = {
   },
 };
 
-const TOUR_STEPS: TourStep[] = [
+const getTourSteps = (multiWeek: boolean): TourStep[] => [
   {
     emoji: '👋',
     title: '클래스로그 사용 방법 안내',
-    description: '수업 활동을 기록하고 선생님과 소통하는 앱이에요. 주요 메뉴를 하나씩 살펴볼게요!',
+    description: '수업 활동을 기록하고 선생님과 소통하는 앱이에요. 홈 화면을 위에서부터 차례로 안내할게요!',
   },
   {
-    targetId: 'tour-tab-home',
-    emoji: '🏠',
-    title: '홈',
-    description: '지금 할 일(기록 → 결과 제출)과 수업 시간에 누르는 것들(자료·온라인수업·보드·퀴즈·설문)을 한눈에 볼 수 있어요.',
-    placement: 'top',
+    targetId: 'tour-home-greet',
+    emoji: '📅',
+    title: '오늘 수업 주차',
+    description: multiWeek
+      ? '선생님이 정해 둔 오늘의 주차와 주제가 보여요. 다른 주차를 보고 싶으면 "주차 바꾸기"를 눌러요.'
+      : '인사와 함께 선생님이 정해 둔 오늘의 주차와 주제가 보여요.',
   },
   {
-    targetId: 'tour-tab-record',
+    targetId: 'tour-home-hero',
     emoji: '✏️',
-    title: '활동 기록',
-    description: '수업에서 배운 내용과 활동을 기록해요. 구체적으로 쓸수록 생활기록부에 도움이 돼요!',
-    placement: 'top',
+    title: '지금 할 일',
+    description: '"수업 기록하기"에서 한 활동과 배운 점을 적고, "결과 제출하기"에서 만든 결과물(글·이미지·링크·파일)을 올려요. 먼저 할 칸이 흰색으로 강조돼요.',
   },
   {
-    targetId: 'tour-tab-results',
-    emoji: '📁',
-    title: '결과 제출',
-    description: '만든 결과물(링크·이미지·파일·텍스트)을 선생님께 주차별로 제출하는 곳이에요.',
-    placement: 'top',
+    targetId: 'tour-home-tiles',
+    emoji: '🎯',
+    title: '수업 시간에 눌러요',
+    description: '수업 자료, 온라인수업, 우리반 보드, 퀴즈, 설문, 단원마무리가 모여 있어요. 선생님이 열면 빨간 "진행 중"이 떠요. 그때 눌러서 들어가요.',
   },
   {
-    targetId: 'tour-tab-board',
-    emoji: '🎨',
-    title: '보드',
-    description: '선생님이 열어주신 화이트보드 세션에 실시간으로 참여할 수 있어요.',
-    placement: 'top',
+    targetId: 'tour-home-links',
+    emoji: '📚',
+    title: '내 것 보기',
+    description: '내가 쓴 "나의 기록", 개인 메모를 남기는 "나의 노트", 선생님께 묻는 "질문·건의함"이 있어요. 답장이 오면 숫자가 떠요.',
   },
   {
-    targetId: 'tour-tab-more',
-    emoji: '⋯',
-    title: '더보기',
-    description: '퀴즈, 설문, 수업 자료, 나의 기록, 나의 노트, 단원 마무리, 질문·건의함 등 더 많은 메뉴가 있어요.',
-    placement: 'top',
+    targetId: ['tour-sidebar', 'tour-bottom-bar'],
+    emoji: '🧭',
+    title: '메뉴는 여기에도 있어요',
+    description: '다른 화면으로 가려면 이 메뉴를 써요. 홈·기록·결과·보드는 바로 가고, 나머지는 "더보기"(컴퓨터는 왼쪽 목록)에 있어요. 다른 화면에서는 위의 "홈으로" 버튼으로 돌아와요.',
   },
   {
     emoji: '🎉',
     title: '준비 완료!',
-    description: '이제 직접 사용해 보세요. 나중에 더보기 → "사용 방법 보기"를 누르면 다시 볼 수 있어요.',
+    description: '이제 직접 사용해 보세요. 휴대폰에서는 나중에 더보기 → "사용 방법 보기"를 누르면 다시 볼 수 있어요.',
   },
 ];
 
@@ -468,8 +465,8 @@ const StudentLog = () => {
 
   const handleCloseGuide = (dontShowToday: boolean) => {
     if (dontShowToday && session?.student_id) {
-      const today = new Date().toISOString().slice(0, 10);
-      localStorage.setItem(`guide_hidden_${session.student_id}`, today);
+      // 24시간 동안 다시 보지 않기 — 끝나는 시각(ms)을 저장
+      try { localStorage.setItem(`guide_hidden_until_${session.student_id}`, String(Date.now() + 24 * 60 * 60 * 1000)); } catch { /* 저장 불가 환경은 무시 */ }
     }
     setShowGuideModal(false);
   };
@@ -675,10 +672,9 @@ const StudentLog = () => {
           .then(({ data }) => setEnabledToolIds((data?.enabled_tools || []) as string[]));
 
         // 가이드 모달 표시 여부 확인
-        // PIN 재입장 여부와 무관하게 '오늘 하루 보지 않기' localStorage 값만으로 판단
-        const today = new Date().toISOString().slice(0, 10);
-        const guideKey = `guide_hidden_${parsed.student_id}`;
-        const hiddenToday = localStorage.getItem(guideKey) === today;
+        // PIN 재입장 여부와 무관하게 '다시 보지 않기(24시간)' localStorage 값만으로 판단
+        let hiddenToday = false;
+        try { hiddenToday = Number(localStorage.getItem(`guide_hidden_until_${parsed.student_id}`) || 0) > Date.now(); } catch { /* 무시 */ }
         if (parsed.is_fresh_entry) {
           // fresh 플래그 소모 — 이후 새로고침에선 아래 조건으로만 판단
           const { is_fresh_entry: _, ...rest } = parsed;
@@ -2862,9 +2858,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
               const noPlan = displayWeek === null && !hidden('results');
 
               // 수업 시간에 쓰는 것 (타일)
-              type HomeTile = { key: 'materials' | 'meeting' | 'board' | 'quiz' | 'survey' | 'unit'; label: string; sub: string; Icon: any; live?: boolean; lockable?: boolean; badge?: number; onClick: () => void };
+              type HomeTile = { key: 'materials' | 'tools' | 'meeting' | 'board' | 'quiz' | 'survey' | 'unit'; label: string; sub: string; Icon: any; live?: boolean; lockable?: boolean; badge?: number; onClick: () => void };
               const tiles: HomeTile[] = ([
                 { key: 'materials', label: '수업 자료', sub: '이번 주 자료 보기', Icon: BookOpen, onClick: () => handleTabChange('materials') },
+                ...(enabledToolIds.length > 0 ? [{ key: 'tools', label: '학습 도구', sub: '선생님이 열어 둔 앱', Icon: Cpu, onClick: () => handleTabChange('tools') }] : []),
                 { key: 'meeting', label: '온라인수업', sub: meetingLive ? '지금 눌러서 들어가요' : '선생님이 열면 들어가요', Icon: Video, live: meetingLive, lockable: true,
                   onClick: () => (meetingLive ? window.open(activeMeeting.meeting_url, '_blank') : handleTabChange('meeting')) },
                 { key: 'board', label: '우리반 보드', sub: boardLive ? '지금 눌러서 들어가요' : '친구들과 함께 쓰기', Icon: Users2, live: boardLive, onClick: () => handleTabChange('board') },
@@ -2886,7 +2883,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   className="p-6 md:p-8 space-y-6">
 
                   {/* 인사 + 오늘 주차 (주차 바꾸기는 작게) */}
-                  <div className="space-y-1" style={{ wordBreak: 'keep-all' }}>
+                  <div id="tour-home-greet" className="space-y-1" style={{ wordBreak: 'keep-all' }}>
                     <p className="text-lg font-black">안녕하세요, {session?.student_name}님</p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <p className="text-base font-bold text-on-surface-variant/70">
@@ -3008,7 +3005,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   )}
 
                   {/* 지금 할 일 (남색 박스: 기록 / 결과 제출 두 칸) */}
-                  <div className="relative overflow-hidden rounded-3xl bg-[#0f172a] text-white px-5 py-6 md:px-8 md:py-7"
+                  <div id="tour-home-hero" className="relative overflow-hidden rounded-3xl bg-[#0f172a] text-white px-5 py-6 md:px-8 md:py-7"
                     style={{ wordBreak: 'keep-all' }}>
                     <div className="pointer-events-none absolute -right-14 -top-20 w-72 h-72 rounded-full bg-[radial-gradient(#6d3df055,transparent_70%)]" />
                     <div className="relative">
@@ -3076,7 +3073,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   </div>
 
                   {/* 수업 시간에 눌러요 */}
-                  <div style={{ wordBreak: 'keep-all' }}>
+                  <div id="tour-home-tiles" style={{ wordBreak: 'keep-all' }}>
                     <p className="text-base font-bold text-on-surface-variant/70 mb-3">수업 시간에 눌러요</p>
                     <div className="grid grid-cols-2 gap-2.5 md:gap-3.5">
                       {tiles.map(t => {
@@ -3121,7 +3118,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   </div>
 
                   {/* 내 것 보기 */}
-                  <div className="flex flex-wrap gap-x-7 gap-y-3 pt-5 border-t border-neutral-200">
+                  <div id="tour-home-links" className="flex flex-wrap gap-x-7 gap-y-3 pt-5 border-t border-neutral-200">
                     {myLinks.map(l => (
                       <button key={l.key} onClick={() => handleTabChange(l.key)}
                         className="relative text-lg font-bold pb-0.5 bg-[linear-gradient(currentColor,currentColor)] bg-no-repeat bg-[length:0_2px] bg-[position:0_100%] hover:bg-[length:100%_2px] transition-[background-size] duration-300">
@@ -6138,7 +6135,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       </div>
 
       {/* ── 데스크탑 사이드바 (lg 이상 전용) ── */}
-      <aside className={`hidden lg:flex fixed top-0 left-0 h-screen z-40 flex-col bg-slate-900 border-r border-slate-700/60 transition-[width] duration-200 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+      <aside id="tour-sidebar" className={`hidden lg:flex fixed top-0 left-0 h-screen z-40 flex-col bg-slate-900 border-r border-slate-700/60 transition-[width] duration-200 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className={`flex items-center gap-2 px-4 py-5 shrink-0 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isSidebarCollapsed && (
             <div className="flex items-center gap-2 min-w-0">
@@ -6212,7 +6209,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       </aside>
 
       {/* ── 하단 바텀 탭 바 (모바일 전용) ── */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900 border-t border-slate-700/60 shadow-[0_-8px_40px_rgba(0,0,0,0.35)]">
+      <div id="tour-bottom-bar" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900 border-t border-slate-700/60 shadow-[0_-8px_40px_rgba(0,0,0,0.35)]">
         <div className="max-w-lg mx-auto flex items-center px-1 pb-safe">
           {[
             { key: 'home' as const,    icon: LayoutDashboard, label: '홈',   activeColor: 'text-sky-400',     activeBg: 'bg-sky-400/15' },
@@ -6373,7 +6370,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       {/* 인터랙티브 가이드 투어 */}
       {showGuideModal && (
         <TourGuide
-          steps={TOUR_STEPS}
+          steps={getTourSteps(classResources.length > 1)}
           onClose={handleCloseGuide}
         />
       )}

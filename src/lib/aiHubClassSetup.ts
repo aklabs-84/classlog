@@ -84,6 +84,7 @@ export async function linkPrimaryToolMaterials({
         ai_versions: fromLibrary.ai_versions ?? [],
         activity_urls: urls.some((u: any) => u?.url === appUrl) ? urls : [...urls, { url: appUrl, label: app.name }],
         source_material_id: fromLibrary.id,
+        viewer_style: fromLibrary.viewer_style ?? 'default',
       });
     } else {
       insertRows.push({

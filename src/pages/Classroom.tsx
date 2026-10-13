@@ -1883,6 +1883,37 @@ const Classroom = () => {
     }
   };
 
+  // AIServiceHub 연동 앱 연결 해제 — class_enabled_tools 행 삭제(메인 도구였다면 지정도 해제). 이미 만든 주차 자료는 그대로 둔다
+  const handleDisconnectHubApp = async (toolId: string, appName: string) => {
+    if (!activeClassId) return;
+    if (!window.confirm(`이 클래스에서 "${appName}" 연결을 끊을까요?\n학생 화면의 학습 도구에서도 사라져요. 이미 만든 주차 자료는 그대로 남고, 다시 연결할 수 있어요.`)) return;
+    setTogglingToolId(toolId);
+    try {
+      const { error } = await supabase
+        .from('class_enabled_tools')
+        .delete()
+        .eq('class_id', activeClassId)
+        .eq('tool_id', toolId);
+      if (error) throw error;
+      if (classInfo?.primary_tool_id === toolId) {
+        const { error: primaryError } = await supabase.from('classes').update({ primary_tool_id: null }).eq('id', activeClassId);
+        if (primaryError) throw primaryError;
+        setClassInfo((prev: any) => prev ? { ...prev, primary_tool_id: null } : prev);
+      }
+      setEnabledTools(prev => {
+        const next = { ...prev };
+        delete next[toolId];
+        return next;
+      });
+      showToast(`"${appName}" 연결을 해제했습니다.`);
+    } catch (err) {
+      console.error('handleDisconnectHubApp error:', err);
+      showToast('연결을 해제하는 중 오류가 발생했습니다.');
+    } finally {
+      setTogglingToolId(null);
+    }
+  };
+
   // AIServiceHub 연동 앱을 "메인 수업도구"로 지정 — 공개 처리 + 1~4주차 자료에 앱 링크 자동 연결(공통 자료함에 연결된 자료가 있으면 그걸로, 없으면 빈 틀 생성)
   const [settingPrimaryToolId, setSettingPrimaryToolId] = useState<string | null>(null);
   const handleSetPrimaryTool = async (toolId: string, app: AiApp) => {
@@ -2373,6 +2404,7 @@ const Classroom = () => {
           ai_versions: m.ai_versions ?? [],
           cover_image_url: m.cover_source === 'upload' ? (m.cover_image_url ?? null) : null,
           cover_source: m.cover_source ?? 'template',
+          viewer_style: m.viewer_style ?? 'default',
         });
         if (error) throw error;
       }
@@ -5829,6 +5861,14 @@ const Classroom = () => {
                                     ) : (
                                       <><Lock size={13} /> 비공개</>
                                     )}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDisconnectHubApp(toolId, app.name)}
+                                    disabled={togglingToolId === toolId}
+                                    title="이 클래스에서 연결 해제"
+                                    className="shrink-0 p-1.5 rounded-xl text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                  >
+                                    <Trash2 size={14} />
                                   </button>
                                 </div>
                                 {!isPrimary && (

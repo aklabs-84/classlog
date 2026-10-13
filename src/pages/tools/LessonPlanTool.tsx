@@ -13,6 +13,8 @@ import {
   Maximize2, Minimize2, Wand2,
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import ViewerStylePicker from '../../components/common/ViewerStylePicker';
+import type { ViewerStyle } from '../../components/materialSkins';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
 
@@ -217,6 +219,7 @@ const SavedPlanViewModal = ({
   const [regenerating, setRegenerating] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [creatingMaterial, setCreatingMaterial] = useState(false);
+  const [materialViewerStyle, setMaterialViewerStyle] = useState<ViewerStyle>('default');
   const navigate = useNavigate();
 
   const startEditing = () => { setEditSnapshot(sections); setEditing(true); };
@@ -304,13 +307,14 @@ const SavedPlanViewModal = ({
       if (sessions.length > 1) {
         const drafts = await Promise.all(
           sessions.map(async row => {
-            const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlanSession(sections, row, classInfo);
+            const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlanSession(sections, row, classInfo, materialViewerStyle);
             return {
               noteId: '',
               title: [row.session, row.title].filter(Boolean).join(' ') || '수업 교안',
               content,
               classId: plan.class_id ?? null,
               expansionGuide: expansionSuggestions,
+              viewerStyle: materialViewerStyle,
             };
           })
         );
@@ -318,7 +322,7 @@ const SavedPlanViewModal = ({
           state: { activeToolId: 'material-editor', draftMaterials: drafts },
         });
       } else {
-        const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, classInfo);
+        const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, classInfo, materialViewerStyle);
         navigate('/teaching-tools', {
           state: {
             activeToolId: 'material-editor',
@@ -329,6 +333,7 @@ const SavedPlanViewModal = ({
               classId: plan.class_id ?? null,
               expansionGuide: expansionSuggestions,
               fromLessonPlan: true,
+              viewerStyle: materialViewerStyle,
             },
           },
         });
@@ -456,6 +461,7 @@ const SavedPlanViewModal = ({
               <button onClick={() => exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                 <FileDown size={14} /> PDF
               </button>
+              <ViewerStylePicker value={materialViewerStyle} onChange={setMaterialViewerStyle} />
               <AiCreditCost feature="material_from_lesson_plan" />
               <button
                 onClick={handleCreateMaterial}

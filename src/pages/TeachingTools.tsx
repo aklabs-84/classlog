@@ -468,11 +468,17 @@ const TeachingTools = () => {
   const { actionToastMessage, showActionToast } = useActionToast();
   const { limitToastMessage, showLimitToast } = useLimitToast();
 
-  useEffect(() => {
+  const [aiHubLoading, setAiHubLoading] = useState(true);
+  const [aiHubError, setAiHubError] = useState(false);
+  const loadAiHubApps = () => {
+    setAiHubLoading(true);
+    setAiHubError(false);
     getAiApps({ limit: 100 })
       .then(apps => setAiHubApps(apps.filter(a => a.appUrls?.[0]?.url)))
-      .catch(err => console.error('getAiApps error:', err));
-  }, []);
+      .catch(err => { console.error('getAiApps error:', err); setAiHubError(true); })
+      .finally(() => setAiHubLoading(false));
+  };
+  useEffect(() => { loadAiHubApps(); }, []);
 
   const openHubAppModal = (app: AiApp) => {
     setSelectedHubApp(app);
@@ -1063,6 +1069,18 @@ const TeachingTools = () => {
               );
             })}
 
+            {activeCategory === 'learning' && aiHubLoading && (
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 mt-2 flex items-center gap-2 text-sm font-bold text-on-surface-variant" role="status">
+                <Loader2 size={16} className="animate-spin text-primary" />
+                AI Service Hub 연동 앱을 불러오는 중이에요...
+              </div>
+            )}
+            {activeCategory === 'learning' && !aiHubLoading && aiHubError && (
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 mt-2 flex flex-wrap items-center gap-3 text-sm font-bold text-on-surface-variant">
+                연동 앱 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+                <button onClick={loadAiHubApps} className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-black text-xs hover:bg-primary/20 transition-colors">다시 불러오기</button>
+              </div>
+            )}
             {activeCategory === 'learning' && aiHubApps.length > 0 && (
               <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 mt-2">
                 <div className="flex items-center gap-2 mb-4">

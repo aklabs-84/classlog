@@ -1430,7 +1430,28 @@ const STUDENT_GUIDE_FORMAT = `[학생용 자기주도 실습 가이드 형식]
 - STEP 제목에 예상 시간을 알 때는 괄호 대신 끝에 "⏱8분" 형태로 씁니다. 예: "## STEP 1. 불빛 켜기 ⏱8분". 시간 정보가 없으면 앞의 규칙대로 "(   분)"을 둡니다.
 - 위 표시들은 한 문서에 한 번씩만, 첫 부분에만 씁니다. 본문 안에서는 이모지를 남발하지 않습니다.
 - 덩어리를 나눠 씁니다: 안내 상자(인용문·강사용 쪽지), 체크박스 목록, 표, 코드 상자, 문단은 각각 한 덩어리로 두고 사이에 빈 줄을 한 줄씩 둡니다. 한 문단은 2~3문장까지만 쓰고, 서로 다른 내용(안내+준비물+표)을 한 덩어리에 섞지 않습니다. 표 바로 위 소제목 한 줄은 굵은 글씨 한 줄로만 씁니다.
-- 입력 칸을 빠뜨리지 않습니다: "써 보세요·적어 보세요·기록하세요·답해 보세요"처럼 학생이 직접 쓰게 하는 문장에는 반드시 입력 칸을 함께 둡니다. 한 줄 답은 목록 항목 끝에 ___ (예: - 코딩이란? → ___), 길게 쓰는 소감은 인용문이나 문단에 ___ 만 한 줄(예: > ___), 여러 개는 빈 칸이 있는 표, 확인은 - [ ] 체크박스입니다. 화살표(→)나 콜론(:)만 남기고 끝내지 않습니다. 코드 상자 안의 ___ 는 입력 칸이 되지 않으니 쓰지 않습니다. 다 쓴 뒤 "써 보세요/적어 보세요" 문장마다 입력 칸이 있는지 확인합니다.`;
+- 입력 칸을 빠뜨리지 않습니다: "써 보세요·적어 보세요·기록하세요·답해 보세요"처럼 학생이 직접 쓰게 하는 문장에는 반드시 입력 칸을 함께 둡니다. 한 줄 답은 목록 항목 끝에 ___ (예: - 코딩이란? → ___), 길게 쓰는 소감은 인용문이나 문단에 ___ 만 한 줄(예: > ___), 여러 개는 빈 칸이 있는 표, 확인은 - [ ] 체크박스입니다. 화살표(→)나 콜론(:)만 남기고 끝내지 않습니다. 코드 상자 안의 ___ 는 입력 칸이 되지 않으니 쓰지 않습니다. 다 쓴 뒤 "써 보세요/적어 보세요" 문장마다 입력 칸이 있는지 확인합니다.
+
+분량 기준 (학생이 겁먹지 않고, 그렇다고 이해에 모자라지도 않게 — 강사가 고른 보기 모양에 따라 "간단" 또는 "자세히" 중 하나를 따릅니다. 아래 [이번 자료의 분량 단계]에 적힌 쪽을 쓰고, 없으면 "간단"을 씁니다):
+- 간단 (A 게임 미션형, B 그림책형, 기본): 수업 1분당 약 50~70자. 10분짜리 STEP 본문 300~450자. 따라 하기 5줄 안팎. 쉬운 설명은 비유 한 줄. 쓰는 칸은 STEP당 입력 덩어리 1개, 칸 4개 이하. 체크리스트 2개 이하. 용어 사전은 새로 나온 말 4개 이하(없으면 생략). 시작 화면은 준비물 4개 이하, 학습 목표 2개.
+- 자세히 (C 노트형, D 챌린지형): 수업 1분당 약 80~110자. 10분짜리 STEP 본문 500~800자. 따라 하기 8줄 안팎. 쉬운 설명은 비유 + 이유 한두 문장. 쓰는 칸은 STEP당 입력 덩어리 2개 이하, 칸 8개 이하. 체크리스트 3개 이하. 용어 사전 6~8개. 시작 화면은 준비물 6개 이하, 학습 목표 3개.
+- 공통: STEP 구조는 같고 말하는 양만 다릅니다. 시간 정보가 없으면 분량은 STEP 수와 위 STEP당 한도로만 맞춥니다.
+- 체크리스트는 따라 하기를 그대로 반복하지 않습니다. "결과가 눈에 보이는지, 다음으로 넘어가도 되는지"만 묻습니다. (나쁜 예: "블록 3개를 적어 봤다" / 좋은 예: "불빛이 켜졌다")
+- 쓰는 칸은 STEP당 한 덩어리로 모읍니다. "써 보세요" 문장이 여러 개면 표 한 장(또는 한 칸 목록)에 모읍니다. 입력 칸 빠뜨리지 않기 규칙과 함께 지킵니다: 빠뜨리지 않되, 쓰라는 요구 자체는 필요한 만큼만 만듭니다.
+- 입력은 가벼운 것(체크·한 단어·고르기)부터, 문장 쓰기는 STEP당 1개까지만 둡니다. 5분 미만 STEP은 한도의 절반으로 봅니다. 활동이 종이·포스트잇 같은 손 활동이면 화면 입력 칸은 최소로 둡니다.
+- 용어 사전에는 본문에서 이미 풀어 쓴 말을 되풀이하지 않습니다.
+- 다 쓴 뒤 점검합니다: ① 분량이 단계 기준 안인가 ② 입력 칸이 한도 안인가 ③ 체크리스트가 따라 하기의 복사가 아닌가. 넘으면 줄이고 나서 답합니다.`;
+
+// 강사가 고른 보기 모양(viewer_style)에 맞춰 분량 단계를 정한다 — 간단: A·B·기본 / 자세히: C·D
+export function studentGuideDensityNote(viewerStyle?: string | null): string {
+  const detailed = viewerStyle === 'note' || viewerStyle === 'challenge';
+  const label =
+    viewerStyle === 'mission' ? 'A. 게임 미션형' :
+    viewerStyle === 'storybook' ? 'B. 그림책형' :
+    viewerStyle === 'note' ? 'C. 노트형' :
+    viewerStyle === 'challenge' ? 'D. 챌린지형' : '기본(보기 모양 미정)';
+  return `\n\n[이번 자료의 분량 단계]\n보기 모양: ${label} → "${detailed ? '자세히' : '간단'}" 기준을 따릅니다. (모양 이름은 글에 쓰지 않습니다)`;
+}
 
 // ── 수업 자료 AI 재구성 (학습 가이드 / 발표 자료) ─────────────────────────────
 
@@ -1576,7 +1597,8 @@ export async function reorganizeMaterialContent(
   rawContent: string,
   mode: 'guide' | 'presentation',
   userInstruction?: string,
-  classId?: string
+  classId?: string,
+  viewerStyle?: string | null
 ): Promise<{ content: string; feedback: string | null }> {
   const { replaced, map } = extractImagePlaceholders(rawContent);
 
@@ -1588,7 +1610,8 @@ export async function reorganizeMaterialContent(
     ? `\n\n[요청사항 반영 여부 안내]\n위 선생님 추가 요청사항이 기본 형식 규칙(단계 구조, 슬라이드 분할/메타 규칙 등)과 충돌해 완전히 반영하지 못했다면, 응답 맨 앞줄에 아래 형식으로 짧게 안내를 붙이세요.\n[[FEEDBACK]]\n(반영되지 않은 부분을 1문장으로) (대신 이렇게 요청해보세요: 로 시작하는 대안 1문장)\n[[/FEEDBACK]]\n요청사항을 완전히 반영했다면 이 블록을 절대 넣지 마세요. 블록 다음 줄부터는 곧바로 실제 정리된 본문만 이어서 작성하세요.`
     : '';
 
-  const prompt = `${MATERIAL_REORG_PROMPTS[mode]}${instructionBlock}${feedbackInstruction}\n\n[원문]\n${replaced}`;
+  const densityNote = mode === 'guide' ? studentGuideDensityNote(viewerStyle) : '';
+  const prompt = `${MATERIAL_REORG_PROMPTS[mode]}${densityNote}${instructionBlock}${feedbackInstruction}\n\n[원문]\n${replaced}`;
 
   const result = await materialReorganizeAI.generateContent(
     prompt,
@@ -2007,6 +2030,7 @@ ${materialsText}`;
 export async function generateMaterialDraftFromLessonPlan(
   plan: LessonPlanSections,
   classInfo: { subject?: string; className?: string; classId?: string },
+  viewerStyle?: string | null,
 ): Promise<{ content: string; expansionSuggestions: string[] }> {
   const sessionPlansText = (plan.sessionPlans ?? [])
     .map(row => `[${row.session}] ${row.title}\n${row.content}${row.note ? `\n(참고: ${row.note})` : ''}`)
@@ -2033,7 +2057,7 @@ ${plan.materials}
 - 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 { "content": "마크다운 본문", "expansionSuggestions": ["...", "..."] }
 
-${STUDENT_GUIDE_FORMAT}
+${STUDENT_GUIDE_FORMAT}${studentGuideDensityNote(viewerStyle)}
 
 ${RICH_FORMATTING_GUIDE}`;
 
@@ -2055,6 +2079,7 @@ export async function generateMaterialDraftFromLessonPlanSession(
   plan: LessonPlanSections,
   session: LessonPlanSessionRow,
   classInfo: { subject?: string; className?: string; classId?: string },
+  viewerStyle?: string | null,
 ): Promise<{ content: string; expansionSuggestions: string[] }> {
   const prompt = `다음은 선생님이 이미 승인한 수업 계획서 중 한 차시입니다. 이 차시 그대로 수업을 진행할 수 있도록, 수업 자료 에디터에 바로 쓸 수 있는 실제 교안 초안을 작성합니다.
 
@@ -2079,7 +2104,7 @@ ${plan.materials}
 - 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
 { "content": "마크다운 본문", "expansionSuggestions": ["...", "..."] }
 
-${STUDENT_GUIDE_FORMAT}
+${STUDENT_GUIDE_FORMAT}${studentGuideDensityNote(viewerStyle)}
 
 ${RICH_FORMATTING_GUIDE}`;
 

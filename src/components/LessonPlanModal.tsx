@@ -11,6 +11,8 @@ import {
   GripVertical, Scissors, GitMerge, Trash2, Maximize2, Minimize2, Wand2,
 } from 'lucide-react';
 import AiCreditCost from './common/AiCreditCost';
+import ViewerStylePicker from './common/ViewerStylePicker';
+import type { ViewerStyle } from './materialSkins';
 
 const SECTION_LABELS: Record<string, string> = {
   basicInfo: '기본정보',
@@ -355,6 +357,7 @@ export const LessonPlanModal = ({
   const navigate = useNavigate();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [creatingMaterial, setCreatingMaterial] = useState(false);
+  const [materialViewerStyle, setMaterialViewerStyle] = useState<ViewerStyle>('default');
   const [step, setStep] = useState<LessonPlanStep>('configure');
   const [purpose, setPurpose] = useState<LessonPlanConfig['purpose']>('formal');
   const [hasEvaluation, setHasEvaluation] = useState(false);
@@ -497,13 +500,14 @@ export const LessonPlanModal = ({
               subject: classSubject,
               className,
               classId: classId ?? undefined,
-            });
+            }, materialViewerStyle);
             return {
               noteId: '',
               title: [row.session, row.title].filter(Boolean).join(' ') || '수업 교안',
               content,
               classId: classId ?? null,
               expansionGuide: expansionSuggestions,
+              viewerStyle: materialViewerStyle,
             };
           })
         );
@@ -515,7 +519,7 @@ export const LessonPlanModal = ({
           subject: classSubject,
           className,
           classId: classId ?? undefined,
-        });
+        }, materialViewerStyle);
         navigate('/teaching-tools', {
           state: {
             activeToolId: 'material-editor',
@@ -526,6 +530,7 @@ export const LessonPlanModal = ({
               classId: classId ?? null,
               expansionGuide: expansionSuggestions,
               fromLessonPlan: true,
+              viewerStyle: materialViewerStyle,
             },
           },
         });
@@ -773,6 +778,7 @@ export const LessonPlanModal = ({
                 <button onClick={() => sections && exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
                   <FileDown size={14} /> PDF
                 </button>
+                <ViewerStylePicker value={materialViewerStyle} onChange={setMaterialViewerStyle} />
                 <AiCreditCost feature="material_from_lesson_plan" />
                 <button
                   onClick={handleCreateMaterial}
