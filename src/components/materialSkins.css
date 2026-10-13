@@ -260,6 +260,8 @@
 }
 .mv-skin-mission .mv-hero { display: flex; flex-direction: column; align-items: flex-start; }
 .mv-skin-mission .mv-hero blockquote { order: -1; }
+/* 표지 알약이 여러 개일 때 서로 딱 붙지 않게 간격 */
+.mv-skin-mission .mv-hero blockquote ~ blockquote { margin-top: 10px; }
 .mv-skin-mission .mv-hero .mv-chips { margin-top: 18px; }
 @media (max-width: 700px) { .mv-skin-mission .mv-hero .mv-emoji { order: -2; margin: 0 0 10px; } }
 .mv-skin-storybook .mv-hero { display: flex; flex-direction: column; align-items: center; }
@@ -288,6 +290,7 @@
 .mv-skin-challenge .mv-hero .mv-emoji { display: none; }
 .mv-skin-challenge .mv-hero blockquote { all: unset; order: -1; display: block; width: fit-content; background: var(--c-sun); border: 3px solid var(--c-edge); border-radius: 8px; padding: 0 12px; box-shadow: 3px 3px 0 var(--c-edge); transform: rotate(-2deg); }
 .mv-skin-challenge .mv-hero blockquote p { all: unset; display: block; font: 800 15px 'Pretendard Variable', sans-serif !important; color: #16161d !important; font-style: normal; }
+.mv-skin-challenge .mv-hero blockquote ~ blockquote { margin-top: 18px; }
 .mv-skin-challenge .mv-hero h1 { margin: 16px 0 8px; }
 .mv-skin-challenge .mv-hero h1 strong, .mv-skin-challenge .mv-hero h1 b { background: var(--c-lime); color: #16161d; padding: 0 8px; font-weight: inherit; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .mv-skin-challenge .mv-hero > p { margin: 0 0 20px; color: var(--c-sub); }
