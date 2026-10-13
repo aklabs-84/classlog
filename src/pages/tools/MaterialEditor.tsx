@@ -1952,8 +1952,10 @@ const MaterialEditor = () => {
   // ── 삭제 ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     if (!confirm('이 수업 자료를 삭제하시겠습니까?')) return;
-    await supabase.from('class_materials').delete().eq('id', id);
+    const { error } = await supabase.from('class_materials').delete().eq('id', id);
+    if (error) { showActionToast('삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
     if (libraryMode) await fetchLibraryMaterials(); else await fetchMaterials(selectedClass.id);
+    showActionToast('🗑️ 수업 자료를 삭제했어요.');
   };
 
   // ── 복사 ──────────────────────────────────────────────────────────────────
@@ -1976,7 +1978,9 @@ const MaterialEditor = () => {
       content: material.content ?? '',
       is_published: false,
     });
-    if (!error) await fetchMaterials(selectedClass.id);
+    if (error) { showActionToast('복사하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    await fetchMaterials(selectedClass.id);
+    showActionToast(`📄 "${material.title} (복사)"를 만들었어요. (비공개 상태)`);
   };
 
   // ── 공개/비공개 토글 ──────────────────────────────────────────────────────
@@ -1986,7 +1990,9 @@ const MaterialEditor = () => {
       .from('class_materials')
       .update({ is_published: next, updated_at: new Date().toISOString() })
       .eq('id', material.id);
-    if (!error) setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_published: next } : m));
+    if (error) { showActionToast('공개 상태를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_published: next } : m));
+    showActionToast(next ? '🌐 학생에게 공개했어요.' : '🔒 비공개로 바꿨어요. 학생에게 더 이상 보이지 않아요.');
   };
 
   // ── AI 정리 히스토리 개별 삭제 (편집 화면) ────────────────────────────────
@@ -2016,6 +2022,7 @@ const MaterialEditor = () => {
       if (selectedVersionId[material.id] === v.id) {
         setSelectedVersionId(prev => ({ ...prev, [material.id]: null }));
       }
+      showActionToast(`"${v.label}" 버전을 삭제했어요.`);
     }
   };
 
@@ -2136,7 +2143,7 @@ const MaterialEditor = () => {
                                 </p>
                                 <div className="max-h-64 overflow-y-auto">
                                   <button
-                                    onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: null })); setVersionMenuFor(null); }}
+                                    onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: null })); setVersionMenuFor(null); showActionToast('원본 버전으로 보여드려요.'); }}
                                     className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
                                   >
                                     <span className="flex-1 min-w-0"><span className="block text-xs font-black">원본</span></span>
@@ -2145,7 +2152,7 @@ const MaterialEditor = () => {
                                   {material.ai_versions!.map(v => (
                                     <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
                                       <button
-                                        onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); }}
+                                        onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); showActionToast(`"${v.label}" 버전으로 보여드려요.`); }}
                                         className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
                                       >
                                         {v.mode === 'guide'
