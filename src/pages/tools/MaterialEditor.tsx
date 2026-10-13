@@ -37,7 +37,7 @@ const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<Fi
 import ReactMarkdown from 'react-markdown';
 import {
   Save, Trash2, Copy, Plus, Paperclip,
-  Loader2, ChevronDown, Globe, Lock,
+  Loader2, ChevronDown, Globe, Lock, Send,
   BookOpen, Pencil, ArrowLeft, Eye,
   Users, Presentation, ChevronRight, X as XIcon,
   Download, Sparkles, RotateCcw, AlertCircle, History, Check,
@@ -2226,10 +2226,10 @@ const MaterialEditor = () => {
                           {/* 클래스 선택해서 바로 공개 */}
                           <button
                             onClick={() => { setLinkingMaterial(material); setLinkAsPublish(true); }}
-                            title="클래스를 선택해 그 클래스 학생에게 바로 공개"
+                            title="클래스를 골라 그 클래스 학생에게 바로 공개하기 (공통 자료함 자료 자체는 계속 비공개)"
                             className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
                           >
-                            <Globe size={14} />
+                            <Send size={14} />
                           </button>
                           {/* 클래스에 연결(비공개) */}
                           <button
