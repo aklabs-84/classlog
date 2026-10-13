@@ -21,7 +21,10 @@ interface NavbarProps {
   toggleSidebar: () => void;
 }
 
-const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
+const Navbar = ({ isCollapsed: pinnedCollapsed, toggleSidebar }: NavbarProps) => {
+  // 접어 둔 상태에서도 마우스를 올리면 임시로 펼쳐지고, 벗어나면 다시 접힌다(본문 위치는 그대로)
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const isCollapsed = pinnedCollapsed && !sidebarHovered;
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const hasByokKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
@@ -311,6 +314,8 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
     <motion.aside
       initial={false}
       animate={{ width: isCollapsed ? 80 : 260 }}
+      onMouseEnter={() => setSidebarHovered(true)}
+      onMouseLeave={() => setSidebarHovered(false)}
       className="hidden lg:flex h-[calc(100vh-32px)] m-4 glass flex-col p-4 fixed left-0 top-0 z-[60] shadow-soft rounded-3xl border border-white/40"
     >
       {/* 로고 */}
@@ -554,13 +559,20 @@ const Navbar = ({ isCollapsed, toggleSidebar }: NavbarProps) => {
       <button
         onClick={toggleSidebar}
         className={`shrink-0 w-full flex items-center gap-3 px-3 py-3 mt-2 rounded-xl transition-all group shadow-sm border ${
-          isCollapsed
+          pinnedCollapsed
             ? 'bg-primary/10 text-primary border-primary/20 justify-center'
             : 'bg-surface-container-low/50 text-on-surface-variant hover:text-primary border-transparent'
         }`}
       >
-        {isCollapsed ? (
-          <ChevronRight size={20} strokeWidth={3} className="text-primary" />
+        {pinnedCollapsed ? (
+          isCollapsed ? (
+            <ChevronRight size={20} strokeWidth={3} className="text-primary" />
+          ) : (
+            <>
+              <ChevronRight size={18} className="text-primary" />
+              <span className="text-[10px] font-black uppercase tracking-widest">펼쳐서 고정</span>
+            </>
+          )
         ) : (
           <>
             <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />

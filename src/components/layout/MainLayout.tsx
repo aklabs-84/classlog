@@ -14,7 +14,7 @@ import CopilotReturnBadge from '../CopilotReturnBadge';
 import FloatingCopilot from '../copilot/FloatingCopilot';
 
 const MainLayout = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   return (
     <div className="min-h-screen bg-surface selection:bg-primary/20 selection:text-primary">

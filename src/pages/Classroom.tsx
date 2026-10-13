@@ -2371,6 +2371,8 @@ const Classroom = () => {
           is_published: true,
           source_material_id: m.id,
           ai_versions: m.ai_versions ?? [],
+          cover_image_url: m.cover_source === 'upload' ? (m.cover_image_url ?? null) : null,
+          cover_source: m.cover_source ?? 'template',
         });
         if (error) throw error;
       }

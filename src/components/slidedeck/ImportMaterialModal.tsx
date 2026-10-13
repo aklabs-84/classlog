@@ -18,6 +18,8 @@ export interface ImportableMaterial {
   content: string;
   week_number?: number;
   ai_versions?: AiVersion[];
+  cover_image_url?: string | null;
+  cover_source?: 'template' | 'upload' | null;
 }
 
 interface Props {
@@ -62,7 +64,7 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, class_id, title, content, week_number, ai_versions')
+      .select('id, class_id, title, content, week_number, ai_versions, cover_image_url, cover_source')
       .eq('class_id', cls.id)
       .order('week_number', { ascending: true });
     if (error) console.error('[ImportMaterialModal] class_materials fetch error:', error);
@@ -77,7 +79,7 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, class_id, title, content, week_number, ai_versions')
+      .select('id, class_id, title, content, week_number, ai_versions, cover_image_url, cover_source')
       .is('class_id', null)
       .eq('teacher_id', userId)
       .order('created_at', { ascending: false });

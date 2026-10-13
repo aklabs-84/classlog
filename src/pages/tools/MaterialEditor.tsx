@@ -48,7 +48,7 @@ import StudentScreenTour, { type StudentScreenStep } from '../../components/stud
 import { mdComponents } from '../../components/materialMdComponents';
 import RichEditor from '../../components/RichEditor';
 import StudentMaterialPage from '../../components/StudentMaterialPage';
-import { VIEWER_STYLES, normalizeViewerStyle, viewerStyleInfo, type ViewerStyle } from '../../components/materialSkins';
+import { VIEWER_STYLES, normalizeViewerStyle, viewerStyleInfo, readViewerTheme, type ViewerStyle } from '../../components/materialSkins';
 import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal from '../../components/PresentationModal';
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
@@ -139,7 +139,7 @@ const ImportFromClassModal = ({
 }: {
   currentClassId?: string;
   userId: string;
-  onImport: (title: string, content: string, weekNumber: number, sourceMaterialId: string, sourceIsLibrary: boolean, attachments: MaterialAttachment[]) => void;
+  onImport: (title: string, content: string, weekNumber: number, sourceMaterialId: string, sourceIsLibrary: boolean, attachments: MaterialAttachment[], cover?: { url: string | null; source: 'template' | 'upload' }) => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<'class' | 'material'>('class');
@@ -167,7 +167,7 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, week_number, created_at, attachments')
+      .select('id, title, content, is_published, week_number, created_at, attachments, cover_image_url, cover_source')
       .eq('class_id', cls.id)
       .order('week_number', { ascending: true });
     if (error) console.error('[ImportModal] class_materials fetch error:', error);
@@ -182,7 +182,7 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, week_number, created_at, attachments')
+      .select('id, title, content, is_published, week_number, created_at, attachments, cover_image_url, cover_source')
       .is('class_id', null)
       .eq('teacher_id', userId)
       .order('created_at', { ascending: false });
@@ -194,7 +194,7 @@ const ImportFromClassModal = ({
 
   const handleSelectMaterial = (material: Material) => {
     if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
-    onImport(material.title, material.content ?? '', material.week_number ?? 1, material.id, isLibrary, material.attachments ?? []);
+    onImport(material.title, material.content ?? '', material.week_number ?? 1, material.id, isLibrary, material.attachments ?? [], { url: material.cover_image_url ?? null, source: material.cover_source === 'upload' ? 'upload' : 'template' });
     onClose();
   };
 
@@ -379,6 +379,9 @@ const LinkToClassModal = ({
         attachments: material.attachments ?? [],
         is_published: publishOnLink,
         source_material_id: material.id,
+        // 공통 자료함에서 정한 커버 이미지도 함께 가져온다
+        cover_image_url: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
+        cover_source: material.cover_source ?? 'template',
       }));
       const { error } = await supabase.from('class_materials').insert(rows);
       if (error) throw error;
@@ -2298,12 +2301,24 @@ const MaterialEditor = () => {
             </div>
           ) : null;
         })()}
-        <div className="px-8 py-6">
-          <h1 className="text-2xl font-black mb-5 text-on-surface">{title.trim() || '(제목 없음)'}</h1>
-          <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-            {content}
-          </ReactMarkdown>
-        </div>
+        {(() => {
+          // 고른 보기 모양(스킨)이 있으면 학생 화면과 같은 모양으로 인쇄한다
+          const skin = normalizeViewerStyle(viewerStyle);
+          const skinned = skin !== 'default';
+          return (
+            <div
+              className={`px-8 py-6 ${skinned ? `mv-skin-${skin}` : ''}`}
+              data-mv-theme={skinned ? readViewerTheme(skin) : undefined}
+            >
+              <div className={skinned ? 'mv-article' : ''}>
+                <h1 className={skinned ? '' : 'text-2xl font-black mb-5 text-on-surface'}>{title.trim() || '(제목 없음)'}</h1>
+                <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                  {content}
+                </ReactMarkdown>
+              </div>
+            </div>
+          );
+        })()}
       </div>,
       document.body
     )}
@@ -2327,11 +2342,12 @@ const MaterialEditor = () => {
       <ImportFromClassModal
         currentClassId={selectedClass?.id}
         userId={user.id}
-        onImport={(importedTitle, importedContent, importedWeek, sourceMaterialId, sourceIsLibrary, importedAttachments) => {
+        onImport={(importedTitle, importedContent, importedWeek, sourceMaterialId, sourceIsLibrary, importedAttachments, importedCover) => {
           setTitle(importedTitle ?? '');
           setWeekNumber(importedWeek ?? 1);
           setContent(importedContent ?? '');
           setAttachments(importedAttachments);
+          if (importedCover) { setCoverImageUrl(importedCover.url); setCoverSource(importedCover.source); }
           // 공통 자료함에서 가져온 경우에만 원본으로 기록 — 다음 클래스 자료로 저장될 때 source_material_id로 연결되어
           // 이후 "원본에 동기화" 버튼으로 편집 내용을 그 공통 자료함 원본에 반영할 수 있게 된다
           setImportedSourceMaterialId(sourceIsLibrary ? sourceMaterialId : null);
