@@ -48,6 +48,7 @@ import StudentScreenTour, { type StudentScreenStep } from '../../components/stud
 import { mdComponents } from '../../components/materialMdComponents';
 import RichEditor from '../../components/RichEditor';
 import StudentMaterialPage from '../../components/StudentMaterialPage';
+import { MATERIAL_TEMPLATES } from '../../lib/materialTemplates';
 import { VIEWER_STYLES, normalizeViewerStyle, viewerStyleInfo, readViewerTheme, type ViewerStyle } from '../../components/materialSkins';
 import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal from '../../components/PresentationModal';
@@ -3244,6 +3245,31 @@ const MaterialEditor = () => {
                 <li>학생이 답을 적기 시작한 뒤에는 적는 칸을 <span className="font-black">중간에 넣거나 지우지 마세요.</span> 위에서부터 순서대로 답을 저장해서, 뒤쪽 칸의 답이 한 칸씩 밀릴 수 있어요. (글 고치기, 줄 추가는 괜찮아요)</li>
                 <li>직접 쓰고 싶다면: 체크 칸은 문장 맨 앞에 <code className="px-1 rounded bg-white/80">[ ]</code>, 밑줄 칸은 <code className="px-1 rounded bg-white/80">_</code> 를 3개 이상 이어서 쓰면 돼요. (밑줄만 한 줄에 혼자 쓰면 구분선이 되니 앞에 글을 꼭 붙이세요)</li>
               </ul>
+            </div>
+          </details>
+
+          {/* 보기 모양별 틀로 시작하기 — 글이 비어 있으면 펼쳐 보이고, 글이 있으면 한 줄로 접혀 있다 (위쪽 메뉴를 늘리지 않으려고 이 자리에 둠) */}
+          <details open={content.trim() === ''} className="group mx-5 mt-3 rounded-xl border border-primary/30 bg-primary/5">
+            <summary className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer list-none select-none">
+              <span className="flex-1 text-xs font-black text-on-surface">✨ 틀로 시작하기 <span className="font-bold text-on-surface-variant">— 누르면 예시가 들어가요. 내용만 바꿔 쓰세요</span></span>
+              <ChevronDown size={14} className="shrink-0 text-primary transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="px-3.5 pb-3 grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {MATERIAL_TEMPLATES.map(tpl => (
+                <button
+                  key={tpl.style}
+                  type="button"
+                  onClick={() => {
+                    if (content.trim() !== '' && !confirm('지금 쓴 글이 사라지고 틀로 바뀌어요. 계속할까요?')) return;
+                    setContent(tpl.build(title));
+                    setViewerStyle(tpl.style);
+                  }}
+                  className="text-left rounded-xl border border-surface-container bg-white px-3 py-2 hover:border-primary/50 transition-colors"
+                >
+                  <div className="text-sm font-black text-on-surface">{tpl.icon} {tpl.name}</div>
+                  <div className="text-[11px] text-on-surface-variant mt-0.5">{tpl.hint}</div>
+                </button>
+              ))}
             </div>
           </details>
 
