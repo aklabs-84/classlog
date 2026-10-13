@@ -30,6 +30,7 @@ import {
   Search,
   X,
   UserPlus,
+  Plus,
   Bell,
   BellOff,
 } from 'lucide-react';
@@ -39,6 +40,7 @@ import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
 import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
 import ClassRosterModal from '../components/classroom/ClassRosterModal';
+import SchoolNoticeTab from '../components/classroom/SchoolNoticeTab';
 import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
@@ -116,6 +118,7 @@ const todayStr = () => new Date().toISOString().split('T')[0];
 const TABS = [
   { key: 'overview', label: '개요' },
   { key: 'docs', label: '강사 제출 서류' },
+  { key: 'notice', label: '공지 만들기' },
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
   { key: 'records', label: '기록' },
@@ -133,6 +136,7 @@ type TabKey = (typeof TABS)[number]['key'];
 const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: string }[] }[] = [
   { key: 'overview', label: '개요', subs: [{ key: 'overview', label: '개요' }] },
   { key: 'docs', label: '강사 제출 서류', subs: [{ key: 'docs', label: '강사 제출 서류' }] },
+  { key: 'notice', label: '공지 만들기', subs: [{ key: 'notice', label: '공지 만들기' }] },
   { key: 'log', label: '수업 기록', subs: [
     { key: 'attendance', label: '출결' }, { key: 'daily', label: '일자별' },
     { key: 'results', label: '결과' }, { key: 'records', label: '기록' },
@@ -154,7 +158,16 @@ const SchoolProjectDetailPage = () => {
   const [program, setProgram] = useState<{ id: string; name: string } | null>(null);
   const [school, setSchool] = useState<any>(null);
   const [classes, setClasses] = useState<TeachingClass[]>([]);
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+
+  // 반 추가 (프로젝트의 강사 관리 화면과 같은 방식)
+  const [rootClassId, setRootClassId] = useState<string | null>(null);
+  const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
+  const [addClassOpen, setAddClassOpen] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassCourseId, setNewClassCourseId] = useState('');
+  const [addingClass, setAddingClass] = useState(false);
+  const [addClassError, setAddClassError] = useState('');
 
   // 담당 강사 지정 (강사 관리 화면과 같은 방식)
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
@@ -223,6 +236,11 @@ const SchoolProjectDetailPage = () => {
         .order('created_at', { ascending: true });
 
       const teaching = (allClasses || []).filter(c => c.parent_class_id !== null);
+      setRootClassId((allClasses || []).find(c => c.parent_class_id === null)?.id ?? null);
+      if (s?.parent_project_id) {
+        const { data: cs } = await supabase.from('school_project_courses').select('id, name').eq('project_id', s.parent_project_id).order('sort_order');
+        setCourses(cs || []);
+      }
       const teacherIds = [...new Set(teaching.map(c => c.assigned_teacher_id).filter(Boolean))] as string[];
 
       const teacherMap: Record<string, { full_name: string; avatar_url: string | null }> = {};
@@ -282,6 +300,28 @@ const SchoolProjectDetailPage = () => {
   }, [schoolId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAddClass = async () => {
+    const name = newClassName.trim();
+    if (!name || !user || !schoolId || !rootClassId || !program) return;
+    setAddingClass(true);
+    setAddClassError('');
+    const { error } = await supabase.from('classes').insert({
+      name,
+      subject: program.name,
+      teacher_id: user.id,
+      entry_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      school_project_id: schoolId,
+      parent_class_id: rootClassId,
+      course_id: newClassCourseId || null,
+    });
+    setAddingClass(false);
+    if (error) { setAddClassError('반을 추가하지 못했습니다. 다시 시도해주세요.'); return; }
+    setNewClassName('');
+    setNewClassCourseId('');
+    setAddClassOpen(false);
+    fetchData(true);
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -731,9 +771,18 @@ const SchoolProjectDetailPage = () => {
             ))}
           </div>
 
+          {rootClassId && (
+            <div className="flex justify-end">
+              <button onClick={() => { setAddClassError(''); setAddClassOpen(true); }}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim transition-all inline-flex items-center gap-1.5">
+                <Plus size={15} /> 반 추가
+              </button>
+            </div>
+          )}
+
           {classes.length === 0 ? (
             <div className="surface-card p-8 text-center text-on-surface-variant/60 text-sm">
-              아직 생성된 반이 없습니다. 프로젝트의 "강사 관리" 화면에서 이 학교의 반을 추가할 수 있습니다.
+              아직 생성된 반이 없습니다. {rootClassId ? '위의 "반 추가" 버튼으로 이 학교의 반을 만들 수 있습니다.' : '프로젝트의 "강사 관리" 화면에서 이 학교의 반을 추가할 수 있습니다.'}
             </div>
           ) : (
             <div className="surface-card border border-surface-container-high divide-y divide-surface-container-high">
@@ -808,6 +857,17 @@ const SchoolProjectDetailPage = () => {
           projectId={projectId}
           schoolId={schoolId}
           teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))}
+        />
+      )}
+
+      {tab === 'notice' && projectId && schoolId && (
+        <SchoolNoticeTab
+          projectId={projectId}
+          schoolId={schoolId}
+          schoolName={school?.name || '이 학교'}
+          startDate={school?.start_date ?? null}
+          endDate={school?.end_date ?? null}
+          classes={classes.map(c => ({ id: c.id, name: c.name, teacherName: c.teacherName }))}
         />
       )}
 
@@ -1085,6 +1145,47 @@ const SchoolProjectDetailPage = () => {
       )}
 
       {/* 담당 강사 지정 모달 */}
+      {addClassOpen && createPortal(
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !addingClass && setAddClassOpen(false)}>
+          <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-black text-lg">반 추가</h2>
+              <button onClick={() => setAddClassOpen(false)} className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant"><X size={18} /></button>
+            </div>
+            <p className="text-xs text-on-surface-variant mb-3">{school?.name || '이 학교'}에 반을 만들어요.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-on-surface-variant">반 이름</label>
+                <input autoFocus type="text" value={newClassName} onChange={e => setNewClassName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddClass(); }}
+                  placeholder="예: 1반"
+                  className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              {courses.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant">과목 (선택)</label>
+                  <select value={newClassCourseId} onChange={e => setNewClassCourseId(e.target.value)}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20">
+                    <option value="">과목 없음</option>
+                    {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {addClassError && <p className="text-xs font-bold text-red-500">{addClassError}</p>}
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setAddClassOpen(false)} disabled={addingClass}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all">취소</button>
+              <button onClick={handleAddClass} disabled={addingClass || !newClassName.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all">
+                {addingClass ? '추가 중...' : '추가'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {assigningClassId && createPortal(
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={closeAssignModal}>
           <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto flex flex-col" onClick={e => e.stopPropagation()}>
