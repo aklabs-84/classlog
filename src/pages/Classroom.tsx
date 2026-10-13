@@ -399,7 +399,7 @@ const Classroom = () => {
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
   const [answersMaterial, setAnswersMaterial] = useState<{ id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[]; viewer_style?: string | null } | null>(null);
-  const [previewMaterial, setPreviewMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[]; viewer_style?: string | null } | null>(null);
+  const [previewMaterial, setPreviewMaterial] = useState<{ id?: string; class_id?: string | null; title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[]; viewer_style?: string | null } | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
@@ -2467,6 +2467,7 @@ const Classroom = () => {
             else openGeneralMaterial(full);
           }}
           teacherTools
+          onShowAnswers={previewMaterial.id ? () => setAnswersMaterial({ id: previewMaterial.id!, class_id: previewMaterial.class_id ?? activeClassId ?? null, title: previewMaterial.title, content: previewMaterial.content, activity_urls: previewMaterial.activity_urls, viewer_style: previewMaterial.viewer_style }) : undefined}
           previewOnly
           onClose={() => setPreviewMaterial(null)}
         />
@@ -5509,7 +5510,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
+                                      setPreviewMaterial({ id: matInfo.id, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5577,7 +5578,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setPreviewMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
+                                      setPreviewMaterial({ id: matInfo.id, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
                                       showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5701,7 +5702,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setPreviewMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments, viewer_style: mat.viewer_style })}
+                              onClick={() => setPreviewMaterial({ id: mat.id, class_id: mat.class_id, title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments, viewer_style: mat.viewer_style })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">

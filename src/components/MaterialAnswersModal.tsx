@@ -331,7 +331,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
 
   const showSide = tab === 'q' || tab === 'a';
   return createPortal(
-    <div className="fixed inset-0 z-[9998] bg-[#f6f2ea] text-[#1d1b18] flex flex-col" style={{ fontFamily: "'Pretendard Variable', system-ui, sans-serif" }}>
+    <div className="fixed inset-0 z-[10000] bg-[#f6f2ea] text-[#1d1b18] flex flex-col" style={{ fontFamily: "'Pretendard Variable', system-ui, sans-serif" }}>
       {/* 입력칸 이름을 뽑기 위해 화면 밖에서만 그리는 자료 (보이지 않음) */}
       <div ref={measureRef} aria-hidden style={{ display: 'none' }}>
         <AnswerPreviewMarkdown content={material.content} mdComponents={mdComponents} />

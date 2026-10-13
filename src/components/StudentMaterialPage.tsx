@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon, PenLine } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
 import MaterialAttachments, { type MaterialAttachment } from './MaterialAttachments';
@@ -54,6 +54,8 @@ interface Props {
   onOpenFile?: (mat: RelatedMaterial, download: boolean) => void;
   /** 선생님 미리보기일 때만 켜는 수업 도구(돋보기·펜·스포트라이트, PC 화면 전용) */
   teacherTools?: boolean;
+  /** 선생님 화면에서만 넘기는 "학생 답변" 열기 동작. teacherTools가 켜져 있고 이 값이 있을 때만 버튼을 그린다(학생 화면에는 넘기지 않음) */
+  onShowAnswers?: () => void;
   /** 에디터 미리보기용 — 입력은 써볼 수 있지만 저장되지 않으므로 "저장됨" 표시를 숨긴다 */
   previewOnly?: boolean;
   /** 보기 모양(default | mission | storybook | note | challenge). 자료마다 강사가 고른다 */
@@ -293,7 +295,7 @@ const withSkinComponents = (base: any) => ({
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, onShowAnswers, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
   const skin = normalizeViewerStyle(viewerStyle);
   const skinInfo = viewerStyleInfo(skin);
   const skinned = skin !== 'default';
@@ -675,6 +677,16 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             <span className="hidden sm:inline">{theme === 'dark' ? '라이트' : '다크'}</span>
+          </button>
+        )}
+        {teacherTools && onShowAnswers && (
+          <button
+            onClick={onShowAnswers}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 text-white font-black text-base hover:bg-white/20 active:scale-95 transition-all shrink-0"
+            title="학생들이 적은 답을 실시간으로 보기"
+          >
+            <PenLine size={18} />
+            <span className="hidden sm:inline">학생 답변</span>
           </button>
         )}
         {entries.length > 0 && (
