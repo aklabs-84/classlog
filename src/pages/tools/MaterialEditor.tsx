@@ -3112,6 +3112,13 @@ const MaterialEditor = () => {
                 type="text"
                 value={newLinkUrl}
                 onChange={e => setNewLinkUrl(e.target.value)}
+                onBlur={() => {
+                  // 입력만 해 두고 다른 곳(저장·미리보기 등)을 눌러도 링크가 빠지지 않게 자동으로 추가한다
+                  if (newLinkUrl.trim()) {
+                    setActivityLinks(prev => [...prev, { url: newLinkUrl.trim(), label: '' }]);
+                    setNewLinkUrl('');
+                  }
+                }}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && newLinkUrl.trim()) {
                     setActivityLinks(prev => [...prev, { url: newLinkUrl.trim(), label: '' }]);
@@ -3142,6 +3149,7 @@ const MaterialEditor = () => {
                 <Search size={11} /> 찾아보기
               </button>
             </div>
+            <p className="pl-6 text-[11px] text-on-surface-variant">주소를 쓰고 Enter 또는 + 를 누르면 목록에 추가돼요. 다른 곳을 눌러도 자동으로 추가돼요.</p>
           </div>
           )}
 
