@@ -9,7 +9,7 @@ export default function AiServiceLinkPicker({
   onSelect,
   onClose,
 }: {
-  onSelect: (url: string, label: string) => void;
+  onSelect: (url: string, label: string, appId: string) => void;
   onClose: () => void;
 }) {
   const [apps, setApps] = useState<AiApp[]>([]);
@@ -85,7 +85,7 @@ export default function AiServiceLinkPicker({
               {filtered.map((app) => (
                 <button
                   key={app.id}
-                  onClick={() => { onSelect(app.appUrls[0].url, app.name); onClose(); }}
+                  onClick={() => { onSelect(app.appUrls[0].url, app.name, app.id); onClose(); }}
                   className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-2xl hover:bg-primary/5 border border-transparent hover:border-primary/20 transition-all group"
                 >
                   <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">

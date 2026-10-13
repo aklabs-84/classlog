@@ -395,6 +395,8 @@ const Classroom = () => {
   const [overrideBusyId, setOverrideBusyId] = useState<string | null>(null);
   // 학생 페이지에 공개된 학습 도구 (class_enabled_tools) - key: tool_id
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>({});
+  // 학교 프로젝트 자료에서 자동으로 연결된 도구 (class_enabled_tools.auto_synced) - key: tool_id
+  const [autoSyncedTools, setAutoSyncedTools] = useState<Record<string, boolean>>({});
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
@@ -1834,7 +1836,7 @@ const Classroom = () => {
       const [matsRes, generalRes, toolsRes, planMatsRes] = await Promise.all([
         supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at, viewer_style').eq('class_id', sourceId).order('week_number', { ascending: true }),
         supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
-        supabase.from('class_enabled_tools').select('tool_id, is_published').eq('class_id', classId),
+        supabase.from('class_enabled_tools').select('tool_id, is_published, auto_synced').eq('class_id', classId),
         planMaterialIds.length > 0
           ? supabase.from('class_materials').select('id, title, content, week_number, is_published, activity_urls, attachments, content_updated_at, viewer_style').in('id', planMaterialIds)
           : Promise.resolve({ data: [] as any[] }),
@@ -1858,8 +1860,10 @@ const Classroom = () => {
       }
       setGeneralMaterials(generalRes.data || []);
       const toolMap: Record<string, boolean> = {};
-      (toolsRes.data || []).forEach((t: any) => { toolMap[t.tool_id] = t.is_published; });
+      const autoMap: Record<string, boolean> = {};
+      (toolsRes.data || []).forEach((t: any) => { toolMap[t.tool_id] = t.is_published; if (t.auto_synced) autoMap[t.tool_id] = true; });
       setEnabledTools(toolMap);
+      setAutoSyncedTools(autoMap);
     } catch (err) {
       console.error('Error fetching resources:', err);
     }
@@ -5833,6 +5837,7 @@ const Classroom = () => {
                             const toolId = `external:${app.id}`;
                             const isPublished = !!enabledTools[toolId];
                             const isPrimary = classInfo?.primary_tool_id === toolId;
+                            const isAutoSynced = !!autoSyncedTools[toolId];
                             return (
                               <div key={toolId} className="flex flex-col gap-2 p-3 bg-white rounded-2xl border border-surface-container-high">
                                 <div className="flex items-center gap-3">
@@ -5843,6 +5848,9 @@ const Classroom = () => {
                                     <p className="text-sm font-black truncate">{app.name}</p>
                                     {isPrimary && (
                                       <span className="shrink-0 text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">메인 도구</span>
+                                    )}
+                                    {isAutoSynced && (
+                                      <span title="학교 프로젝트 자료에 연결된 앱이라 자동으로 들어왔어요. 학생에게 보일지는 오른쪽 버튼으로 정할 수 있어요." className="shrink-0 text-[10px] font-black text-fuchsia-700 bg-fuchsia-100 px-2 py-0.5 rounded-full">학교 자료로 배정됨</span>
                                     )}
                                   </div>
                                   <button
@@ -5863,14 +5871,16 @@ const Classroom = () => {
                                       <><Lock size={13} /> 비공개</>
                                     )}
                                   </button>
-                                  <button
-                                    onClick={() => handleDisconnectHubApp(toolId, app.name)}
-                                    disabled={togglingToolId === toolId}
-                                    title="이 클래스에서 연결 해제"
-                                    className="shrink-0 p-1.5 rounded-xl text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
+                                  {!isAutoSynced && (
+                                    <button
+                                      onClick={() => handleDisconnectHubApp(toolId, app.name)}
+                                      disabled={togglingToolId === toolId}
+                                      title="이 클래스에서 연결 해제"
+                                      className="shrink-0 p-1.5 rounded-xl text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
                                 </div>
                                 {!isPrimary && (
                                   <button

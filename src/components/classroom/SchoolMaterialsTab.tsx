@@ -4,7 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import RichEditor from '../RichEditor';
 import ImportableMaterialPicker, { type ImportableMaterial } from './ImportableMaterialPicker';
-import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, Link2, Loader2, Paperclip, Pencil, Plus, Trash2, X, AlertTriangle } from 'lucide-react';
+import AiServiceLinkPicker from '../AiServiceLinkPicker';
+import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, Link2, Loader2, Paperclip, Pencil, Plus, Sparkles, Trash2, X, AlertTriangle } from 'lucide-react';
 
 import { safeHttpUrl, isUuid } from '../../lib/safeUrl';
 
@@ -23,6 +24,7 @@ interface Material {
   school_id: string | null;
   links: { label: string; url: string }[];
   files: { name: string; path: string; url: string; size: number }[];
+  hub_apps: HubAppItem[];
 }
 
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -47,6 +49,8 @@ const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<Fi
     img.src = url;
   });
 
+// AI Service Hub 앱: 자료를 공개하면 담당 클래스의 학습 도구로 자동 연결된다 (DB 트리거 sync_project_hub_apps)
+type HubAppItem = { id: string; name: string; url: string };
 type LinkItem = { label: string; url: string };
 type FileItem = { name: string; path: string; url: string; size: number };
 
@@ -75,6 +79,8 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
   const [week, setWeek] = useState('');
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [hubApps, setHubApps] = useState<HubAppItem[]>([]);
+  const [hubPickerOpen, setHubPickerOpen] = useState(false);
   const [memo, setMemo] = useState('');
   const [memoOpen, setMemoOpen] = useState(false);
   const [published, setPublished] = useState(true);
@@ -93,7 +99,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     try {
       let q = supabase
         .from('program_materials')
-        .select('id, title, content, week_number, is_published, updated_at, school_id, links, files')
+        .select('id, title, content, week_number, is_published, updated_at, school_id, links, files, hub_apps')
         .eq('program_project_id', projectId);
       if (schoolId) {
         if (!isUuid(schoolId)) { setMaterials([]); return; }
@@ -102,7 +108,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
       const { data } = await q
         .order('week_number', { ascending: true, nullsFirst: true })
         .order('updated_at', { ascending: false });
-      setMaterials(((data || []) as any[]).map(m => ({ ...m, links: m.links || [], files: m.files || [] })) as Material[]);
+      setMaterials(((data || []) as any[]).map(m => ({ ...m, links: m.links || [], files: m.files || [], hub_apps: m.hub_apps || [] })) as Material[]);
     } finally {
       setLoading(false);
     }
@@ -111,7 +117,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
   useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
 
   const resetForm = () => {
-    setTitle(''); setWeek(''); setLinks([]); setFiles([]); setMemo(''); setMemoOpen(false);
+    setTitle(''); setWeek(''); setLinks([]); setFiles([]); setHubApps([]); setMemo(''); setMemoOpen(false);
     setPublished(true); setFileError(''); setNewPaths([]); setRemovedPaths([]);
   };
 
@@ -120,7 +126,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
   const openEdit = (m: Material) => {
     resetForm();
     setEditing(m); setTitle(m.title); setWeek(m.week_number != null ? String(m.week_number) : '');
-    setLinks(m.links); setFiles(m.files); setMemo(m.content || ''); setMemoOpen(!!m.content);
+    setLinks(m.links); setFiles(m.files); setHubApps(m.hub_apps); setMemo(m.content || ''); setMemoOpen(!!m.content);
     setPublished(m.is_published);
     setModalOpen(true);
   };
@@ -219,6 +225,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
         is_published: published,
         links: cleanLinks,
         files,
+        hub_apps: hubApps,
       };
       const { error } = editing
         ? await supabase.from('program_materials').update(payload).eq('id', editing.id)
@@ -314,6 +321,16 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                 <FileText size={11} className="shrink-0" /> <span className="truncate">{f.name}</span>
                 <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
               </a>
+            ))}
+          </div>
+        )}
+        {m.hub_apps.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {m.hub_apps.map(a => (
+              <span key={a.id} title={m.is_published ? '담당 클래스의 학습 도구에 자동 연결됨' : '공개하면 담당 클래스의 학습 도구에 자동 연결됩니다'}
+                className="flex items-center gap-1 text-[11px] font-bold text-fuchsia-700 bg-fuchsia-50 px-2.5 py-1 rounded-lg max-w-full">
+                <Sparkles size={11} className="shrink-0" /> <span className="truncate">{a.name}</span>
+              </span>
             ))}
           </div>
         )}
@@ -419,6 +436,28 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                 </div>
               </div>
 
+              {/* AI 앱 (AI Service Hub 연동) */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant mb-1.5"><Sparkles size={13} /> AI 앱 (학생이 이름으로 입장·제출하는 수업 앱)</label>
+                <div className="space-y-2">
+                  {hubApps.map(a => (
+                    <div key={a.id} className="flex items-center gap-2 px-3 py-2 bg-fuchsia-50 rounded-lg">
+                      <Sparkles size={14} className="text-fuchsia-600 shrink-0" />
+                      <span className="text-xs font-bold truncate flex-1">{a.name}</span>
+                      <button onClick={() => setHubApps(prev => prev.filter(x => x.id !== a.id))} className="p-1 rounded text-on-surface-variant/50 hover:text-red-500 shrink-0"><X size={13} /></button>
+                    </div>
+                  ))}
+                  <button onClick={() => setHubPickerOpen(true)} className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dim">
+                    <Plus size={13} /> AI Service Hub에서 앱 고르기
+                  </button>
+                  {hubApps.length > 0 && (
+                    <p className="text-[11px] font-bold text-on-surface-variant/70 leading-relaxed">
+                      이 자료를 <b>공개</b>하면 {schoolId ? `${schoolName}의` : '모든 학교의'} 담당 클래스 학습 도구에 앱이 자동으로 연결됩니다. 비공개로 바꾸거나 지우면 함께 빠집니다.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* 링크 */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant mb-1.5"><Link2 size={13} /> 링크</label>
@@ -497,6 +536,13 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
           </div>
         </div>,
         document.body
+      )}
+
+      {hubPickerOpen && (
+        <AiServiceLinkPicker
+          onSelect={(url, label, appId) => setHubApps(prev => prev.some(a => a.id === appId) ? prev : [...prev, { id: appId, name: label, url }])}
+          onClose={() => setHubPickerOpen(false)}
+        />
       )}
 
       {importOpen && user && (
