@@ -498,6 +498,7 @@ const PreviewFullscreenModal = ({
   links,
   attachments,
   viewerStyle,
+  onShowAnswers,
   onClose,
 }: {
   title: string;
@@ -505,6 +506,8 @@ const PreviewFullscreenModal = ({
   links?: ActivityLink[];
   attachments?: MaterialAttachment[];
   viewerStyle?: ViewerStyle;
+  /** 반에 연결된 저장된 자료일 때만 넘김 — "학생 답변" 버튼을 보여 준다 */
+  onShowAnswers?: () => void;
   onClose: () => void;
 }) => {
   useEffect(() => {
@@ -524,6 +527,7 @@ const PreviewFullscreenModal = ({
       viewerStyle={viewerStyle}
       progressKey="preview"
       teacherTools
+      onShowAnswers={onShowAnswers}
       previewOnly
       onClose={onClose}
     />,
@@ -1012,6 +1016,9 @@ const CoverPickerModal = ({
   onUpload,
   onUseTemplate,
   onRemoveImage,
+  onPickExisting,
+  teacherId,
+  excludeMaterialId,
   onClose,
 }: {
   title: string;
@@ -1023,10 +1030,61 @@ const CoverPickerModal = ({
   onUpload: (file: File) => void;
   onUseTemplate: () => void;
   onRemoveImage: () => void;
+  onPickExisting: (url: string) => void;
+  teacherId?: string;
+  excludeMaterialId?: string;
   onClose: () => void;
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewImageUrl = coverSource === 'upload' ? coverImageUrl : null;
+
+  // 내가 다른 자료에 이미 올려 둔 표지 이미지 목록 (같은 주소는 한 번만, 최근 순 최대 24개)
+  const [pastCovers, setPastCovers] = useState<string[]>([]);
+  const [pastLoading, setPastLoading] = useState(false);
+  useEffect(() => {
+    if (!teacherId) return;
+    let cancelled = false;
+    setPastLoading(true);
+    (async () => {
+      let q = supabase
+        .from('class_materials')
+        .select('cover_image_url')
+        .eq('teacher_id', teacherId)
+        .eq('cover_source', 'upload')
+        .not('cover_image_url', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(200);
+      if (excludeMaterialId) q = q.neq('id', excludeMaterialId);
+      const { data } = await q;
+      if (cancelled) return;
+      const seen = new Set<string>();
+      const urls: string[] = [];
+      (data ?? []).forEach((r: any) => {
+        const u = r.cover_image_url as string | null;
+        if (u && !seen.has(u)) { seen.add(u); urls.push(u); }
+      });
+      // 같은 이미지를 여러 번 올리면 파일 이름만 다른 사본이 생기므로, 파일 크기가 같으면 같은 이미지로 보고 하나만 남긴다
+      const cand = urls.slice(0, 60);
+      const sizes = await Promise.all(cand.map(async (u) => {
+        try {
+          const res = await fetch(u, { method: 'HEAD' });
+          return res.headers.get('content-length');
+        } catch { return null; }
+      }));
+      if (cancelled) return;
+      const seenSize = new Set<string>();
+      const unique = cand.filter((_, i) => {
+        const sz = sizes[i];
+        if (!sz) return true;
+        if (seenSize.has(sz)) return false;
+        seenSize.add(sz);
+        return true;
+      });
+      setPastCovers(unique.slice(0, 24));
+      setPastLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [teacherId, excludeMaterialId]);
 
   const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
   const [generatingPrompts, setGeneratingPrompts] = useState(false);
@@ -1130,6 +1188,41 @@ const CoverPickerModal = ({
             >
               <Trash2 size={12} /> 업로드한 이미지 삭제하고 기본 템플릿으로
             </button>
+          )}
+
+          {(pastLoading || pastCovers.length > 0) && (
+            <div className="pt-1 border-t border-surface-container">
+              <p className="text-xs font-black text-on-surface mt-3 mb-2">이미 올린 표지에서 고르기</p>
+              {pastLoading ? (
+                <p className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> 이전 표지를 불러오는 중...
+                </p>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {pastCovers.map(url => {
+                    const selected = coverSource === 'upload' && coverImageUrl === url;
+                    return (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => onPickExisting(url)}
+                        title="이 이미지를 표지로 쓰기"
+                        className={`relative shrink-0 w-16 aspect-[210/297] rounded-lg overflow-hidden border-2 transition-colors ${
+                          selected ? 'border-primary' : 'border-surface-container hover:border-primary/50'
+                        }`}
+                      >
+                        <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                        {selected && (
+                          <span className="absolute inset-0 bg-primary/30 flex items-center justify-center">
+                            <Check size={18} className="text-white" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="pt-1 border-t border-surface-container">
@@ -1401,7 +1494,7 @@ const MaterialEditor = () => {
   const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
   const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; coverImageUrl: string | null; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
-  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[]; viewerStyle?: ViewerStyle } | null>(null);
+  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[]; viewerStyle?: ViewerStyle; answersSource?: Material | null } | null>(null);
   const [answersMaterial, setAnswersMaterial] = useState<Material | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
@@ -2140,7 +2233,7 @@ const MaterialEditor = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments, viewerStyle: normalizeViewerStyle(material.viewer_style) });
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments, viewerStyle: normalizeViewerStyle(material.viewer_style), answersSource: material.class_id && material.content ? material : null });
                         }}
                         title="내용 미리보기"
                         className={`${qcls} text-on-surface hover:bg-white transition-colors`}
@@ -2486,6 +2579,7 @@ const MaterialEditor = () => {
         links={fullscreenPreview.links}
         attachments={fullscreenPreview.attachments}
         viewerStyle={fullscreenPreview.viewerStyle}
+        onShowAnswers={fullscreenPreview.answersSource ? () => setAnswersMaterial(fullscreenPreview.answersSource!) : undefined}
         onClose={() => setFullscreenPreview(null)}
       />
     )}
@@ -2507,6 +2601,9 @@ const MaterialEditor = () => {
         onUpload={handleUploadCoverImage}
         onUseTemplate={() => setCoverSource('template')}
         onRemoveImage={() => { setCoverImageUrl(null); setCoverSource('template'); }}
+        onPickExisting={(url) => { setCoverImageUrl(url); setCoverSource('upload'); }}
+        teacherId={user?.id}
+        excludeMaterialId={editingMaterial?.id}
         onClose={() => setShowCoverModal(false)}
       />
     )}
@@ -2739,7 +2836,7 @@ const MaterialEditor = () => {
                 {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
                 <button
                   data-tour="me-preview"
-                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments, viewerStyle })}
+                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments, viewerStyle, answersSource: editingMaterial?.class_id && editingMaterial.content ? editingMaterial : null })}
                   title="학생 화면처럼 전체화면으로 미리보기"
                   className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:text-primary hover:bg-white transition-all shrink-0"
                 >
