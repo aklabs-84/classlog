@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, QrCode, BookOpen, ExternalLink, Share2, Download, Check, Smartphone } from 'lucide-react';
+import { Plus, QrCode, BookOpen, ExternalLink, Share2, Download, Smartphone } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ClassroomFabMenuProps {
   onOpenQR?: () => void;
   onOpenResources?: () => void;
   onOpenStudentPage?: () => void;
-  onShareTeacher?: () => void;
-  shareTeacherSuccess?: boolean;
   onOpenTeacherShareQR?: () => void;
   onExport?: () => void;
   onOpenStudentPreview?: () => void;
@@ -25,8 +23,6 @@ const ClassroomFabMenu = ({
   onOpenQR,
   onOpenResources,
   onOpenStudentPage,
-  onShareTeacher,
-  shareTeacherSuccess,
   onOpenTeacherShareQR,
   onExport,
   onOpenStudentPreview,
@@ -51,16 +47,10 @@ const ClassroomFabMenu = ({
 
   const actions: FabAction[] = [
     onOpenStudentPreview && { key: 'studentPreview', label: '학생 화면 미리보기', icon: Smartphone, onClick: onOpenStudentPreview },
-    onOpenQR && { key: 'qr', label: '학생 입장용 QR', icon: QrCode, onClick: onOpenQR },
+    onOpenQR && { key: 'qr', label: '학생 입장 코드 확인', icon: QrCode, onClick: onOpenQR },
     onOpenResources && { key: 'resources', label: '수업 자료실', icon: BookOpen, onClick: onOpenResources },
     onOpenStudentPage && { key: 'openStudentPage', label: '학생 페이지 이동', icon: ExternalLink, onClick: onOpenStudentPage },
-    onShareTeacher && {
-      key: 'share',
-      label: shareTeacherSuccess ? '복사됨!' : '교사용 결과 링크',
-      icon: shareTeacherSuccess ? Check : Share2,
-      onClick: onShareTeacher,
-    },
-    onOpenTeacherShareQR && { key: 'shareQr', label: '교사용 결과 QR', icon: QrCode, onClick: onOpenTeacherShareQR },
+    onOpenTeacherShareQR && { key: 'shareQr', label: '교사용 결과 공유', icon: Share2, onClick: onOpenTeacherShareQR },
     onExport && { key: 'export', label: '내보내기', icon: Download, onClick: onExport },
   ].filter((action): action is FabAction => Boolean(action));
 

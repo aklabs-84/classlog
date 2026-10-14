@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import * as XLSX from 'xlsx';
+import GalleryEndPrompt from './GalleryEndPrompt';
 
 interface AttendanceTabProps {
   classId: string;
@@ -57,6 +58,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
   const [savingId, setSavingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dlLoading, setDlLoading] = useState(false);
+  const [showGalleryPrompt, setShowGalleryPrompt] = useState(false);
 
   // 달력 팝업
   const [showCalendar, setShowCalendar] = useState(false);
@@ -175,6 +177,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
         const now = new Date().toISOString();
         await supabase.from('classes').update({ today_ended_at: now }).eq('id', classId);
         setSessionEndedAt(now);
+        setShowGalleryPrompt(true);
       }
     } finally {
       setSessionSaving(false);
@@ -370,6 +373,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-8">
+      {showGalleryPrompt && <GalleryEndPrompt classId={classId} onClose={() => setShowGalleryPrompt(false)} />}
 
       {/* ── 날짜 네비게이션 ── */}
       <div className="flex flex-col items-center gap-4">

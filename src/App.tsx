@@ -48,6 +48,8 @@ const SuggestionsPage = lazy(() => import('./pages/SuggestionsPage'));
 const QuizStudentView = lazy(() => import('./pages/QuizStudentView'));
 const ClassBoard = lazy(() => import('./pages/ClassBoard'));
 const ShareClassView = lazy(() => import('./pages/ShareClassView'));
+const PhotoConsentSign = lazy(() => import('./pages/PhotoConsentSign'));
+const GalleryAssistantUpload = lazy(() => import('./pages/GalleryAssistantUpload'));
 const SchoolShareView = lazy(() => import('./pages/SchoolShareView'));
 const SchoolProjectShareView = lazy(() => import('./pages/SchoolProjectShareView'));
 const ParentReportShareView = lazy(() => import('./pages/ParentReportShareView'));
@@ -270,6 +272,8 @@ function App() {
               <Route path="/wb-join" element={<StudentJoin />} />
               <Route path="/lb-join" element={<LiveBoardJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />
+              <Route path="/photo-consent/:token" element={<PhotoConsentSign />} />
+              <Route path="/gallery-upload/:token" element={<GalleryAssistantUpload />} />
               <Route path="/school-share/:schoolId" element={<SchoolShareView />} />
               <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
               <Route path="/report/:shareToken" element={<ParentReportShareView />} />

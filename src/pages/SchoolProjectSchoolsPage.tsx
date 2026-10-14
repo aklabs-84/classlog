@@ -39,6 +39,7 @@ import {
   Lightbulb,
   HelpCircle,
   ChevronUp,
+  Camera,
 } from 'lucide-react';
 import ClassPeriodInput from '../components/common/ClassPeriodInput';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
@@ -182,6 +183,9 @@ interface SchoolRow {
   teacherCount: number;
   unassignedCount: number;
   studentCount: number;
+  photoTotal: number;
+  photoPending: number;
+  consentOk: number;
   classes: { id: string; name: string; entry_code: string; assigned_teacher_id: string | null; teacherName: string | null; studentCount: number; course_id: string | null }[];
 }
 
@@ -636,6 +640,14 @@ const SchoolProjectSchoolsPage = () => {
         });
       }
 
+      // 학교별 사진 장수·동의 인원(숫자만; 서명 이미지·이름은 반 주인만 볼 수 있다)
+      const statBySchool: Record<string, { photo: number; pending: number; ok: number }> = {};
+      const { data: stats } = await supabase.rpc('get_project_gallery_consent_stats', { p_project_id: projectId });
+      (stats || []).forEach((r: any) => {
+        const a = statBySchool[r.school_project_id] ||= { photo: 0, pending: 0, ok: 0 };
+        a.photo += r.photo_total; a.pending += r.photo_pending; a.ok += r.consent_ok;
+      });
+
       const rows: SchoolRow[] = subProjects.map(s => {
         const myClasses = teachingClasses.filter(c => c.school_project_id === s.id);
         const assigned = myClasses.filter(c => c.assigned_teacher_id);
@@ -655,6 +667,9 @@ const SchoolProjectSchoolsPage = () => {
           teacherCount: new Set(assigned.map(c => c.assigned_teacher_id)).size,
           unassignedCount: myClasses.length - assigned.length,
           studentCount: myClasses.reduce((sum, c) => sum + (studentCountByClass[c.id] || 0), 0),
+          photoTotal: statBySchool[s.id]?.photo ?? 0,
+          photoPending: statBySchool[s.id]?.pending ?? 0,
+          consentOk: statBySchool[s.id]?.ok ?? 0,
           classes: myClasses.map(c => ({
             id: c.id,
             name: c.name,
@@ -722,6 +737,7 @@ const SchoolProjectSchoolsPage = () => {
     schoolCount: schools.length,
     teacherCount: schools.reduce((sum, s) => sum + s.teacherCount, 0),
     studentCount: schools.reduce((sum, s) => sum + s.studentCount, 0),
+    photoTotal: schools.reduce((sum, s) => sum + s.photoTotal, 0),
     needsAttention: schools.filter(s => s.unassignedCount > 0).length,
   }), [schools]);
 
@@ -1250,6 +1266,7 @@ const SchoolProjectSchoolsPage = () => {
           { label: '참여 학교', value: totals.schoolCount, icon: School, color: 'text-primary' },
           { label: '전체 강사', value: totals.teacherCount, icon: GraduationCap, color: 'text-secondary' },
           { label: '전체 학생', value: totals.studentCount, icon: Users, color: 'text-accent' },
+          { label: '수집된 사진', value: totals.photoTotal, icon: Camera, color: 'text-primary' },
           { label: '확인 필요 학교', value: totals.needsAttention, icon: AlertTriangle, color: totals.needsAttention > 0 ? 'text-orange-500' : 'text-on-surface-variant/50' },
         ].map(kpi => (
           <div key={kpi.label} className="surface-card p-4 border border-surface-container-high">
@@ -1326,6 +1343,8 @@ const SchoolProjectSchoolsPage = () => {
                   <th className="px-4 py-3 font-bold text-right">반</th>
                   <th className="px-4 py-3 font-bold text-right">강사</th>
                   <th className="px-4 py-3 font-bold text-right">학생</th>
+                  <th className="px-4 py-3 font-bold text-right">사진</th>
+                  <th className="px-4 py-3 font-bold text-right">얼굴 동의</th>
                   <th className="px-4 py-3 font-bold"></th>
                 </tr>
               </thead>
@@ -1361,6 +1380,14 @@ const SchoolProjectSchoolsPage = () => {
                       <td className="px-4 py-3 text-right tabular-nums">{s.classCount}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{s.teacherCount}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{s.studentCount}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {s.photoTotal === 0 ? <span className="text-on-surface-variant/50">없음</span> : s.photoTotal}
+                        {s.photoPending > 0 && <span className="ml-1 text-[11px] font-bold text-orange-500">대기 {s.photoPending}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {s.studentCount === 0 ? <span className="text-on-surface-variant/50">-</span>
+                          : <span className={s.consentOk < s.studentCount ? 'text-orange-500 font-bold' : ''}>{s.consentOk}/{s.studentCount}</span>}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <div className="relative">

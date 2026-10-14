@@ -13,6 +13,10 @@ export interface GalleryItem {
   caption: string | null;
   created_at: string;
   source?: 'upload' | 'drive';
+  uploader_name?: string | null;
+  review_status?: 'pending' | 'approved' | 'hidden';
+  upload_source?: 'teacher' | 'assistant_link';
+  is_featured?: boolean;
 }
 
 export interface VideoUrlInfo {

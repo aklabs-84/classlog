@@ -49,6 +49,7 @@ import {
   Clock,
   School,
   Copy,
+  Check,
   Megaphone,
   Pin,
   Eye,
@@ -5136,8 +5137,6 @@ const Classroom = () => {
               setIsResourceModalOpen(true);
             }}
             onOpenStudentPage={classInfo.entry_code ? handleOpenStudentPage : undefined}
-            onShareTeacher={handleShareTeacher}
-            shareTeacherSuccess={shareTeacherSuccess}
             onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
             onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
           />
@@ -5157,7 +5156,7 @@ const Classroom = () => {
               <button onClick={() => setIsQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <div className="space-y-2">
                 <h3 className="text-3xl font-black font-manrope">{classInfo.name}</h3>
-                <p className="text-on-surface-variant font-bold">학생 입장용 QR 코드</p>
+                <p className="text-on-surface-variant font-bold">학생 입장 코드 확인</p>
               </div>
               <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://classlog-ai.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
@@ -5184,6 +5183,10 @@ const Classroom = () => {
               <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed">
                 이 QR을 스캔하면 로그인 없이<br />학급 공유 페이지로 바로 이동합니다.
               </p>
+              <button onClick={handleShareTeacher} className="w-full py-3 rounded-2xl bg-surface-container hover:bg-primary/10 font-black text-sm text-on-surface-variant transition-all flex items-center justify-center gap-2">
+                {shareTeacherSuccess ? <Check size={16} /> : <Copy size={16} />}
+                {shareTeacherSuccess ? '복사됨!' : '링크 복사'}
+              </button>
             </motion.div>
           </div>
         )}

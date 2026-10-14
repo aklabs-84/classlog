@@ -37,6 +37,7 @@ import {
 import { useNotificationPermission } from '../hooks/useNotificationPermission';
 import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
+import SchoolGalleryTab from '../components/classroom/SchoolGalleryTab';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
 import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
 import ClassRosterModal from '../components/classroom/ClassRosterModal';
@@ -127,6 +128,7 @@ const TABS = [
   { key: 'quiz', label: '퀴즈 보내기' },
   { key: 'board', label: '보드 보내기' },
   { key: 'plan', label: '주차별 계획' },
+  { key: 'gallery', label: '갤러리' },
   { key: 'survey', label: '설문' },
   { key: 'summary', label: '결과 요약' },
 ] as const;
@@ -145,6 +147,7 @@ const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: stri
     { key: 'materials', label: '자료' }, { key: 'quiz', label: '퀴즈 보내기' }, { key: 'board', label: '보드 보내기' },
   ] },
   { key: 'plan', label: '주차별 계획', subs: [{ key: 'plan', label: '주차별 계획' }] },
+  { key: 'gallery', label: '갤러리', subs: [{ key: 'gallery', label: '갤러리' }] },
   { key: 'survey', label: '설문', subs: [{ key: 'survey', label: '설문' }] },
   { key: 'summary', label: '결과 요약', subs: [{ key: 'summary', label: '결과 요약' }] },
 ];
@@ -748,6 +751,10 @@ const SchoolProjectDetailPage = () => {
           program={{ name: school?.name || program?.name || '', school_name: school?.school_name ?? null, start_date: school?.start_date ?? null, end_date: school?.end_date ?? null }}
           totals={{ schoolCount: 1, teacherCount: totals.teacherCount, studentCount: totals.studentCount }}
         />
+      )}
+
+      {tab === 'gallery' && user && (
+        <SchoolGalleryTab userId={user.id} classes={classes.map(c => ({ id: c.id, name: c.name }))} />
       )}
 
       {tab === 'plan' && projectId && schoolId && (
