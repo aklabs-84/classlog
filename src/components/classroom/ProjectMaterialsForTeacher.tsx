@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { supabase } from '../../lib/supabase';
 import { safeHttpUrl } from '../../lib/safeUrl';
-import { BookOpen, ChevronDown, ExternalLink, FileText, Loader2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ExternalLink, FileText, Loader2, Sparkles } from 'lucide-react';
 
 interface Item {
   id: string;
@@ -13,6 +13,7 @@ interface Item {
   class_id: string | null;
   links: { label: string; url: string }[];
   files: { name: string; url: string; size: number }[];
+  hub_apps: { id: string; name: string; url: string }[];
 }
 
 const formatSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
@@ -29,14 +30,14 @@ export default function ProjectMaterialsForTeacher({ schoolId, classId }: { scho
       if (!sp?.parent_project_id) { if (alive) setItems([]); return; }
       const { data } = await supabase
         .from('program_materials')
-        .select('id, title, content, week_number, school_id, class_id, links, files')
+        .select('id, title, content, week_number, school_id, class_id, links, files, hub_apps')
         .eq('program_project_id', sp.parent_project_id)
         .eq('is_published', true)
         .or(`school_id.is.null,school_id.eq.${schoolId}`)
         .order('week_number', { ascending: true, nullsFirst: true });
       // 다른 반 전용 자료는 숨기고, 공통·학교 전체·우리 반 전용만 보여준다
       const mine = ((data || []) as any[]).filter(m => !m.class_id || m.class_id === classId);
-      if (alive) setItems(mine.map(m => ({ ...m, links: m.links || [], files: m.files || [] })));
+      if (alive) setItems(mine.map(m => ({ ...m, links: m.links || [], files: m.files || [], hub_apps: m.hub_apps || [] })));
     })();
     return () => { alive = false; };
   }, [schoolId, classId]);
@@ -63,8 +64,13 @@ export default function ProjectMaterialsForTeacher({ schoolId, classId }: { scho
                 <span className="font-bold text-sm">{m.title}</span>
                 {m.class_id ? <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">우리 반 전용</span> : m.school_id && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">우리 학교 전용</span>}
               </div>
-              {(m.links.length > 0 || m.files.length > 0) && (
+              {(m.links.length > 0 || m.files.length > 0 || m.hub_apps.length > 0) && (
                 <div className="flex flex-wrap gap-1.5">
+                  {m.hub_apps.map(a => (
+                    <a key={`h${a.id}`} href={safeHttpUrl(a.url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100 px-3 py-1.5 rounded-lg max-w-full">
+                      <Sparkles size={12} className="shrink-0" /> <span className="truncate">{a.name}</span> <ExternalLink size={11} className="shrink-0 opacity-60" />
+                    </a>
+                  ))}
                   {m.links.map((l, i) => (
                     <a key={`l${i}`} href={safeHttpUrl(l.url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg max-w-full">
                       <ExternalLink size={12} className="shrink-0" /> <span className="truncate">{l.label || l.url}</span>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import ImportableMaterialPicker, { type ImportableMaterial } from './ImportableMaterialPicker';
+import { applyOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../../lib/planMaterialOverride';
 import { BookOpen, Check, Loader2, Plus, RotateCcw, Save, X, AlertTriangle, ExternalLink, ListOrdered, ChevronDown } from 'lucide-react';
 
 interface WeeklyPlanItem {
@@ -34,6 +35,9 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
   const [baseline, setBaseline] = useState('[]');
   const [pendingPublishIds, setPendingPublishIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // 원본 자료 id → 이 학교 반들이 쓰는 "내 수업용 복사본" 목록 (원본이 더 새로우면 hasUpdate)
+  const [copyInfo, setCopyInfo] = useState<Record<string, { copy: PlanMaterialRow; classId: string; hasUpdate: boolean }[]>>({});
+  const [replacingId, setReplacingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -127,6 +131,42 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       });
     });
   }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 이 학교 반 중 "내 수업용 복사본"을 쓰는 반 찾기 (복사본이 있으면 원본을 고쳐도 그 반 화면엔 안 바뀌므로 안내용)
+  const loadCopies = useCallback(async () => {
+    const ids = [...new Set(plan.map(p => p.material_id).filter((id): id is string => !!id))];
+    if (ids.length === 0 || schoolClassIds.length === 0) { setCopyInfo({}); return; }
+    const [{ data: copies }, { data: origs }] = await Promise.all([
+      supabase.from('class_materials')
+        .select('id, class_id, week_number, title, content, ai_versions, attachments, activity_urls, is_published, plan_origin_id, origin_synced_at, origin_dismissed_at, origin_backup, content_updated_at')
+        .in('plan_origin_id', ids).in('class_id', schoolClassIds),
+      supabase.from('class_materials').select('id, content_updated_at').in('id', ids),
+    ]);
+    const origAt = new Map<string, string | null>((origs || []).map((o: any) => [o.id, o.content_updated_at]));
+    const next: Record<string, { copy: PlanMaterialRow; classId: string; hasUpdate: boolean }[]> = {};
+    ((copies || []) as PlanMaterialRow[]).forEach(c => {
+      if (!c.plan_origin_id || !c.class_id) return;
+      const hasUpdate = hasOriginUpdate({ content_updated_at: origAt.get(c.plan_origin_id) ?? null }, c);
+      (next[c.plan_origin_id] ||= []).push({ copy: c, classId: c.class_id, hasUpdate });
+    });
+    setCopyInfo(next);
+  }, [plan, schoolClassIds]);
+
+  useEffect(() => { loadCopies(); }, [loadCopies]);
+
+  const handleReplaceWithOrigin = async (copy: PlanMaterialRow, className: string) => {
+    if (!confirm(`'${className}'의 복사본을 원본 내용으로 교체할까요?\n지금 복사본 내용은 1단계 백업되어, 자료 에디터의 "되돌리기"로 복구할 수 있습니다.`)) return;
+    setReplacingId(copy.id);
+    try {
+      await applyOriginUpdate(copy);
+      await loadCopies();
+      setToast({ msg: `'${className}'이(가) 원본 내용으로 교체되었습니다.`, type: 'success' });
+    } catch (e: any) {
+      setToast({ msg: '교체에 실패했습니다: ' + (e?.message || '알 수 없는 오류'), type: 'error' });
+    } finally {
+      setReplacingId(null);
+    }
+  };
 
   const handlePick = (m: ImportableMaterial) => {
     if (pickIdx === null) return;
@@ -279,6 +319,9 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
                     <span className={`text-sm font-bold truncate flex-1 ${item.topic.trim() ? 'text-on-surface' : 'text-on-surface-variant/40'}`}>{item.topic.trim() || '(주제 미입력)'}</span>
                     <span className="hidden sm:flex items-center gap-1 shrink-0">
                       {item.material_id && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">자료 연결</span>}
+                      {item.material_id && copyInfo[item.material_id]?.some(c => c.hasUpdate)
+                        ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">원본 업데이트</span>
+                        : item.material_id && copyInfo[item.material_id]?.length > 0 && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">복사본 사용 중</span>}
                       {item.url && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">링크</span>}
                       {item.requires_result !== false && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">결과제출</span>}
                       {item.requires_activity !== false && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">활동</span>}
@@ -304,6 +347,28 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
                         <button onClick={() => setPickIdx(idx)} className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dim transition-colors">
                           <BookOpen size={13} /> 수업 자료에서 가져오기
                         </button>
+                      )}
+                      {item.material_id && (copyInfo[item.material_id]?.length ?? 0) > 0 && (
+                        <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
+                          <p className="text-xs font-bold text-amber-900">아래 반은 선생님이 고친 "내 수업용 복사본"을 쓰고 있어서, 원본을 수정해도 그 반 화면에는 바로 반영되지 않습니다.</p>
+                          {copyInfo[item.material_id].map(c => {
+                            const cn = classRows.find(r => r.id === c.classId)?.name || '이름 없는 반';
+                            return (
+                              <div key={c.copy.id} className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-on-surface">{cn}</span>
+                                {c.hasUpdate ? (
+                                  <>
+                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">원본이 더 새로워요</span>
+                                    <button type="button" disabled={replacingId === c.copy.id} onClick={() => handleReplaceWithOrigin(c.copy, cn)}
+                                      className="flex items-center gap-1 text-[11px] font-black text-white bg-primary hover:bg-primary-dim disabled:opacity-50 px-2.5 py-1 rounded-lg transition-all">
+                                      {replacingId === c.copy.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} 원본으로 교체
+                                    </button>
+                                  </>
+                                ) : <span className="text-[10px] font-bold text-on-surface-variant/70">원본과 같거나 내 버전 유지 중</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                       <input type="text" value={item.url || ''} onChange={e => update(idx, { url: e.target.value })} placeholder="자료 링크 (URL, 선택)"
                         className="w-full px-3 py-2 bg-surface-container rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20" />
