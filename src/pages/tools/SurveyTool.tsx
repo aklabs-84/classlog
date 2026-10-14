@@ -57,6 +57,13 @@ interface SurveyResponse {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
+// 종료된 클래스 판정 — Classroom.tsx의 isClassClosed와 동일 (수동 종료 또는 종료일 경과)
+const isClassEnded = (c: { is_closed?: boolean | null; end_date?: string | null }) => {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return !!c.is_closed || (!!c.end_date && c.end_date < today);
+};
+
 const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 export const TYPE_META: Record<QuestionType, { icon: React.ReactNode; label: string; color: string }> = {
@@ -628,6 +635,15 @@ export default function SurveyTool() {
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
   const [expandedResponderId, setExpandedResponderId] = useState<string | null>(null);
 
+  // 지난 결과 탭 — 끝난 설문(종료 상태이거나 종료된 클래스의 설문)을 클래스 구분 없이 모아 본다
+  type PastForm = SurveyForm & { className: string; classEnded: boolean; responseCount: number };
+  const [listTab, setListTab] = useState<'current' | 'past'>('current');
+  const [classInfoMap, setClassInfoMap] = useState<Record<string, { name: string; ended: boolean }>>({});
+  const [pastForms, setPastForms] = useState<PastForm[]>([]);
+  const [pastLoading, setPastLoading] = useState(false);
+  const [pastQuery, setPastQuery] = useState('');
+  const [pastOnlyEnded, setPastOnlyEnded] = useState(false);
+
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const location = useLocation();
   const openFormHandledRef = useRef(false);
@@ -657,16 +673,20 @@ export default function SurveyTool() {
   }, []);
 
   const fetchClasses = async () => {
-    const { data: ownData } = await supabase.from('classes').select('id, name, class_type, school_project_id, parent_class_id, assigned_teacher_id')
+    const { data: ownData } = await supabase.from('classes').select('id, name, class_type, school_project_id, parent_class_id, assigned_teacher_id, is_closed, end_date')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
     let assignedData: any[] = [];
     try {
-      const { data } = await supabase.from('classes').select('id, name, class_type')
+      const { data } = await supabase.from('classes').select('id, name, class_type, is_closed, end_date')
         .eq('assigned_teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
       assignedData = data || [];
     } catch (_e) {}
     const seen = new Set<string>();
-    const combined = [...filterMyTeachingClasses(ownData, user!.id), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    const everyClass = [...filterMyTeachingClasses(ownData, user!.id), ...assignedData];
+    setClassInfoMap(Object.fromEntries(everyClass.map(c => [c.id, { name: c.name, ended: isClassEnded(c) }])));
+    const combined = everyClass
+      .filter(c => !isClassEnded(c))
+      .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
     if (combined.length > 0) { setClasses(combined); setSelectedClass(combined[0]); fetchForms(combined[0].id); }
   };
 
@@ -674,6 +694,25 @@ export default function SurveyTool() {
     const { data } = await supabase.from('survey_forms').select('*')
       .eq('teacher_id', user!.id).eq('class_id', classId).order('created_at', { ascending: false });
     if (data) setSurveyForms(data);
+  };
+
+  const fetchPastForms = async () => {
+    if (!user) return;
+    setPastLoading(true);
+    const { data } = await supabase.from('survey_forms').select('*')
+      .eq('teacher_id', user.id).order('created_at', { ascending: false });
+    const done = (data ?? []).filter((f: SurveyForm) =>
+      f.status === 'closed' || (!!f.class_id && classInfoMap[f.class_id]?.ended)
+    ).filter((f: SurveyForm) => f.status !== 'draft').slice(0, 150);
+    const counts = await Promise.all(done.map((f: SurveyForm) =>
+      supabase.from('survey_responses').select('id', { count: 'exact', head: true }).eq('form_id', f.id)
+        .then(r => r.count ?? 0)
+    ));
+    setPastForms(done.map((f: SurveyForm, i: number) => {
+      const info = f.class_id ? classInfoMap[f.class_id] : undefined;
+      return { ...f, className: info?.name ?? (f.class_id ? '보관된 클래스' : '클래스 없음'), classEnded: info ? info.ended : true, responseCount: counts[i] };
+    }));
+    setPastLoading(false);
   };
 
   const fetchQuestions = async (formId: string) => {
@@ -984,6 +1023,19 @@ export default function SurveyTool() {
   if (view === 'list') return (
     <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
       <LimitToast message={limitToastMessage} />
+      {/* 탭: 설문 만들기·진행 / 지난 결과 */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1.5px solid #E5E7EB' }}>
+        {([['current', '설문 만들기·진행'], ['past', '지난 결과']] as const).map(([key, label]) => (
+          <button key={key}
+            onClick={() => { setListTab(key); setClassDropdownOpen(false); setTemplateMenuOpen(false); if (key === 'past') fetchPastForms(); }}
+            style={{ padding: '9px 16px', fontSize: 14, fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', marginBottom: -1.5,
+              color: listTab === key ? '#3B82F6' : '#9CA3AF', borderBottom: `2.5px solid ${listTab === key ? '#3B82F6' : 'transparent'}` }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {listTab === 'current' && (<>
       {/* 클래스 선택 */}
       <div style={{ marginBottom: 20, position: 'relative', display: 'inline-block' }}>
         <button
@@ -993,7 +1045,7 @@ export default function SurveyTool() {
           {selectedClass?.name ?? '클래스 선택'} <ChevronDown size={15} />
         </button>
         {classDropdownOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', zIndex: 100, minWidth: 180 }}>
+          <div style={{ marginTop: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', minWidth: 180, maxWidth: '100%', width: 'fit-content', maxHeight: '50vh', overflowY: 'auto' }}>
             {classes.map(cls => (
               <button key={cls.id} onClick={() => handleSelectClass(cls)}
                 style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 13, color: '#374151', background: selectedClass?.id === cls.id ? '#EFF6FF' : 'transparent', border: 'none', cursor: 'pointer' }}
@@ -1018,8 +1070,19 @@ export default function SurveyTool() {
           >
             <Plus size={15} /> 새 설문
           </button>
-          {templateMenuOpen && (
-            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 320, maxWidth: '90vw', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, overflow: 'hidden' }}>
+        </div>
+      </div>
+
+      {templateMenuOpen && (
+            <div style={{ marginBottom: 16, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: '#EFF6FF', borderBottom: '1px solid #DBEAFE' }}>
+                <span style={{ fontSize: 12, color: '#1E40AF' }}>이 반에 만들어져요:</span>
+                <select value={selectedClass?.id ?? ''} onChange={e => { const c = classes.find(x => x.id === e.target.value); if (c) handleSelectClass(c); }}
+                  style={{ fontSize: 13, fontWeight: 'bold', color: '#1E3A8A', background: '#fff', border: '1px solid #BFDBFE', borderRadius: 8, padding: '4px 8px', maxWidth: '100%' }}
+                >
+                  {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
               {SURVEY_TEMPLATES.map(t => (
                 <button key={t.id} onClick={() => handleCreateForm(t)}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #F3F4F6', cursor: 'pointer' }}
@@ -1032,8 +1095,6 @@ export default function SurveyTool() {
               <p style={{ fontSize: 11, color: '#9CA3AF', padding: '8px 14px', background: '#F9FAFB' }}>만든 뒤에 문항을 고치거나 더하거나 지울 수 있어요</p>
             </div>
           )}
-        </div>
-      </div>
 
       {surveyForms.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF' }}>
@@ -1083,8 +1144,8 @@ export default function SurveyTool() {
                     <Play size={14} /> 시작
                   </button>
                 )}
-                {/* open → 결과/종료 */}
-                {form.status === 'open' && (
+                {/* open·종료 → 결과 */}
+                {form.status !== 'draft' && (
                   <button onClick={() => openLive(form)}
                     style={{ padding: '6px 12px', background: '#ECFDF5', border: '1px solid #10B981', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
@@ -1109,6 +1170,71 @@ export default function SurveyTool() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      </>)}
+
+      {/* ── 지난 결과 탭 ─────────────────────────────────────────────────────── */}
+      {listTab === 'past' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+            <input value={pastQuery} onChange={e => setPastQuery(e.target.value)} placeholder="클래스 이름이나 설문 이름으로 찾기"
+              style={{ flex: 1, minWidth: 200, padding: '9px 12px', border: '1.5px solid #E5E7EB', borderRadius: 10, fontSize: 13, outline: 'none' }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={pastOnlyEnded} onChange={e => setPastOnlyEnded(e.target.checked)} />
+              종료된 클래스만
+            </label>
+          </div>
+          {(() => {
+            const q = pastQuery.trim().toLowerCase();
+            const list = pastForms.filter(f =>
+              (!pastOnlyEnded || f.classEnded) &&
+              (!q || f.title.toLowerCase().includes(q) || f.className.toLowerCase().includes(q))
+            );
+            if (pastLoading) return <p style={{ textAlign: 'center', padding: '48px 0', color: '#9CA3AF', fontSize: 14 }}>불러오는 중...</p>;
+            if (list.length === 0) return (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: '#9CA3AF' }}>
+                <BarChart2 size={40} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                <p style={{ fontSize: 14 }}>{pastForms.length === 0 ? '아직 끝난 설문이 없습니다' : '조건에 맞는 설문이 없습니다'}</p>
+                {pastForms.length === 0 && <p style={{ fontSize: 12, marginTop: 4 }}>설문을 종료하거나 클래스가 종료되면 여기에 모여요</p>}
+              </div>
+            );
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {list.map(f => (
+                  <div key={f.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '14px 18px' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 15, fontWeight: 'bold', color: '#111' }}>{f.title}</span>
+                        {f.classEnded && (
+                          <span style={{ fontSize: 11, fontWeight: 'bold', padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#6B7280', whiteSpace: 'nowrap' }}>종료된 클래스</span>
+                        )}
+                        {f.status === 'open' && (
+                          <span style={{ fontSize: 11, fontWeight: 'bold', padding: '2px 8px', borderRadius: 20, background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap' }}>아직 응답 받는 중</span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 12, color: '#6B7280' }}>
+                        {f.className} · {new Date(f.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })} · 응답 {f.responseCount}명
+                      </span>
+                    </div>
+                    <div className="sm:justify-end" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={() => openLive(f)}
+                        style={{ padding: '6px 12px', background: '#ECFDF5', border: '1px solid #10B981', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}
+                      >
+                        <BarChart2 size={14} /> 결과
+                      </button>
+                      <button onClick={() => { setCopyingForm(f); setCopyTargetClassId(''); }} title="진행 중인 클래스로 복사"
+                        style={{ padding: '6px 10px', background: '#F0FDF4', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46', whiteSpace: 'nowrap', flexShrink: 0 }}
+                      >
+                        <CopyPlus size={14} /> 복사
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
