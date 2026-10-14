@@ -60,6 +60,8 @@ export default defineConfig({
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         importScripts: ['push-sw.js'],
+        // PDF 가이드 창(iframe)이 앱 첫 화면으로 바뀌어 열리지 않도록, PDF 주소는 서비스 워커의 '첫 화면 대신 내주기'에서 뺀다
+        navigateFallbackDenylist: [/\.pdf$/],
         runtimeCaching: [
           {
             // 관리자 페이지(/admin)에서 나가는 Supabase 요청은 캐시를 타지 않고 항상 최신 데이터를 가져온다.
