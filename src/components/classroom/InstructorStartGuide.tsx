@@ -38,11 +38,21 @@ export default function InstructorStartGuide({ schoolProjectId }: Props) {
   }, [schoolProjectId]);
 
   if (!rootId || !user) return null;
-  return <Inner projectId={rootId} userId={user.id} open={open} setOpen={setOpen} />;
+  return <Inner projectId={rootId} schoolId={schoolProjectId} userId={user.id} open={open} setOpen={setOpen} />;
 }
 
-function Inner({ projectId, userId, open, setOpen }: { projectId: string; userId: string; open: boolean; setOpen: (v: boolean) => void }) {
-  const { reqs, subs, loading, reload } = useInstructorDocs(projectId);
+function Inner({ projectId, schoolId, userId, open, setOpen }: { projectId: string; schoolId: string; userId: string; open: boolean; setOpen: (v: boolean) => void }) {
+  const { reqs: allReqs, subs, loading: docsLoading, reload } = useInstructorDocs(projectId);
+  // 이 반의 학교가 '학교만 따로 지정'이면 그 학교 서류만, 아니면 사업 공통 서류만 (담당자 계정은 서버가 전부 주므로 화면에서도 거른다)
+  const [custom, setCustom] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from('instructor_doc_school_settings').select('mode').eq('school_id', schoolId).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setCustom((data as any)?.mode === 'custom'); });
+    return () => { cancelled = true; };
+  }, [schoolId]);
+  const loading = docsLoading || custom === null;
+  const reqs = useMemo(() => allReqs.filter(r => (custom ? r.school_id === schoolId : !r.school_id)), [allReqs, custom, schoolId]);
   const subMap = useMemo(() => {
     const m = new Map<string, DocSubmission>();
     subs.filter(s => s.instructor_id === userId).forEach(s => m.set(s.requirement_id, s));
