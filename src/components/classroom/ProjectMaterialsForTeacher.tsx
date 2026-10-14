@@ -10,6 +10,7 @@ interface Item {
   content: string | null;
   week_number: number | null;
   school_id: string | null;
+  class_id: string | null;
   links: { label: string; url: string }[];
   files: { name: string; url: string; size: number }[];
 }
@@ -17,7 +18,7 @@ interface Item {
 const formatSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
 
 // 담당 선생님 반 페이지: 프로젝트 관리자가 공개한 수업 자료(공통 + 우리 학교 전용)를 읽기 전용으로 보여준다
-export default function ProjectMaterialsForTeacher({ schoolId }: { schoolId: string }) {
+export default function ProjectMaterialsForTeacher({ schoolId, classId }: { schoolId: string; classId?: string }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -28,15 +29,17 @@ export default function ProjectMaterialsForTeacher({ schoolId }: { schoolId: str
       if (!sp?.parent_project_id) { if (alive) setItems([]); return; }
       const { data } = await supabase
         .from('program_materials')
-        .select('id, title, content, week_number, school_id, links, files')
+        .select('id, title, content, week_number, school_id, class_id, links, files')
         .eq('program_project_id', sp.parent_project_id)
         .eq('is_published', true)
         .or(`school_id.is.null,school_id.eq.${schoolId}`)
         .order('week_number', { ascending: true, nullsFirst: true });
-      if (alive) setItems(((data || []) as any[]).map(m => ({ ...m, links: m.links || [], files: m.files || [] })));
+      // 다른 반 전용 자료는 숨기고, 공통·학교 전체·우리 반 전용만 보여준다
+      const mine = ((data || []) as any[]).filter(m => !m.class_id || m.class_id === classId);
+      if (alive) setItems(mine.map(m => ({ ...m, links: m.links || [], files: m.files || [] })));
     })();
     return () => { alive = false; };
-  }, [schoolId]);
+  }, [schoolId, classId]);
 
   if (items === null) return <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-primary" /></div>;
   const empty = items.length === 0;
@@ -58,7 +61,7 @@ export default function ProjectMaterialsForTeacher({ schoolId }: { schoolId: str
               <div className="flex items-center gap-2 flex-wrap">
                 {m.week_number != null && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.week_number}주차</span>}
                 <span className="font-bold text-sm">{m.title}</span>
-                {m.school_id && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">우리 학교 전용</span>}
+                {m.class_id ? <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">우리 반 전용</span> : m.school_id && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">우리 학교 전용</span>}
               </div>
               {(m.links.length > 0 || m.files.length > 0) && (
                 <div className="flex flex-wrap gap-1.5">

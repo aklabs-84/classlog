@@ -1887,6 +1887,45 @@ const Classroom = () => {
     }
   };
 
+  // 내장 학습 도구 추가/제거 — class_enabled_tools 행이 있어야 학습 도구 목록에 보인다 (추가 직후는 비공개)
+  const [showToolPicker, setShowToolPicker] = useState(false);
+  const handleAddBuiltinTool = async (toolId: string) => {
+    if (!activeClassId) return;
+    setTogglingToolId(toolId);
+    try {
+      const { error } = await supabase
+        .from('class_enabled_tools')
+        .upsert({ class_id: activeClassId, tool_id: toolId, is_published: false, updated_at: new Date().toISOString() }, { onConflict: 'class_id,tool_id' });
+      if (error) throw error;
+      setEnabledTools(prev => ({ ...prev, [toolId]: false }));
+      setShowToolPicker(false);
+    } catch (err) {
+      console.error('handleAddBuiltinTool error:', err);
+      showToast('학습 도구를 추가하는 중 오류가 발생했습니다.');
+    } finally {
+      setTogglingToolId(null);
+    }
+  };
+  const handleRemoveBuiltinTool = async (toolId: string, label: string) => {
+    if (!activeClassId) return;
+    if (!window.confirm(`이 클래스의 학습 도구에서 "${label}"을(를) 뺄까요?\n학생 화면에서도 사라지며, 다시 추가할 수 있어요.`)) return;
+    setTogglingToolId(toolId);
+    try {
+      const { error } = await supabase
+        .from('class_enabled_tools')
+        .delete()
+        .eq('class_id', activeClassId)
+        .eq('tool_id', toolId);
+      if (error) throw error;
+      setEnabledTools(prev => { const n = { ...prev }; delete n[toolId]; return n; });
+    } catch (err) {
+      console.error('handleRemoveBuiltinTool error:', err);
+      showToast('학습 도구를 빼는 중 오류가 발생했습니다.');
+    } finally {
+      setTogglingToolId(null);
+    }
+  };
+
   // AIServiceHub 연동 앱 연결 해제 — class_enabled_tools 행 삭제(메인 도구였다면 지정도 해제). 이미 만든 주차 자료는 그대로 둔다
   const handleDisconnectHubApp = async (toolId: string, appName: string) => {
     if (!activeClassId) return;
@@ -3106,7 +3145,7 @@ const Classroom = () => {
               {activeTab === 'teacher_materials' && activeClassId && (
                 <div className="max-w-2xl mx-auto space-y-6">
                   {classInfo?.school_project_id && classInfo?.parent_class_id && (
-                    <ProjectMaterialsForTeacher schoolId={classInfo.school_project_id} />
+                    <ProjectMaterialsForTeacher schoolId={classInfo.school_project_id} classId={classInfo.id} />
                   )}
                   {/* 헤더 */}
                   <div className="flex items-center justify-between">
@@ -5800,9 +5839,33 @@ const Classroom = () => {
                       <div className="pt-2">
                         <div className="flex items-center justify-between mb-2 px-1">
                           <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">학습 도구</p>
+                          <button
+                            onClick={() => setShowToolPicker(v => !v)}
+                            className="flex items-center gap-1 text-[10px] font-black text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
+                          >
+                            <Plus size={11} /> 추가
+                          </button>
                         </div>
+                        {showToolPicker && (
+                          <div className="mb-2 p-2 bg-primary/5 border border-primary/20 rounded-2xl space-y-1">
+                            {LEARNING_TOOLS.filter(t => !Object.prototype.hasOwnProperty.call(enabledTools, t.id)).map(tool => (
+                              <button
+                                key={tool.id}
+                                onClick={() => handleAddBuiltinTool(tool.id)}
+                                disabled={togglingToolId === tool.id}
+                                className="w-full flex items-center gap-3 p-2.5 bg-white rounded-xl text-left hover:bg-primary/10 transition-colors disabled:opacity-50"
+                              >
+                                <div className="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center shrink-0">{tool.icon}</div>
+                                <span className="text-sm font-black truncate">{tool.label}</span>
+                              </button>
+                            ))}
+                            {LEARNING_TOOLS.every(t => Object.prototype.hasOwnProperty.call(enabledTools, t.id)) && (
+                              <p className="text-xs font-bold text-on-surface-variant/60 px-2 py-1.5">추가할 수 있는 도구가 모두 들어와 있어요.</p>
+                            )}
+                          </div>
+                        )}
                         <div className="space-y-1.5">
-                          {LEARNING_TOOLS.map(tool => {
+                          {LEARNING_TOOLS.filter(t => Object.prototype.hasOwnProperty.call(enabledTools, t.id)).map(tool => {
                             const isPublished = !!enabledTools[tool.id];
                             return (
                               <div key={tool.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high">
@@ -5829,6 +5892,14 @@ const Classroom = () => {
                                   ) : (
                                     <><Lock size={13} /> 비공개</>
                                   )}
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveBuiltinTool(tool.id, tool.label)}
+                                  disabled={togglingToolId === tool.id}
+                                  title="학습 도구에서 빼기"
+                                  className="shrink-0 p-1.5 rounded-xl text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                >
+                                  <Trash2 size={14} />
                                 </button>
                               </div>
                             );

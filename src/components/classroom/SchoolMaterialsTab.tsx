@@ -22,6 +22,7 @@ interface Material {
   is_published: boolean;
   updated_at: string;
   school_id: string | null;
+  class_id: string | null;
   links: { label: string; url: string }[];
   files: { name: string; path: string; url: string; size: number }[];
   hub_apps: HubAppItem[];
@@ -92,6 +93,8 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
   const [removedPaths, setRemovedPaths] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Material | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [schoolClasses, setSchoolClasses] = useState<{ id: string; name: string }[]>([]);
+  const [targetClass, setTargetClass] = useState(''); // '' = 이 학교 전체 반
   const [filter, setFilter] = useState<string>('all'); // 'all' | 'common' | 학교 id (프로젝트 화면 전용)
 
   const fetchMaterials = useCallback(async () => {
@@ -99,7 +102,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     try {
       let q = supabase
         .from('program_materials')
-        .select('id, title, content, week_number, is_published, updated_at, school_id, links, files, hub_apps')
+        .select('id, title, content, week_number, is_published, updated_at, school_id, class_id, links, files, hub_apps')
         .eq('program_project_id', projectId);
       if (schoolId) {
         if (!isUuid(schoolId)) { setMaterials([]); return; }
@@ -116,9 +119,18 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
 
   useEffect(() => { fetchMaterials(); }, [fetchMaterials]);
 
+  // 학교 페이지에서 '이 반 전용' 자료를 고를 수 있도록 이 학교에 추가된 반 목록을 가져온다
+  useEffect(() => {
+    if (!schoolId || !isUuid(schoolId)) { setSchoolClasses([]); return; }
+    let alive = true;
+    supabase.from('classes').select('id, name').eq('school_project_id', schoolId).not('parent_class_id', 'is', null).order('created_at')
+      .then(({ data }) => { if (alive) setSchoolClasses((data || []) as { id: string; name: string }[]); });
+    return () => { alive = false; };
+  }, [schoolId]);
+
   const resetForm = () => {
     setTitle(''); setWeek(''); setLinks([]); setFiles([]); setHubApps([]); setMemo(''); setMemoOpen(false);
-    setPublished(true); setFileError(''); setNewPaths([]); setRemovedPaths([]);
+    setPublished(true); setFileError(''); setNewPaths([]); setRemovedPaths([]); setTargetClass('');
   };
 
   const openAdd = () => { setEditing(null); resetForm(); setModalOpen(true); };
@@ -127,7 +139,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     resetForm();
     setEditing(m); setTitle(m.title); setWeek(m.week_number != null ? String(m.week_number) : '');
     setLinks(m.links); setFiles(m.files); setHubApps(m.hub_apps); setMemo(m.content || ''); setMemoOpen(!!m.content);
-    setPublished(m.is_published);
+    setPublished(m.is_published); setTargetClass(m.class_id || '');
     setModalOpen(true);
   };
 
@@ -226,6 +238,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
         links: cleanLinks,
         files,
         hub_apps: hubApps,
+        class_id: schoolId && targetClass && schoolClasses.some(c => c.id === targetClass) ? targetClass : null,
       };
       const { error } = editing
         ? await supabase.from('program_materials').update(payload).eq('id', editing.id)
@@ -265,6 +278,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
 
   // 이 화면에서 편집할 수 있는 자료인지
   const editable = (m: Material) => (schoolId ? m.school_id === schoolId : !m.school_id);
+  const classNameOf = (id: string | null) => (id ? (schoolClasses.find(c => c.id === id)?.name || '이 반') : '');
   const schoolNameOf = (id: string | null) => (id ? (schools.find(s => s.id === id)?.name || '학교') : '');
   const stripHtml = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -280,7 +294,11 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">{m.week_number}주차</span>
               )}
               <span className="font-bold text-sm truncate">{m.title}</span>
-              {m.school_id ? (
+              {m.class_id ? (
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 bg-violet-100 text-violet-700">
+                  {schoolId ? `${classNameOf(m.class_id)} 전용` : '반 전용'}
+                </span>
+              ) : m.school_id ? (
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 bg-amber-100 text-amber-700">
                   {schoolId ? '이 학교 전용' : `${schoolNameOf(m.school_id)} 전용`}
                 </span>
@@ -341,7 +359,8 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
 
   const groups: { key: string; label: string; items: Material[]; emptyHint?: string }[] = schoolId
     ? [
-        { key: 'own', label: `이 학교 전용 자료`, items: materials.filter(m => m.school_id === schoolId) },
+        { key: 'own', label: `이 학교 전체 반 자료`, items: materials.filter(m => m.school_id === schoolId && !m.class_id) },
+        ...schoolClasses.map(c => ({ key: `cls-${c.id}`, label: `${c.name} 전용 자료`, items: materials.filter(m => m.class_id === c.id) })),
         { key: 'common', label: '공통 자료', items: materials.filter(m => !m.school_id) },
       ]
     : [
@@ -520,6 +539,17 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                   </div>
                 )}
               </div>
+
+              {schoolId && schoolClasses.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant">누가 볼 수 있나요</label>
+                  <select value={targetClass} onChange={e => setTargetClass(e.target.value)}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm bg-surface-container border border-transparent focus:outline-none focus:ring-2 focus:ring-primary/20">
+                    <option value="">이 학교 전체 반 선생님</option>
+                    {schoolClasses.map(c => <option key={c.id} value={c.id}>{c.name} 담당 선생님만</option>)}
+                  </select>
+                </div>
+              )}
 
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={published} onChange={e => setPublished(e.target.checked)} className="w-4 h-4 rounded accent-primary" />
