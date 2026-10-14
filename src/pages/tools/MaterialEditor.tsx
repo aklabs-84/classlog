@@ -3245,6 +3245,9 @@ const MaterialEditor = () => {
                 <li>
                   <span className="font-black">＿ 밑줄 빈칸</span> — "답: ______" 이 들어가요. 학생은 밑줄 자리에 한 줄을 적어요. "답:" 대신 원하는 질문으로 바꿔 쓰세요. 예) 좋아하는 장르는 ______
                 </li>
+                <li>
+                  <span className="font-black">▭ 넓은 칸</span> — 화면 너비의 큰 입력 칸이 들어가요. 소감이나 생각처럼 길게 쓰는 답에 알맞아요. 칸 바로 위에 질문 문장을 쓰세요.
+                </li>
               </ul>
               <ul className="list-disc pl-4 space-y-1 text-emerald-900/80">
                 <li>편집 화면에서는 그냥 기호로 보여요. 위쪽 <span className="font-black">미리보기</span>를 누르면 학생 화면처럼 적어볼 수 있어요. (미리보기에서 적은 내용은 저장되지 않아요)</li>
