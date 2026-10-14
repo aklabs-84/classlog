@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -25,10 +25,13 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
   const [materialTitles, setMaterialTitles] = useState<Record<string, string>>({});
   const [commonPlan, setCommonPlan] = useState<WeeklyPlanItem[]>([]);
   const [schoolClassIds, setSchoolClassIds] = useState<string[]>([]);
-  const [fixed, setFixed] = useState(false);
   const [plan, setPlan] = useState<WeeklyPlanItem[]>([]);
   const [commonLoaded, setCommonLoaded] = useState(false);
-  const [classRows, setClassRows] = useState<{ id: string; custom: boolean; plan: WeeklyPlanItem[] }[]>([]);
+  const [classRows, setClassRows] = useState<{ id: string; name: string; custom: boolean; plan: WeeklyPlanItem[] }[]>([]);
+  const [baseId, setBaseId] = useState<string | null>(null);
+  // 적용 대상: 'all' = 이 학교 전체 반, 그 외 = 반 id (그 반에만 적용)
+  const [target, setTarget] = useState<string>('all');
+  const [baseline, setBaseline] = useState('[]');
   const [pendingPublishIds, setPendingPublishIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -46,6 +49,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
     setPickIdx(null);
     setPendingPublishIds([]);
     setCommonLoaded(false);
+    setTarget('all');
     try {
       const { data: common, error: commonErr } = await supabase
         .from('classes').select('id, weekly_plan')
@@ -56,18 +60,21 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       setCommonLoaded(true);
 
       const { data: rows, error: rowsErr } = await supabase
-        .from('classes').select('id, parent_class_id, weekly_plan, weekly_plan_custom, created_at')
+        .from('classes').select('id, name, parent_class_id, weekly_plan, weekly_plan_custom, created_at')
         .eq('school_project_id', schoolId).order('created_at', { ascending: true });
       if (rowsErr) throw rowsErr;
       const list = (rows || []) as any[];
       setSchoolClassIds(list.map(r => r.id));
-      setClassRows(list.map(r => ({ id: r.id, custom: !!r.weekly_plan_custom, plan: r.weekly_plan || [] })));
+      const rowsState = list.map(r => ({ id: r.id, name: r.name || '이름 없는 반', custom: !!r.weekly_plan_custom, plan: (r.weekly_plan || []) as WeeklyPlanItem[] }));
+      setClassRows(rowsState);
       const root = list.find(r => r.parent_class_id === null);
+      setBaseId(root?.id ?? null);
       // 학교 대표 반이 없으면 반들 중 하나라도 고정이면 고정으로 본다
       const isFixed = root ? !!root.weekly_plan_custom : list.some(r => r.weekly_plan_custom);
-      setFixed(isFixed);
       const base = root ?? list.find(r => r.weekly_plan_custom);
-      setPlan(isFixed ? ((base?.weekly_plan || []) as WeeklyPlanItem[]) : commonP);
+      const shown = isFixed ? ((base?.weekly_plan || []) as WeeklyPlanItem[]) : commonP;
+      setPlan(shown);
+      setBaseline(JSON.stringify(shown));
     } catch (e: any) {
       setToast({ msg: '계획을 불러오지 못했습니다: ' + (e?.message || '알 수 없는 오류'), type: 'error' });
     } finally {
@@ -76,6 +83,36 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
   }, [projectId, schoolId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 학교 전체 보기에서 보여 줄 계획과 고정 여부 (대표 반 기준)
+  const { fixed, allPlan } = useMemo(() => {
+    const base = classRows.find(r => r.id === baseId) ?? classRows.find(r => r.custom);
+    const isFixed = baseId ? !!classRows.find(r => r.id === baseId)?.custom : classRows.some(r => r.custom);
+    return { fixed: isFixed, allPlan: isFixed ? (base?.plan || []) : commonPlan };
+  }, [classRows, baseId, commonPlan]);
+
+  const isAll = target === 'all';
+  const targetRow = classRows.find(r => r.id === target);
+  const targetFixed = isAll ? fixed : !!targetRow?.custom;
+  const targetName = isAll ? '이 학교 전체 반' : (targetRow?.name || '이 반');
+  // 반마다 계획이 서로 다른지 (전체 보기에서 안내용)
+  const classesDiffer = useMemo(() => {
+    const eff = classRows.map(r => JSON.stringify(r.custom ? r.plan : commonPlan));
+    return new Set(eff).size > 1;
+  }, [classRows, commonPlan]);
+
+  const switchTarget = (next: string) => {
+    if (next === target) return;
+    if (JSON.stringify(plan) !== baseline && !confirm('저장하지 않은 수정이 있습니다. 버리고 다른 대상으로 옮길까요?')) return;
+    const row = classRows.find(r => r.id === next);
+    const shown = next === 'all' ? allPlan : (row?.custom ? row.plan : commonPlan);
+    setTarget(next);
+    setOpenIdx(null);
+    setPickIdx(null);
+    setPendingPublishIds([]);
+    setPlan(shown);
+    setBaseline(JSON.stringify(shown));
+  };
 
   // 연결된 자료의 제목 조회 (칩 표시용)
   useEffect(() => {
@@ -105,13 +142,14 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
   const handleSave = async () => {
     if (schoolClassIds.length === 0) return;
+    if (!isAll && !targetRow) return;
     setSaving(true);
     try {
       const cleaned = plan.map((p, i) => ({ ...p, week: i + 1 }));
-      // 반마다 따로 고정해 둔 계획이 있으면 덮어쓰기 전에 확인
+      // 전체 저장일 때, 대표 반 말고 반마다 따로 고정해 둔 계획이 있으면 덮어쓰기 전에 확인
       const cleanedJson = JSON.stringify(cleaned);
-      const overwritten = classRows.filter(r => r.custom && JSON.stringify(r.plan) !== cleanedJson);
-      if (!fixed && overwritten.length > 0 &&
+      const overwritten = classRows.filter(r => r.id !== baseId && r.custom && JSON.stringify(r.plan) !== cleanedJson);
+      if (isAll && overwritten.length > 0 &&
         !confirm(`이 학교의 ${overwritten.length}개 반은 따로 고정된 주차별 계획이 있습니다. 저장하면 그 계획이 지금 계획으로 덮어씌워집니다. 계속할까요?`)) {
         return;
       }
@@ -122,14 +160,20 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
           .update({ is_published: true, updated_at: new Date().toISOString() }).in('id', stillLinked);
         if (pubErr) throw new Error('연결한 자료를 공개로 바꾸지 못했습니다: ' + pubErr.message);
       }
+      const ids = isAll ? schoolClassIds : [target];
       const { error } = await supabase.from('classes')
-        .update({ weekly_plan: cleaned, weekly_plan_custom: true }).in('id', schoolClassIds);
+        .update({ weekly_plan: cleaned, weekly_plan_custom: true }).in('id', ids);
       if (error) throw error;
       setPendingPublishIds([]);
-      setClassRows(prev => prev.map(r => ({ ...r, custom: true, plan: cleaned })));
+      setClassRows(prev => prev.map(r => (ids.includes(r.id) ? { ...r, custom: true, plan: cleaned } : r)));
       setPlan(cleaned);
-      setFixed(true);
-      setToast({ msg: '이 학교 전체 반에 주차별 계획을 저장했습니다. (학교 단위로 고정됨)', type: 'success' });
+      setBaseline(JSON.stringify(cleaned));
+      setToast({
+        msg: isAll
+          ? '이 학교 전체 반에 주차별 계획을 저장했습니다. (학교 단위로 고정됨)'
+          : `'${targetName}'의 주차별 계획을 저장했습니다. (이 반만 적용)`,
+        type: 'success',
+      });
     } catch (e: any) {
       setToast({ msg: '저장에 실패했습니다: ' + (e?.message || '알 수 없는 오류'), type: 'error' });
     } finally {
@@ -139,23 +183,25 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
   const handleReset = async () => {
     if (schoolClassIds.length === 0) return;
+    if (!isAll && !targetRow) return;
     if (!commonLoaded) {
       setToast({ msg: '공통 계획을 불러오지 못해 되돌릴 수 없습니다. 새로고침 후 다시 시도해 주세요.', type: 'error' });
       return;
     }
     const msg = commonPlan.length === 0
-      ? '공통 주차별 계획이 비어 있습니다. 되돌리면 이 학교의 계획도 빈 상태가 됩니다. 그래도 되돌릴까요?'
-      : '이 학교 전체 반을 공통 주차별 계획으로 되돌릴까요? 이 학교에서 따로 만든 계획은 사라집니다.';
+      ? `공통 주차별 계획이 비어 있습니다. 되돌리면 ${targetName}의 계획도 빈 상태가 됩니다. 그래도 되돌릴까요?`
+      : `${targetName}을(를) 공통 주차별 계획으로 되돌릴까요? 따로 만든 계획은 사라집니다.`;
     if (!confirm(msg)) return;
     setSaving(true);
     try {
+      const ids = isAll ? schoolClassIds : [target];
       const { error } = await supabase.from('classes')
-        .update({ weekly_plan: commonPlan, weekly_plan_custom: false }).in('id', schoolClassIds);
+        .update({ weekly_plan: commonPlan, weekly_plan_custom: false }).in('id', ids);
       if (error) throw error;
-      setClassRows(prev => prev.map(r => ({ ...r, custom: false, plan: commonPlan })));
+      setClassRows(prev => prev.map(r => (ids.includes(r.id) ? { ...r, custom: false, plan: commonPlan } : r)));
       setPendingPublishIds([]);
       setPlan(commonPlan);
-      setFixed(false);
+      setBaseline(JSON.stringify(commonPlan));
       setToast({ msg: '공통 주차별 계획으로 되돌렸습니다.', type: 'success' });
     } catch (e: any) {
       setToast({ msg: '되돌리기에 실패했습니다: ' + (e?.message || '알 수 없는 오류'), type: 'error' });
@@ -168,15 +214,38 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
   return (
     <div className="space-y-4">
+      {classRows.length > 1 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-black text-on-surface-variant">적용 대상</span>
+          <select value={target} onChange={e => switchTarget(e.target.value)}
+            className="px-3 py-2 bg-surface-container rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20">
+            <option value="all">이 학교 전체 반</option>
+            {classRows.map(r => (
+              <option key={r.id} value={r.id}>{r.name}{r.custom ? ' · 개별 수정됨' : ''}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {isAll && classesDiffer && (
+        <p className="flex items-start gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          반마다 계획이 서로 다릅니다. 여기서 저장하면 모든 반이 같은 계획으로 바뀝니다. 한 반만 고치려면 위에서 반을 고르세요.
+        </p>
+      )}
+
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="text-xs text-on-surface-variant space-y-1">
-          <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded-full ${fixed ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-on-surface-variant'}`}>
-            {fixed ? '이 학교 전용 계획 (학교 단위 고정)' : '공통 계획을 따르는 중'}
+          <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded-full ${targetFixed ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-on-surface-variant'}`}>
+            {isAll
+              ? (fixed ? '이 학교 전용 계획 (학교 단위 고정)' : '공통 계획을 따르는 중')
+              : (targetFixed ? `${targetName} 전용 계획 (이 반만 적용)` : '공통 계획을 따르는 중')}
           </span>
-          <p>저장하면 이 학교의 모든 반에 적용되고, 이후 공통 계획이 바뀌어도 이 학교는 따라가지 않습니다.</p>
+          <p>{isAll
+            ? '저장하면 이 학교의 모든 반에 적용되고, 이후 공통 계획이 바뀌어도 이 학교는 따라가지 않습니다.'
+            : `저장하면 '${targetName}'에만 적용됩니다. 다른 반과 공통 계획은 바뀌지 않습니다.`}</p>
           <p className="opacity-70">복습 키워드는 프로젝트 전체 화면 &gt; 주차별 계획에서 편집하세요. 여기서 고쳐도 기존 값은 유지됩니다.</p>
         </div>
-        {fixed && (
+        {targetFixed && (
           <button onClick={handleReset} disabled={saving} className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant hover:text-primary bg-surface-container hover:bg-surface-container-high px-3 py-2 rounded-xl transition-all">
             <RotateCcw size={13} /> 공통으로 되돌리기
           </button>
@@ -264,7 +333,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
       <button onClick={handleSave} disabled={saving || schoolClassIds.length === 0}
         className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">
-        {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} 이 학교 전체 반에 저장
+        {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {isAll ? '이 학교 전체 반에 저장' : '이 반에만 저장'}
       </button>
 
       {pickIdx !== null && user && (

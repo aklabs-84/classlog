@@ -249,6 +249,7 @@ const SchoolProjectSchoolsPage = () => {
   const [planMaterials, setPlanMaterials] = useState<ImportableMaterial[]>([]);
   const [planMaterialsLoading, setPlanMaterialsLoading] = useState(false);
   const [planMaterialDropdownIdx, setPlanMaterialDropdownIdx] = useState<number | null>(null);
+  const [planMaterialSearch, setPlanMaterialSearch] = useState('');
 
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [addClassOpen, setAddClassOpen] = useState(false);
@@ -1894,7 +1895,7 @@ const SchoolProjectSchoolsPage = () => {
                         </div>
                       ) : (
                         <button
-                          onClick={(e) => { e.stopPropagation(); setPlanMaterialDropdownIdx(planMaterialDropdownIdx === idx ? null : idx); }}
+                          onClick={(e) => { e.stopPropagation(); setPlanMaterialSearch(''); setPlanMaterialDropdownIdx(planMaterialDropdownIdx === idx ? null : idx); }}
                           className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dim transition-colors"
                         >
                           <BookOpen size={13} /> 수업 자료에서 가져오기
@@ -1910,8 +1911,27 @@ const SchoolProjectSchoolsPage = () => {
                             <p className="text-xs text-on-surface-variant/60 text-center py-6 px-3">가져올 수 있는 수업 자료가 없습니다.</p>
                           ) : (
                             <>
+                              <div className="sticky top-0 bg-surface-container-lowest px-2 pt-2 pb-1 border-b border-surface-container-high">
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={planMaterialSearch}
+                                  onChange={e => setPlanMaterialSearch(e.target.value)}
+                                  placeholder="제목 또는 수업 이름으로 검색"
+                                  className="w-full px-3 py-2 bg-surface-container rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                              </div>
                               <p className="text-[10px] text-on-surface-variant/60 px-3 pt-2.5 pb-1">반 페이지에서 열람하려면 자료를 "공개" 상태로 발행해야 합니다.</p>
-                              {planMaterials.map(m => (
+                              {planMaterials.filter(m => {
+                                const q = planMaterialSearch.trim().toLowerCase();
+                                return !q || m.title.toLowerCase().includes(q) || (m.className || '').toLowerCase().includes(q);
+                              }).length === 0 && (
+                                <p className="text-xs text-on-surface-variant/60 text-center py-5 px-3">검색 결과가 없습니다.</p>
+                              )}
+                              {planMaterials.filter(m => {
+                                const q = planMaterialSearch.trim().toLowerCase();
+                                return !q || m.title.toLowerCase().includes(q) || (m.className || '').toLowerCase().includes(q);
+                              }).map(m => (
                                 <button
                                   key={m.id}
                                   onClick={() => handlePickPlanMaterial(idx, m)}
