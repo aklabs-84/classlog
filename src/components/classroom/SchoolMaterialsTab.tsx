@@ -10,8 +10,8 @@ import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, L
 import { safeHttpUrl, isUuid } from '../../lib/safeUrl';
 
 const MAX_FILE_MB = 20;
-// 올릴 수 있는 파일 종류 (웹페이지·스크립트처럼 실행될 수 있는 형식은 막는다)
-const ALLOWED_EXT = new Set(['pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'hwp', 'hwpx', 'txt', 'csv', 'md', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp3', 'mp4', 'm4a', 'mov']);
+// 올릴 수 있는 파일 종류 (html 샘플은 허용, 스크립트·css 같은 실행 파일은 막는다)
+const ALLOWED_EXT = new Set(['pdf', 'ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'hwp', 'hwpx', 'txt', 'csv', 'md', 'html', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp3', 'mp4', 'm4a', 'mov']);
 const formatSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
 
 interface Material {
@@ -193,7 +193,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     const extOf = (f: File) => (f.name.includes('.') ? f.name.split('.').pop() || '' : '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const blocked = sized.filter(f => !ALLOWED_EXT.has(extOf(f)));
     if (blocked.length > 0) {
-      setFileError(prev => `${prev ? prev + ' ' : ''}${blocked.map(f => `"${f.name}"`).join(', ')} 은(는) 올릴 수 없는 파일 형식입니다. (PDF·한글·오피스 문서·이미지·압축파일 등만 가능)`);
+      setFileError(prev => `${prev ? prev + ' ' : ''}${blocked.map(f => `"${f.name}"`).join(', ')} 은(는) 올릴 수 없는 파일 형식입니다. (PDF·한글·오피스 문서·웹페이지(html)·이미지·압축파일 등만 가능)`);
     }
     const ok = sized.filter(f => ALLOWED_EXT.has(extOf(f)));
     if (ok.length === 0) return;
