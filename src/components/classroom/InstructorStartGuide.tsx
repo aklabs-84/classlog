@@ -8,7 +8,7 @@ import {
   stampSignatureOnPdf, subStatusLabel, type DocRequirement, type DocSubmission,
 } from '../../lib/instructorDocs';
 import {
-  ClipboardList, X, Loader2, Upload, Download, Check, Clock, AlertTriangle, ChevronRight, BookOpen, FileText,
+  ClipboardList, X, Loader2, Upload, Download, Check, Clock, AlertTriangle, ChevronRight, BookOpen, FileText, ExternalLink,
 } from 'lucide-react';
 
 interface Props {
@@ -64,14 +64,14 @@ function Inner({ projectId, schoolId, userId, open, setOpen }: { projectId: stri
   const rejected = reqs.filter(r => subMap.get(r.id)?.status === 'rejected').length;
   const allDone = required.length > 0 && doneReq === required.length && rejected === 0;
 
-  // 처음 한 번만 자동으로 열어 준다 (서류가 있고 아직 덜 냈을 때)
+  // 처음 한 번만 자동으로 열어 준다 (가이드를 먼저 보도록 — 서류가 없어도 연다. 서류를 다 냈으면 열지 않는다)
   const seenKey = `idoc_seen_${projectId}_${userId}`;
   useEffect(() => {
-    if (loading || reqs.length === 0 || allDone) return;
+    if (loading || allDone) return;
     try {
       if (!localStorage.getItem(seenKey)) { localStorage.setItem(seenKey, '1'); setOpen(true); }
     } catch { /* 저장 못 해도 띠는 계속 보임 */ }
-  }, [loading, reqs.length, allDone, seenKey, setOpen]);
+  }, [loading, allDone, seenKey, setOpen]);
 
   if (loading) return null;
   // 서류가 하나도 요청되지 않은 사업이면 띠를 숨기지 않고 작은 버튼만 둔다 (가이드를 볼 곳이므로)
@@ -125,14 +125,7 @@ function GuideModal({ projectId, reqs, subMap, onClose, onSaved }: {
           <button onClick={onClose} aria-label="닫기"><X size={20} /></button>
         </div>
 
-        {/* 클래스룸 사용 가이드 자리 — 가이드 파일이 준비되면 여기에 연결 */}
-        <div className="rounded-2xl bg-primary/5 border border-primary/15 p-3 flex items-start gap-2.5">
-          <BookOpen size={18} className="text-primary mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-black">클래스룸 사용 가이드</p>
-            <p className="text-xs text-on-surface-variant mt-0.5">가이드 자료를 준비하고 있어요. 준비되면 이곳에서 바로 볼 수 있어요.</p>
-          </div>
-        </div>
+        <GuideBooks />
 
         <div>
           <h3 className="text-sm font-black mb-2">내가 낼 서류</h3>
@@ -182,6 +175,47 @@ function GuideModal({ projectId, reqs, subMap, onClose, onSaved }: {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+const GUIDE_BOOKS = [
+  { key: 'essential', title: '기본편', desc: '처음엔 이것만 보세요', file: '/guide/instructor-essential.pdf', tone: 'bg-primary/5 border-primary/20' },
+  { key: 'detail', title: '상세편', desc: '막힐 때 찾아보세요', file: '/guide/instructor-detail.pdf', tone: 'bg-surface-container border-outline-variant/40' },
+] as const;
+
+/** 클래스룸 사용 가이드(PDF 2권) — 앱 안에서 바로 펼쳐 본다 */
+function GuideBooks() {
+  const [book, setBook] = useState<(typeof GUIDE_BOOKS)[number] | null>(null);
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-black flex items-center gap-2"><BookOpen size={18} className="text-primary" /> 클래스룸 사용 가이드</p>
+      <p className="text-xs text-on-surface-variant">처음이라면 <b>기본편</b>부터 보세요. 화면 사진과 함께 어디를 누르는지 알려 드려요.</p>
+      <div className="grid grid-cols-2 gap-2">
+        {GUIDE_BOOKS.map(b => (
+          <button key={b.key} onClick={() => setBook(b)} className={`rounded-2xl border-2 p-3 text-left ${b.tone}`}>
+            <span className="block text-sm font-black">{b.key === 'essential' ? '📘' : '📗'} {b.title}</span>
+            <span className="block text-xs text-on-surface-variant mt-0.5">{b.desc}</span>
+          </button>
+        ))}
+      </div>
+      {book && createPortal(
+        <div className="fixed inset-0 z-[210] bg-black/60 flex items-center justify-center p-0 sm:p-4" onClick={() => setBook(null)}>
+          <div className="bg-surface w-full h-full sm:max-w-5xl sm:h-[92vh] sm:rounded-3xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-outline-variant/30">
+              <h3 className="font-black text-base">{book.key === 'essential' ? '📘' : '📗'} 강사 가이드 · {book.title}</h3>
+              <div className="flex items-center gap-3">
+                <a href={book.file} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-primary underline">
+                  <ExternalLink size={13} /> 새 창으로 열기
+                </a>
+                <button onClick={() => setBook(null)} aria-label="닫기"><X size={20} /></button>
+              </div>
+            </div>
+            <iframe src={book.file} title={`강사 가이드 ${book.title}`} className="flex-1 w-full bg-white" />
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
