@@ -68,15 +68,23 @@ export async function setReviewStatus(ids: string[], status: ReviewStatus): Prom
 }
 
 // ── 보조강사(비로그인) 쪽 ──────────────────────────────────────────────
-export interface LinkInfo { class_name: string; used_today: number; daily_limit: number }
+export interface LinkInfo { class_name: string; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null }
 
-const headers = { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` };
+// 로그인해 있으면 그 정보를 함께 보내 서버가 '주강사'인지 확인하게 한다 (없으면 보조강사로 취급)
+async function buildHeaders(): Promise<Record<string, string>> {
+  let bearer = ANON_KEY;
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) bearer = data.session.access_token;
+  } catch { /* noop */ }
+  return { apikey: ANON_KEY, Authorization: `Bearer ${bearer}` };
+}
 
 export async function checkUploadLink(token: string): Promise<LinkInfo | null> {
   try {
     const res = await fetch(FN_URL, {
       method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
+      headers: { ...(await buildHeaders()), 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
     });
     if (!res.ok) return null;
@@ -92,6 +100,7 @@ export const UPLOAD_ERRORS: Record<string, string> = {
   bad_type: '사진 파일만 올릴 수 있어요.',
   bad_size: '사진 크기가 너무 커요.',
   name_required: '이름을 먼저 적어 주세요.',
+  bad_link: '유튜브·구글 드라이브·비메오 링크(https)만 올릴 수 있어요.',
 };
 
 // 사진 한 장을 줄여서(HEIC는 JPEG로 변환 후) 올린다. 실패하면 Error(사용자용 문구)
@@ -111,7 +120,7 @@ export async function uploadViaLink(token: string, name: string, file: File, wee
   if (weekNumber != null) form.append('week_number', String(weekNumber));
   form.append('file', new File([blob], src.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' }));
 
-  const res = await fetch(FN_URL, { method: 'POST', headers, body: form });
+  const res = await fetch(FN_URL, { method: 'POST', headers: await buildHeaders(), body: form });
   if (!res.ok) {
     let code = '';
     try { code = (await res.json()).error; } catch { /* noop */ }
@@ -122,4 +131,18 @@ export async function uploadViaLink(token: string, name: string, file: File, wee
 export async function setFeatured(id: string, featured: boolean): Promise<void> {
   const { error } = await supabase.from('class_gallery_items').update({ is_featured: featured }).eq('id', id);
   if (error) throw error;
+}
+
+// 영상 링크 한 개를 전한다. 실패하면 Error(사용자용 문구)
+export async function submitVideoLink(token: string, name: string, videoUrl: string): Promise<void> {
+  const res = await fetch(FN_URL, {
+    method: 'POST',
+    headers: { ...(await buildHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, name, video_url: videoUrl }),
+  });
+  if (!res.ok) {
+    let code = '';
+    try { code = (await res.json()).error; } catch { /* noop */ }
+    throw new Error(UPLOAD_ERRORS[code] ?? '올리지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+  }
 }

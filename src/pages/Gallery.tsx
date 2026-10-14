@@ -15,6 +15,7 @@ import {
   fetchDriveFolderItems, driveItemToGalleryItem,
   type GalleryItem, type VideoUrlInfo, type DriveFolderLink
 } from '../lib/gallery';
+import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import GalleryScreening from '../components/gallery/GalleryScreening';
 
 const FREE_IMAGE_LIMIT = 100;
@@ -71,6 +72,7 @@ export default function Gallery() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [screeningOpen, setScreeningOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +81,7 @@ export default function Gallery() {
     supabase
       .from('classes')
       .select('id, name, weekly_plan')
-      .eq('teacher_id', user.id)
+      .or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`)
       .eq('is_archived', false)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -351,6 +353,15 @@ export default function Gallery() {
           >
             <Clapperboard size={15} />
             상영회 시작
+          </button>
+          {/* 보조강사 업로드 링크 · 사진 검토 */}
+          <button
+            onClick={() => setAssistantOpen(true)}
+            disabled={!selectedClassId}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm font-bold hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+          >
+            <Copy size={15} />
+            보조강사 링크
           </button>
           {/* 영상 링크 추가 */}
           {isPro && (
@@ -810,6 +821,20 @@ export default function Gallery() {
           onClose={() => setScreeningOpen(false)}
         />
       )}
+      {assistantOpen && user && selectedClassId && (
+        <ClassGalleryModal
+          userId={user.id}
+          classId={selectedClassId}
+          className={classes.find(c => c.id === selectedClassId)?.name ?? ''}
+          onClose={() => {
+            setAssistantOpen(false);
+            // 검토 결과(승인·숨김)가 목록에 바로 반영되도록 다시 불러온다
+            fetchGalleryItems(user.id, selectedClassId, selectedWeek, 0).then(({ items: page, hasMore: more }) => {
+              setItems(page); setHasMore(more); pageOffsetRef.current = page.length;
+            }).catch(() => { /* 무시 */ });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -862,6 +887,12 @@ function GalleryCard({
           className="w-full h-full object-cover"
           loading="lazy"
         />
+        {item.review_status === 'pending' && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold">확인 대기</div>
+        )}
+        {item.review_status === 'hidden' && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-gray-700/90 text-white text-[10px] font-bold">숨김</div>
+        )}
         {item.source === 'drive' && (
           <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-600/80 text-white text-[10px] font-bold flex items-center gap-1">
             <HardDrive size={10} /> 드라이브

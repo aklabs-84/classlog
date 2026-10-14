@@ -77,7 +77,7 @@ export interface GalleryItemsPage {
 
 // 사진이 많은 클래스에서 첫 로딩에 전체를 한 번에 불러오지 않도록 offset/limit로 페이지 단위 조회
 export async function fetchGalleryItems(
-  teacherId: string,
+  _teacherId: string,
   classId: string,
   weekNumber?: number | null,
   offset = 0,
@@ -86,8 +86,7 @@ export async function fetchGalleryItems(
   let query = supabase
     .from('class_gallery_items')
     .select('*')
-    .eq('teacher_id', teacherId)
-    .eq('class_id', classId)
+    .eq('class_id', classId) // 접근 범위는 DB 정책(담당·배정 선생님)이 정한다
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 

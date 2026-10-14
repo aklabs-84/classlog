@@ -248,7 +248,7 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
                   <button key={item.id} onClick={() => setViewing(item)} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                     {item.file_type === 'image'
                       ? <img src={item.file_url} alt="" loading="lazy" className={`w-full h-full object-cover ${st === 'hidden' ? 'opacity-40' : ''}`} />
-                      : <span className="text-xs text-gray-500">영상</span>}
+                      : <span className="text-xs font-bold text-gray-600">🎬 영상</span>}
                     {item.is_featured && <Star className="absolute top-1 right-1 w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow" />}
                     {st !== 'approved' && <span className={`absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${STATUS_CLASS[st]}`}>{STATUS_LABEL[st]}</span>}
                   </button>
@@ -275,7 +275,14 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
           {curIdx >= 0 && curIdx < flat.length - 1 && (
             <button onClick={e => { e.stopPropagation(); go(1); }} aria-label="다음 사진" className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"><ChevronRight className="w-7 h-7" /></button>
           )}
-          <img src={cur.file_url} alt="" className="max-h-[70vh] max-w-full rounded-lg" onClick={e => e.stopPropagation()} />
+          {cur.file_type === 'video' ? (
+            <div className="bg-white/10 rounded-2xl px-8 py-10 text-center text-white" onClick={e => e.stopPropagation()}>
+              <p className="text-lg font-bold mb-1">🎬 영상 링크 ({cur.file_name ?? '영상'})</p>
+              <a href={cur.file_url} target="_blank" rel="noopener noreferrer" className="inline-block mt-3 bg-white text-gray-900 rounded-xl px-5 py-3 text-sm font-bold">영상 열기</a>
+            </div>
+          ) : (
+            <img src={cur.file_url} alt="" className="max-h-[70vh] max-w-full rounded-lg" onClick={e => e.stopPropagation()} />
+          )}
           <div className="mt-3 text-center text-white text-sm" onClick={e => e.stopPropagation()}>
             {curIdx >= 0 && <span className="text-white/60">{curIdx + 1} / {flat.length} · </span>}
             {cur.uploader_name ? `${cur.uploader_name} 보조강사 · ` : ''}{new Date(cur.created_at).toLocaleString('ko-KR')}

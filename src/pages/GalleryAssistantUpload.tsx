@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Camera, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
-import { checkUploadLink, uploadViaLink, type LinkInfo } from '../lib/galleryAssistant';
+import { Camera, CheckCircle2, Loader2, AlertCircle, Link2, UserCheck } from 'lucide-react';
+import { checkUploadLink, uploadViaLink, submitVideoLink, type LinkInfo } from '../lib/galleryAssistant';
 
 const NAME_KEY = 'gallery_assistant_name';
 const readName = () => { try { return localStorage.getItem(NAME_KEY) ?? ''; } catch { return ''; } };
@@ -18,7 +18,10 @@ const GalleryAssistantUpload = () => {
   const [doneCount, setDoneCount] = useState(0);
   const [failures, setFailures] = useState<string[]>([]);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [tab, setTab] = useState<'photo' | 'video'>('photo');
+  const [videoUrl, setVideoUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const isTeacher = !!info?.teacher;
 
   useEffect(() => {
     checkUploadLink(token).then(res => {
@@ -28,9 +31,9 @@ const GalleryAssistantUpload = () => {
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const trimmed = name.trim();
+    const trimmed = isTeacher ? (info?.teacher_name ?? '주강사') : name.trim();
     if (!trimmed) { setFailures(['이름을 먼저 적어 주세요.']); return; }
-    saveName(trimmed);
+    if (!isTeacher) saveName(trimmed);
     setBusy(true);
     setFailures([]);
     const list = Array.from(files);
@@ -55,6 +58,26 @@ const GalleryAssistantUpload = () => {
     setTimeout(() => setToast(null), 4000);
     setBusy(false);
     if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleVideo = async () => {
+    const trimmed = isTeacher ? (info?.teacher_name ?? '주강사') : name.trim();
+    if (!trimmed) { setFailures(['이름을 먼저 적어 주세요.']); return; }
+    if (!videoUrl.trim()) return;
+    if (!isTeacher) saveName(trimmed);
+    setBusy(true);
+    setFailures([]);
+    try {
+      await submitVideoLink(token, trimmed, videoUrl.trim());
+      setDoneCount(c => c + 1);
+      setVideoUrl('');
+      setToast({ ok: true, msg: '✅ 영상 링크를 전했어요' });
+    } catch (e: any) {
+      setFailures([e?.message ?? '올리지 못했어요.']);
+      setToast({ ok: false, msg: '영상 링크를 올리지 못했어요' });
+    }
+    setTimeout(() => setToast(null), 4000);
+    setBusy(false);
   };
 
   if (state === 'loading') {
@@ -85,14 +108,48 @@ const GalleryAssistantUpload = () => {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
-          <label className="block text-sm font-semibold text-gray-700">내 이름</label>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            maxLength={30}
-            placeholder="예: 김보조"
-            className="w-full border border-gray-300 rounded-xl px-3 py-3 text-base outline-none focus:border-indigo-500"
-          />
+          {isTeacher ? (
+            <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 rounded-xl px-3 py-3 text-sm font-bold">
+              <UserCheck className="w-5 h-5" /> 주강사님으로 올리는 중이에요 (바로 반영돼요)
+            </div>
+          ) : (
+            <>
+              <label className="block text-sm font-semibold text-gray-700">내 이름</label>
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                maxLength={30}
+                placeholder="예: 김보조"
+                className="w-full border border-gray-300 rounded-xl px-3 py-3 text-base outline-none focus:border-indigo-500"
+              />
+            </>
+          )}
+          <div className="grid grid-cols-2 gap-2 bg-gray-100 rounded-xl p-1">
+            <button type="button" onClick={() => setTab('photo')} className={`rounded-lg py-2 text-sm font-bold ${tab === 'photo' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}`}>사진</button>
+            <button type="button" onClick={() => setTab('video')} className={`rounded-lg py-2 text-sm font-bold ${tab === 'video' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}`}>영상 링크</button>
+          </div>
+          {tab === 'video' ? (
+            <div className="space-y-3">
+              <input
+                value={videoUrl}
+                onChange={e => setVideoUrl(e.target.value)}
+                inputMode="url"
+                placeholder="https://youtu.be/… 또는 구글 드라이브 링크"
+                className="w-full border border-gray-300 rounded-xl px-3 py-3 text-base outline-none focus:border-indigo-500"
+              />
+              <button
+                type="button"
+                disabled={busy || !videoUrl.trim()}
+                onClick={handleVideo}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-4 text-base font-bold disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Link2 className="w-5 h-5" />}
+                영상 링크 전하기
+              </button>
+              <p className="text-xs text-gray-400">유튜브·구글 드라이브·비메오 링크만 돼요. 드라이브는 "링크가 있는 사람 보기"로 공유해 주세요.</p>
+            </div>
+          ) : (
+          <>
           <input
             ref={inputRef}
             type="file"
@@ -111,6 +168,11 @@ const GalleryAssistantUpload = () => {
             {busy ? `올리는 중 ${progress.done}/${progress.total}` : '사진 고르기 (여러 장 가능)'}
           </button>
           <p className="text-xs text-gray-400">화면을 닫지 말고 끝날 때까지 기다려 주세요.</p>
+          </>
+          )}
+          {!isTeacher && (
+            <p className="text-xs text-gray-400 pt-1">주강사님이신가요? 크롬·사파리에서 이 링크를 열고 로그인해 두면 자동으로 알아봐요. (카카오톡 안에서 열면 로그인이 안 보일 수 있어요)</p>
+          )}
         </div>
 
         {doneCount > 0 && !busy && (

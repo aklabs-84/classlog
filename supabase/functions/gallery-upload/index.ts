@@ -1,7 +1,10 @@
 // 보조강사(계정 없음)가 "올리기 링크"의 비밀 토큰으로 갤러리에 사진을 올리는 Edge Function.
 // 토큰 인증이므로 verify_jwt=false 로 배포한다. 업로드 전용: 조회·삭제 기능은 일부러 없다.
 // - JSON { token } → 링크가 유효한지, 반 이름이 무엇인지만 알려준다
-// - multipart { token, name, file, week_number? } → 검증 후 보관함 저장 + 목록표 기록(검토 대기)
+// - JSON { token, name, video_url } → 영상 링크(허용된 사이트만) 목록표 기록
+// - multipart { token, name, file, week_number? } → 검증 후 보관함 저장 + 목록표 기록
+// - 로그인한 담당·배정 선생님이 Authorization 으로 로그인 정보를 보내면 '주강사'로 인정(이름 불필요, 바로 승인)
+//   그 외에는 모두 검토 대기
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const BUCKET = 'class-gallery';
@@ -26,8 +29,9 @@ Deno.serve(async (req) => {
 
   let token = '';
   let form: FormData | null = null;
+  let body: Record<string, unknown> = {};
   if (isJson) {
-    try { token = String((await req.json()).token ?? ''); } catch { return json({ error: 'invalid json' }, 400); }
+    try { body = await req.json(); token = String(body.token ?? ''); } catch { return json({ error: 'invalid json' }, 400); }
   } else {
     try { form = await req.formData(); } catch { return json({ error: 'invalid form' }, 400); }
     token = String(form.get('token') ?? '');
@@ -55,9 +59,58 @@ Deno.serve(async (req) => {
     .gte('created_at', dayStart);
   const usedToday = count ?? 0;
 
-  if (!form) return json({ ok: true, class_name: cls.name, used_today: usedToday, daily_limit: DAILY_LIMIT });
+  // 로그인한 선생님이면(그 반의 담당 또는 배정 선생님) 주강사로 인정한다. 서버에서 직접 확인한다.
+  let teacherName: string | null = null;
+  let teacherId: string | null = null;
+  const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (bearer && bearer !== Deno.env.get('SUPABASE_ANON_KEY')) {
+    const { data: u } = await admin.auth.getUser(bearer);
+    const uid = u?.user?.id;
+    if (uid) {
+      const { data: c2 } = await admin.from('classes').select('teacher_id, assigned_teacher_id').eq('id', key.class_id).maybeSingle();
+      if (c2 && (c2.teacher_id === uid || c2.assigned_teacher_id === uid)) {
+        teacherId = uid;
+        const { data: pr } = await admin.from('profiles').select('nickname, full_name').eq('id', uid).maybeSingle();
+        teacherName = (pr?.nickname || pr?.full_name || '주강사').toString().slice(0, 30);
+      }
+    }
+  }
+  const isTeacher = teacherId !== null;
 
-  if (usedToday >= DAILY_LIMIT) return json({ error: 'daily_limit' }, 429);
+  if (!form && body.video_url === undefined) {
+    return json({ ok: true, class_name: cls.name, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
+  }
+
+  if (!isTeacher && usedToday >= DAILY_LIMIT) return json({ error: 'daily_limit' }, 429);
+
+  // 영상 링크: https 이고 허용된 사이트(유튜브·구글 드라이브·비메오)만
+  if (!form) {
+    const vname = isTeacher ? teacherName! : String(body.name ?? '').trim().slice(0, 30);
+    if (!vname) return json({ error: 'name_required' }, 400);
+    let u: URL;
+    try { u = new URL(String(body.video_url ?? '').trim()); } catch { return json({ error: 'bad_link' }, 400); }
+    const host = u.hostname.toLowerCase();
+    const label = u.protocol !== 'https:' ? '' :
+      (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) ? 'YouTube' :
+      host === 'drive.google.com' ? '구글 드라이브' :
+      (host === 'vimeo.com' || host.endsWith('.vimeo.com')) ? 'Vimeo' : '';
+    if (!label) return json({ error: 'bad_link' }, 400);
+    const vweekRaw = body.week_number;
+    const vweek = vweekRaw && /^\d{1,3}$/.test(String(vweekRaw)) ? Number(vweekRaw) : null;
+    const { error: vErr } = await admin.from('class_gallery_items').insert({
+      teacher_id: key.teacher_id,
+      class_id: key.class_id,
+      week_number: vweek,
+      file_url: u.toString().slice(0, 500),
+      file_type: 'video',
+      file_name: label,
+      uploader_name: vname,
+      review_status: isTeacher ? 'approved' : 'pending',
+      upload_source: isTeacher ? 'teacher' : 'assistant_link',
+    });
+    if (vErr) return json({ error: 'save_failed' }, 500);
+    return json({ ok: true, used_today: usedToday, daily_limit: DAILY_LIMIT });
+  }
 
   const file = form.get('file');
   if (!(file instanceof File)) return json({ error: 'no_file' }, 400);
@@ -65,7 +118,7 @@ Deno.serve(async (req) => {
   if (!ext) return json({ error: 'bad_type' }, 400);
   if (file.size > MAX_BYTES || file.size === 0) return json({ error: 'bad_size' }, 400);
 
-  const name = String(form.get('name') ?? '').trim().slice(0, 30);
+  const name = isTeacher ? teacherName! : String(form.get('name') ?? '').trim().slice(0, 30);
   if (!name) return json({ error: 'name_required' }, 400);
   const weekRaw = form.get('week_number');
   const week = weekRaw && /^\d{1,3}$/.test(String(weekRaw)) ? Number(weekRaw) : null;
@@ -84,8 +137,8 @@ Deno.serve(async (req) => {
     file_name: (file.name || `photo.${ext}`).slice(0, 120),
     file_size: file.size,
     uploader_name: name,
-    review_status: 'pending',
-    upload_source: 'assistant_link',
+    review_status: isTeacher ? 'approved' : 'pending',
+    upload_source: isTeacher ? 'teacher' : 'assistant_link',
   });
   if (dbErr) {
     await admin.storage.from(BUCKET).remove([path]);
