@@ -715,6 +715,9 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
       <div className="flex-1 min-h-0 flex relative">
         <div ref={scrollRef} onScroll={handleScroll} className="mv-scroll flex-1 min-w-0 overflow-y-auto overscroll-contain">
           <div className="max-w-3xl mx-auto px-5 sm:px-8 py-8 sm:py-12">
+            {!stepping && attachments && attachments.length > 0 && (
+              <div className="-mt-6 mb-8"><MaterialAttachments attachments={attachments} /></div>
+            )}
             <div ref={articleRef} className="mv-article">
               <TeacherViewContext.Provider value={teacherTools}>
                 <AnswerContext.Provider value={answerCtx}>
@@ -723,7 +726,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
               </TeacherViewContext.Provider>
             </div>
 
-            <MaterialAttachments attachments={attachments} />
+            {stepping && <MaterialAttachments attachments={attachments} />}
 
             {hasRelated && (
               <section id={RELATED_ID} ref={relatedRef} className="mt-14 pt-8 border-t-2 border-surface-container" style={{ scrollMarginTop: '16px' }}>

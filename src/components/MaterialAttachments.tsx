@@ -63,7 +63,7 @@ export function MaterialAttachmentsButton({ attachments, dark = false }: { attac
           dark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-900/5 text-slate-700 hover:bg-slate-900/10'
         }`}
       >
-        <Paperclip size={15} /> 첨부자료 {list.length} <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        <Paperclip size={15} /> <span>첨부자료 {list.length}</span> <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <>
