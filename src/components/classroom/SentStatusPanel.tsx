@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Props {
@@ -17,6 +17,23 @@ export default function SentStatusPanel({ kind, schoolIds, teacherNames, refresh
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const key = schoolIds.join(',');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+
+  const unsend = async (r: any) => {
+    if (!r.id || busyId) return;
+    const label = kind === 'quiz' ? '퀴즈' : '보드 틀';
+    if (!window.confirm(`'${r.class_name}'에 보낸 "${r.title}" ${label}를 취소(삭제)할까요?\n받은 강사 화면에서도 사라지고, 되돌릴 수 없어요.`)) return;
+    setBusyId(r.id); setMsg('');
+    const { data, error } = await supabase.rpc(kind === 'quiz' ? 'manager_unsend_quiz' : 'manager_unsend_board', kind === 'quiz' ? { p_quiz: r.id } : { p_board: r.id });
+    const d = data as any;
+    if (error || d?.error) {
+      setMsg(d?.error === 'ALREADY_USED' ? '이미 수업에서 진행된 퀴즈라 삭제할 수 없어요.' : '삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+    } else {
+      setRows(prev => prev.filter(x => x.id !== r.id));
+    }
+    setBusyId(null);
+  };
 
   useEffect(() => {
     if (schoolIds.length === 0) { setRows([]); setLoading(false); return; }
@@ -36,6 +53,7 @@ export default function SentStatusPanel({ kind, schoolIds, teacherNames, refresh
   return (
     <div className="pt-4 border-t border-outline-variant/40 space-y-2">
       <h4 className="font-black text-base">보낸 {kind === 'quiz' ? '퀴즈' : '보드 틀'} 현황 <span className="text-xs font-bold text-on-surface-variant">(읽기 전용)</span></h4>
+      {msg && <p className="text-sm text-red-600 font-bold">{msg}</p>}
       {loading ? <Loader2 className="animate-spin text-primary" size={18} />
         : failed ? <p className="text-sm text-red-600 font-bold">현황을 불러오지 못했어요.</p>
         : rows.length === 0 ? <p className="text-sm text-on-surface-variant">아직 보낸 {kind === 'quiz' ? '퀴즈' : '보드 틀'}가 없어요.</p>
@@ -51,6 +69,7 @@ export default function SentStatusPanel({ kind, schoolIds, teacherNames, refresh
                   {kind === 'quiz'
                     ? <><th className="text-right px-3 py-2">진행 횟수</th><th className="text-right px-3 py-2">참여 기록</th><th className="text-left px-3 py-2">마지막 진행</th></>
                     : <th className="text-right px-3 py-2">그 뒤 만든 조 보드</th>}
+                  <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -69,6 +88,13 @@ export default function SentStatusPanel({ kind, schoolIds, teacherNames, refresh
                     ) : (
                       <td className="px-3 py-2 text-right">{r.boards_made > 0 ? `${r.boards_made}개` : <span className="text-on-surface-variant">아직 안 만듦</span>}</td>
                     )}
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <button type="button" onClick={() => unsend(r)} disabled={busyId === r.id || (kind === 'quiz' && r.sessions > 0)}
+                        title={kind === 'quiz' && r.sessions > 0 ? '이미 진행된 퀴즈는 삭제할 수 없어요' : '보낸 것 취소(삭제)'}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+                        {busyId === r.id ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />} 취소
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
