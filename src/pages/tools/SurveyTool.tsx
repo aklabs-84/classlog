@@ -14,6 +14,7 @@ import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import { surveyAnalysisAI } from '../../lib/gemini';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import { SURVEY_TEMPLATES, type SurveyTemplate } from './surveyTemplates';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
@@ -703,7 +704,9 @@ export default function SurveyTool() {
   };
 
   // ── 새 설문 생성 ───────────────────────────────────────────────────────────
-  const handleCreateForm = async () => {
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const handleCreateForm = async (template?: SurveyTemplate) => {
+    setTemplateMenuOpen(false);
     if (!selectedClass || !user) return;
     if (!checkIsBasicOrAbove(profile)) {
       const { count } = await supabase
@@ -718,9 +721,22 @@ export default function SurveyTool() {
     const pin = generatePin();
     const { data, error } = await supabase.from('survey_forms').insert({
       teacher_id: user.id, class_id: selectedClass.id,
-      title: '새 설문', pin_code: pin, status: 'draft',
+      title: template?.title ?? '새 설문', pin_code: pin, status: 'draft',
+      ...(template ? { is_anonymous: true } : {}),
     }).select().single();
     if (error || !data) return;
+    if (template) {
+      const { error: qError } = await supabase.from('survey_questions').insert(
+        template.questions.map((q, i) => ({
+          form_id: data.id, order_index: i, type: q.type, text: q.text, options: q.options ?? [],
+        }))
+      );
+      if (qError) {
+        await supabase.from('survey_forms').delete().eq('id', data.id);
+        alert('공통 설문을 만드는 중 오류가 발생했습니다.');
+        return;
+      }
+    }
     setSurveyForms(prev => [data, ...prev]);
     openBuilder(data);
   };
@@ -991,11 +1007,32 @@ export default function SurveyTool() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ fontSize: 18, fontWeight: 'bold', color: '#111' }}>설문 목록</h2>
-        <button onClick={handleCreateForm}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
-        >
-          <Plus size={15} /> 새 설문
-        </button>
+        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+          <button onClick={() => setTemplateMenuOpen(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: '#fff', color: '#3B82F6', border: '1.5px solid #3B82F6', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            공통 설문 만들기 <ChevronDown size={14} />
+          </button>
+          <button onClick={() => handleCreateForm()}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            <Plus size={15} /> 새 설문
+          </button>
+          {templateMenuOpen && (
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 320, maxWidth: '90vw', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, overflow: 'hidden' }}>
+              {SURVEY_TEMPLATES.map(t => (
+                <button key={t.id} onClick={() => handleCreateForm(t)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 14px', background: 'transparent', border: 'none', borderBottom: '1px solid #F3F4F6', cursor: 'pointer' }}
+                >
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 'bold', color: '#111' }}>{t.title}</span>
+                  <span style={{ display: 'block', fontSize: 11, color: '#3B82F6', marginTop: 2 }}>{t.when}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: '#6B7280', marginTop: 2 }}>{t.description}</span>
+                </button>
+              ))}
+              <p style={{ fontSize: 11, color: '#9CA3AF', padding: '8px 14px', background: '#F9FAFB' }}>만든 뒤에 문항을 고치거나 더하거나 지울 수 있어요</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {surveyForms.length === 0 ? (
