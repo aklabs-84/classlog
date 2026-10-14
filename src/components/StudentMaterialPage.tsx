@@ -6,7 +6,7 @@ import rehypeRaw from 'rehype-raw';
 import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon, PenLine } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
-import MaterialAttachments, { type MaterialAttachment } from './MaterialAttachments';
+import MaterialAttachments, { MaterialAttachmentsButton, type MaterialAttachment } from './MaterialAttachments';
 import { InTeacherNoteContext, TeacherViewContext } from './teacherOnly';
 import { normalizeViewerStyle, viewerStyleInfo, readViewerTheme, saveViewerTheme, type ViewerTheme } from './materialSkins';
 
@@ -652,6 +652,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
         )}
         {teacherTools && <TeacherPageTools scrollRef={scrollRef} />}
         <ActivityLinksButton links={links} dark />
+        <MaterialAttachmentsButton attachments={attachments} dark />
         {canStep && (
           <div className="flex items-center gap-0.5 p-1 rounded-xl bg-white/10 shrink-0" role="group" aria-label="보기 방식">
             {([false, true] as const).map(toStep => (
