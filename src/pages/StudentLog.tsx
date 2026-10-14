@@ -2790,7 +2790,6 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
               · {myClassGroup.name}{myClassGroup.memberNames.length > 0 ? ` (${myClassGroup.memberNames.join(' · ')})` : ''}
             </span>
           )}
-          <span className="sm:ml-auto text-base font-bold text-on-surface-variant">{new Date().toLocaleDateString('ko-KR')}</span>
         </div>
 
         {/* Main Card with Tabs */}
@@ -2887,7 +2886,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     <p className="text-lg font-black">안녕하세요, {session?.student_name}님</p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <p className="text-base font-bold text-on-surface-variant/70">
-                        {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}
+                        {session?.class_name}
                         {weekInfo ? ` · ${displayWeek}주차 ${weekInfo.topic}` : ''}
                       </p>
                       {weeklyPlan.length > 1 && (
