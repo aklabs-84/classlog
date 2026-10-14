@@ -90,6 +90,7 @@ import ClassSelector from '../components/classroom/ClassSelector';
 import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
+import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import ClassroomFabMenu from '../components/classroom/ClassroomFabMenu';
 import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
 import EntryModeSelect, { type EntryMode } from '../components/classroom/EntryModeSelect';
@@ -376,6 +377,14 @@ const Classroom = () => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isTeacherShareQRModalOpen, setIsTeacherShareQRModalOpen] = useState(false);
   const [isStudentPreviewOpen, setIsStudentPreviewOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryPending, setGalleryPending] = useState(0);
+  useEffect(() => {
+    if (!activeClassId || isGalleryOpen) return;
+    supabase.from('class_gallery_items').select('id', { count: 'exact', head: true })
+      .eq('class_id', activeClassId).eq('review_status', 'pending')
+      .then(({ count }) => setGalleryPending(count ?? 0));
+  }, [activeClassId, isGalleryOpen]);
 
   // AI 인사이트 모달 상태
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
@@ -5138,10 +5147,15 @@ const Classroom = () => {
             }}
             onOpenStudentPage={classInfo.entry_code ? handleOpenStudentPage : undefined}
             onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
+            galleryPending={galleryPending}
+            onOpenGallery={classInfo.class_type !== 'homeroom' && user ? () => setIsGalleryOpen(true) : undefined}
             onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
           />
         )}
 
+        {isGalleryOpen && activeClassId && user && (
+          <ClassGalleryModal userId={user.id} classId={activeClassId} className={classInfo?.name ?? '수업'} onClose={() => setIsGalleryOpen(false)} />
+        )}
         {isStudentPreviewOpen && activeClassId && (
           <StudentPreviewModal
             classId={activeClassId}

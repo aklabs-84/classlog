@@ -17,6 +17,7 @@ const GalleryAssistantUpload = () => {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [doneCount, setDoneCount] = useState(0);
   const [failures, setFailures] = useState<string[]>([]);
+  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,6 +49,10 @@ const GalleryAssistantUpload = () => {
     }
     setDoneCount(c => c + ok);
     setFailures([...new Set(errs)]);
+    setToast(ok > 0
+      ? { ok: errs.length === 0, msg: errs.length === 0 ? `✅ ${ok}장을 주강사님께 전했어요` : `${ok}장 전달, ${errs.length}장은 올리지 못했어요` }
+      : { ok: false, msg: '사진을 올리지 못했어요' });
+    setTimeout(() => setToast(null), 4000);
     setBusy(false);
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -69,6 +74,9 @@ const GalleryAssistantUpload = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center p-4">
+      {toast && (
+        <div role="status" className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] rounded-2xl px-5 py-3 text-base font-bold text-white shadow-lg ${toast.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}>{toast.msg}</div>
+      )}
       <div className="w-full max-w-md pt-6 space-y-4">
         <div>
           <p className="text-xs font-semibold text-indigo-600">수업 사진 올리기</p>

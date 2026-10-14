@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, QrCode, BookOpen, ExternalLink, Share2, Download, Smartphone } from 'lucide-react';
+import { Plus, QrCode, BookOpen, ExternalLink, Share2, Download, Smartphone, Camera } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface ClassroomFabMenuProps {
@@ -9,6 +9,8 @@ interface ClassroomFabMenuProps {
   onOpenStudentPage?: () => void;
   onOpenTeacherShareQR?: () => void;
   onExport?: () => void;
+  onOpenGallery?: () => void;
+  galleryPending?: number;
   onOpenStudentPreview?: () => void;
 }
 
@@ -17,6 +19,7 @@ interface FabAction {
   label: string;
   icon: LucideIcon;
   onClick: () => void;
+  badge?: number;
 }
 
 const ClassroomFabMenu = ({
@@ -25,6 +28,8 @@ const ClassroomFabMenu = ({
   onOpenStudentPage,
   onOpenTeacherShareQR,
   onExport,
+  onOpenGallery,
+  galleryPending = 0,
   onOpenStudentPreview,
 }: ClassroomFabMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,6 +56,7 @@ const ClassroomFabMenu = ({
     onOpenResources && { key: 'resources', label: '수업 자료실', icon: BookOpen, onClick: onOpenResources },
     onOpenStudentPage && { key: 'openStudentPage', label: '학생 페이지 이동', icon: ExternalLink, onClick: onOpenStudentPage },
     onOpenTeacherShareQR && { key: 'shareQr', label: '교사용 결과 공유', icon: Share2, onClick: onOpenTeacherShareQR },
+    onOpenGallery && { key: 'gallery', label: '수업 사진·동의', icon: Camera, onClick: onOpenGallery, badge: galleryPending },
     onExport && { key: 'export', label: '내보내기', icon: Download, onClick: onExport },
   ].filter((action): action is FabAction => Boolean(action));
 
@@ -84,14 +90,15 @@ const ClassroomFabMenu = ({
               }`}
               style={{ zIndex: 9993 }}
             >
-              {actions.map(({ key, label, icon: Icon, onClick }) => (
+              {actions.map(({ key, label, icon: Icon, onClick, badge }) => (
                 <button
                   key={key}
                   onClick={() => handleSelect(onClick)}
                   className="flex flex-col items-center gap-1.5 w-20 py-3 px-2 rounded-2xl hover:bg-primary/10 transition-all active:scale-95"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant">
+                  <div className="relative w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant">
                     <Icon size={18} />
+                    {!!badge && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-black flex items-center justify-center">{badge}</span>}
                   </div>
                   <span className="text-[11px] font-bold text-on-surface-variant text-center leading-tight">{label}</span>
                 </button>

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Camera, Download, Star, Copy, Check, Loader2, Link2, Power, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Camera, Download, Star, Copy, Check, Loader2, Link2, Power, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, X } from 'lucide-react';
 import JSZip from 'jszip';
 import PhotoConsentPanel from './PhotoConsentPanel';
 import { supabase } from '../../lib/supabase';
@@ -81,7 +81,7 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
     run(async () => {
       await deleteGalleryItem(item.id, item.file_url);
       setItems(prev => prev.filter(i => i.id !== item.id));
-      setViewing(null);
+      setViewing(neighbor(item));
     });
   };
 
@@ -131,6 +131,33 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
     shown.forEach(i => { const k = dayKey(i.created_at); m.set(k, [...(m.get(k) ?? []), i]); });
     return [...m.entries()];
   }, [shown]);
+
+  const flat = useMemo(() => groups.flatMap(([, l]) => l), [groups]);
+  const neighbor = (item: GalleryItem) => {
+    const i = flat.findIndex(x => x.id === item.id);
+    return flat[i + 1] ?? flat[i - 1] ?? null;
+  };
+  const cur = viewing ? items.find(i => i.id === viewing.id) ?? viewing : null;
+  const curIdx = cur ? flat.findIndex(x => x.id === cur.id) : -1;
+  const go = useCallback((d: number) => {
+    setViewing(v => {
+      if (!v) return v;
+      const i = flat.findIndex(x => x.id === v.id);
+      return flat[i + d] ?? v;
+    });
+  }, [flat]);
+  useEffect(() => {
+    if (!viewing) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') go(-1);
+      else if (e.key === 'ArrowRight') go(1);
+      else if (e.key === 'Escape') setViewing(null);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [viewing, go]);
+  const touchX = useRef<number | null>(null);
+
 
   if (classes.length === 0) {
     return <p className="text-sm text-gray-500 py-8 text-center">반이 있어야 사진을 모을 수 있어요. 먼저 반을 추가해주세요.</p>;
@@ -232,18 +259,32 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
         ))
       )}
 
-      {viewing && (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-center p-4" onClick={() => setViewing(null)}>
+      {cur && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-center p-4" onClick={() => setViewing(null)}
+          onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
+          onTouchEnd={e => {
+            if (touchX.current == null) return;
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            touchX.current = null;
+            if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+          }}>
           <button className="absolute top-4 right-4 text-white" aria-label="닫기"><X className="w-6 h-6" /></button>
-          <img src={viewing.file_url} alt="" className="max-h-[70vh] max-w-full rounded-lg" onClick={e => e.stopPropagation()} />
+          {curIdx > 0 && (
+            <button onClick={e => { e.stopPropagation(); go(-1); }} aria-label="이전 사진" className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"><ChevronLeft className="w-7 h-7" /></button>
+          )}
+          {curIdx >= 0 && curIdx < flat.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); go(1); }} aria-label="다음 사진" className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"><ChevronRight className="w-7 h-7" /></button>
+          )}
+          <img src={cur.file_url} alt="" className="max-h-[70vh] max-w-full rounded-lg" onClick={e => e.stopPropagation()} />
           <div className="mt-3 text-center text-white text-sm" onClick={e => e.stopPropagation()}>
-            {viewing.uploader_name ? `${viewing.uploader_name} 보조강사 · ` : ''}{new Date(viewing.created_at).toLocaleString('ko-KR')}
+            {curIdx >= 0 && <span className="text-white/60">{curIdx + 1} / {flat.length} · </span>}
+            {cur.uploader_name ? `${cur.uploader_name} 보조강사 · ` : ''}{new Date(cur.created_at).toLocaleString('ko-KR')}
           </div>
-          <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
-            <button disabled={busy} onClick={() => { review(viewing.id, 'approved'); setViewing({ ...viewing, review_status: 'approved' }); }} className="inline-flex items-center gap-1 bg-emerald-600 text-white text-sm font-semibold rounded-lg px-3 py-2"><Eye className="w-4 h-4" /> 사용 가능</button>
-            <button disabled={busy} onClick={() => { review(viewing.id, 'hidden'); setViewing({ ...viewing, review_status: 'hidden' }); }} className="inline-flex items-center gap-1 bg-gray-600 text-white text-sm font-semibold rounded-lg px-3 py-2"><EyeOff className="w-4 h-4" /> 숨김</button>
-            <button disabled={busy} onClick={() => toggleFeatured(viewing)} className="inline-flex items-center gap-1 bg-yellow-500 text-white text-sm font-semibold rounded-lg px-3 py-2"><Star className={`w-4 h-4 ${viewing.is_featured ? 'fill-white' : ''}`} /> 대표</button>
-            <button disabled={busy} onClick={() => remove(viewing)} className="inline-flex items-center gap-1 bg-rose-600 text-white text-sm font-semibold rounded-lg px-3 py-2"><Trash2 className="w-4 h-4" /> 삭제</button>
+          <div className="mt-3 flex flex-wrap justify-center gap-2" onClick={e => e.stopPropagation()}>
+            <button disabled={busy} onClick={() => { const n = neighbor(cur); review(cur.id, 'approved'); if (n) setViewing(n); }} className="inline-flex items-center gap-1 bg-emerald-600 text-white text-sm font-semibold rounded-lg px-3 py-2"><Eye className="w-4 h-4" /> 사용 가능</button>
+            <button disabled={busy} onClick={() => { const n = neighbor(cur); review(cur.id, 'hidden'); if (n) setViewing(n); }} className="inline-flex items-center gap-1 bg-gray-600 text-white text-sm font-semibold rounded-lg px-3 py-2"><EyeOff className="w-4 h-4" /> 숨김</button>
+            <button disabled={busy} onClick={() => toggleFeatured(cur)} className="inline-flex items-center gap-1 bg-yellow-500 text-white text-sm font-semibold rounded-lg px-3 py-2"><Star className={`w-4 h-4 ${cur.is_featured ? 'fill-white' : ''}`} /> 대표</button>
+            <button disabled={busy} onClick={() => remove(cur)} className="inline-flex items-center gap-1 bg-rose-600 text-white text-sm font-semibold rounded-lg px-3 py-2"><Trash2 className="w-4 h-4" /> 삭제</button>
           </div>
         </div>
       )}
