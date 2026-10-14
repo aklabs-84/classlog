@@ -10,7 +10,7 @@ interface Props {
   teacherNames: Record<string, string>;
 }
 
-interface QuizRow { id: string; title: string; count: number }
+interface QuizRow { id: string; title: string; count: number; date?: string }
 interface ClassRow { id: string; name: string; school_project_id: string; assigned_teacher_id: string }
 
 /** 사업 담당자가 만든 퀴즈를 선택한 반의 담당 강사에게 복사본으로 보내 주는 탭 */
@@ -33,14 +33,14 @@ export default function SendQuizTab({ schools, teacherNames }: Props) {
     (async () => {
       setLoading(true);
       const [{ data: qs }, { data: cs }] = await Promise.all([
-        supabase.from('quiz_sets').select('id, title, quiz_questions(count)').eq('teacher_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('quiz_sets').select('id, title, created_at, quiz_questions(count)').eq('teacher_id', user.id).is('source_set_id', null).order('created_at', { ascending: false }),
         schools.length === 0 ? Promise.resolve({ data: [] as any[] }) :
           supabase.from('classes').select('id, name, school_project_id, assigned_teacher_id')
             .in('school_project_id', schools.map(s => s.id)).not('parent_class_id', 'is', null).not('assigned_teacher_id', 'is', null)
             .eq('is_archived', false).order('name'),
       ]);
       if (cancelled) return;
-      setQuizzes((qs || []).map((q: any) => ({ id: q.id, title: q.title, count: q.quiz_questions?.[0]?.count ?? 0 })));
+      setQuizzes((qs || []).map((q: any) => ({ id: q.id, title: q.title, count: q.quiz_questions?.[0]?.count ?? 0, date: q.created_at ? new Date(q.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) : '' })));
       setClasses((cs || []) as ClassRow[]);
       setLoading(false);
     })();
@@ -95,7 +95,7 @@ export default function SendQuizTab({ schools, teacherNames }: Props) {
             <select value={quizId} onChange={e => { setQuizId(e.target.value); setMsg(null); }}
               className="w-full max-w-md rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest">
               <option value="">퀴즈를 선택하세요</option>
-              {quizzes.map(q => <option key={q.id} value={q.id}>{q.title} ({q.count}문제)</option>)}
+              {quizzes.map(q => <option key={q.id} value={q.id}>{q.title} ({q.count}문제{q.date ? ` · ${q.date} 생성` : ''})</option>)}
             </select>
           </div>
 
