@@ -25,6 +25,7 @@ import MainLayout from './components/layout/MainLayout';
 // 메인 번들에 딸려 들어가지 않도록 한다.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const IdeaRecord = lazy(() => import('./pages/IdeaRecord'));
+const Home = lazy(() => import('./pages/Home'));
 const Login = lazy(() => import('./pages/Login'));
 const Landing = lazy(() => import('./pages/Landing'));
 const Admin = lazy(() => import('./pages/Admin'));
@@ -306,7 +307,7 @@ function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<IdeaRecord />} />
+                <Route index element={<Home />} />
               </Route>
 
               <Route
@@ -316,6 +317,7 @@ function App() {
                   </ProtectedRoute>
                 }
               >
+                <Route path="ideas" element={<IdeaRecord />} />
                 <Route path="classes" element={<Dashboard />} />
                 <Route path="classroom" element={<Classroom />} />
                 <Route path="student-view/:id" element={<StudentView />} />

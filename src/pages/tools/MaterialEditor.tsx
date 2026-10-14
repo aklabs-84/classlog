@@ -2861,7 +2861,7 @@ const MaterialEditor = () => {
             <div data-tour="me-tools" className="flex items-center flex-wrap gap-1.5 px-3 sm:px-5 pb-3">
               {cameFromIdeaRecord && (
                 <button
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigate('/ideas')}
                   title="아이디어 기록 페이지로 돌아갑니다"
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-container text-primary hover:opacity-80 font-bold text-[11px] transition-opacity"
                 >

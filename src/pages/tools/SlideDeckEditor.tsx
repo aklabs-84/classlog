@@ -1006,7 +1006,7 @@ export default function SlideDeckEditor() {
           </span>
           {cameFromIdeaRecord && (
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/ideas')}
               title="아이디어 기록 페이지로 돌아갑니다"
               style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap', background: '#ede9fe', color: '#6d28d9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
             >

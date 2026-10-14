@@ -61,6 +61,7 @@ import {
   Wand2,
   Cpu,
   RotateCcw,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
 import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
@@ -558,7 +559,7 @@ const Classroom = () => {
         const next = new URLSearchParams(prev);
         next.set('id', activeClassId);
         return next;
-      }, { replace: true });
+      }, { replace: true, state: location.state });
       localStorage.setItem('teacher_last_class_id', activeClassId);
     }
   }, [activeClassId]);
@@ -573,7 +574,7 @@ const Classroom = () => {
         next.set('tab', activeTab);
       }
       return next;
-    }, { replace: true });
+    }, { replace: true, state: location.state });
   }, [activeTab]);
 
   useEffect(() => {
@@ -651,7 +652,7 @@ const Classroom = () => {
       const next = new URLSearchParams(prev);
       next.delete('student_id');
       return next;
-    }, { replace: true });
+    }, { replace: true, state: location.state });
   }, [searchParams.get('student_id')]);
 
   useEffect(() => {
@@ -2562,6 +2563,14 @@ const Classroom = () => {
           },
         } : undefined}
       />
+    )}
+    {(location.state as { fromHome?: boolean } | null)?.fromHome && (
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-container text-primary hover:opacity-80 font-bold text-[13px] transition-opacity mb-3"
+      >
+        <ArrowLeft size={14} /> 시작 화면으로
+      </button>
     )}
     <div className="flex flex-col relative bg-surface-container-low/20 rounded-[2rem] border border-white/40 shadow-2xl">
       {/* 1. 상단 학급 선택기 (기존 사이드바에서 수평형으로 전환) */}

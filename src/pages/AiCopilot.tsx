@@ -1574,7 +1574,7 @@ ${contentSource}
           id: crypto.randomUUID(),
           role: 'ai',
           text: `✅ '${title}' 아이디어를 기록했어요.`,
-          meta: { navigateTo: '/dashboard', state: { openNoteId: note.id } },
+          meta: { navigateTo: '/ideas', state: { openNoteId: note.id } },
         }],
       }));
     } catch (err: any) {

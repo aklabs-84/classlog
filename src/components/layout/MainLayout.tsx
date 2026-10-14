@@ -12,6 +12,7 @@ import FloatingAIProgress from '../FloatingAIProgress';
 import ScrollToTopButton from './ScrollToTopButton';
 import CopilotReturnBadge from '../CopilotReturnBadge';
 import FloatingCopilot from '../copilot/FloatingCopilot';
+import FloatingMate from '../home/FloatingMate';
 
 const MainLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(true);
@@ -41,6 +42,7 @@ const MainLayout = () => {
       <ScrollToTopButton />
       <CopilotReturnBadge />
       <FloatingCopilot />
+      <FloatingMate collapsed={isCollapsed} />
     </div>
   );
 };

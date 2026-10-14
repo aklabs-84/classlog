@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Bell, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  Images, Download, Share, MoreVertical, Gift, Lightbulb, Users,
+  Images, Download, Share, MoreVertical, Gift, Lightbulb, Users, Home,
   ChevronLeft, ChevronRight, ChevronDown, Minus, Bot, Zap, BookOpen, Type,
 } from 'lucide-react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
@@ -170,7 +170,8 @@ const Navbar = ({ isCollapsed: pinnedCollapsed, toggleSidebar }: NavbarProps) =>
     {
       title: '기록하고 만들기',
       items: [
-        { label: '아이디어 기록', path: '/dashboard', icon: Lightbulb },
+        { label: '시작 화면', path: '/dashboard', icon: Home },
+        { label: '아이디어 기록', path: '/ideas', icon: Lightbulb },
         { label: 'AI 세특 초안', path: '/ai-assistant', icon: Sparkles },
         { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
       ],

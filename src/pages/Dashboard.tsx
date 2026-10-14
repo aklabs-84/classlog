@@ -29,10 +29,11 @@ import {
   Crown,
   Zap,
   Archive,
-  Building2
+  Building2,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { isDemoTeacher, getDemoClassId } from '../lib/demo';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import QuickReviewPanel from '../components/classroom/QuickReviewPanel';
@@ -41,6 +42,7 @@ import WelcomeGuideModal, { type WelcomeGuideVideo } from '../components/Welcome
 const Dashboard = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [classes, setClasses] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [totalActivitiesCount, setTotalActivitiesCount] = useState(0);
@@ -792,6 +794,14 @@ const Dashboard = () => {
         </motion.div>
       )}
 
+{(location.state as { fromHome?: boolean } | null)?.fromHome && (
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-container text-primary hover:opacity-80 font-bold text-[13px] transition-opacity mb-3"
+      >
+        <ArrowLeft size={14} /> 시작 화면으로
+      </button>
+    )}
       {/* Hero & Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
         <div className="md:col-span-8 surface-zone p-6 md:p-10 flex flex-col justify-center relative overflow-hidden min-h-[200px] md:h-[340px]">

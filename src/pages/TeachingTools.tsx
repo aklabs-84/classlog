@@ -668,7 +668,15 @@ const TeachingTools = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      {(location.state as { fromHome?: boolean } | null)?.fromHome && (
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-container text-primary hover:opacity-80 font-bold text-[13px] transition-opacity"
+        >
+          <ArrowLeft size={14} /> 시작 화면으로
+        </button>
+      )}
+      <div className="flex items-center gap-3 flex-wrap">
         {activeTool && (
           <button
             onClick={() => setActiveTool(null)}
