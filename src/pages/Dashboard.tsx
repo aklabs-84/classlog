@@ -78,6 +78,7 @@ const Dashboard = () => {
   const [joinSubClasses, setJoinSubClasses] = useState<any[]>([]);
   const [joiningClassId, setJoiningClassId] = useState<string | null>(null);
   const [joinDone, setJoinDone] = useState(false);
+  const [joinedClassName, setJoinedClassName] = useState('');
 
   // 시작 가이드(온보딩 영상) 모달
   const [welcomeModalOpen, setWelcomeModalOpen] = useState(false);
@@ -301,7 +302,16 @@ const Dashboard = () => {
         .eq('entry_code', joinCode.trim().toUpperCase())
         .single();
       if (!data) { alert('코드를 다시 확인해주세요.'); return; }
-      const unassigned = (data.classes || []).filter(
+      // 사업 코드면 그 아래 학교들의 반도 함께 보여준다 (학교 이름을 반 옆에 표시)
+      const { data: childSchools } = await supabase
+        .from('school_projects')
+        .select('id, name, classes!school_project_id(id, name, assigned_teacher_id, parent_class_id)')
+        .eq('parent_project_id', data.id);
+      const allClasses = [
+        ...(data.classes || []).map((c: any) => ({ ...c, schoolName: null })),
+        ...(childSchools || []).flatMap((sch: any) => (sch.classes || []).map((c: any) => ({ ...c, schoolName: sch.name }))),
+      ];
+      const unassigned = allClasses.filter(
         (c: any) => c.parent_class_id !== null && !c.assigned_teacher_id
       );
       setJoinProject(data);
@@ -320,6 +330,7 @@ const Dashboard = () => {
         p_project_id: joinProject.id,
       });
       if (!error && data && !data.error) {
+        setJoinedClassName(joinSubClasses.find((c: any) => c.id === classId)?.name || '');
         setJoinDone(true);
         setTimeout(() => {
           setJoinModalOpen(false);
@@ -1486,7 +1497,7 @@ const Dashboard = () => {
                     <School size={20} />
                     <h2 className="text-xl font-black text-white">학교 프로젝트 참여</h2>
                   </div>
-                  <p className="text-sm text-white/70">담임 선생님에게 받은 코드를 입력하세요</p>
+                  <p className="text-sm text-white/70">사업 관리자에게 받은 코드를 입력하세요</p>
                 </div>
                 <button onClick={() => setJoinModalOpen(false)} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all">
                   <X size={18} />
@@ -1500,10 +1511,15 @@ const Dashboard = () => {
                       <Check size={28} className="text-green-500" />
                     </div>
                     <p className="font-black text-lg">참여 신청 완료!</p>
-                    <p className="text-sm text-gray-500">사업 관리자의 승인 후 담당 학급이 대시보드에 추가됩니다.</p>
+                    <p className="text-sm text-gray-500">{joinedClassName ? <><span className="font-bold text-gray-700">{joinedClassName}</span> 반을 신청했습니다.<br /></> : null}사업 관리자가 승인하면 내 대시보드에 이 반이 나타납니다.</p>
                   </div>
                 ) : (
                   <>
+                    <ol className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-xs text-indigo-900 font-bold space-y-1.5 list-decimal list-inside">
+                      <li>사업 관리자에게 받은 코드를 입력합니다.</li>
+                      <li>맡고 싶은 반을 골라 신청합니다. (신청만 되고, 바로 배정되지는 않아요)</li>
+                      <li>관리자가 승인하면 내 대시보드에 그 반이 나타납니다.</li>
+                    </ol>
                     <div>
                       <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">참여 코드</label>
                       <div className="flex gap-2">
@@ -1536,11 +1552,11 @@ const Dashboard = () => {
                           <div className="text-center py-6 text-gray-400">
                             <GraduationCap size={28} className="mx-auto mb-2 opacity-40" />
                             <p className="text-sm font-bold">배정 가능한 반이 없습니다</p>
-                            <p className="text-xs mt-1">담임 선생님에게 문의해주세요</p>
+                            <p className="text-xs mt-1">이미 담당 선생님이 정해졌거나 반이 아직 없을 수 있어요. 사업 관리자에게 문의해주세요</p>
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <p className="text-xs font-black text-gray-500 uppercase tracking-widest">담당하고 싶은 반을 선택하면 신청됩니다</p>
+                            <p className="text-xs font-black text-gray-500 uppercase tracking-widest">맡고 싶은 반을 누르면 신청이 접수됩니다 (관리자 승인 후 배정)</p>
                             {joinSubClasses.map((cls: any) => (
                               <button
                                 key={cls.id}
@@ -1552,7 +1568,7 @@ const Dashboard = () => {
                                   <GraduationCap size={18} className="text-indigo-600" />
                                 </div>
                                 <div className="flex-1">
-                                  <p className="text-sm font-black">{cls.name}</p>
+                                  <p className="text-sm font-black">{cls.schoolName ? `${cls.schoolName} · ` : ''}{cls.name}</p>
                                   <p className="text-xs text-gray-400">담당 선생님 없음 · 신청 가능</p>
                                 </div>
                                 {joiningClassId === cls.id

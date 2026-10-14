@@ -982,6 +982,8 @@ const SchoolProjectSchoolsPage = () => {
       const { data } = await supabase.rpc('approve_teacher_join_request', { p_request_id: requestId });
       if (data?.error) {
         alert(data.error === 'ALREADY_ASSIGNED' ? '이미 다른 선생님이 배정된 반입니다.' : '승인에 실패했습니다.');
+      } else {
+        alert('승인했습니다. 선생님이 해당 반의 담당으로 배정되었고, 선생님 대시보드에 반이 나타납니다.');
       }
       fetchJoinRequests();
       fetchData();
@@ -1099,6 +1101,9 @@ const SchoolProjectSchoolsPage = () => {
                   {copiedProjectShare === 'code' ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
                 </button>
               </div>
+              <p className="text-[11px] leading-relaxed text-on-surface-variant">
+                선생님이 이 코드로 맡고 싶은 반을 신청하면 아래에 <b>신청 대기 목록</b>이 뜹니다. <b>승인</b>하면 그 반의 담당 선생님으로 배정되어 선생님 대시보드에 반이 나타납니다.
+              </p>
             </div>
           )}
 
@@ -1133,15 +1138,16 @@ const SchoolProjectSchoolsPage = () => {
           <div className="flex items-center gap-2">
             <UserPlus size={14} className="text-amber-600" />
             <p className="text-xs font-black text-amber-800 uppercase tracking-widest">
-              가입 신청 대기 {joinRequestsLoading ? '' : `(${joinRequests.length})`}
+              담당 신청 대기 {joinRequestsLoading ? '' : `(${joinRequests.length})`}
             </p>
           </div>
+          <p className="text-[11px] text-amber-800/80">선생님이 맡고 싶다고 신청한 반입니다. 승인하면 그 선생님이 해당 반의 담당이 됩니다.</p>
           <div className="space-y-2">
             {joinRequests.map(req => (
               <div key={req.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-amber-100">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black truncate">{req.teacher_name || req.teacher_email}</p>
-                  <p className="text-xs text-on-surface-variant truncate">{req.class_name} · 신청</p>
+                  <p className="text-xs text-on-surface-variant truncate">{req.class_name} 반 담당 신청</p>
                 </div>
                 <button
                   onClick={() => handleApproveJoinRequest(req.id)}
@@ -1176,6 +1182,11 @@ const SchoolProjectSchoolsPage = () => {
             }`}
           >
             {tab.label}
+            {tab.key === 'teachers' && joinRequests.length > 0 && (
+              <span className="ml-1.5 inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-black">
+                {joinRequests.length}
+              </span>
+            )}
           </button>
         ))}
         {guideDismissed && currentGuide && (
