@@ -167,6 +167,19 @@ const QuizGame = () => {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState('');
 
+  // ── 클래스 없이 만드는 "내 퀴즈 보관함" + 클래스 연결 ───────────────────────
+  // libraryMode: 클래스를 고르지 않고 퀴즈를 만드는 상태(quiz_sets.class_id = null)
+  const [libraryMode, setLibraryMode] = useState(false);
+  // 자료 에디터의 자료실(class_id = null) 자료 — AI 문제 생성에 사용
+  const [libraryMaterials, setLibraryMaterials] = useState<any[]>([]);
+  const [materialSource, setMaterialSource] = useState<'class' | 'library'>('class');
+  const [attachTarget, setAttachTarget] = useState<QuizSet | null>(null);
+  const [attachClassId, setAttachClassId] = useState('');
+  const [attachMode, setAttachMode] = useState<'copy' | 'move'>('copy');
+  const [attaching, setAttaching] = useState(false);
+  const [attachError, setAttachError] = useState('');
+  const [notice, setNotice] = useState('');
+
   // ── 초기 로딩 ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (user) fetchClasses();
@@ -306,15 +319,7 @@ const QuizGame = () => {
     }
   };
 
-  // 클래스 선택
-  const handleSelectClass = async (cls: any) => {
-    setSelectedClass(cls);
-    setClassDropdownOpen(false);
-    setSelectedQuizSet(null);
-    setQuestions([]);
-    setShowAllClasses(false);
-    await fetchQuizSets(cls.id);
-    // 수업 자료 로드
+  const loadClassMaterials = async (cls: any) => {
     const { data } = await supabase
       .from('class_materials')
       .select('id, week_number, title, content, url')
@@ -322,6 +327,119 @@ const QuizGame = () => {
       .eq('is_published', true)
       .order('week_number', { ascending: true });
     setClassMaterials(data || []);
+  };
+
+  // 자료 에디터 자료실(클래스에 아직 안 붙은 내 자료)
+  const loadLibraryMaterials = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('class_materials')
+      .select('id, week_number, title, content, url')
+      .is('class_id', null)
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false });
+    setLibraryMaterials(data || []);
+  };
+
+  useEffect(() => {
+    if (user) loadLibraryMaterials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // 클래스 선택
+  const handleSelectClass = async (cls: any) => {
+    setSelectedClass(cls);
+    setLibraryMode(false);
+    setMaterialSource('class');
+    setClassDropdownOpen(false);
+    setSelectedQuizSet(null);
+    setQuestions([]);
+    setShowAllClasses(false);
+    await fetchQuizSets(cls.id);
+    await loadClassMaterials(cls);
+  };
+
+  // 클래스 없이 만들기 — 내 퀴즈 보관함(class_id = null) 열기
+  const handleEnterLibrary = async () => {
+    setLibraryMode(true);
+    setMaterialSource('library');
+    setSelectedClass(null);
+    setClassDropdownOpen(false);
+    setSelectedQuizSet(null);
+    setQuestions([]);
+    setShowAllClasses(false);
+    setClassMaterials([]);
+    const { data } = await supabase
+      .from('quiz_sets')
+      .select('*')
+      .eq('teacher_id', user!.id)
+      .is('class_id', null)
+      .order('created_at', { ascending: false });
+    setQuizSets((data || []) as QuizSet[]);
+    await loadLibraryMaterials();
+  };
+
+  // 퀴즈를 클래스에 연결 — 복사(원본 유지) 또는 이동
+  const openAttachModal = (qs: QuizSet) => {
+    setAttachTarget(qs);
+    setAttachClassId(selectedClass?.id && qs.class_id !== selectedClass.id ? selectedClass.id : '');
+    setAttachMode('copy');
+    setAttachError('');
+  };
+
+  const handleAttach = async () => {
+    const target = attachTarget;
+    const cls = classes.find(c => c.id === attachClassId);
+    if (!target || !cls || attaching) return;
+    setAttaching(true); setAttachError('');
+    try {
+      let resultSet: QuizSet;
+      if (attachMode === 'move') {
+        const { data, error } = await supabase.from('quiz_sets')
+          .update({ class_id: cls.id, updated_at: new Date().toISOString() })
+          .eq('id', target.id).eq('teacher_id', user!.id).select().single();
+        if (error || !data) throw error || new Error('이동 실패');
+        resultSet = data as QuizSet;
+      } else {
+        const { data: newSet, error } = await supabase.from('quiz_sets').insert({
+          teacher_id: user!.id, class_id: cls.id, title: target.title, source_set_id: target.id,
+        }).select().single();
+        if (error || !newSet) throw error || new Error('복사 실패');
+        const { data: srcQs, error: qErr } = await supabase.from('quiz_questions')
+          .select('*').eq('quiz_set_id', target.id).order('order_index', { ascending: true });
+        if (qErr) { await supabase.from('quiz_sets').delete().eq('id', newSet.id); throw qErr; }
+        if (srcQs && srcQs.length > 0) {
+          const rows = srcQs.map((q: any) => {
+            const { id: _id, created_at: _c, quiz_set_id: _s, ...rest } = q;
+            return { ...rest, quiz_set_id: newSet.id };
+          });
+          const { error: insErr } = await supabase.from('quiz_questions').insert(rows);
+          if (insErr) { await supabase.from('quiz_sets').delete().eq('id', newSet.id); throw insErr; }
+        }
+        resultSet = newSet as QuizSet;
+      }
+      // 연결한 클래스 화면으로 전환
+      setSelectedClass(cls);
+      setLibraryMode(false);
+      setMaterialSource('class');
+      setShowAllClasses(false);
+      await fetchQuizSets(cls.id);
+      await loadClassMaterials(cls);
+      if (view === 'questions') {
+        setSelectedQuizSet(resultSet);
+        await fetchQuestions(resultSet.id);
+      } else {
+        setSelectedQuizSet(null);
+        setQuestions([]);
+      }
+      setNotice(`"${resultSet.title}" 퀴즈를 ${cls.name}에 ${attachMode === 'copy' ? '복사해서 연결' : '옮겨서 연결'}했어요`);
+      setTimeout(() => setNotice(''), 3500);
+      setAttachTarget(null);
+    } catch (err: any) {
+      setAttachError(err?.message || '클래스에 연결하지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      setAttaching(false);
+    }
   };
 
   // 수업 자료 기반 AI 문제 생성
@@ -409,11 +527,11 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
 
   // 퀴즈 세트 생성
   const handleCreateQuizSet = async () => {
-    if (!newSetTitle.trim() || !selectedClass) return;
+    if (!newSetTitle.trim() || (!selectedClass && !libraryMode)) return;
     setCreatingSet(true);
     const { data, error } = await supabase.from('quiz_sets').insert({
       teacher_id: user!.id,
-      class_id: selectedClass.id,
+      class_id: libraryMode ? null : selectedClass.id,
       title: newSetTitle.trim(),
     }).select().single();
     if (!error && data) {
@@ -508,7 +626,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
 
   // ── 게임 시작 ──────────────────────────────────────────────────────────────
   const handleStartGame = async () => {
-    if (!selectedQuizSet || questions.length === 0) return;
+    if (!selectedQuizSet || !selectedClass || questions.length === 0) return;
     setLoading(true);
 
     // 서버-기기 시간 오프셋 조회 (실패해도 0으로 폴백되어 진행에 영향 없음)
@@ -889,12 +1007,90 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
     setGradingSaving(false);
   };
 
+  // 클래스 연결 모달 + 안내 토스트 (설정/문제 화면 공통, body에 포탈로 띄움)
+  const attachOverlay = createPortal(
+    <>
+      {attachTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => !attaching && setAttachTarget(null)}>
+          <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-base">퀴즈를 클래스에 연결</h3>
+              <button onClick={() => setAttachTarget(null)} disabled={attaching} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-sm font-bold text-on-surface truncate">"{attachTarget.title}"</p>
+
+            <div className="space-y-2">
+              <p className="text-xs font-black text-on-surface-variant">연결할 클래스</p>
+              <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                {classes.length === 0 && <p className="text-sm text-on-surface-variant">클래스가 없습니다</p>}
+                {classes.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setAttachClassId(c.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left text-sm font-bold transition-all ${
+                      attachClassId === c.id ? 'border-violet-400 bg-violet-50' : 'border-surface-container hover:border-violet-200'
+                    }`}
+                  >
+                    <Users size={14} className="text-primary/60 shrink-0" />
+                    <span className="flex-1 truncate">{c.name}</span>
+                    {c.id === attachTarget.class_id && <span className="text-[10px] text-on-surface-variant/60 font-normal">현재</span>}
+                    {attachClassId === c.id && <Check size={14} className="text-violet-500 shrink-0" strokeWidth={3} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-black text-on-surface-variant">연결 방법</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: 'copy', title: '복사해서 연결', desc: '원본은 그대로 두고 복사본을 만들어요. 여러 클래스에 쓸 수 있어요' },
+                  { key: 'move', title: '옮겨서 연결', desc: '이 퀴즈 자체를 그 클래스로 옮겨요. 원래 자리에서는 사라져요' },
+                ] as const).map(o => (
+                  <button
+                    key={o.key}
+                    onClick={() => setAttachMode(o.key)}
+                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                      attachMode === o.key ? 'border-violet-400 bg-violet-50' : 'border-surface-container hover:border-violet-200'
+                    }`}
+                  >
+                    <p className="text-sm font-black">{o.title}</p>
+                    <p className="text-[11px] text-on-surface-variant mt-1 leading-snug">{o.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {attachError && <p className="text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-xl">{attachError}</p>}
+
+            <button
+              onClick={handleAttach}
+              disabled={!attachClassId || attaching || (attachMode === 'move' && attachClassId === attachTarget.class_id)}
+              className="w-full py-3 bg-violet-500 hover:bg-violet-600 text-white rounded-2xl font-black text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {attaching ? <><RefreshCw size={15} className="animate-spin" /> 연결 중...</> : '연결하기'}
+            </button>
+          </div>
+        </div>
+      )}
+      {notice && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] px-4 py-3 rounded-2xl bg-gray-900 text-white text-sm font-bold shadow-xl max-w-[90vw]">
+          {notice}
+        </div>
+      )}
+    </>,
+    document.body
+  );
+
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER: SETUP VIEW
   // ══════════════════════════════════════════════════════════════════════════
   if (view === 'setup') {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
+        {attachOverlay}
         {/* 헤더 */}
         <div className="glass rounded-2xl p-6 border border-white/40 space-y-5">
           <div className="flex items-center gap-3">
@@ -903,7 +1099,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
             </div>
             <div>
               <h3 className="font-black text-on-surface text-lg">퀴즈 설정</h3>
-              <p className="text-xs text-on-surface-variant">클래스를 선택하고 퀴즈를 시작하세요</p>
+              <p className="text-xs text-on-surface-variant">클래스를 선택하거나, 클래스 없이 먼저 퀴즈를 만들어 두세요</p>
             </div>
           </div>
 
@@ -924,7 +1120,9 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                     </span>
                   </span>
                 ) : (
-                  <span className="text-on-surface-variant">클래스를 선택하세요</span>
+                  <span className={libraryMode ? 'text-on-surface font-bold' : 'text-on-surface-variant'}>
+                    {libraryMode ? '클래스 없이 만들기 (내 퀴즈 보관함)' : '클래스를 선택하세요'}
+                  </span>
                 )}
                 <ChevronDown size={16} className={`transition-transform ${classDropdownOpen ? 'rotate-180' : ''} text-on-surface-variant`} />
               </button>
@@ -936,6 +1134,14 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                     exit={{ opacity: 0, y: -8 }}
                     className="absolute top-full mt-1 w-full bg-white rounded-xl shadow-xl border border-white/40 z-50 overflow-hidden"
                   >
+                    <button
+                      onClick={handleEnterLibrary}
+                      className="w-full text-left px-4 py-2.5 text-sm font-bold hover:bg-primary/5 transition-colors flex items-center gap-2 border-b border-surface-container"
+                    >
+                      <BookOpen size={14} className="text-violet-500" />
+                      클래스 없이 만들기
+                      <span className="ml-auto text-[10px] text-on-surface-variant/60 font-normal">내 퀴즈 보관함</span>
+                    </button>
                     {classes.length === 0 ? (
                       <div className="px-4 py-3 text-sm text-on-surface-variant">클래스가 없습니다</div>
                     ) : (
@@ -995,7 +1201,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
 
           {/* 퀴즈 세트 선택 + 생성 */}
           <AnimatePresence>
-            {selectedClass && (
+            {(selectedClass || libraryMode) && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -1004,12 +1210,16 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-on-surface-variant">퀴즈 세트 선택</p>
+                  {libraryMode ? (
+                    <span className="text-[11px] text-on-surface-variant">클래스에 연결하면 그 클래스에서 진행할 수 있어요</span>
+                  ) : (
                   <button
                     onClick={() => handleToggleAllClasses(!showAllClasses)}
                     className={`text-xs px-2.5 py-1 rounded-lg border transition-all font-bold ${showAllClasses ? 'border-primary/50 bg-primary/10 text-primary' : 'border-white/30 bg-surface-container-low/40 text-on-surface-variant hover:border-primary/30'}`}
                   >
                     {showAllClasses ? '전체 클래스 보는 중' : '다른 클래스 퀴즈 보기'}
                   </button>
+                  )}
                 </div>
 
                 {/* 기존 세트 목록 */}
@@ -1042,6 +1252,13 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                             </div>
                             <ChevronRight size={15} className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0" />
                           </button>
+                          {!isSharedSet(qs) && <button
+                            onClick={e => { e.stopPropagation(); openAttachModal(qs); }}
+                            className="px-2 py-1.5 mr-1 text-[11px] font-black text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors shrink-0"
+                            title="다른 클래스에 연결"
+                          >
+                            클래스에 연결
+                          </button>}
                           {!isSharedSet(qs) && <button
                             onClick={e => { e.stopPropagation(); handleDeleteQuizSet(qs.id, qs.title); }}
                             className="p-2.5 mr-1 text-on-surface-variant/30 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
@@ -1087,12 +1304,13 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
   if (view === 'questions') {
     return (
       <div className="max-w-3xl mx-auto space-y-4">
+        {attachOverlay}
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-black text-on-surface text-xl gradient-text">{selectedQuizSet?.title}</h3>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {selectedClass?.name} · 문제 {questions.length}개
+              {selectedClass?.name ?? '내 퀴즈 보관함 (클래스 미연결)'} · 문제 {questions.length}개
               {isSharedSet(selectedQuizSet) && ' · 공통 퀴즈(수정 불가, 진행만 가능)'}
             </p>
           </div>
@@ -1104,10 +1322,21 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
               세트 변경
             </button>
             {!isSharedSet(selectedQuizSet) && (<>
-            {/* AI 문제 생성 버튼 */}
-            {classMaterials.length > 0 ? (
+            {selectedQuizSet && (
               <button
-                onClick={() => { setAiModalOpen(true); setAiError(''); setSelectedMaterial(null); }}
+                onClick={() => openAttachModal(selectedQuizSet)}
+                className="px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-black hover:bg-primary/5 transition-all"
+              >
+                클래스에 연결
+              </button>
+            )}
+            {/* AI 문제 생성 버튼 */}
+            {classMaterials.length > 0 || libraryMaterials.length > 0 ? (
+              <button
+                onClick={() => {
+                  setAiModalOpen(true); setAiError(''); setSelectedMaterial(null);
+                  setMaterialSource(selectedClass && classMaterials.length > 0 ? 'class' : 'library');
+                }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all"
               >
                 ✨ AI 문제 생성
@@ -1122,7 +1351,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                 </button>
                 <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl p-3 shadow-xl z-50 hidden group-hover:block">
                   <p className="font-black mb-1">📚 수업 자료가 필요합니다</p>
-                  <p className="text-white/70">수업 자료 에디터에서 이 클래스의 자료를 작성하고 <span className="text-violet-300 font-bold">공개</span>로 설정하면 AI 문제 생성이 활성화됩니다.</p>
+                  <p className="text-white/70">수업 자료 에디터에서 자료를 작성하면 AI 문제 생성이 활성화됩니다. (클래스 자료는 <span className="text-violet-300 font-bold">공개</span>로 설정, 자료실 자료는 바로 사용 가능)</p>
                 </div>
               </div>
             )}
@@ -1158,8 +1387,28 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
               {/* 자료 선택 */}
               <div className="space-y-2">
                 <p className="text-xs font-black text-on-surface-variant">수업 자료 선택</p>
+                {selectedClass && (
+                  <div className="grid grid-cols-2 gap-1">
+                    {([['class', '이 클래스 자료'], ['library', '내 자료실']] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => { setMaterialSource(key); setSelectedMaterial(null); }}
+                        className={`py-2 rounded-xl text-xs font-black transition-all ${
+                          materialSource === key ? 'bg-violet-500 text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-low'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {(materialSource === 'library' ? libraryMaterials : classMaterials).length === 0 && (
+                  <p className="text-xs text-on-surface-variant py-3 text-center">
+                    {materialSource === 'library' ? '자료실에 자료가 없어요. 수업 자료 에디터에서 만들어 보세요.' : '공개된 클래스 자료가 없어요.'}
+                  </p>
+                )}
                 <div className="space-y-1.5 max-h-44 overflow-y-auto">
-                  {classMaterials.map(mat => (
+                  {(materialSource === 'library' ? libraryMaterials : classMaterials).map(mat => (
                     <button
                       key={mat.id}
                       onClick={() => setSelectedMaterial(mat)}
@@ -1172,7 +1421,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
                         selectedMaterial?.id === mat.id ? 'bg-violet-500 text-white' : 'bg-surface-container text-on-surface-variant'
                       }`}>
-                        {mat.week_number}
+                        {mat.week_number ?? '·'}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm truncate">{mat.title}</p>
@@ -1341,10 +1590,20 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
           )}
         </div>
 
-        {/* 게임 시작 버튼 */}
+        {/* 게임 시작 버튼 — 클래스에 연결되지 않은 퀴즈는 먼저 연결하도록 안내 */}
+        {!selectedClass && selectedQuizSet && (
+          <button
+            onClick={() => openAttachModal(selectedQuizSet)}
+            className="w-full py-4 rounded-2xl font-black text-base bg-violet-500 hover:bg-violet-600 text-white flex items-center justify-center gap-3 transition-all"
+          >
+            <Users size={20} />
+            클래스에 연결하고 시작하기
+          </button>
+        )}
         <button
           onClick={handleStartGame}
-          disabled={questions.length === 0 || loading}
+          disabled={!selectedClass || questions.length === 0 || loading}
+          style={!selectedClass ? { display: 'none' } : undefined}
           className="w-full py-4 rounded-2xl font-black text-base btn-gradient flex items-center justify-center gap-3"
         >
           {loading ? (
