@@ -214,9 +214,10 @@ const ClassroomEntry = () => {
   // 현장 명단 입력: 이름·번호 제출 → 대기 화면
   const handleLiveSubmit = async () => {
     const name = liveName.trim();
-    const num = liveNumber.trim();
+    // 숫자만 남기고 앞의 0은 뗀다 (01 → 1, 10 → 10)
+    const num = liveNumber.replace(/\D/g, '').replace(/^0+/, '');
     if (!name) { setStepError('이름을 입력해주세요.'); return; }
-    if (!num) { setStepError('번호를 입력해주세요.'); return; }
+    if (!num) { setStepError('번호를 숫자로 입력해주세요. (예: 1, 12)'); return; }
     setStepLoading(true);
     setStepError('');
     try {
@@ -677,8 +678,8 @@ const ClassroomEntry = () => {
             </div>
             <div data-tour="entry-live-form" className="space-y-3">
               <p className="text-sm font-black text-on-surface">내 번호와 이름을 입력하세요</p>
-              <input type="text" inputMode="numeric" maxLength={10} placeholder="번호" value={liveNumber}
-                onChange={(e) => { setStepError(''); setLiveNumber(e.target.value); }}
+              <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="번호" value={liveNumber}
+                onChange={(e) => { setStepError(''); setLiveNumber(e.target.value.replace(/\D/g, '')); }}
                 className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />
               <input type="text" maxLength={20} placeholder="이름" value={liveName}
                 onChange={(e) => { setStepError(''); setLiveName(e.target.value); }}
