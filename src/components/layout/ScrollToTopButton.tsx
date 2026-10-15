@@ -39,7 +39,7 @@ const ScrollToTopButton = () => {
           transition={{ type: 'spring', stiffness: 300, damping: 22 }}
           onClick={scrollToTop}
           className={`fixed right-7 w-11 h-11 rounded-2xl bg-primary text-white shadow-lg hover:bg-primary/90 active:scale-95 transition-colors flex items-center justify-center ${
-            hasClassroomFab ? 'bottom-24' : 'bottom-7'
+            'bottom-7'
           }`}
           style={{ zIndex: 9990 }}
           title="맨 위로 이동"

@@ -38,6 +38,7 @@ import { isDemoTeacher, getDemoClassId } from '../lib/demo';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import QuickReviewPanel from '../components/classroom/QuickReviewPanel';
 import WelcomeGuideModal, { type WelcomeGuideVideo } from '../components/WelcomeGuideModal';
+import GuideOutdatedNotice from '../components/GuideOutdatedNotice';
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -716,23 +717,23 @@ const Dashboard = () => {
           >
             <div className="flex items-center gap-2 px-1">
               <BellRing size={16} className="text-primary animate-pulse" />
-              <h3 className="text-sm font-black text-primary uppercase tracking-widest">교과 연동 초대 {pendingInvitations.length}건</h3>
+              <h3 className="text-[16px] font-bold text-primary">교과 연동 초대 {pendingInvitations.length}건</h3>
             </div>
             {pendingInvitations.map((inv) => (
               <motion.div
                 key={inv.id}
                 layout
                 exit={{ opacity: 0, height: 0 }}
-                className="surface-card p-6 border-l-4 border-primary shadow-ambient flex flex-col md:flex-row md:items-center gap-4"
+                className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-5 flex flex-col md:flex-row md:items-center gap-4"
               >
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0">
+                <div className="w-11 h-11 bg-primary-container rounded-xl flex items-center justify-center text-primary shrink-0">
                   <BookOpen size={22} />
                 </div>
                 <div className="flex-1 space-y-1">
-                  <p className="font-black text-base">
+                  <p className="font-bold text-[17px] text-on-surface">
                     <span className="text-primary">{inv.sender?.full_name} 선생님</span>이 학급 연동을 요청했습니다
                   </p>
-                  <p className="text-xs font-bold text-on-surface-variant">
+                  <p className="text-[14px] text-on-surface-variant">
                     학급: {inv.source_class?.name} · {new Date(inv.created_at).toLocaleDateString('ko-KR')}
                   </p>
                 </div>
@@ -742,12 +743,12 @@ const Dashboard = () => {
                     placeholder="담당 과목 입력 (예: 국어)"
                     value={subjectInputs[inv.id] || ''}
                     onChange={(e) => setSubjectInputs(prev => ({ ...prev, [inv.id]: e.target.value }))}
-                    className="px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 w-48 border border-surface-container-highest"
+                    className="px-4 py-2.5 bg-surface-container-lowest rounded-lg text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/20 w-52 border border-slate-200 dark:border-slate-700"
                   />
                   <button
                     onClick={() => handleAcceptInvitation(inv)}
                     disabled={inviteActionLoading === inv.id}
-                    className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-black hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white rounded-lg text-[15px] font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
                     <Check size={16} />
                     수락
@@ -771,24 +772,24 @@ const Dashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 px-5 py-4 flex items-center gap-4"
+          className="rounded-2xl bg-primary-container/40 border border-primary/20 px-5 py-4 flex items-center gap-4"
         >
-          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
-            <Crown size={20} className="text-amber-500" />
+          <div className="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center shrink-0">
+            <Crown size={20} className="text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-amber-900">
+            <p className="font-bold text-[16px] text-on-surface">
               Pro로 업그레이드하면 AI를 더 넉넉하게 · 학급 전체 일괄 생성이 가능해요
             </p>
-            <p className="text-xs text-amber-600 mt-0.5">
+            <p className="text-[14px] text-on-surface-variant mt-0.5">
               현재: 무료 플랜 (AI 월 400크레딧)
             </p>
           </div>
           <NavLink
             to="/pricing"
-            className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-95 shadow-sm"
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white text-[14px] font-semibold rounded-lg transition-colors"
           >
-            <Zap size={13} />
+            <Zap size={14} />
             플랜 보기
           </NavLink>
         </motion.div>
@@ -804,21 +805,21 @@ const Dashboard = () => {
     )}
       {/* Hero & Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
-        <div className="md:col-span-8 surface-zone p-6 md:p-10 flex flex-col justify-center relative overflow-hidden min-h-[200px] md:h-[340px]">
+        <div className="md:col-span-8 bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-6 md:p-10 flex flex-col justify-center relative overflow-hidden min-h-[200px] md:min-h-[300px]">
           <div className="relative z-10 max-w-lg">
-            <p className="text-primary font-bold text-xs mb-3 tracking-widest uppercase">인텔리전스 허브</p>
-            <h1 className="text-2xl md:text-4xl font-extrabold mb-4 md:mb-6 leading-[1.2] font-manrope">
+            <p className="text-primary font-semibold text-[14px] mb-3">인텔리전스 허브</p>
+            <h1 className="text-[26px] md:text-[32px] font-bold text-on-surface mb-4 md:mb-5 leading-[1.3]">
               AI로 간편하게 만드는<br />
               학생 맞춤형 생기부 초안
             </h1>
-            <p className="text-on-surface-variant text-sm md:text-base mb-6 md:mb-8 leading-relaxed hidden sm:block">
+            <p className="text-on-surface-variant text-[16px] mb-6 md:mb-8 leading-relaxed hidden sm:block">
               학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가 학기말 리포트 초안을<br />
               정성스럽게 작성해 드립니다.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => navigate('/ai-assistant')}
-                className="btn-gradient px-6 md:px-8 py-3 md:py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 text-sm"
+                className="bg-primary text-white hover:bg-primary/90 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 w-fit transition-colors text-[15px]"
               >
                 <Sparkles size={18} />
                 AI 리포트 자동 생성
@@ -826,10 +827,11 @@ const Dashboard = () => {
               {guideVideos.length > 0 && (
                 <button
                   onClick={() => setWelcomeModalOpen(true)}
-                  className="px-5 py-3 md:py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit bg-white/70 hover:bg-white text-primary border border-primary/20 transition-all active:scale-95 text-sm"
+                  className="px-5 py-3 rounded-lg font-semibold flex items-center gap-2 w-fit bg-surface-container-lowest hover:bg-primary-container/50 text-primary border border-slate-200 dark:border-slate-700 transition-colors text-[15px]"
                 >
                   <PlayCircle size={18} />
                   시작 가이드 보기
+                  <GuideOutdatedNotice variant="compact" />
                 </button>
               )}
             </div>
@@ -840,15 +842,15 @@ const Dashboard = () => {
         </div>
 
         <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-4 md:gap-6">
-          <div className="surface-card p-5 md:p-8 flex flex-col justify-between shadow-ambient">
+          <div className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-5 md:p-6 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">리포트 완성도</p>
-              <div className="text-primary bg-primary-container/30 px-2 py-1 rounded-lg text-[10px] font-bold">
+              <p className="text-[15px] font-semibold text-on-surface-variant">리포트 완성도</p>
+              <div className="text-primary bg-primary-container px-2.5 py-1 rounded-lg text-[13px] font-semibold">
                 {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
               </div>
             </div>
             <div className="my-2 md:my-4">
-              <p className="text-3xl md:text-5xl font-extrabold font-manrope">{stats.completed}</p>
+              <p className="text-3xl md:text-4xl font-bold text-on-surface">{stats.completed}</p>
             </div>
             <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
               <motion.div
@@ -860,15 +862,15 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="surface-card p-5 md:p-8 flex flex-col justify-between shadow-ambient">
+          <div className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-5 md:p-6 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">기록된 관찰 내용</p>
-              <div className="text-on-surface-variant bg-surface-container-high px-2 py-1 rounded-lg text-[10px] font-bold">주간 목표</div>
+              <p className="text-[15px] font-semibold text-on-surface-variant">기록된 관찰 내용</p>
+              <div className="text-on-surface-variant bg-surface-container-high px-2.5 py-1 rounded-lg text-[13px] font-semibold">주간 목표</div>
             </div>
             <div className="my-2 md:my-4">
-              <p className="text-3xl md:text-5xl font-extrabold font-manrope">{totalActivitiesCount}</p>
+              <p className="text-3xl md:text-4xl font-bold text-on-surface">{totalActivitiesCount}</p>
             </div>
-            <p className="text-[11px] text-on-surface-variant italic hidden sm:block">
+            <p className="text-[14px] text-on-surface-variant hidden sm:block">
               "지속적인 관찰 기록이 AI 초안의 정확도를 높입니다."
             </p>
           </div>
@@ -882,35 +884,28 @@ const Dashboard = () => {
           {/* 헤더 */}
           <div className="flex items-center justify-between px-2">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold font-manrope">나의 학급</h2>
-              <p className="text-xs text-on-surface-variant/60 mt-0.5">폴더로 묶어 내 화면에서만 정리할 수 있어요</p>
+              <h2 className="text-[26px] font-bold text-on-surface">나의 학급</h2>
+              <p className="text-[14px] text-on-surface-variant mt-1">폴더로 묶어 내 화면에서만 정리할 수 있어요</p>
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setActiveFolderId(activeFolderId === '__closed__' ? null : '__closed__')}
-                className={`text-xs font-bold flex items-center gap-1 transition-colors ${activeFolderId === '__closed__' ? 'text-on-surface' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}`}
-              >
-                <Archive size={13} />
-                종료된 학급
-              </button>
-              <button
                 onClick={() => navigate('/classroom')}
-                className="text-xs font-bold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
+                className="text-[15px] font-semibold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
               >
-                전체 보기 <ArrowRight size={14} />
+                클래스룸 열기 <ArrowRight size={14} />
               </button>
             </div>
           </div>
 
           {/* 폴더 탭 */}
-          <div className="flex items-center gap-2 flex-wrap px-1">
+          <div className="flex items-center gap-2.5 flex-wrap px-1">
             {/* 전체 탭 */}
             <button
               onClick={() => setActiveFolderId(null)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[14px] font-semibold transition-colors ${
                 activeFolderId === null
-                  ? 'bg-primary text-white shadow-sm shadow-primary/30'
-                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                  ? 'bg-primary text-white border border-primary'
+                  : 'bg-surface-container-lowest text-on-surface border border-slate-200 dark:border-slate-700 hover:bg-primary-container/50'
               }`}
             >
               <Folder size={13} />
@@ -922,10 +917,10 @@ const Dashboard = () => {
               <div key={folder.id} className="relative group/folder flex items-center">
                 <button
                   onClick={() => setActiveFolderId(folder.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all pr-7 ${
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[14px] font-semibold transition-colors pr-7 ${
                     activeFolderId === folder.id
-                      ? 'bg-primary text-white shadow-sm shadow-primary/30'
-                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                      ? 'bg-primary text-white border border-primary'
+                      : 'bg-surface-container-lowest text-on-surface border border-slate-200 dark:border-slate-700 hover:bg-primary-container/50'
                   }`}
                 >
                   {activeFolderId === folder.id
@@ -949,14 +944,14 @@ const Dashboard = () => {
             {classes.some(c => c.is_closed) && (
               <button
                 onClick={() => setActiveFolderId(activeFolderId === '__closed__' ? null : '__closed__')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[14px] font-semibold transition-colors ${
                   activeFolderId === '__closed__'
-                    ? 'bg-neutral-700 text-white shadow-sm'
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    ? 'bg-primary text-white border border-primary'
+                    : 'bg-surface-container-lowest text-on-surface border border-slate-200 dark:border-slate-700 hover:bg-primary-container/50'
                 }`}
               >
                 <Archive size={13} />
-                종료된 학습 ({classes.filter(c => c.is_closed).length})
+                종료된 학급 ({classes.filter(c => c.is_closed).length})
               </button>
             )}
 
@@ -965,7 +960,7 @@ const Dashboard = () => {
               <button
                 onClick={() => setShowCreateFolder(true)}
                 title="내 화면에서만 보이는 정리용 폴더예요 (다른 사람에게 공유되지 않아요)"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-on-surface-variant/60 hover:text-primary hover:bg-primary/8 border border-dashed border-surface-container-high transition-all"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[14px] font-semibold text-on-surface-variant hover:text-primary hover:bg-primary-container/50 border border-dashed border-slate-300 dark:border-slate-600 transition-colors"
               >
                 <FolderPlus size={13} />
                 폴더 만들기
@@ -979,7 +974,7 @@ const Dashboard = () => {
                   onChange={e => setNewFolderName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleCreateFolder(); if (e.key === 'Escape') { setShowCreateFolder(false); setNewFolderName(''); } }}
                   placeholder="폴더 이름"
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface-container border border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20 w-28"
+                  className="px-3 py-2 rounded-lg text-[14px] font-semibold bg-surface-container-lowest border border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 w-28"
                 />
                 <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary/80 transition-all">
                   <Check size={12} />
@@ -1004,7 +999,7 @@ const Dashboard = () => {
 
               if (filteredClasses.length === 0) {
                 return (
-                  <div className="col-span-full surface-zone p-10 text-center text-on-surface-variant">
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-surface-container-lowest px-6 py-8 text-center text-[15px] text-on-surface-variant">
                     {activeFolderId === '__closed__' ? '종료된 학급이 없습니다.' : activeFolderId ? '이 폴더에 학급이 없습니다. 학급 카드의 폴더 버튼으로 이동하세요.' : '등록된 학급이 없습니다. 학급을 먼저 추가해주세요.'}
                   </div>
                 );
@@ -1015,14 +1010,14 @@ const Dashboard = () => {
                 return (
                   <div
                     key={cls.id}
-                    className="surface-card p-5 md:p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
+                    className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary/50 hover:bg-primary-container/20 transition-colors cursor-pointer group relative"
                     onClick={() => navigate(`/classroom?id=${cls.id}`)}
                   >
                     {/* 폴더 이동 버튼 */}
                     <div className="absolute top-3 right-3 z-10" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={() => setMovingClassId(movingClassId === cls.id ? null : cls.id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-on-surface-variant/50 hover:text-primary hover:bg-primary/8 opacity-0 group-hover:opacity-100 transition-all"
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] font-semibold text-on-surface-variant hover:text-primary hover:bg-primary-container/50 opacity-0 group-hover:opacity-100 transition-all"
                         title="폴더 이동"
                       >
                         <Folder size={11} />
@@ -1059,25 +1054,25 @@ const Dashboard = () => {
                       </AnimatePresence>
                     </div>
 
-                    <div className={`w-12 h-12 ${cls.color} rounded-2xl flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform`}>
+                    <div className={`w-11 h-11 ${cls.color} rounded-xl flex items-center justify-center mb-3`}>
                       <Users size={24} className="text-on-surface" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{cls.name}</h3>
-                    <p className="text-sm text-on-surface-variant mb-6">{cls.students}명 학생 • {cls.subject}</p>
+                    <h3 className="text-[20px] font-bold text-on-surface mb-1">{cls.name}</h3>
+                    <p className="text-[15px] text-on-surface-variant mb-4">{cls.students}명 학생 • {cls.subject}</p>
                     <div className="flex items-center justify-between mt-auto">
                       <div className="flex -space-x-2">
                         {cls.avatars && cls.avatars.map((avatar: string, i: number) => (
-                          <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden shadow-sm">
+                          <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden">
                             <img src={avatar} alt="student" className="w-full h-full object-cover" />
                           </div>
                         ))}
-                        <div className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-highest flex items-center justify-center text-[10px] font-bold shadow-sm">
+                        <div className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-highest flex items-center justify-center text-[12px] font-bold">
                           +{cls.students > 3 ? cls.students - 3 : 0}
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">진척도</p>
-                        <p className="text-sm font-black text-primary">{cls.progress}%</p>
+                        <p className="text-[13px] text-on-surface-variant font-semibold">진척도</p>
+                        <p className="text-[15px] font-bold text-primary">{cls.progress}%</p>
                       </div>
                     </div>
                   </div>
@@ -1092,13 +1087,13 @@ const Dashboard = () => {
           <div className="col-span-12 space-y-4">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
-                <School size={18} className="text-violet-500" />
-                <h2 className="text-xl font-bold font-manrope">담당 학급</h2>
-                <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full">학교 프로젝트</span>
+                <School size={20} className="text-primary" />
+                <h2 className="text-[26px] font-bold text-on-surface">담당 학급</h2>
+                <span className="text-[13px] font-semibold bg-primary-container text-primary px-2.5 py-0.5 rounded-full">학교 프로젝트</span>
               </div>
               <button
                 onClick={() => { setJoinModalOpen(true); setJoinCode(''); setJoinProject(null); setJoinSubClasses([]); setJoinDone(false); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-all"
+                className="flex items-center gap-1.5 text-[14px] font-semibold text-primary bg-primary-container hover:bg-primary-container/70 px-3.5 py-2 rounded-lg transition-colors"
               >
                 <Plus size={13} /> 프로젝트 참여
               </button>
@@ -1108,27 +1103,24 @@ const Dashboard = () => {
                 <div
                   key={cls.id}
                   onClick={() => navigate(`/classroom?id=${cls.id}`)}
-                  className="surface-card p-5 md:p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group border-l-4 border-violet-400"
+                  className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary/50 hover:bg-primary-container/20 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform">
-                      <School size={22} className="text-violet-600" />
+                    <div className="w-11 h-11 bg-primary-container rounded-xl flex items-center justify-center">
+                      <School size={22} className="text-primary" />
                     </div>
-                    <span className="text-[10px] font-black bg-violet-50 text-violet-500 px-2 py-1 rounded-xl border border-violet-100">담당 교사</span>
+                    <span className="text-[13px] font-semibold bg-primary-container text-primary px-2.5 py-1 rounded-lg">담당 교사</span>
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{cls.name}</h3>
-                  <p className="text-sm text-on-surface-variant mb-6">{cls.students}명 학생 • {cls.subject}</p>
+                  <h3 className="text-[20px] font-bold text-on-surface mb-1">{cls.name}</h3>
+                  <p className="text-[15px] text-on-surface-variant mb-4">{cls.students}명 학생 • {cls.subject}</p>
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex -space-x-2">
                       {cls.avatars && cls.avatars.map((avatar: string, i: number) => (
-                        <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden shadow-sm">
+                        <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden">
                           <img src={avatar} alt="student" className="w-full h-full object-cover" />
                         </div>
                       ))}
                     </div>
-                    <span className="text-[10px] text-violet-400 font-bold flex items-center gap-1">
-                      <School size={10} /> 학교 프로젝트
-                    </span>
                   </div>
                 </div>
               ))}
@@ -1141,16 +1133,16 @@ const Dashboard = () => {
           <div className="col-span-12">
             <button
               onClick={() => { setJoinModalOpen(true); setJoinCode(''); setJoinProject(null); setJoinSubClasses([]); setJoinDone(false); }}
-              className="w-full flex items-center gap-3 px-5 py-4 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-2xl transition-all group"
+              className="w-full flex items-center gap-3 px-5 py-4 bg-surface-container-lowest hover:bg-primary-container/30 border border-slate-200 dark:border-slate-700 rounded-2xl transition-colors group"
             >
-              <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <School size={18} className="text-indigo-500" />
+              <div className="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center">
+                <School size={18} className="text-primary" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-black text-indigo-700">학교 프로젝트 참여</p>
-                <p className="text-xs text-indigo-400">담임 선생님에게 받은 코드로 담당 반에 참여하세요</p>
+                <p className="text-[16px] font-bold text-on-surface">학교 프로젝트 참여</p>
+                <p className="text-[14px] text-on-surface-variant">담임 선생님에게 받은 코드로 담당 반에 참여하세요</p>
               </div>
-              <ArrowRight size={16} className="text-indigo-400 ml-auto group-hover:translate-x-1 transition-transform" />
+              <ArrowRight size={16} className="text-primary ml-auto group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         )}
@@ -1160,13 +1152,13 @@ const Dashboard = () => {
         <div className="col-span-12 space-y-4">
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
-              <School size={20} className="text-violet-500" />
-              <h2 className="text-xl font-bold font-manrope">학교 프로젝트</h2>
-              <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full uppercase tracking-wide">PRO</span>
+              <School size={20} className="text-primary" />
+              <h2 className="text-[26px] font-bold text-on-surface">학교 프로젝트</h2>
+              <span className="text-[13px] font-semibold bg-primary-container text-primary px-2.5 py-0.5 rounded-full">PRO</span>
             </div>
             <button
               onClick={() => navigate('/school-projects/new')}
-              className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-xl transition-all"
+              className="flex items-center gap-1.5 text-[14px] font-semibold text-primary bg-primary-container hover:bg-primary-container/70 px-3.5 py-2 rounded-lg transition-colors"
             >
               <Plus size={14} /> 새 프로젝트
             </button>
@@ -1175,11 +1167,11 @@ const Dashboard = () => {
           {myProjects.length === 0 ? (
             <button
               onClick={() => navigate('/school-projects/new')}
-              className="w-full surface-card p-8 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all group"
+              className="w-full bg-surface-container-lowest rounded-2xl p-8 border border-dashed border-slate-300 dark:border-slate-600 hover:border-primary text-center text-on-surface-variant hover:text-primary transition-colors group"
             >
-              <School size={32} className="mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-bold">학교 프로젝트 만들기</p>
-              <p className="text-xs mt-1 opacity-70">여러 반을 여러 선생님과 함께 관리하세요</p>
+              <School size={32} className="mx-auto mb-2" />
+              <p className="text-[16px] font-semibold">학교 프로젝트 만들기</p>
+              <p className="text-[14px] mt-1">여러 반을 여러 선생님과 함께 관리하세요</p>
             </button>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1192,24 +1184,24 @@ const Dashboard = () => {
                 return (
                   <div
                     key={proj.id}
-                    className="surface-card p-6 hover:scale-[1.02] transition-all group border border-violet-100 relative"
+                    className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-5 hover:border-primary/50 hover:bg-primary-container/20 transition-colors group relative"
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600">
+                      <div className="w-11 h-11 bg-primary-container rounded-xl flex items-center justify-center text-primary">
                         <School size={20} />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                          isActive ? 'bg-green-100 text-green-600' :
-                          isClosed ? 'bg-orange-100 text-orange-600' :
-                          'bg-gray-100 text-gray-500'
+                        <span className={`text-[13px] font-semibold px-2.5 py-0.5 rounded-full ${
+                          isActive ? 'bg-primary-container text-primary' :
+                          isClosed ? 'bg-surface-container-high text-on-surface-variant' :
+                          'bg-surface-container-high text-on-surface-variant'
                         }`}>
                           {isActive ? '진행 중' : isClosed ? '수업 종료' : '보관됨'}
                         </span>
                         <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => { setEditingProject(proj); setProjectModalOpen(true); }}
-                            className="p-2 rounded-lg bg-violet-100 text-violet-600 hover:bg-violet-600 hover:text-white shadow-sm transition-all"
+                            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-on-surface-variant hover:text-primary hover:bg-primary-container/50 transition-colors"
                             title="프로젝트 정보 수정"
                           >
                             <Pencil size={16} />
@@ -1220,7 +1212,7 @@ const Dashboard = () => {
                               setDeletingProjectId(proj.id);
                               setDeletingProjectName(proj.name);
                             }}
-                            className="p-2 rounded-lg bg-red-100 text-red-500 hover:bg-red-500 hover:text-white shadow-sm transition-all"
+                            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-red-500 hover:bg-red-50 transition-colors"
                             title="프로젝트 삭제"
                           >
                             <Trash2 size={16} />
@@ -1228,13 +1220,13 @@ const Dashboard = () => {
                         </div>
                       </div>
                     </div>
-                    <h3 className="font-black text-base mb-1 truncate">{proj.name}</h3>
-                    {proj.school_name && <p className="text-xs text-gray-400 mb-3">{proj.school_name}</p>}
+                    <h3 className="font-bold text-[20px] text-on-surface mb-1 truncate">{proj.name}</h3>
+                    {proj.school_name && <p className="text-[14px] text-on-surface-variant mb-3">{proj.school_name}</p>}
                     <div className="flex items-center justify-between mt-auto">
                       <div>
-                        <p className="text-xs text-gray-500">{subClassCount}개 반 · {assignedCount}명 담당</p>
+                        <p className="text-[15px] text-on-surface-variant">{subClassCount}개 반 · {assignedCount}명 담당</p>
                         {proj.end_date && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">
+                          <p className="text-[13px] text-on-surface-variant mt-0.5">
                             ~ {new Date(proj.end_date).toLocaleDateString('ko-KR')}
                           </p>
                         )}
@@ -1245,7 +1237,7 @@ const Dashboard = () => {
                             e.stopPropagation();
                             window.open(`/school-project/${proj.share_token}`, '_blank');
                           }}
-                          className="flex items-center gap-1 text-[10px] font-bold text-violet-500 hover:text-violet-700 transition-all"
+                          className="flex items-center gap-1 text-[13px] font-semibold text-primary hover:underline transition-colors"
                         >
                           <ExternalLink size={11} /> 공유 URL
                         </button>
@@ -1256,7 +1248,7 @@ const Dashboard = () => {
                         e.stopPropagation();
                         navigate(`/school-projects/${proj.id}/schools`);
                       }}
-                      className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 py-2 rounded-xl transition-all"
+                      className="w-full mt-3 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-white bg-primary hover:bg-primary/90 py-2.5 rounded-lg transition-colors"
                     >
                       <Building2 size={13} />
                       {proj.schoolCount > 0 ? `학교 목록 보기 (${proj.schoolCount})` : '여러 학교로 확장하기'}
@@ -1266,10 +1258,10 @@ const Dashboard = () => {
               })}
               <button
                 onClick={() => navigate('/school-projects/new')}
-                className="surface-card p-6 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all flex flex-col items-center justify-center gap-2 min-h-[140px]"
+                className="bg-surface-container-lowest rounded-2xl p-6 border border-dashed border-slate-300 dark:border-slate-600 hover:border-primary text-center text-on-surface-variant hover:text-primary transition-colors flex flex-col items-center justify-center gap-2 min-h-[140px]"
               >
                 <Plus size={24} />
-                <span className="text-xs font-bold">새 프로젝트</span>
+                <span className="text-[15px] font-semibold">새 프로젝트</span>
               </button>
             </div>
           )}
@@ -1282,14 +1274,14 @@ const Dashboard = () => {
             href="/catalog.html"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 px-5 py-3.5 surface-card hover:bg-surface-container-high border border-surface-container-high transition-all group"
+            className="flex items-center gap-3 px-5 py-4 bg-surface-container-lowest rounded-2xl hover:bg-primary-container/30 border border-slate-200 dark:border-slate-700 transition-colors group"
           >
-            <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0 group-hover:scale-110 transition-transform">
+            <div className="w-9 h-9 bg-primary-container rounded-xl flex items-center justify-center text-primary shrink-0">
               <BookMarked size={16} />
             </div>
             <div>
-              <p className="text-sm font-bold leading-tight">제품 소개</p>
-              <p className="text-[11px] text-on-surface-variant">플랜 및 기능 안내</p>
+              <p className="text-[16px] font-semibold leading-tight text-on-surface">제품 소개</p>
+              <p className="text-[14px] text-on-surface-variant">플랜 및 기능 안내</p>
             </div>
             <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-primary transition-colors" />
           </a>
@@ -1297,36 +1289,36 @@ const Dashboard = () => {
             href="/guide.html"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 px-5 py-3.5 surface-card hover:bg-surface-container-high border border-surface-container-high transition-all group"
+            className="flex items-center gap-3 px-5 py-4 bg-surface-container-lowest rounded-2xl hover:bg-primary-container/30 border border-slate-200 dark:border-slate-700 transition-colors group"
           >
-            <div className="w-8 h-8 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary shrink-0 group-hover:scale-110 transition-transform">
+            <div className="w-9 h-9 bg-primary-container rounded-xl flex items-center justify-center text-primary shrink-0">
               <Map size={16} />
             </div>
             <div>
-              <p className="text-sm font-bold leading-tight">사용 가이드</p>
-              <p className="text-[11px] text-on-surface-variant">처음 시작하는 분께</p>
+              <p className="text-[16px] font-semibold leading-tight text-on-surface">사용 가이드</p>
+              <p className="text-[14px] text-on-surface-variant">처음 시작하는 분께</p>
             </div>
-            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-secondary transition-colors" />
+            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-primary transition-colors" />
           </a>
           <button
             onClick={() => navigate('/video-guide')}
-            className="flex items-center gap-3 px-5 py-3.5 surface-card hover:bg-surface-container-high border border-surface-container-high transition-all group text-left"
+            className="flex items-center gap-3 px-5 py-4 bg-surface-container-lowest rounded-2xl hover:bg-primary-container/30 border border-slate-200 dark:border-slate-700 transition-colors group text-left"
           >
-            <div className="w-8 h-8 bg-accent/10 rounded-xl flex items-center justify-center text-accent shrink-0 group-hover:scale-110 transition-transform">
+            <div className="w-9 h-9 bg-primary-container rounded-xl flex items-center justify-center text-primary shrink-0">
               <PlayCircle size={16} />
             </div>
             <div>
-              <p className="text-sm font-bold leading-tight">영상 가이드</p>
-              <p className="text-[11px] text-on-surface-variant">사용법 영상으로 확인</p>
+              <p className="text-[16px] font-semibold leading-tight text-on-surface">영상 가이드</p>
+              <p className="text-[14px] text-on-surface-variant">사용법 영상으로 확인</p>
             </div>
-            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-accent transition-colors" />
+            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-primary transition-colors" />
           </button>
         </div>
 
         {/* Activity Section */}
         <div className="col-span-12 lg:col-span-5 space-y-6">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-2xl font-bold font-manrope">최근 학생 활동</h2>
+            <h2 className="text-[26px] font-bold text-on-surface">최근 학생 활동</h2>
             <button
               onClick={() => { fetchActivityChartData(); setShowActivityChart(true); }}
               title="활동 통계 보기"
@@ -1335,32 +1327,32 @@ const Dashboard = () => {
               <BarChart3 size={18} />
             </button>
           </div>
-          <div className="surface-zone p-4 flex flex-col gap-2">
+          <div className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-3 flex flex-col gap-1">
             {loading ? (
                [1, 2, 3].map(i => <div key={i} className="h-16 surface-card animate-pulse rounded-2xl" />)
             ) : activities.length > 0 ? (
               activities.map((act) => (
-                <div key={act.id} className="flex items-center gap-4 px-4 py-3.5 rounded-2xl hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent hover:border-surface-container-high">
-                  <div className="w-9 h-9 rounded-xl bg-primary/8 flex items-center justify-center text-primary shrink-0">
+                <div key={act.id} className="flex items-center gap-4 px-4 py-3.5 rounded-xl hover:bg-primary-container/30 transition-colors cursor-pointer group">
+                  <div className="w-9 h-9 rounded-xl bg-primary-container flex items-center justify-center text-primary shrink-0">
                     <act.icon size={16} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-bold truncate">{act.name}</span>
-                      <span className="text-[10px] font-black text-primary bg-primary/8 px-2 py-0.5 rounded-md shrink-0 truncate max-w-[120px]">{act.action}</span>
+                      <span className="text-[16px] font-semibold text-on-surface truncate">{act.name}</span>
+                      <span className="text-[13px] font-semibold text-primary bg-primary-container px-2 py-0.5 rounded-md shrink-0 truncate max-w-[120px]">{act.action}</span>
                     </div>
                     {act.content && (
-                      <p className="text-[11px] text-on-surface-variant line-clamp-1 leading-snug">{act.content}</p>
+                      <p className="text-[14px] text-on-surface-variant line-clamp-1 leading-snug">{act.content}</p>
                     )}
                   </div>
                   <div className="text-right shrink-0 space-y-0.5">
-                    <p className="text-[10px] font-bold text-on-surface-variant/60 whitespace-nowrap">{act.time}</p>
-                    {act.class && <p className="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-wider">{act.class}</p>}
+                    <p className="text-[13px] text-on-surface-variant whitespace-nowrap">{act.time}</p>
+                    {act.class && <p className="text-[13px] text-on-surface-variant">{act.class}</p>}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="p-10 text-center text-on-surface-variant text-sm">
+              <div className="p-10 text-center text-on-surface-variant text-[15px]">
                 최근 활동이 없습니다.
               </div>
             )}

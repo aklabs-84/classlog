@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
@@ -79,6 +79,7 @@ import { type ActivityLink } from '../components/ActivityLinksButton';
 import { type MaterialAttachment } from '../components/MaterialAttachments';
 import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMaterialPage';
 import { getAiApps, type AiApp } from '../lib/aiApps';
+import { useStudentLive } from '../hooks/useStudentLive';
 
 // 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
 const STUDENT_SCREENS: Record<string, StudentScreenStep> = {
@@ -402,6 +403,19 @@ const StudentLog = () => {
   const [weekLinks, setWeekLinks] = useState<{ quizzes: any[]; boards: any[] }>({ quizzes: [], boards: [] });
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ id?: string; title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[]; week?: number | null; viewerStyle?: string | null } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
+  // 선생님 "학생 화면 따라 보기": 자료 전체화면도 함께 따라 연다 (열람 기록은 남기지 않음)
+  const openMaterialById = useCallback((id: string | null) => {
+    if (!id) { setFullscreenMaterial(null); return; }
+    const mat = classMaterials.find(m => m.id === id);
+    if (!mat) return;
+    const res = (classResources as any[]).find(r => r.material_id === id);
+    setFullscreenMaterial({ id: mat.id, title: mat.title, content: mat.content, links: mat.activity_urls, attachments: mat.attachments, week: res?.week, viewerStyle: mat.viewer_style });
+  }, [classMaterials, classResources]);
+  const { watched: teacherWatching, following: liveFollowing } = useStudentLive({
+    session, activeTab, setActiveTab,
+    materialId: fullscreenMaterial?.id ?? null,
+    openMaterialById,
+  });
   const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
@@ -2539,6 +2553,12 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
 
   return (
     <>
+    {teacherWatching && (
+      <div className="fixed bottom-4 left-4 z-[1500] flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-[13px] font-semibold text-slate-600 shadow-sm pointer-events-none">
+        <span className="h-2 w-2 rounded-full bg-primary" /> 선생님이 보고 있어요
+      </div>
+    )}
+    {liveFollowing && <div className="fixed inset-0 z-[10000]" aria-hidden="true" />}
     {fullscreenMaterial && (
       <StudentMaterialPage
         title={fullscreenMaterial.title}

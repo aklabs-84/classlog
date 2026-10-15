@@ -326,8 +326,8 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
       {/* 헤더 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-black">조 편성</h3>
-          <p className="text-xs text-on-surface-variant/60 mt-0.5">
+          <h3 className="text-lg font-bold">조 편성</h3>
+          <p className="text-[14px] text-on-surface-variant/60 mt-0.5">
             학생을 각 조에 배정하세요. 배정 결과는 실시간으로 저장됩니다.
           </p>
         </div>
@@ -336,14 +336,14 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
             <>
               <button
                 onClick={clearAll}
-                className="px-3 py-2 text-xs font-bold text-neutral-500 hover:text-red-500 border border-neutral-200 hover:border-red-200 rounded-xl transition-colors"
+                className="px-3 py-2 text-[14px] font-bold text-on-surface-variant hover:text-red-500 border border-slate-200 dark:border-slate-700 hover:border-red-200 rounded-xl transition-colors"
               >
                 배정 초기화
               </button>
               <button
                 onClick={autoAssign}
                 disabled={autoLoading}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 text-[14px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors disabled:opacity-50"
               >
                 {autoLoading ? <Loader2 size={13} className="animate-spin" /> : <Shuffle size={13} />}
                 균등 배분
@@ -351,7 +351,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
               <button
                 onClick={sendGroupNotifications}
                 disabled={notifLoading || notifSuccess}
-                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl transition-colors disabled:opacity-60 ${
+                className={`flex items-center gap-1.5 px-4 py-2 text-[14px] font-bold rounded-xl transition-colors disabled:opacity-60 ${
                   notifSuccess
                     ? 'bg-emerald-500 text-white'
                     : 'bg-indigo-500 hover:bg-indigo-600 text-white'
@@ -364,14 +364,14 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
           )}
           <button
             onClick={() => setRandomOpen(v => !v)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-[14px] font-bold bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition-colors"
           >
             <Dices size={13} />
             랜덤 조 뽑기
           </button>
           <button
             onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-[14px] font-bold bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors"
           >
             <Plus size={13} />
             조 추가
@@ -389,7 +389,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
             className="p-4 bg-violet-50 border border-violet-200 rounded-2xl space-y-3 overflow-hidden"
           >
             {students.length < 2 ? (
-              <p className="text-xs font-bold text-violet-700">학생이 2명 이상이어야 랜덤 조 뽑기를 사용할 수 있어요.</p>
+              <p className="text-[14px] font-bold text-violet-700">학생이 2명 이상이어야 랜덤 조 뽑기를 사용할 수 있어요.</p>
             ) : (
               <>
                 <div className="flex items-center gap-2">
@@ -397,7 +397,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                     <button
                       key={mode}
                       onClick={() => setRandomSplitMode(mode)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border ${
+                      className={`px-3 py-1.5 rounded-lg text-[14px] font-bold transition-all border ${
                         randomSplitMode === mode
                           ? 'bg-violet-500 text-white border-violet-500'
                           : 'bg-white border-violet-200 text-violet-600'
@@ -410,9 +410,9 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
                 {randomSplitMode === 'groups' ? (
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-bold text-violet-700">
+                    <div className="flex items-center justify-between text-[14px] font-bold text-violet-700">
                       <span>조 개수</span>
-                      <span className="text-base font-black text-violet-600">{randomGroupCount}조</span>
+                      <span className="text-base font-bold text-violet-600">{randomGroupCount}조</span>
                     </div>
                     <input
                       type="range"
@@ -422,13 +422,13 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                       onChange={e => setRandomGroupCount(Number(e.target.value))}
                       className="w-full accent-violet-500"
                     />
-                    <p className="text-[11px] text-violet-600">조당 약 {Math.ceil(students.length / randomGroupCount)}명</p>
+                    <p className="text-[14px] text-violet-600">조당 약 {Math.ceil(students.length / randomGroupCount)}명</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-bold text-violet-700">
+                    <div className="flex items-center justify-between text-[14px] font-bold text-violet-700">
                       <span>조원 수</span>
-                      <span className="text-base font-black text-violet-600">{randomMemberCount}명</span>
+                      <span className="text-base font-bold text-violet-600">{randomMemberCount}명</span>
                     </div>
                     <input
                       type="range"
@@ -438,19 +438,19 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                       onChange={e => setRandomMemberCount(Number(e.target.value))}
                       className="w-full accent-violet-500"
                     />
-                    <p className="text-[11px] text-violet-600">총 {Math.max(1, Math.ceil(students.length / randomMemberCount))}개 조 구성</p>
+                    <p className="text-[14px] text-violet-600">총 {Math.max(1, Math.ceil(students.length / randomMemberCount))}개 조 구성</p>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-violet-700">조 이름 (직접 수정 가능)</p>
+                  <p className="text-[14px] font-bold text-violet-700">조 이름 (직접 수정 가능)</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                     {randomGroupNames.map((name, i) => (
                       <input
                         key={i}
                         value={name}
                         onChange={e => setRandomGroupNames(prev => prev.map((n, idx) => idx === i ? e.target.value : n))}
-                        className="px-2.5 py-1.5 text-xs font-bold bg-white border border-violet-200 rounded-lg focus:outline-none focus:border-violet-400"
+                        className="px-2.5 py-1.5 text-[14px] font-bold bg-white border border-violet-200 rounded-lg focus:outline-none focus:border-violet-400"
                         placeholder={`${i + 1}조`}
                       />
                     ))}
@@ -461,14 +461,14 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                   <button
                     onClick={randomPickGroups}
                     disabled={randomLoading}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-black bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 text-[14px] font-bold bg-violet-500 hover:bg-violet-600 text-white rounded-xl transition-colors disabled:opacity-50"
                   >
                     {randomLoading ? <Loader2 size={13} className="animate-spin" /> : <Shuffle size={13} />}
                     뽑기 실행
                   </button>
                   <button
                     onClick={() => setRandomOpen(false)}
-                    className="px-3 py-2 text-xs font-bold text-violet-500 hover:text-violet-700 transition-colors"
+                    className="px-3 py-2 text-[14px] font-bold text-violet-500 hover:text-violet-700 transition-colors"
                   >
                     취소
                   </button>
@@ -497,10 +497,10 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
               placeholder="조 이름 (예: 1조, 빨간팀)"
               className="flex-1 px-3 py-2 text-sm font-bold bg-white border border-primary/20 rounded-xl focus:outline-none focus:border-primary"
             />
-            <button onClick={addGroup} disabled={addLoading || !newName.trim()} className="px-4 py-2 text-xs font-black bg-primary text-white rounded-xl disabled:opacity-50">
+            <button onClick={addGroup} disabled={addLoading || !newName.trim()} className="px-4 py-2 text-[14px] font-bold bg-primary text-white rounded-xl disabled:opacity-50">
               {addLoading ? <Loader2 size={13} className="animate-spin" /> : '추가'}
             </button>
-            <button onClick={() => { setAdding(false); setNewName(''); }} className="p-2 text-neutral-500 hover:text-neutral-700 rounded-xl">
+            <button onClick={() => { setAdding(false); setNewName(''); }} className="p-2 text-on-surface-variant hover:text-neutral-700 rounded-xl">
               <X size={14} />
             </button>
           </motion.div>
@@ -511,8 +511,8 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
       {groups.length === 0 && (
         <div className="text-center py-16 text-on-surface-variant/65">
           <Users size={36} className="mx-auto mb-3 opacity-50" />
-          <p className="font-black text-sm">조가 없습니다</p>
-          <p className="text-xs mt-1">위의 "조 추가" 버튼으로 첫 번째 조를 만들어보세요</p>
+          <p className="font-bold text-sm">조가 없습니다</p>
+          <p className="text-[14px] mt-1">위의 "조 추가" 버튼으로 첫 번째 조를 만들어보세요</p>
         </div>
       )}
 
@@ -549,27 +549,27 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                               if (e.key === 'Escape') setRenamingGroupId(null);
                             }}
                             disabled={renameLoading}
-                            className="font-black text-sm bg-white border border-primary/30 rounded-lg px-1.5 py-0.5 min-w-0 w-24 focus:outline-none focus:border-primary"
+                            className="font-bold text-sm bg-white border border-primary/30 rounded-lg px-1.5 py-0.5 min-w-0 w-24 focus:outline-none focus:border-primary"
                           />
                         ) : (
                           <button
                             onClick={() => startRename(group)}
-                            className="flex items-center gap-1 font-black text-sm hover:text-primary transition-colors group/name"
+                            className="flex items-center gap-1 font-bold text-sm hover:text-primary transition-colors group/name"
                             title="조 이름 수정"
                           >
                             <span className="truncate">{group.name}</span>
                             <Pencil size={11} className="opacity-0 group-hover/name:opacity-60 shrink-0" />
                           </button>
                         )}
-                        <span className="text-xs font-bold opacity-50 shrink-0">{members.length}명</span>
+                        <span className="text-[14px] font-bold opacity-50 shrink-0">{members.length}명</span>
                       </div>
                       {deleteTarget === group.id ? (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => deleteGroup(group.id)} className="px-2 py-1 text-xs font-black bg-red-500 text-white rounded-lg">삭제</button>
-                          <button onClick={() => setDeleteTarget(null)} className="p-1 text-neutral-500 hover:text-neutral-700 rounded-lg"><X size={12} /></button>
+                          <button onClick={() => deleteGroup(group.id)} className="px-2 py-1 text-[14px] font-bold bg-red-500 text-white rounded-lg">삭제</button>
+                          <button onClick={() => setDeleteTarget(null)} className="p-1 text-on-surface-variant hover:text-neutral-700 rounded-lg"><X size={12} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => setDeleteTarget(group.id)} className="p-1 text-neutral-500 hover:text-red-500 rounded-lg transition-colors">
+                        <button onClick={() => setDeleteTarget(group.id)} className="p-1 text-on-surface-variant hover:text-red-500 rounded-lg transition-colors">
                           <Trash2 size={13} />
                         </button>
                       )}
@@ -578,16 +578,16 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                     {/* 멤버 목록 */}
                     <div className="p-3 space-y-1.5 min-h-[56px]">
                       {members.length === 0 && (
-                        <p className="text-center text-xs text-neutral-500 py-3">아직 배정된 학생이 없어요</p>
+                        <p className="text-center text-[14px] text-on-surface-variant py-3">아직 배정된 학생이 없어요</p>
                       )}
                       {members.map(s => (
-                        <div key={s.id} className="flex items-center justify-between px-2.5 py-1.5 bg-neutral-50 rounded-xl group">
-                          <span className="text-xs font-bold">
-                            <span className="text-neutral-500 mr-1.5">{s.number}</span>{s.name}
+                        <div key={s.id} className="flex items-center justify-between px-2.5 py-1.5 bg-surface-container-low rounded-xl group">
+                          <span className="text-[14px] font-bold">
+                            <span className="text-on-surface-variant mr-1.5">{s.number}</span>{s.name}
                           </span>
                           <button
                             onClick={() => assignStudent(s.id, null)}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 text-neutral-500 hover:text-red-500 transition-all rounded"
+                            className="opacity-0 group-hover:opacity-100 p-0.5 text-on-surface-variant hover:text-red-500 transition-all rounded"
                             title="조에서 제거"
                           >
                             <X size={11} />
@@ -603,12 +603,12 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
           {/* 오른쪽: 미배정 학생 패널 */}
           <div className="lg:w-64 xl:w-72 shrink-0">
-            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl overflow-hidden">
+            <div className="bg-surface-container-low border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
               {/* 패널 헤더 */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-white">
-                <UserPlus size={14} className="text-neutral-500" />
-                <span className="text-sm font-black text-neutral-600">미배정</span>
-                <span className="text-xs font-bold text-neutral-500">{unassigned.length}명</span>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white">
+                <UserPlus size={14} className="text-on-surface-variant" />
+                <span className="text-sm font-bold text-neutral-600">미배정</span>
+                <span className="text-[14px] font-bold text-on-surface-variant">{unassigned.length}명</span>
               </div>
 
               {/* 미배정 학생 목록 */}
@@ -623,16 +623,16 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                     <motion.div
                       key={s.id}
                       layout
-                      className="bg-white border border-neutral-100 rounded-xl px-3 py-2.5"
+                      className="bg-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5"
                     >
                       {/* 학생 이름 */}
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1.5 min-w-0">
                           {saving === s.id
                             ? <Loader2 size={11} className="animate-spin text-primary shrink-0" />
-                            : <span className="text-xs text-neutral-500 shrink-0">{s.number}</span>
+                            : <span className="text-[14px] text-on-surface-variant shrink-0">{s.number}</span>
                           }
-                          <span className="text-xs font-black truncate">{s.name}</span>
+                          <span className="text-[14px] font-bold truncate">{s.name}</span>
                         </div>
                       </div>
                       {/* 조 선택 버튼들 */}
@@ -642,7 +642,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                             key={g.id}
                             onClick={() => assignStudent(s.id, g.id)}
                             disabled={saving === s.id}
-                            className="px-2 py-0.5 text-xs font-bold rounded-full text-white transition-opacity hover:opacity-75 disabled:opacity-40"
+                            className="px-2 py-0.5 text-[14px] font-bold rounded-full text-white transition-opacity hover:opacity-75 disabled:opacity-40"
                             style={{ backgroundColor: g.color }}
                           >
                             {g.name}
@@ -660,7 +660,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
       {/* 조는 있지만 학생이 없는 경우 */}
       {groups.length > 0 && students.length === 0 && (
-        <p className="text-center text-sm text-neutral-500 py-8">등록된 학생이 없습니다.</p>
+        <p className="text-center text-sm text-on-surface-variant py-8">등록된 학생이 없습니다.</p>
       )}
     </div>
   );

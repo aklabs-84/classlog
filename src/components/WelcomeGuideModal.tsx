@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { parseVideoUrl } from '../lib/gallery';
+import GuideOutdatedNotice from './GuideOutdatedNotice';
 
 export interface WelcomeGuideVideo {
   id: string;
@@ -78,6 +79,8 @@ export default function WelcomeGuideModal({ isOpen, videos, onClose }: Props) {
                   <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{video.description}</p>
                 )}
               </div>
+
+              <GuideOutdatedNotice />
 
               <div className="flex items-center justify-between pt-1">
                 <button onClick={handleClose} className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">

@@ -10,6 +10,7 @@ import {
 import {
   ClipboardList, X, Loader2, Upload, Download, Check, Clock, AlertTriangle, ChevronRight, BookOpen, FileText, ExternalLink,
 } from 'lucide-react';
+import GuideOutdatedNotice from '../GuideOutdatedNotice';
 
 interface Props {
   /** 이 반이 속한 프로젝트(또는 학교) id — 최상위 프로젝트는 서버에서 찾아 온다 */
@@ -191,6 +192,7 @@ function GuideBooks() {
     <div className="space-y-2">
       <p className="text-sm font-black flex items-center gap-2"><BookOpen size={18} className="text-primary" /> 클래스룸 사용 가이드</p>
       <p className="text-xs text-on-surface-variant">처음이라면 <b>기본편</b>부터 보세요. 화면 사진과 함께 어디를 누르는지 알려 드려요.</p>
+      <GuideOutdatedNotice />
       <div className="grid grid-cols-2 gap-2">
         {GUIDE_BOOKS.map(b => (
           <button key={b.key} onClick={() => setBook(b)} className={`rounded-2xl border-2 p-3 text-left ${b.tone}`}>

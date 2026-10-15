@@ -92,7 +92,7 @@ import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
-import ClassroomFabMenu from '../components/classroom/ClassroomFabMenu';
+import ClassroomHelperRail from '../components/classroom/ClassroomHelperRail';
 import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
 import EntryModeSelect, { type EntryMode } from '../components/classroom/EntryModeSelect';
 import LiveRosterPanel from '../components/classroom/LiveRosterPanel';
@@ -1354,6 +1354,37 @@ const Classroom = () => {
   };
 
   // 담당 선생님은 로그인 상태로 열면 명단·PIN 없이 바로 학생 페이지로 입장된다
+  // 도우미 칸 "바로가기": 입장 코드 창을 열고 코드를 복사해 둔다
+  const handleShowEntryCode = () => {
+    if (!classInfo) return;
+    setIsQRModalOpen(true);
+    const code = classInfo.entry_code;
+    if (!code) return;
+    const done = () => showToast(`✅ 입장 코드 ${code} 가 복사됐어요`);
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) done(); else showToast('입장 코드를 복사하지 못했어요. 화면의 코드를 직접 복사해 주세요');
+      } catch { showToast('입장 코드를 복사하지 못했어요. 화면의 코드를 직접 복사해 주세요'); }
+    };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(done, fallback); else fallback();
+  };
+
+  // "수업 시작하기" 단계 표시는 이 브라우저에만 기억한다 (출석 체크로 이동했을 때)
+  const lessonKey = `classroom_lesson_started_${activeClassId || ''}`;
+  const [lessonStarted, setLessonStarted] = useState(false);
+  useEffect(() => {
+    try { setLessonStarted(localStorage.getItem(lessonKey) === '1'); } catch { setLessonStarted(false); }
+  }, [lessonKey]);
+  const markLessonStarted = () => {
+    setLessonStarted(true);
+    try { localStorage.setItem(lessonKey, '1'); } catch { /* 저장 못 해도 화면은 정상 */ }
+  };
+
   const handleOpenStudentPage = () => {
     if (!classInfo?.entry_code) return;
     window.open(`${window.location.origin}/classroom-entry?code=${classInfo.entry_code}`, '_blank', 'noopener');
@@ -2638,7 +2669,7 @@ const Classroom = () => {
             {classes.length > 0 && (
               <button
                 onClick={() => setIsGlobalSearchOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/80 hover:bg-white border border-neutral-200 hover:border-primary/30 text-neutral-500 hover:text-primary font-black text-xs transition-all shadow-sm group"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary text-on-surface font-bold text-[15px] transition-colors"
               >
                 <Search size={14} className="group-hover:scale-110 transition-transform" />
                 <span>전체 학생 검색</span>
@@ -2651,7 +2682,7 @@ const Classroom = () => {
               <button
                 onClick={() => { fetchSchools(); setIsSchoolModalOpen(true); }}
                 title="담당 선생님께 공유할 수 있는 학교 단위 묶음이에요 (공유 링크 생성 가능)"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary text-on-surface font-bold text-[15px] transition-colors"
               >
                 <GraduationCap size={14} />
                 <span className="hidden sm:inline">학교 그룹</span>
@@ -2660,20 +2691,10 @@ const Classroom = () => {
               {activeClassId && (
                 <button
                   onClick={() => setIsBriefingOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary text-on-surface font-bold text-[15px] transition-colors"
                 >
                   <Headphones size={14} />
                   <span className="hidden sm:inline">이동 중 브리핑</span>
-                </button>
-              )}
-              {/* AI에게 물어보기 버튼 */}
-              {activeClassId && (
-                <button
-                  onClick={() => { setAiChatFocusStudentId(null); setIsAIChatOpen(true); }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-primary to-primary-dim text-white font-black text-xs shadow-elevated transition-all hover:scale-[1.02] active:scale-95"
-                >
-                  <Sparkles size={14} />
-                  <span className="hidden sm:inline">AI에게 물어보기</span>
                 </button>
               )}
             </div>
@@ -2711,7 +2732,7 @@ const Classroom = () => {
           {/* 2.1 Cohesive Segmented Control - 일반 클래스만 표시 */}
           {(!classInfo?.school_project_id || classInfo?.parent_class_id) && (
           <>
-          <div className="flex justify-center mb-8 md:mb-16">
+          <div className="mb-8 md:mb-10 border-b border-slate-200 dark:border-slate-700">
             <div
               ref={tabBarRef}
               onMouseDown={handleTabBarMouseDown}
@@ -2720,45 +2741,50 @@ const Classroom = () => {
               onMouseLeave={endTabBarDrag}
               onWheel={handleTabBarWheel}
               onClickCapture={handleTabBarClickCapture}
-              className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[1.5rem] md:rounded-[1.75rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full scrollbar-hover-reveal cursor-grab active:cursor-grabbing select-none"
+              className="flex items-stretch gap-0.5 overflow-x-auto overflow-y-hidden max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,#000_calc(100%-32px),transparent)] cursor-grab active:cursor-grabbing select-none"
             >
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
-                { id: 'units', label: '단원 관리', icon: BookOpen },
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
-                { id: 'groups', label: '조 편성', icon: Layers },
-                { id: 'grading', label: '결과 일괄 채점', icon: Wand2 },
+                { id: 'teacher_materials', label: '선생님 자료', icon: Lock },
+                { id: 'groups', label: '조 편성', icon: Layers, divider: true },
                 { id: 'board', label: '우리반 보드', icon: Users2 },
                 { id: 'notice', label: '공지사항', icon: Megaphone },
-                { id: 'teacher_materials', label: '선생님 자료', icon: Lock },
+                { id: 'units', label: '단원 관리', icon: BookOpen, divider: true },
+                { id: 'grading', label: '결과 일괄 채점', icon: Wand2 },
                 { id: 'ai', label: 'AI 분석 인사이트', icon: Sparkles }
               ].map((tab) => {
                 const isActive = activeTab === tab.id;
+                const pendingBadge = tab.id === 'list'
+                  ? students.reduce((acc, st) => acc + (st.pending_obs_ids?.length || 0), 0)
+                  : 0;
                 return (
-                  <button
-                    key={tab.id}
-                    data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : tab.id === 'attendance' ? 'tab-attendance' : tab.id === 'board' ? 'tab-board' : undefined}
-                    onClick={() => {
-                      setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading');
-                      if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
-                      if (tab.id === 'notice' && activeClassId) fetchAnnouncements(activeClassId);
-                      if (tab.id === 'teacher_materials' && activeClassId) fetchPrivateMaterials(activeClassId);
-                    }}
-                    className={`
-                      relative z-10 flex items-center gap-1.5 md:gap-3 px-4 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[1.5rem] font-black text-xs md:text-sm transition-all duration-500 whitespace-nowrap shrink-0
-                      ${isActive ? 'text-surface' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/30'}
-                    `}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="active-pill"
-                        className="absolute inset-0 bg-on-surface rounded-[1.5rem] shadow-elevated -z-10"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                      />
-                    )}
-                    <tab.icon size={18} className={`transition-colors duration-500 ${isActive ? 'text-primary' : 'text-on-surface-variant/65'}`} />
-                    <span>{tab.label}</span>
-                  </button>
+                  <div key={tab.id} className="flex items-stretch shrink-0">
+                    {tab.divider && <span aria-hidden className="self-center w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2" />}
+                    <button
+                      data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : tab.id === 'attendance' ? 'tab-attendance' : tab.id === 'board' ? 'tab-board' : undefined}
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => {
+                        setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading');
+                        if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
+                        if (tab.id === 'notice' && activeClassId) fetchAnnouncements(activeClassId);
+                        if (tab.id === 'teacher_materials' && activeClassId) fetchPrivateMaterials(activeClassId);
+                      }}
+                      className={`relative flex items-center gap-2 px-3 py-3 text-[15px] font-semibold whitespace-nowrap border-b-[3px] -mb-px transition-colors ${
+                        isActive
+                          ? 'text-primary font-bold border-primary'
+                          : 'text-on-surface-variant border-transparent hover:text-on-surface hover:border-slate-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      <tab.icon size={16} className={isActive ? 'text-primary' : 'text-on-surface-variant/60'} />
+                      <span>{tab.label}</span>
+                      {pendingBadge > 0 && (
+                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[12px] font-black inline-flex items-center justify-center">
+                          {pendingBadge}
+                        </span>
+                      )}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -2779,6 +2805,8 @@ const Classroom = () => {
             />
           )}
 
+          <div className="xl:flex xl:items-start xl:gap-6 space-y-6 xl:space-y-0">
+            <div className="min-w-0 flex-1">
           {loading && !classInfo ? (
             <DashboardSkeleton />
           ) : (
@@ -2844,20 +2872,20 @@ const Classroom = () => {
                         <Users2 size={20} className="text-indigo-600" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-black">우리반 보드</h2>
-                        <p className="text-xs text-on-surface-variant/80 font-bold">승인된 활동 기록·결과를 한눈에</p>
+                        <h2 className="text-xl font-bold">우리반 보드</h2>
+                        <p className="text-[14px] text-on-surface-variant/80 font-bold">승인된 활동 기록·결과를 한눈에</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => activeClassId && fetchBoard(activeClassId)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-black text-xs hover:bg-indigo-100 transition-all"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-bold text-[14px] hover:bg-indigo-100 transition-all"
                       >
                         <RefreshCw size={13} /> 새로고침
                       </button>
                       <button
                         onClick={() => window.open(`/board/${activeClassId}`, '_blank')}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white font-black text-xs hover:bg-indigo-700 transition-all shadow-sm"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-[14px] hover:bg-indigo-700 transition-all shadow-sm"
                       >
                         <Maximize2 size={13} /> 전체화면
                       </button>
@@ -2875,7 +2903,7 @@ const Classroom = () => {
                         <button
                           key={f.key}
                           onClick={() => setBoardTypeFilter(f.key as any)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-[14px] font-bold transition-all ${
                             boardTypeFilter === f.key ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                           }`}
                         >
@@ -2886,7 +2914,7 @@ const Classroom = () => {
                     <div className="flex items-center gap-1.5 overflow-x-auto">
                       <button
                         onClick={() => setBoardWeekFilter('all')}
-                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-[14px] font-bold border transition-all ${
                           boardWeekFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
                         }`}
                       >
@@ -2896,7 +2924,7 @@ const Classroom = () => {
                         <button
                           key={w}
                           onClick={() => setBoardWeekFilter(w)}
-                          className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                          className={`shrink-0 px-3 py-1.5 rounded-xl text-[14px] font-bold border transition-all ${
                             boardWeekFilter === w ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
                           }`}
                         >
@@ -2922,7 +2950,7 @@ const Classroom = () => {
                         <div className="w-20 h-20 rounded-2xl bg-indigo-50 flex items-center justify-center">
                           <StickyNote size={36} className="text-indigo-200" />
                         </div>
-                        <p className="font-black text-on-surface opacity-60">아직 승인된 게시물이 없어요</p>
+                        <p className="font-bold text-on-surface opacity-60">아직 승인된 게시물이 없어요</p>
                         <p className="text-sm text-on-surface-variant/75 font-bold">학생 제출물을 승인하면 보드에 나타납니다</p>
                       </div>
                     );
@@ -2942,30 +2970,30 @@ const Classroom = () => {
                             >
                               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${
+                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[14px] font-bold shrink-0 ${
                                     isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
                                   }`}>
                                     {isObs ? '📝' : '📁'}
                                   </div>
                                   <div className="min-w-0">
-                                    <p className="text-xs font-black truncate">{post.student_name}</p>
-                                    <p className="text-xs text-on-surface-variant/80 font-bold truncate">
+                                    <p className="text-[14px] font-bold truncate">{post.student_name}</p>
+                                    <p className="text-[14px] text-on-surface-variant/80 font-bold truncate">
                                       {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
                                     </p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   {!isObs && post._isGroupSub && (
-                                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">
+                                    <span className="text-[14px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">
                                       조별
                                     </span>
                                   )}
                                   {!isObs && post._submissions?.length > 1 && (
-                                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                    <span className="text-[14px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
                                       총 {post._submissions.length}회 제출
                                     </span>
                                   )}
-                                  <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                                  <span className={`text-[14px] font-bold px-2.5 py-1 rounded-full ${
                                     isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                                   }`}>
                                     {isObs ? '활동 기록' : '결과'}
@@ -2973,17 +3001,17 @@ const Classroom = () => {
                                 </div>
                               </div>
                               <div className="space-y-1.5">
-                                <p className="text-sm font-black leading-snug line-clamp-2">
+                                <p className="text-sm font-bold leading-snug line-clamp-2">
                                   {isObs ? post.activity_name : post.title}
                                 </p>
                                 {isObs && post.content && (
-                                  <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.content}</p>
+                                  <p className="text-[14px] text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.content}</p>
                                 )}
                                 {isObs && post.feeling && (
-                                  <p className="text-xs text-on-surface-variant/75 font-bold italic line-clamp-2">💬 {post.feeling}</p>
+                                  <p className="text-[14px] text-on-surface-variant/75 font-bold italic line-clamp-2">💬 {post.feeling}</p>
                                 )}
                                 {!isObs && post.text_content && (
-                                  <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.text_content}</p>
+                                  <p className="text-[14px] text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.text_content}</p>
                                 )}
                                 {!isObs && post.image_url && (
                                   <div className="relative">
@@ -2997,7 +3025,7 @@ const Classroom = () => {
                                       }}
                                     />
                                     {post.image_urls?.length > 1 && (
-                                      <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                      <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[14px] font-bold px-1.5 py-0.5 rounded-full">
                                         1/{post.image_urls.length}
                                       </div>
                                     )}
@@ -3005,7 +3033,7 @@ const Classroom = () => {
                                 )}
                                 {!isObs && post.link_url && (
                                   <a href={post.link_url} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-xs font-black text-blue-600 hover:underline">
+                                    className="flex items-center gap-1.5 text-[14px] font-bold text-blue-600 hover:underline">
                                     <ExternalLink size={11} /><span className="truncate">{post.link_url}</span>
                                   </a>
                                 )}
@@ -3018,7 +3046,7 @@ const Classroom = () => {
                                     className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl hover:bg-amber-100 transition-colors cursor-pointer"
                                   >
                                     <File size={13} className="text-amber-500 shrink-0" />
-                                    <span className="text-xs font-black text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
+                                    <span className="text-[14px] font-bold text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
                                     <Download size={11} className="text-amber-400 shrink-0" />
                                   </div>
                                 )}
@@ -3042,13 +3070,13 @@ const Classroom = () => {
                         <Megaphone size={20} className="text-amber-600" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-black">공지사항</h2>
-                        <p className="text-xs text-on-surface-variant/70 font-bold">학생에게 전달할 공지를 작성하세요</p>
+                        <h2 className="text-xl font-bold">공지사항</h2>
+                        <p className="text-[14px] text-on-surface-variant/70 font-bold">학생에게 전달할 공지를 작성하세요</p>
                       </div>
                     </div>
                     <button
                       onClick={() => setShowAnnouncementForm(v => !v)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-2xl text-sm font-black hover:bg-amber-600 transition-all active:scale-95 shadow-sm"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-2xl text-sm font-bold hover:bg-amber-600 transition-all active:scale-95 shadow-sm"
                     >
                       <Plus size={16} /> 공지 작성
                     </button>
@@ -3062,7 +3090,7 @@ const Classroom = () => {
                         value={announcementForm.title}
                         onChange={e => setAnnouncementForm(f => ({ ...f, title: e.target.value }))}
                         placeholder="공지 제목"
-                        className="w-full px-4 py-3 rounded-2xl border border-amber-200 bg-white text-sm font-black focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:font-normal"
+                        className="w-full px-4 py-3 rounded-2xl border border-amber-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:font-normal"
                       />
                       <div className="rounded-2xl border border-amber-200 overflow-hidden bg-white">
                         <RichEditor
@@ -3074,9 +3102,9 @@ const Classroom = () => {
                       </div>
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => { setShowAnnouncementForm(false); setAnnouncementForm({ title: '', content: '' }); }}
-                          className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-amber-100 transition-all">취소</button>
+                          className="px-4 py-2 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-amber-100 transition-all">취소</button>
                         <button onClick={handleAddAnnouncement} disabled={savingAnnouncement}
-                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 text-white text-sm font-black hover:bg-amber-600 transition-all disabled:opacity-50">
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-all disabled:opacity-50">
                           {savingAnnouncement ? <Loader2 size={14} className="animate-spin" /> : null}
                           등록
                         </button>
@@ -3090,10 +3118,10 @@ const Classroom = () => {
                       <Loader2 size={24} className="animate-spin text-amber-500" />
                     </div>
                   ) : announcements.length === 0 ? (
-                    <div className="text-center py-16 text-on-surface-variant/40">
+                    <div className="text-center py-16 text-on-surface-variant">
                       <Megaphone size={40} className="mx-auto mb-3 opacity-20" />
-                      <p className="text-sm font-black">아직 공지사항이 없습니다</p>
-                      <p className="text-xs mt-1">위 버튼으로 첫 공지를 작성해보세요</p>
+                      <p className="text-sm font-bold">아직 공지사항이 없습니다</p>
+                      <p className="text-[14px] mt-1">위 버튼으로 첫 공지를 작성해보세요</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -3104,16 +3132,16 @@ const Classroom = () => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
                                 {a.is_pinned && (
-                                  <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full">
+                                  <span className="flex items-center gap-1 text-[14px] font-bold px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full">
                                     <Pin size={9} /> 고정
                                   </span>
                                 )}
                                 {a.is_visible === false && (
-                                  <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 bg-surface-container-high text-on-surface-variant/60 rounded-full">
+                                  <span className="flex items-center gap-1 text-[14px] font-bold px-2 py-0.5 bg-surface-container-high text-on-surface-variant/60 rounded-full">
                                     <EyeOff size={9} /> 학생에게 숨김
                                   </span>
                                 )}
-                                <p className="text-sm font-black">{a.title}</p>
+                                <p className="text-sm font-bold">{a.title}</p>
                               </div>
                               {a.content && (
                                 <div className="mt-1">
@@ -3122,7 +3150,7 @@ const Classroom = () => {
                                   </ReactMarkdown>
                                 </div>
                               )}
-                              <p className="text-[10px] text-on-surface-variant/40 font-bold mt-2">
+                              <p className="text-[14px] text-on-surface-variant font-bold mt-2">
                                 {new Date(a.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                               </p>
                             </div>
@@ -3130,7 +3158,7 @@ const Classroom = () => {
                               <button
                                 onClick={() => handleToggleAnnouncementVisibility(a.id, a.is_visible !== false)}
                                 disabled={togglingVisibilityId === a.id}
-                                className={`p-2 rounded-xl transition-all ${a.is_visible === false ? 'bg-surface-container text-on-surface-variant/50 hover:bg-surface-container-high' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
+                                className={`p-2 rounded-xl transition-all ${a.is_visible === false ? 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
                                 title={a.is_visible === false ? '학생에게 공개하기' : '학생에게 숨기기'}
                               >
                                 {togglingVisibilityId === a.id ? <Loader2 size={13} className="animate-spin" /> : a.is_visible === false ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -3138,7 +3166,7 @@ const Classroom = () => {
                               <button
                                 onClick={() => handleTogglePin(a.id, a.is_pinned)}
                                 disabled={pinningAnnouncementId === a.id}
-                                className={`p-2 rounded-xl transition-all ${a.is_pinned ? 'bg-amber-200 text-amber-700 hover:bg-amber-300' : 'bg-surface-container text-on-surface-variant/50 hover:bg-amber-100 hover:text-amber-600'}`}
+                                className={`p-2 rounded-xl transition-all ${a.is_pinned ? 'bg-amber-200 text-amber-700 hover:bg-amber-300' : 'bg-surface-container text-on-surface-variant hover:bg-amber-100 hover:text-amber-600'}`}
                                 title={a.is_pinned ? '핀 해제' : '상단 고정'}
                               >
                                 {pinningAnnouncementId === a.id ? <Loader2 size={13} className="animate-spin" /> : <Pin size={13} />}
@@ -3146,7 +3174,7 @@ const Classroom = () => {
                               <button
                                 onClick={() => handleDeleteAnnouncement(a.id)}
                                 disabled={deletingAnnouncementId === a.id}
-                                className="p-2 rounded-xl bg-surface-container text-on-surface-variant/40 hover:bg-red-100 hover:text-red-500 transition-all"
+                                className="p-2 rounded-xl bg-surface-container text-on-surface-variant hover:bg-red-100 hover:text-red-500 transition-all"
                                 title="삭제"
                               >
                                 {deletingAnnouncementId === a.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
@@ -3173,8 +3201,8 @@ const Classroom = () => {
                         <Lock size={20} className="text-violet-600" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-black">선생님 전용 자료</h2>
-                        <p className="text-xs text-on-surface-variant/70 font-bold">학생에게 보이지 않는 교사 전용 노트 · 링크</p>
+                        <h2 className="text-xl font-bold">선생님 전용 자료</h2>
+                        <p className="text-[14px] text-on-surface-variant/70 font-bold">학생에게 보이지 않는 교사 전용 노트 · 링크</p>
                       </div>
                     </div>
                     <button
@@ -3187,7 +3215,7 @@ const Classroom = () => {
                           setShowPrivateMatForm(true);
                         }
                       }}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-2xl text-sm font-black hover:bg-violet-700 transition-all active:scale-95 shadow-sm"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-2xl text-sm font-bold hover:bg-violet-700 transition-all active:scale-95 shadow-sm"
                     >
                       <Plus size={16} /> 자료 추가
                     </button>
@@ -3198,14 +3226,14 @@ const Classroom = () => {
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                       className="p-5 bg-violet-50 border border-violet-200 rounded-2xl space-y-3">
                       {editingPrivateMatId && (
-                        <p className="text-xs font-black text-violet-600">자료 수정 중</p>
+                        <p className="text-[14px] font-bold text-violet-600">자료 수정 중</p>
                       )}
                       <div className="flex gap-2">
                         {(['note', 'link', 'file', 'material'] as const).map(t => (
                           <button key={t}
                             disabled={!!editingPrivateMatId && privateMatForm.type !== t}
                             onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null, materialId: t === 'material' ? f.materialId : null }))}
-                            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'} ${!!editingPrivateMatId && privateMatForm.type !== t ? 'opacity-30 cursor-not-allowed hover:bg-white' : ''}`}>
+                            className={`flex-1 py-2 rounded-xl text-[14px] font-bold transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'} ${!!editingPrivateMatId && privateMatForm.type !== t ? 'opacity-30 cursor-not-allowed hover:bg-white' : ''}`}>
                             {t === 'note' ? '📝 노트' : t === 'link' ? '🔗 링크' : t === 'file' ? '📎 파일' : '🔗 자료함'}
                           </button>
                         ))}
@@ -3214,7 +3242,7 @@ const Classroom = () => {
                         value={privateMatForm.title}
                         onChange={e => setPrivateMatForm(f => ({ ...f, title: e.target.value }))}
                         placeholder="제목"
-                        className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-black focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
+                        className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
                       />
                       {privateMatForm.type === 'material' ? (
                         privateMatForm.materialId ? (
@@ -3222,9 +3250,9 @@ const Classroom = () => {
                             <div className="w-9 h-9 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
                               <Library size={16} />
                             </div>
-                            <p className="flex-1 text-sm font-black truncate">{privateMatForm.title || '선택된 자료'}</p>
+                            <p className="flex-1 text-sm font-bold truncate">{privateMatForm.title || '선택된 자료'}</p>
                             <button onClick={() => setShowMaterialPicker(true)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-black text-violet-600 hover:bg-violet-100 transition-all shrink-0">
+                              className="px-3 py-1.5 rounded-xl text-[14px] font-bold text-violet-600 hover:bg-violet-100 transition-all shrink-0">
                               다시 선택
                             </button>
                           </div>
@@ -3234,7 +3262,7 @@ const Classroom = () => {
                             className="w-full flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed border-violet-200 rounded-2xl hover:border-violet-400 transition-all"
                           >
                             <Library size={20} className="text-violet-400" />
-                            <span className="text-xs font-black text-neutral-500">자료에디터 · 공통 자료함에서 선택</span>
+                            <span className="text-[14px] font-bold text-on-surface-variant">자료에디터 · 공통 자료함에서 선택</span>
                           </button>
                         )
                       ) : privateMatForm.type === 'note' ? (
@@ -3260,20 +3288,20 @@ const Classroom = () => {
                           return (
                             <div className="space-y-1.5">
                               {editingFileName && !privateMatForm.file && (
-                                <p className="text-[11px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
+                                <p className="text-[14px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
                               )}
                               <label className={`flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed rounded-2xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-violet-200 hover:border-violet-400'}`}>
                                 <Upload size={20} className={overLimit ? 'text-red-400' : 'text-violet-400'} />
-                                <span className={`text-xs font-black ${overLimit ? 'text-red-500' : 'text-neutral-500'}`}>
+                                <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
                                   {privateMatForm.file ? privateMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 (PDF, PPT, HWP 등)')}
                                 </span>
                                 {sizeMB && (
-                                  <span className={`text-[10px] font-bold ${overLimit ? 'text-red-500' : 'text-neutral-400'}`}>
+                                  <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
                                     {sizeMB}MB {overLimit ? '— 50MB 초과! 더 작은 파일을 선택해주세요' : '/ 50MB'}
                                   </span>
                                 )}
                                 {!privateMatForm.file && !editingFileName && (
-                                  <span className="text-[10px] text-neutral-300 font-bold">최대 50MB</span>
+                                  <span className="text-[14px] text-on-surface-variant/60 font-bold">최대 50MB</span>
                                 )}
                                 <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPrivateMatForm(prev => ({ ...prev, file: f })); }} />
                               </label>
@@ -3283,9 +3311,9 @@ const Classroom = () => {
                       )}
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => { setShowPrivateMatForm(false); setEditingPrivateMatId(null); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null }); }}
-                          className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
+                          className="px-4 py-2 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
                         <button onClick={handleSavePrivateMat} disabled={savingPrivateMat || (privateMatForm.type === 'file' && !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) || (privateMatForm.type === 'material' && !privateMatForm.materialId)}
-                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700 transition-all disabled:opacity-50">
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold hover:bg-violet-700 transition-all disabled:opacity-50">
                           {savingPrivateMat ? <Loader2 size={14} className="animate-spin" /> : null}
                           {editingPrivateMatId ? '수정 완료' : '저장'}
                         </button>
@@ -3309,10 +3337,10 @@ const Classroom = () => {
                       <Loader2 size={24} className="animate-spin text-violet-500" />
                     </div>
                   ) : privateMatList.length === 0 ? (
-                    <div className="text-center py-16 text-on-surface-variant/40">
+                    <div className="text-center py-16 text-on-surface-variant">
                       <NotebookPen size={40} className="mx-auto mb-3 opacity-20" />
-                      <p className="text-sm font-black">아직 자료가 없습니다</p>
-                      <p className="text-xs mt-1">위 버튼으로 첫 번째 전용 자료를 추가해보세요</p>
+                      <p className="text-sm font-bold">아직 자료가 없습니다</p>
+                      <p className="text-[14px] mt-1">위 버튼으로 첫 번째 전용 자료를 추가해보세요</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -3329,7 +3357,7 @@ const Classroom = () => {
                                   <button
                                     onClick={() => m.material_id && handleOpenLinkedMaterial(m.id, m.material_id)}
                                     disabled={openingPrivateMatId === m.id}
-                                    className="flex items-center gap-2 text-sm font-black hover:text-secondary transition-colors truncate text-left"
+                                    className="flex items-center gap-2 text-sm font-bold hover:text-secondary transition-colors truncate text-left"
                                   >
                                     {openingPrivateMatId === m.id && <Loader2 size={12} className="animate-spin shrink-0" />}
                                     {m.title}
@@ -3348,38 +3376,38 @@ const Classroom = () => {
                                         window.open(data.publicUrl, '_blank');
                                       }
                                     }}
-                                    className="text-sm font-black hover:text-amber-600 transition-colors truncate block text-left"
+                                    className="text-sm font-bold hover:text-amber-600 transition-colors truncate block text-left"
                                   >{m.title}</button>
                                 ) : (
-                                  <p className="text-sm font-black">{m.title}</p>
+                                  <p className="text-sm font-bold">{m.title}</p>
                                 )}
                                 {m.type === 'link' && m.url && (
                                   <a href={m.url} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline mt-1 truncate">
+                                    className="flex items-center gap-1 text-[14px] font-bold text-blue-600 hover:underline mt-1 truncate">
                                     <ExternalLink size={11} />{m.url}
                                   </a>
                                 )}
                                 {m.type === 'file' && m.file_name && (
-                                  <p className="text-[10px] text-on-surface-variant/50 mt-1 truncate">{m.file_name}</p>
+                                  <p className="text-[14px] text-on-surface-variant mt-1 truncate">{m.file_name}</p>
                                 )}
                                 {m.type === 'material' && (
-                                  <p className="flex items-center gap-1 text-[10px] font-bold text-secondary mt-1">
+                                  <p className="flex items-center gap-1 text-[14px] font-bold text-secondary mt-1">
                                     <Library size={10} /> 자료에디터 · 공통자료함 연동
                                   </p>
                                 )}
                                 {m.type === 'note' && m.content && (
                                   <button
                                     onClick={() => setSelectedPrivateMat(selectedPrivateMat?.id === m.id ? null : m)}
-                                    className="text-xs font-bold text-on-surface-variant/60 hover:text-violet-600 mt-1 transition-colors text-left">
+                                    className="text-[14px] font-bold text-on-surface-variant/60 hover:text-violet-600 mt-1 transition-colors text-left">
                                     {selectedPrivateMat?.id === m.id ? '접기 ▲' : '내용 보기 ▼'}
                                   </button>
                                 )}
                                 {selectedPrivateMat?.id === m.id && m.type === 'note' && (
-                                  <p className="text-xs font-bold text-on-surface-variant mt-2 leading-relaxed whitespace-pre-wrap p-3 bg-violet-50 rounded-xl border border-violet-100">
+                                  <p className="text-[14px] font-bold text-on-surface-variant mt-2 leading-relaxed whitespace-pre-wrap p-3 bg-violet-50 rounded-xl border border-violet-100">
                                     {m.content}
                                   </p>
                                 )}
-                                <p className="text-[10px] text-on-surface-variant/40 font-bold mt-2">
+                                <p className="text-[14px] text-on-surface-variant font-bold mt-2">
                                   {new Date(m.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                                 </p>
                               </div>
@@ -3406,7 +3434,7 @@ const Classroom = () => {
                               )}
                             <button
                               onClick={() => handleEditPrivateMat(m)}
-                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-violet-100 hover:text-violet-600 transition-all"
+                              className="p-2 rounded-xl text-on-surface-variant hover:bg-violet-100 hover:text-violet-600 transition-all"
                               title="수정"
                             >
                               <Pencil size={13} />
@@ -3414,7 +3442,7 @@ const Classroom = () => {
                             <button
                               onClick={() => handleDeletePrivateMat(m.id, m.file_path)}
                               disabled={deletingPrivateMatId === m.id}
-                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-red-100 hover:text-red-500 transition-all">
+                              className="p-2 rounded-xl text-on-surface-variant hover:bg-red-100 hover:text-red-500 transition-all">
                               {deletingPrivateMatId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                             </button>
                             </div>
@@ -3427,9 +3455,9 @@ const Classroom = () => {
               )}
 
               {activeTab === 'list' && classInfo && students.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
-                <div data-tour="entry-mode-banner" className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
-                  <p className="text-sm font-bold text-amber-800">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
-                  <button type="button" onClick={() => handleReopenEntryMode(classInfo)} className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black text-amber-800 hover:bg-amber-100 transition-all">입장 방식 바꾸기</button>
+                <div data-tour="entry-mode-banner" className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-primary-container/50 border border-primary/30 rounded-xl">
+                  <p className="text-[16px] font-medium text-on-surface">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
+                  <button type="button" onClick={() => handleReopenEntryMode(classInfo)} className="px-4 py-2 rounded-xl bg-surface-container-lowest border border-slate-200 dark:border-slate-700 text-[15px] font-bold text-on-surface hover:border-primary/40 hover:text-primary transition-all">입장 방식 바꾸기</button>
                 </div>
               )}
 
@@ -3549,6 +3577,31 @@ const Classroom = () => {
               )}
             </>
           )}
+            </div>
+          {classInfo && (
+            <ClassroomHelperRail
+              userId={user?.id}
+              classId={classInfo.id}
+              entryCode={classInfo.class_type !== 'homeroom' ? classInfo.entry_code : undefined}
+              studentCount={students.length}
+              rosterAccepted={classInfo.entry_mode !== 'live_roster' || !!classInfo.live_roster_accepted}
+              lessonStarted={lessonStarted}
+              onShowCode={classInfo.class_type !== 'homeroom' ? handleShowEntryCode : undefined}
+              onGoRoster={() => setActiveTab('list')}
+              onGoAttendance={() => { markLessonStarted(); setActiveTab('attendance'); }}
+              onOpenStudentPreview={() => setIsStudentPreviewOpen(true)}
+              onOpenResources={() => {
+                if (activeClassId) fetchResources(activeClassId);
+                setIsResourceModalOpen(true);
+              }}
+              onOpenStudentPage={classInfo.entry_code ? handleOpenStudentPage : undefined}
+              onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
+              galleryPending={galleryPending}
+              onOpenGallery={classInfo.class_type !== 'homeroom' && user ? () => setIsGalleryOpen(true) : undefined}
+              onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
+            />
+          )}
+          </div>
           </>
           )}
         </div>
@@ -5130,38 +5183,6 @@ const Classroom = () => {
           </div></BodyPortal>
         )}
 
-        {classInfo && (
-          <ClassroomFabMenu
-            onOpenStudentPreview={() => setIsStudentPreviewOpen(true)}
-            onOpenQR={classInfo.class_type !== 'homeroom' ? () => {
-              setIsQRModalOpen(true);
-              const code = classInfo.entry_code;
-              if (!code) return;
-              const done = () => showToast(`✅ 입장 코드 ${code} 가 복사됐어요`);
-              const fallback = () => {
-                try {
-                  const ta = document.createElement('textarea');
-                  ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
-                  document.body.appendChild(ta); ta.select();
-                  const ok = document.execCommand('copy');
-                  document.body.removeChild(ta);
-                  if (ok) done(); else showToast('입장 코드를 복사하지 못했어요. 화면의 코드를 직접 복사해 주세요');
-                } catch { showToast('입장 코드를 복사하지 못했어요. 화면의 코드를 직접 복사해 주세요'); }
-              };
-              if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(done, fallback); else fallback();
-            } : undefined}
-            onOpenResources={() => {
-              if (activeClassId) fetchResources(activeClassId);
-              setIsResourceModalOpen(true);
-            }}
-            onOpenStudentPage={classInfo.entry_code ? handleOpenStudentPage : undefined}
-            onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
-            galleryPending={galleryPending}
-            onOpenGallery={classInfo.class_type !== 'homeroom' && user ? () => setIsGalleryOpen(true) : undefined}
-            onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
-          />
-        )}
-
         {isGalleryOpen && activeClassId && user && (
           <ClassGalleryModal userId={user.id} classId={activeClassId} className={classInfo?.name ?? '수업'} onClose={() => setIsGalleryOpen(false)} />
         )}
@@ -5174,39 +5195,39 @@ const Classroom = () => {
         )}
 
         {isQRModalOpen && classInfo && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsQRModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[2rem] text-center space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setIsQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => setIsQRModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm bg-surface-container-lowest p-8 rounded-2xl text-center space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setIsQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
               <div className="space-y-2">
-                <h3 className="text-3xl font-black font-manrope">{classInfo.name}</h3>
-                <p className="text-on-surface-variant font-bold">학생 입장 코드 확인</p>
+                <h3 className="text-[26px] font-bold text-on-surface">{classInfo.name}</h3>
+                <p className="text-[15px] text-on-surface-variant">학생 입장 코드 확인</p>
               </div>
-              <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
+              <div className="bg-white p-5 rounded-xl border border-slate-200 inline-block aspect-square">
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://classlog-ai.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
-              <div className="bg-primary/5 p-6 rounded-2xl space-y-2">
-                <p className="text-xs font-black text-primary uppercase tracking-widest">입장 코드</p>
-                <p className="text-4xl font-black font-manrope text-primary tracking-[0.2em]">{classInfo.entry_code}</p>
+              <div className="bg-primary-container/50 border border-primary/30 p-5 rounded-xl space-y-1">
+                <p className="text-[14px] font-bold text-primary">입장 코드</p>
+                <p className="text-4xl font-bold text-primary tracking-[0.2em]">{classInfo.entry_code}</p>
               </div>
             </motion.div>
           </div>
         )}
 
         {isTeacherShareQRModalOpen && classInfo && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsTeacherShareQRModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[2rem] text-center space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setIsTeacherShareQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => setIsTeacherShareQRModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm bg-surface-container-lowest p-8 rounded-2xl text-center space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setIsTeacherShareQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
               <div className="space-y-2">
-                <h3 className="text-3xl font-black font-manrope">{classInfo.name}</h3>
-                <p className="text-on-surface-variant font-bold">학교 선생님 공유용 QR 코드</p>
+                <h3 className="text-[26px] font-bold text-on-surface">{classInfo.name}</h3>
+                <p className="text-[15px] text-on-surface-variant">학교 선생님 공유용 QR 코드</p>
               </div>
-              <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
+              <div className="bg-white p-5 rounded-xl border border-slate-200 inline-block aspect-square">
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://classlog-ai.vercel.app/share/${classInfo.id}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
-              <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed">
+              <p className="text-[14px] text-on-surface-variant leading-relaxed">
                 이 QR을 스캔하면 로그인 없이<br />학급 공유 페이지로 바로 이동합니다.
               </p>
-              <button onClick={handleShareTeacher} className="w-full py-3 rounded-2xl bg-surface-container hover:bg-primary/10 font-black text-sm text-on-surface-variant transition-all flex items-center justify-center gap-2">
+              <button onClick={handleShareTeacher} className="w-full py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 font-bold text-[15px] text-on-surface transition-all flex items-center justify-center gap-2">
                 {shareTeacherSuccess ? <Check size={16} /> : <Copy size={16} />}
                 {shareTeacherSuccess ? '복사됨!' : '링크 복사'}
               </button>
@@ -5529,14 +5550,14 @@ const Classroom = () => {
 
         {/* 수업 자료실 모달 */}
         {isResourceModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[2rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-surface-container-lowest p-8 rounded-2xl space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
 
               {/* 헤더 */}
               <div className="pr-8">
-                <h3 className="text-2xl font-black font-manrope">수업 자료실</h3>
-                <p className="text-xs text-on-surface-variant/60 mt-0.5">클릭하면 새 탭으로 열립니다</p>
+                <h3 className="text-[26px] font-bold text-on-surface">수업 자료실</h3>
+                <p className="text-[14px] text-on-surface-variant mt-1">클릭하면 새 탭으로 열립니다</p>
               </div>
 
               {/* 목록 */}
@@ -5557,7 +5578,7 @@ const Classroom = () => {
                     {/* 주차별 자료 (weekly_plan 기반) */}
                     {planItems.length > 0 && (
                       <div className="space-y-1.5">
-                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1">주차별 자료</p>
+                        <p className="text-[14px] font-bold text-on-surface-variant  px-1">주차별 자료</p>
                         {planItems.map((item: any) => {
                           const isMaterial = !!item.material_id;
                           const origInfo = isMaterial
@@ -5603,13 +5624,13 @@ const Classroom = () => {
 
                                 {/* 텍스트 */}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-black truncate">
+                                  <p className="text-sm font-bold truncate">
                                     {isMaterial
                                       ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료가 삭제됨')
                                       : (item.topic || item.url)
                                     }
                                   </p>
-                                  <p className="text-[10px] text-on-surface-variant/50 truncate">
+                                  <p className="text-[14px] text-on-surface-variant truncate">
                                     {item.week}주차
                                     {item.topic && !isMaterial && ` · ${item.topic}`}
                                     {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
@@ -5618,17 +5639,17 @@ const Classroom = () => {
 
                                 {/* 뱃지 */}
                                 {myCopy && (
-                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md shrink-0">내 버전</span>
+                                  <span className="text-[13px] font-bold px-1.5 py-0.5 bg-primary-container text-primary rounded-md shrink-0">내 버전</span>
                                 )}
                                 {isMaterial && matInfo?.is_published && (
-                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md shrink-0">공개</span>
+                                  <span className="text-[13px] font-bold px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md shrink-0">공개</span>
                                 )}
                               </button>
 
                               {isMaterial && matInfo && (<button
                                 onClick={() => setAnswersMaterial({ id: matInfo.id, class_id: matInfo.class_id ?? activeClassId ?? null, title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style })}
                                 title="학생 답변 보기"
-                                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-bold text-[14px] bg-primary-container/50 text-primary hover:bg-primary-container transition-colors"
                               >
                                 학생 답변
                               </button>)}
@@ -5637,7 +5658,7 @@ const Classroom = () => {
                                 <button
                                   onClick={() => setSlideModeMaterial({ title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls, attachments: matInfo.attachments })}
                                   title="슬라이드 모드로 보기"
-                                  className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-sky-50 hover:text-sky-600 transition-colors shrink-0"
+                                  className="p-2 rounded-xl text-on-surface-variant hover:bg-primary-container/50 hover:text-primary transition-colors shrink-0"
                                 >
                                   <GalleryHorizontal size={16} />
                                 </button>
@@ -5656,7 +5677,7 @@ const Classroom = () => {
                                   }
                                 }}
                                 title={isMaterial ? '수업 자료 페이지 보기' : '새 탭에서 링크 열기'}
-                                className={`p-2 rounded-xl text-on-surface-variant/40 transition-colors shrink-0 ${
+                                className={`p-2 rounded-xl text-on-surface-variant transition-colors shrink-0 ${
                                   isMaterial ? 'hover:bg-secondary/10 hover:text-secondary' : 'hover:bg-primary/10 hover:text-primary'
                                 }`}
                               >
@@ -5673,7 +5694,7 @@ const Classroom = () => {
                                 onClick={() => handleForkPlanMat(item.material_id)}
                                 disabled={overrideBusy}
                                 title="원본은 그대로 두고, 내 수업용 복사본을 만들어 고칠 수 있어요"
-                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-amber-500 text-white text-sm font-black shadow-sm hover:bg-amber-600 active:scale-[0.99] transition-all disabled:opacity-50"
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-primary text-white text-sm font-bold shadow-sm hover:bg-primary active:scale-[0.99] transition-all disabled:opacity-50"
                               >
                                 {overrideBusy ? <Loader2 size={15} className="animate-spin" /> : <Pencil size={15} />} 내 수업용으로 수정
                               </button>
@@ -5683,7 +5704,7 @@ const Classroom = () => {
                             {myCopy && (
                               <button
                                 onClick={() => navigate('/teaching-tools', { state: { activeToolId: 'material-editor', openMaterialId: myCopy.id } })}
-                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-black hover:bg-amber-100 transition-all"
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-primary-container/50 text-primary border border-primary/30 text-[14px] font-bold hover:bg-primary-container transition-all"
                               >
                                 <Pencil size={13} /> 내 버전 편집하기
                               </button>
@@ -5695,7 +5716,7 @@ const Classroom = () => {
                                 onClick={() => handleApplyOrigin(item.material_id)}
                                 disabled={overrideBusy}
                                 title="내가 고친 내용을 버리고 원본 자료로 되돌려요 (직전 내용은 한 번 복구 가능)"
-                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-white text-on-surface-variant border border-outline-variant/30 text-xs font-black hover:bg-surface-container transition-all disabled:opacity-50"
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-white text-on-surface-variant border border-outline-variant/30 text-[14px] font-bold hover:bg-surface-container transition-all disabled:opacity-50"
                               >
                                 <RotateCcw size={13} /> 원본으로 되돌리기
                               </button>
@@ -5703,17 +5724,17 @@ const Classroom = () => {
 
                             {/* 원본이 업데이트됐을 때 안내 */}
                             {originUpdated && origInfo && (
-                              <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
-                                <span className="text-[11px] font-black text-amber-800 flex-1 min-w-[10rem]">원본이 업데이트됐어요</span>
+                              <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-primary-container/50 border border-primary/30 rounded-xl">
+                                <span className="text-[14px] font-bold text-primary flex-1 min-w-[10rem]">원본이 업데이트됐어요</span>
                                 <button
                                   onClick={() => handleApplyOrigin(item.material_id)}
                                   disabled={overrideBusy}
-                                  className="text-[10px] font-black px-2 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-all disabled:opacity-50"
+                                  className="text-[14px] font-bold px-2 py-1 rounded-lg bg-primary text-white hover:bg-primary transition-all disabled:opacity-50"
                                 >원본으로 교체</button>
                                 <button
                                   onClick={() => handleDismissOrigin(item.material_id, origInfo.content_updated_at)}
                                   disabled={overrideBusy}
-                                  className="text-[10px] font-black px-2 py-1 rounded-lg bg-white text-amber-800 border border-amber-200 hover:bg-amber-100 transition-all disabled:opacity-50"
+                                  className="text-[14px] font-bold px-2 py-1 rounded-lg bg-white text-primary border border-primary/30 hover:bg-primary-container transition-all disabled:opacity-50"
                                 >내 버전 유지</button>
                               </div>
                             )}
@@ -5724,7 +5745,7 @@ const Classroom = () => {
                                 <button
                                   onClick={() => handleUndoOrigin(item.material_id)}
                                   disabled={overrideBusy}
-                                  className="text-[10px] font-black text-on-surface-variant/60 hover:bg-surface-container px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                                  className="text-[14px] font-bold text-on-surface-variant/60 hover:bg-surface-container px-2 py-1 rounded-lg transition-all disabled:opacity-50"
                                 >원본으로 교체하기 전으로 되돌리기</button>
                               </div>
                             )}
@@ -5736,29 +5757,29 @@ const Classroom = () => {
 
                     {/* 빈 상태 */}
                     {!hasAnything && (
-                      <div className="text-center py-6 text-on-surface-variant/30">
+                      <div className="text-center py-6 text-on-surface-variant">
                         <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
-                        <p className="text-sm font-black">주차별 자료 없음</p>
-                        <p className="text-xs mt-0.5">학급 수정에서 주차별 계획에 URL 또는 에디터를 연결해보세요</p>
+                        <p className="text-sm font-bold">주차별 자료 없음</p>
+                        <p className="text-[14px] mt-0.5">학급 수정에서 주차별 계획에 URL 또는 에디터를 연결해보세요</p>
                       </div>
                     )}
 
                     {/* ── 자료 에디터 섹션 ── */}
                     <div className="pt-2">
                       <div className="flex items-center justify-between mb-2 px-1">
-                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">자료 에디터</p>
+                        <p className="text-[14px] font-bold text-on-surface-variant ">자료 에디터</p>
                         <button
                           onClick={() => setShowEditorMatPicker(true)}
-                          className="flex items-center gap-1 text-[10px] font-black text-secondary hover:bg-secondary/10 px-2 py-1 rounded-lg transition-all"
+                          className="flex items-center gap-1 text-[14px] font-bold text-secondary hover:bg-secondary/10 px-2 py-1 rounded-lg transition-all"
                         >
                           <Plus size={11} /> 추가
                         </button>
                       </div>
 
                       {classMaterials.length === 0 ? (
-                        <div className="text-center py-6 text-on-surface-variant/30">
+                        <div className="text-center py-6 text-on-surface-variant">
                           <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
-                          <p className="text-xs font-black">등록된 자료 에디터 자료가 없습니다</p>
+                          <p className="text-[14px] font-bold">등록된 자료 에디터 자료가 없습니다</p>
                         </div>
                       ) : (() => {
                         const matsWithLinks = classMaterials.map((mat: any) => ({
@@ -5779,27 +5800,27 @@ const Classroom = () => {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <p className="text-sm font-black truncate group-hover:text-secondary transition-colors">{mat.title}</p>
+                                  <p className="text-sm font-bold truncate group-hover:text-secondary transition-colors">{mat.title}</p>
                                   {linkedWeeks.length > 0 && (
-                                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
+                                    <span className="text-[13px] font-bold px-1.5 py-0.5 bg-primary-container text-primary rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
                                   )}
                                 </div>
                                 {mat.week_number != null && (
-                                  <p className="text-[10px] text-on-surface-variant/50 truncate">{mat.week_number}주차</p>
+                                  <p className="text-[14px] text-on-surface-variant truncate">{mat.week_number}주차</p>
                                 )}
                               </div>
                             </button>
                             <button
                                 onClick={() => setAnswersMaterial({ id: mat.id, class_id: mat.class_id ?? activeClassId ?? null, title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, viewer_style: mat.viewer_style })}
                                 title="학생 답변 보기"
-                                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-black text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-bold text-[14px] bg-primary-container/50 text-primary hover:bg-primary-container transition-colors"
                               >
                                 학생 답변
                               </button>
                             <button
                               onClick={() => setSlideModeMaterial({ title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, attachments: mat.attachments })}
                               title="슬라이드 모드로 보기"
-                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-sky-50 hover:text-sky-600 transition-colors shrink-0"
+                              className="p-2 rounded-xl text-on-surface-variant hover:bg-primary-container/50 hover:text-primary transition-colors shrink-0"
                             >
                               <GalleryHorizontal size={16} />
                             </button>
@@ -5809,9 +5830,9 @@ const Classroom = () => {
                                   onClick={() => handleToggleEditorMatPublish(mat)}
                                   disabled={togglingEditorMatId === mat.id}
                                   title={mat.is_published ? '비공개로 전환' : '학생에게 공개'}
-                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-[14px] transition-colors ${
                                     mat.is_published
-                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                      ? 'bg-primary-container text-primary hover:bg-primary'
                                       : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
                                   }`}
                                 >
@@ -5843,7 +5864,7 @@ const Classroom = () => {
                               <div className="pt-1">
                                 <button
                                   onClick={() => setShowLinkedEditorMats(v => !v)}
-                                  className="w-full flex items-center gap-1.5 px-1 py-1.5 text-[10px] font-black text-on-surface-variant/50 hover:text-on-surface-variant transition-colors"
+                                  className="w-full flex items-center gap-1.5 px-1 py-1.5 text-[14px] font-bold text-on-surface-variant hover:text-on-surface-variant transition-colors"
                                 >
                                   <ChevronDown size={12} className={`transition-transform ${showLinkedEditorMats ? '' : '-rotate-90'}`} />
                                   주차에 연결된 자료 ({linkedMats.length})
@@ -5864,10 +5885,10 @@ const Classroom = () => {
                     {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
                       <div className="pt-2">
                         <div className="flex items-center justify-between mb-2 px-1">
-                          <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">학습 도구</p>
+                          <p className="text-[14px] font-bold text-on-surface-variant ">학습 도구</p>
                           <button
                             onClick={() => setShowToolPicker(v => !v)}
-                            className="flex items-center gap-1 text-[10px] font-black text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
+                            className="flex items-center gap-1 text-[14px] font-bold text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
                           >
                             <Plus size={11} /> 추가
                           </button>
@@ -5882,11 +5903,11 @@ const Classroom = () => {
                                 className="w-full flex items-center gap-3 p-2.5 bg-white rounded-xl text-left hover:bg-primary/10 transition-colors disabled:opacity-50"
                               >
                                 <div className="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center shrink-0">{tool.icon}</div>
-                                <span className="text-sm font-black truncate">{tool.label}</span>
+                                <span className="text-sm font-bold truncate">{tool.label}</span>
                               </button>
                             ))}
                             {LEARNING_TOOLS.every(t => Object.prototype.hasOwnProperty.call(enabledTools, t.id)) && (
-                              <p className="text-xs font-bold text-on-surface-variant/60 px-2 py-1.5">추가할 수 있는 도구가 모두 들어와 있어요.</p>
+                              <p className="text-[14px] font-bold text-on-surface-variant/60 px-2 py-1.5">추가할 수 있는 도구가 모두 들어와 있어요.</p>
                             )}
                           </div>
                         )}
@@ -5899,15 +5920,15 @@ const Classroom = () => {
                                   <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
                                     {tool.icon}
                                   </div>
-                                  <p className="text-sm font-black truncate">{tool.label}</p>
+                                  <p className="text-sm font-bold truncate">{tool.label}</p>
                                 </div>
                                 <button
                                   onClick={() => handleToggleTool(tool.id)}
                                   disabled={togglingToolId === tool.id}
                                   title={isPublished ? '비공개로 전환' : '학생에게 공개'}
-                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-[14px] transition-colors ${
                                     isPublished
-                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                      ? 'bg-primary-container text-primary hover:bg-primary'
                                       : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
                                   }`}
                                 >
@@ -5923,7 +5944,7 @@ const Classroom = () => {
                                   onClick={() => handleRemoveBuiltinTool(tool.id, tool.label)}
                                   disabled={togglingToolId === tool.id}
                                   title="학습 도구에서 빼기"
-                                  className="shrink-0 p-1.5 rounded-xl text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                  className="shrink-0 p-1.5 rounded-xl text-on-surface-variant hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -5942,21 +5963,21 @@ const Classroom = () => {
                                     <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
                                       <Sparkles size={14} />
                                     </div>
-                                    <p className="text-sm font-black truncate">{app.name}</p>
+                                    <p className="text-sm font-bold truncate">{app.name}</p>
                                     {isPrimary && (
-                                      <span className="shrink-0 text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">메인 도구</span>
+                                      <span className="shrink-0 text-[14px] font-bold text-primary bg-primary-container px-2 py-0.5 rounded-full">메인 도구</span>
                                     )}
                                     {isAutoSynced && (
-                                      <span title="학교 프로젝트 자료에 연결된 앱이라 자동으로 들어왔어요. 학생에게 보일지는 오른쪽 버튼으로 정할 수 있어요." className="shrink-0 text-[10px] font-black text-fuchsia-700 bg-fuchsia-100 px-2 py-0.5 rounded-full">학교 자료로 배정됨</span>
+                                      <span title="학교 프로젝트 자료에 연결된 앱이라 자동으로 들어왔어요. 학생에게 보일지는 오른쪽 버튼으로 정할 수 있어요." className="shrink-0 text-[14px] font-bold text-fuchsia-700 bg-fuchsia-100 px-2 py-0.5 rounded-full">학교 자료로 배정됨</span>
                                     )}
                                   </div>
                                   <button
                                     onClick={() => handleToggleTool(toolId)}
                                     disabled={togglingToolId === toolId}
                                     title={isPublished ? '비공개로 전환' : '학생에게 공개'}
-                                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-[14px] transition-colors ${
                                       isPublished
-                                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                        ? 'bg-primary-container text-primary hover:bg-primary'
                                         : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
                                     }`}
                                   >
@@ -5973,7 +5994,7 @@ const Classroom = () => {
                                       onClick={() => handleDisconnectHubApp(toolId, app.name)}
                                       disabled={togglingToolId === toolId}
                                       title="이 클래스에서 연결 해제"
-                                      className="shrink-0 p-1.5 rounded-xl text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                      className="shrink-0 p-1.5 rounded-xl text-on-surface-variant hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -5983,7 +6004,7 @@ const Classroom = () => {
                                   <button
                                     onClick={() => handleSetPrimaryTool(toolId, app)}
                                     disabled={settingPrimaryToolId === toolId}
-                                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl font-black text-xs text-primary bg-primary/10 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl font-bold text-[14px] text-primary bg-primary/10 hover:bg-primary/20 transition-colors disabled:opacity-50"
                                   >
                                     {settingPrimaryToolId === toolId ? (
                                       <><Loader2 size={13} className="animate-spin" /> 설정 중...</>
@@ -6002,7 +6023,7 @@ const Classroom = () => {
                     {/* ── 일반 자료 섹션 ── */}
                     <div className="pt-2">
                       <div className="flex items-center justify-between mb-2 px-1">
-                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">일반 자료</p>
+                        <p className="text-[14px] font-bold text-on-surface-variant ">일반 자료</p>
                         <button
                           onClick={() => {
                             if (showAddGeneralForm && !editingGeneralMatId) {
@@ -6013,7 +6034,7 @@ const Classroom = () => {
                               setShowAddGeneralForm(true);
                             }
                           }}
-                          className="flex items-center gap-1 text-[10px] font-black text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
+                          className="flex items-center gap-1 text-[14px] font-bold text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
                         >
                           <Plus size={11} /> 추가
                         </button>
@@ -6023,31 +6044,31 @@ const Classroom = () => {
                       {showAddGeneralForm && (
                         <div className="mb-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-3">
                           {editingGeneralMatId && (
-                            <p className="text-xs font-black text-primary">자료 수정 중</p>
+                            <p className="text-[14px] font-bold text-primary">자료 수정 중</p>
                           )}
                           <input
                             type="text"
                             placeholder="자료 제목"
                             value={generalMatForm.title}
                             onChange={e => setGeneralMatForm(f => ({ ...f, title: e.target.value }))}
-                            className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
                           />
                           {(() => {
                             const planList = (classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || [])) as any[];
                             if (planList.length === 0) return null;
                             return (
-                              <div className="bg-white border border-neutral-200 rounded-xl p-2">
+                              <div className="bg-white border border-slate-200 dark:border-slate-700 rounded-xl p-2">
                                 <div className="flex items-center justify-between px-1 pb-1.5">
-                                  <p className="text-[11px] font-black text-on-surface-variant">표시할 차시 (여러 개 선택 가능 · 선택 안 하면 일반 자료 탭에만 표시)</p>
+                                  <p className="text-[14px] font-bold text-on-surface-variant">표시할 차시 (여러 개 선택 가능 · 선택 안 하면 일반 자료 탭에만 표시)</p>
                                   {generalMatForm.weeks.length > 0 && (
-                                    <button type="button" onClick={() => setGeneralMatForm(f => ({ ...f, weeks: [] }))} className="text-[10px] font-black text-primary hover:underline shrink-0 ml-2">모두 해제</button>
+                                    <button type="button" onClick={() => setGeneralMatForm(f => ({ ...f, weeks: [] }))} className="text-[14px] font-bold text-primary hover:underline shrink-0 ml-2">모두 해제</button>
                                   )}
                                 </div>
                                 <div className="max-h-44 overflow-y-auto space-y-0.5">
                                   {planList.map((w: any) => {
                                     const checked = generalMatForm.weeks.includes(w.week);
                                     return (
-                                      <label key={w.week} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-bold transition-colors ${checked ? 'bg-primary/10 text-primary' : 'hover:bg-neutral-50'}`}>
+                                      <label key={w.week} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-[14px] font-bold transition-colors ${checked ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container-low'}`}>
                                         <input
                                           type="checkbox"
                                           checked={checked}
@@ -6066,14 +6087,14 @@ const Classroom = () => {
                             <button
                               disabled={!!editingGeneralMatId}
                               onClick={() => setGeneralMatForm(f => ({ ...f, type: 'link', file: null }))}
-                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'link' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'} ${!!editingGeneralMatId && generalMatForm.type !== 'link' ? 'opacity-30 cursor-not-allowed hover:border-neutral-200' : ''}`}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[14px] font-bold border-2 transition-all ${generalMatForm.type === 'link' ? 'border-primary bg-primary text-white' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:border-primary/30'} ${!!editingGeneralMatId && generalMatForm.type !== 'link' ? 'opacity-30 cursor-not-allowed hover:border-slate-200 dark:border-slate-700' : ''}`}
                             >
                               <Link2 size={12} /> 링크
                             </button>
                             <button
                               disabled={!!editingGeneralMatId}
                               onClick={() => setGeneralMatForm(f => ({ ...f, type: 'file', url: '' }))}
-                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'file' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'} ${!!editingGeneralMatId && generalMatForm.type !== 'file' ? 'opacity-30 cursor-not-allowed hover:border-neutral-200' : ''}`}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[14px] font-bold border-2 transition-all ${generalMatForm.type === 'file' ? 'border-primary bg-primary text-white' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:border-primary/30'} ${!!editingGeneralMatId && generalMatForm.type !== 'file' ? 'opacity-30 cursor-not-allowed hover:border-slate-200 dark:border-slate-700' : ''}`}
                             >
                               <Upload size={12} /> 파일
                             </button>
@@ -6084,7 +6105,7 @@ const Classroom = () => {
                               placeholder="https://..."
                               value={generalMatForm.url}
                               onChange={e => setGeneralMatForm(f => ({ ...f, url: e.target.value }))}
-                              className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
+                              className="w-full px-3 py-2 bg-white border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
                             />
                           ) : (
                             (() => {
@@ -6094,20 +6115,20 @@ const Classroom = () => {
                               return (
                                 <div className="space-y-1">
                                   {editingFileName && !generalMatForm.file && (
-                                    <p className="text-[11px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
+                                    <p className="text-[14px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
                                   )}
-                                  <label className={`flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed rounded-xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-neutral-200 hover:border-primary/40'}`}>
+                                  <label className={`flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed rounded-xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-slate-200 dark:border-slate-700 hover:border-primary/40'}`}>
                                     <Upload size={18} className={overLimit ? 'text-red-400' : 'text-primary/60'} />
-                                    <span className={`text-xs font-black ${overLimit ? 'text-red-500' : 'text-neutral-500'}`}>
+                                    <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
                                       {generalMatForm.file ? generalMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 (PDF, PPT, HWP 등)')}
                                     </span>
                                     {sizeMB && (
-                                      <span className={`text-[10px] font-bold ${overLimit ? 'text-red-500' : 'text-neutral-400'}`}>
+                                      <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
                                         {sizeMB}MB {overLimit ? '— 50MB 초과! 더 작은 파일을 선택해주세요' : '/ 50MB'}
                                       </span>
                                     )}
                                     {!generalMatForm.file && !editingFileName && (
-                                      <span className="text-[10px] text-neutral-300 font-bold">최대 50MB</span>
+                                      <span className="text-[14px] text-on-surface-variant/60 font-bold">최대 50MB</span>
                                     )}
                                     <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setGeneralMatForm(prev => ({ ...prev, file: f })); }} />
                                   </label>
@@ -6118,12 +6139,12 @@ const Classroom = () => {
                           <div className="flex gap-2">
                             <button
                               onClick={() => { setShowAddGeneralForm(false); setEditingGeneralMatId(null); setGeneralMatForm({ title: '', type: 'link', url: '', file: null, weeks: [] }); }}
-                              className="flex-1 py-2 rounded-xl text-xs font-black border border-neutral-200 text-neutral-400 hover:bg-neutral-50 transition-all"
+                              className="flex-1 py-2 rounded-xl text-[14px] font-bold border border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-surface-container-low transition-all"
                             >취소</button>
                             <button
                               onClick={handleAddGeneralMat}
                               disabled={generalMatUploading || (generalMatForm.type === 'file' && !!generalMatForm.file && generalMatForm.file.size > 50 * 1024 * 1024)}
-                              className="flex-1 py-2 rounded-xl text-xs font-black bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-1"
+                              className="flex-1 py-2 rounded-xl text-[14px] font-bold bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-1"
                             >
                               {generalMatUploading ? <Loader2 size={12} className="animate-spin" /> : null}
                               {generalMatUploading ? (editingGeneralMatId ? '수정 중...' : '등록 중...') : (editingGeneralMatId ? '수정 완료' : '등록')}
@@ -6134,30 +6155,30 @@ const Classroom = () => {
 
                       {/* 일반 자료 목록 */}
                       {generalMaterials.length === 0 && !showAddGeneralForm ? (
-                        <div className="text-center py-6 text-on-surface-variant/30">
+                        <div className="text-center py-6 text-on-surface-variant">
                           <FileText size={28} className="mx-auto mb-2 opacity-30" />
-                          <p className="text-xs font-black">등록된 일반 자료가 없습니다</p>
+                          <p className="text-[14px] font-bold">등록된 일반 자료가 없습니다</p>
                         </div>
                       ) : (
                         <div className="space-y-1.5">
                           {[...generalMaterials].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ko', { numeric: true, sensitivity: 'base' })).map(mat => (
                             <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
-                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${mat.type === 'file' ? 'bg-amber-100' : 'bg-cyan-100'}`}>
-                                {mat.type === 'file' ? <File size={14} className="text-amber-600" /> : <Link2 size={14} className="text-cyan-600" />}
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${mat.type === 'file' ? 'bg-primary-container' : 'bg-cyan-100'}`}>
+                                {mat.type === 'file' ? <File size={14} className="text-primary" /> : <Link2 size={14} className="text-cyan-600" />}
                               </div>
                               <div className="flex-1 min-w-0">
                                 {mat.type === 'link' ? (
-                                  <a href={mat.url} target="_blank" rel="noopener noreferrer" className="text-sm font-black hover:text-primary transition-colors truncate block">{mat.title}</a>
+                                  <a href={mat.url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold hover:text-primary transition-colors truncate block">{mat.title}</a>
                                 ) : (
                                   <button
                                     onClick={() => openGeneralMaterial(mat)}
-                                    className="text-sm font-black hover:text-primary transition-colors truncate block text-left"
+                                    className="text-sm font-bold hover:text-primary transition-colors truncate block text-left"
                                   >{mat.title}</button>
                                 )}
-                                <p className="text-[10px] text-on-surface-variant/50 truncate">
+                                <p className="text-[14px] text-on-surface-variant truncate">
                                   {(() => {
                                     const ws: number[] = (mat.week_numbers && mat.week_numbers.length > 0) ? mat.week_numbers : (mat.week_number != null ? [mat.week_number] : []);
-                                    return ws.length > 0 ? <span className="mr-1.5 px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-700 font-black">{ws.join('·')}차시</span> : null;
+                                    return ws.length > 0 ? <span className="mr-1.5 px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-700 font-bold">{ws.join('·')}차시</span> : null;
                                   })()}
                                   {mat.type === 'link' ? mat.url : mat.file_name}
                                 </p>
@@ -6185,7 +6206,7 @@ const Classroom = () => {
                                 <>
                                   <button
                                     onClick={() => handleEditGeneralMat(mat)}
-                                    className="p-2.5 text-on-surface-variant/40 bg-surface-container-high hover:bg-primary/10 hover:text-primary rounded-xl transition-all shrink-0"
+                                    className="p-2.5 text-on-surface-variant bg-surface-container-high hover:bg-primary/10 hover:text-primary rounded-xl transition-all shrink-0"
                                     title="수정"
                                   >
                                     <Pencil size={17} />

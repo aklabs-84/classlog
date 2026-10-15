@@ -65,35 +65,35 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
         className="relative group mb-10 w-full max-w-3xl mx-auto"
       >
         <div className="absolute -inset-1 bg-gradient-to-r from-primary/15 via-secondary/8 to-primary/15 rounded-3xl blur-xl opacity-25" />
-        <div className="relative glass rounded-3xl p-10 md:p-14 border border-white/50 shadow-soft flex flex-col items-center text-center gap-8 overflow-hidden bg-white/60">
+        <div className="relative glass rounded-3xl p-10 md:p-14 border border-white/50 shadow-none flex flex-col items-center text-center gap-8 overflow-hidden bg-surface-container-lowest">
           <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
 
           {/* 아이콘 */}
           <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-3xl flex items-center justify-center relative z-10 border border-primary/10">
-            <Sparkles size={36} className="text-primary/50" />
+            <Sparkles size={36} className="text-primary" />
           </div>
 
           {/* 설명 */}
           <div className="space-y-3 z-10">
-            <h3 className="text-2xl font-black tracking-tight">AI 인사이트 분석</h3>
+            <h3 className="text-2xl font-bold tracking-tight">AI 인사이트 분석</h3>
             <p className="text-base text-on-surface-variant leading-relaxed max-w-md">
-              누적된 활동 기록을 AI가 분석하여 <span className="font-black text-on-surface">학급 현황 인사이트</span>를 생성합니다.
+              누적된 활동 기록을 AI가 분석하여 <span className="font-bold text-on-surface">학급 현황 인사이트</span>를 생성합니다.
             </p>
             {/* 데이터 현황 */}
             <div className="flex items-center justify-center gap-6 pt-2">
               <div className="text-center">
-                <p className="text-2xl font-black text-primary">{students.length}</p>
-                <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">학생</p>
+                <p className="text-2xl font-bold text-primary">{students.length}</p>
+                <p className="text-[14px] font-bold text-on-surface-variant ">학생</p>
               </div>
               <div className="w-px h-8 bg-surface-container-high" />
               <div className="text-center">
-                <p className="text-2xl font-black text-primary">{obsCount}</p>
-                <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">활동 기록</p>
+                <p className="text-2xl font-bold text-primary">{obsCount}</p>
+                <p className="text-[14px] font-bold text-on-surface-variant ">활동 기록</p>
               </div>
             </div>
             {obsCount === 0 && (
-              <p className="text-xs text-on-surface-variant/50 mt-1">
+              <p className="text-[14px] text-on-surface-variant mt-1">
                 활동 기록이 없으면 분석 결과가 제한적일 수 있습니다.
               </p>
             )}
@@ -102,7 +102,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
           {/* 시작 버튼 */}
           <button
             onClick={handleStart}
-            className="relative z-10 flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-primary to-primary-dim text-white rounded-2xl font-black text-sm shadow-xl shadow-primary/25 hover:scale-[1.03] active:scale-95 transition-all"
+            className="relative z-10 flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-primary to-primary-dim text-white rounded-2xl font-bold text-sm shadow-xl shadow-primary/25 hover:scale-[1.03] active:scale-95 transition-all"
           >
             <Sparkles size={18} />
             인사이트 분석 시작
@@ -113,13 +113,13 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
           <div className="flex gap-3 z-10 w-full max-w-sm">
             <button
               onClick={onOpenReport}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-surface-container-high rounded-2xl text-xs font-black text-on-surface-variant hover:bg-surface-container transition-all"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-surface-container-high rounded-2xl text-[14px] font-bold text-on-surface-variant hover:bg-surface-container transition-all"
             >
               <BarChart3 size={14} /> 상세 리포트
             </button>
             <button
               onClick={onOpenChat}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-surface-container-high rounded-2xl text-xs font-black text-on-surface-variant hover:bg-surface-container transition-all"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-surface-container-high rounded-2xl text-[14px] font-bold text-on-surface-variant hover:bg-surface-container transition-all"
             >
               <MessageSquare size={14} /> AI 질문하기
             </button>
@@ -139,7 +139,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
       {/* Premium Glow Background */}
       <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-secondary/10 to-primary/20 rounded-3xl blur-xl opacity-30 group-hover:opacity-40 transition duration-1000 animate-pulse" />
 
-      <div className="relative glass rounded-3xl p-10 md:p-14 border border-white/50 shadow-soft flex flex-col items-center text-center gap-8 overflow-hidden bg-white/50">
+      <div className="relative glass rounded-3xl p-10 md:p-14 border border-white/50 shadow-none flex flex-col items-center text-center gap-8 overflow-hidden bg-white/50">
         {/* Dynamic Abstract Background Elements */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
@@ -164,9 +164,9 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
           <div className="flex flex-wrap items-center justify-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full border border-primary/20">
               <BarChart3 size={11} className="shrink-0" />
-              <span className="text-[9px] font-black uppercase tracking-[0.15em] whitespace-nowrap">AI Insight Engine</span>
+              <span className="text-[13px] font-bold  tracking-[0.15em] whitespace-nowrap">AI Insight Engine</span>
             </div>
-            <div className="flex items-center gap-2 text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-widest bg-surface-container/50 px-3 py-1 rounded-full whitespace-nowrap">
+            <div className="flex items-center gap-2 text-[13px] font-bold text-on-surface-variant  bg-surface-container/50 px-3 py-1 rounded-full whitespace-nowrap">
               <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
               {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
               <button
@@ -189,7 +189,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
                 exit={{ opacity: 0 }}
                 className="space-y-2"
               >
-                <p className="text-sm font-bold text-on-surface-variant/50 mb-4">AI가 분석하는 중...</p>
+                <p className="text-sm font-bold text-on-surface-variant mb-4">AI가 분석하는 중...</p>
                 <div className="h-6 bg-surface-container/50 rounded-lg w-full lg:w-4/5 animate-pulse mx-auto" />
                 <div className="h-6 bg-surface-container/50 rounded-lg w-3/4 lg:w-1/2 animate-pulse mx-auto" />
               </motion.div>
@@ -198,7 +198,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
                 key="content"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-2xl md:text-3xl font-black leading-tight text-on-surface font-pretendard tracking-tight max-w-2xl mx-auto"
+                className="text-2xl md:text-3xl font-bold leading-tight text-on-surface font-pretendard tracking-tight max-w-2xl mx-auto"
               >
                 {insight}
               </motion.p>
@@ -210,7 +210,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
         <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full max-w-xl mx-auto z-10 pt-2">
           <button
             onClick={onOpenReport}
-            className="group/btn flex-1 px-6 py-4 bg-on-surface text-surface rounded-2xl font-black text-xs hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2.5 shadow-xl shadow-on-surface/10 whitespace-nowrap"
+            className="group/btn flex-1 px-6 py-4 bg-on-surface text-surface rounded-2xl font-bold text-[14px] hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2.5 shadow-xl shadow-on-surface/10 whitespace-nowrap"
           >
             <span>상세 분석 레포트</span>
             <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
@@ -218,7 +218,7 @@ const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenCha
 
           <button
             onClick={onOpenChat}
-            className="flex-1 px-6 py-4 bg-white text-on-surface border border-on-surface/10 rounded-2xl font-black text-xs hover:bg-surface-container transition-all flex items-center justify-center gap-2.5 shadow-soft whitespace-nowrap group/chat"
+            className="flex-1 px-6 py-4 bg-white text-on-surface border border-on-surface/10 rounded-2xl font-bold text-[14px] hover:bg-surface-container transition-all flex items-center justify-center gap-2.5 shadow-none whitespace-nowrap group/chat"
           >
             <MessageSquare size={16} className="group-hover/chat:scale-110 transition-transform" />
             <span>AI 질문하기</span>

@@ -29,6 +29,8 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [teacherName, setTeacherName] = useState('');
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveOnline, setLiveOnline] = useState(false);
   // null = 학생 선택 화면, undefined = 선생님 계정으로 보기, 문자열 = 그 학생으로 보기
   const [pickedId, setPickedId] = useState<string | undefined | null>(
     studentId ?? (students && students.length > 0 ? null : undefined)
@@ -56,7 +58,18 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
       // 학생 화면 상단에 학교(반) 이름·과목이 나오도록 함께 심는다
       const { data: cls } = await supabase.from('classes').select('name, subject').eq('id', classId).maybeSingle();
       if (cancelled) return;
+      // 특정 학생을 볼 때는 그 학생의 실시간 통로 열쇠를 받아 따라 보기 모드로 연다 (실패하면 기존 미리보기로)
+      let liveKey: string | undefined;
+      if (pickedId) {
+        const { data: k } = await supabase.rpc('teacher_student_live_key', { p_student_id: pickedId });
+        if (typeof k === 'string') liveKey = k;
+      }
+      if (cancelled) return;
+      setLiveOn(!!liveKey);
+      setLiveOnline(false);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        preview: true,
+        live_follow_key: liveKey,
         student_id: t.student_id,
         class_id: t.class_id,
         student_name: t.student_name,
@@ -77,6 +90,14 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
       }
     };
   }, [classId, pickedId]);
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin === window.location.origin && e.data?.type === 'student-live-status') setLiveOnline(!!e.data.online);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -108,6 +129,13 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
                 ? (pickedId ? `${teacherName} 학생 화면 (확인용 · 제출/수정 금지)` : `${teacherName}(으)로 미리보기`)
                 : '학생 화면 미리보기'}
           </span>
+
+          {liveOn && pickedId && (
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold shrink-0 ${liveOnline ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+              <span className={`w-2 h-2 rounded-full ${liveOnline ? 'bg-primary' : 'bg-slate-400'}`} />
+              {liveOnline ? '실시간으로 보는 중' : '지금은 접속 중이 아니에요'}
+            </span>
+          )}
 
           {students && students.length > 0 && pickedId !== null && !studentId && (
             <button

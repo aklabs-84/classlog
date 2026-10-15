@@ -17,8 +17,6 @@ import {
   CheckCircle2,
   Clock as ClockIcon,
   BarChart2,
-  ChevronDown,
-  ChevronUp,
   KeyRound,
   Eye,
   EyeOff,
@@ -218,7 +216,6 @@ const SubjectDashboard = ({
   };
 
   // 주차별 제출 통계
-  const [showStats, setShowStats] = useState(true);
   const [statsLoading, setStatsLoading] = useState(false);
   const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
   // 주차 칩 목록을 화면 진입 시 최신 주차 위치로 1회만 스크롤하기 위한 플래그
@@ -401,7 +398,7 @@ const SubjectDashboard = ({
           </div>
           <div className="flex flex-col">
             <h1 className="text-3xl md:text-4xl font-black tracking-tightest leading-tight">
-              <span className="gradient-text">{classInfo?.name}</span>
+              <span className="text-on-surface">{classInfo?.name}</span>
             </h1>
             <p className="text-on-surface-variant font-bold text-base mt-1 tracking-tight">{classInfo?.subject} 교과 대시보드</p>
           </div>
@@ -410,12 +407,12 @@ const SubjectDashboard = ({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => navigate(`/suggestions?classId=${classInfo.id}`)}
-            className="relative flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
+            className="relative flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-[15px] border border-slate-200 dark:border-slate-700 text-on-surface hover:border-primary/40 hover:text-primary transition-colors whitespace-nowrap"
           >
             <Megaphone size={15} />
             <span>질문·건의함</span>
             {Object.values(suggestionCounts).reduce((a, b) => a + b, 0) > 0 && (
-              <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+              <span className="absolute -top-2 -right-2 bg-primary text-white text-[11px] font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                 {Object.values(suggestionCounts).reduce((a, b) => a + b, 0)}
               </span>
             )}
@@ -431,48 +428,71 @@ const SubjectDashboard = ({
         </div>
       </header>
 
-      {/* 2. Stats Cards */}
+      {/* 2. 한 줄 통계 */}
       <section className="px-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Total Students */}
-          <div className="layered-card bg-white/80 rounded-3xl p-8 flex items-start gap-6 shadow-soft border border-white/60">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-              <Users size={26} className="text-primary/60" strokeWidth={1.8} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-black uppercase tracking-[0.14em] text-on-surface-variant/75">전체 학생 수</span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-4xl font-black tracking-tight font-manrope">{students.length}</span>
-                <span className="text-base font-bold text-on-surface-variant/80">명</span>
-              </div>
-              <span className="text-xs font-bold text-on-surface-variant/70 mt-0.5">전체 등록 인원</span>
-            </div>
-          </div>
-
-          {/* Activity Rate */}
-          <div
-            onClick={() => setShowActivityModal(true)}
-            className="layered-card bg-white/80 rounded-3xl p-8 flex items-start gap-6 shadow-soft border border-white/60 cursor-pointer hover:border-secondary/30 hover:bg-secondary/5 transition-all group"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center shrink-0">
-              <BookOpen size={26} className="text-secondary/70" strokeWidth={1.8} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-black uppercase tracking-[0.14em] text-on-surface-variant/75">활동 참여율</span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-4xl font-black tracking-tight font-manrope">{activeStudents.length}</span>
-                <span className="text-base font-bold text-on-surface-variant/80">명</span>
-              </div>
-              <span className="text-xs font-bold text-on-surface-variant/70 mt-0.5">최근 활동 참여</span>
-              <span className="text-xs font-black text-secondary/75 group-hover:text-secondary transition-colors mt-1">클릭하여 현황 보기 →</span>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[17px] text-on-surface">
+          <span className="flex items-center gap-2"><Users size={18} className="text-primary" /><b className="font-black">{students.length}명</b> 등록</span>
+          <button type="button" onClick={() => setShowActivityModal(true)} className="flex items-center gap-2 hover:text-primary transition-colors" title="최근 활동 현황 보기">
+            <BookOpen size={18} className="text-primary" /><b className="font-black">{activeStudents.length}명</b> 참여 중
+            <span className="text-[14px] font-bold text-primary">현황 보기 ›</span>
+          </button>
         </div>
+      </section>
+
+      {/* 3. 주차별 제출 현황 (항상 펼쳐 둠) */}
+      <section className="px-4">
+        <div className="flex items-center gap-2 mb-3">
+          <BarChart2 size={18} className="text-primary" />
+          <h2 className="text-[19px] font-bold text-on-surface">주차별 제출 현황</h2>
+          {statsWeeks.length > 0 && <span className="text-[14px] text-on-surface-variant">총 {statsWeeks.length}주차 · 주차를 누르면 아래 표가 그 주차 기준으로 바뀌어요</span>}
+        </div>
+        {statsLoading ? (
+          <p className="py-6 text-[15px] text-on-surface-variant">불러오는 중...</p>
+        ) : statsWeeks.length === 0 ? (
+          <p className="py-6 text-[15px] text-on-surface-variant">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hover-reveal">
+            {statsWeeks.map(week => {
+              const topic = weeklyPlan.find(pl => pl.week === week)?.topic;
+              const done = getObsOnWeek(week).size;
+              const total = students.length;
+              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              const isSelected = selectedStatsWeek === week;
+              const isScrollTarget = selectedStatsWeek !== null ? isSelected : week === statsWeeks[statsWeeks.length - 1];
+              return (
+                <button
+                  key={week}
+                  ref={(el) => {
+                    if (isScrollTarget && el && !statsWeekScrolledRef.current) {
+                      statsWeekScrolledRef.current = true;
+                      el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+                    }
+                  }}
+                  onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
+                  aria-pressed={isSelected}
+                  className={`shrink-0 w-[210px] text-left rounded-2xl border p-4 transition-colors bg-surface-container-lowest ${
+                    isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200 dark:border-slate-700 hover:border-primary/40'
+                  }`}
+                >
+                  <span className="block text-[17px] font-bold text-on-surface">{week}주차</span>
+                  <span className="block text-[14px] text-on-surface-variant truncate min-h-[21px]">{topic || ' '}</span>
+                  <span className="block mt-3 h-2 rounded-full bg-surface-container overflow-hidden">
+                    <span className="block h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                  </span>
+                  <span className="block mt-2 text-[14px] text-on-surface-variant">{done}/{total}명 제출</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {selectedStatsWeek !== null && (
+          <p className="mt-2 text-[15px] text-on-surface-variant">{selectedStatsWeek}주차 제출완료 <b className="font-black text-on-surface">{obsOnWeek.size}명</b> · 아래 표에서 확인하세요</p>
+        )}
       </section>
 
       {/* 3. Strategy & Search Bento Bar */}
       <section className="px-4">
-        <div className="glass p-3 rounded-3xl border border-white/60 shadow-soft flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+        <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
           {/* 검색 */}
           <div className="relative flex-1 min-w-0 group">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
@@ -531,111 +551,21 @@ const SubjectDashboard = ({
         </div>
       </section>
       
-      {/* 4. 주차별 제출 현황 통계 */}
-      <section className="px-4">
-        <div className="rounded-2xl border border-neutral-100 bg-neutral-50/60 overflow-hidden">
-          <button
-            onClick={() => setShowStats(v => !v)}
-            className="w-full flex items-center justify-between px-6 py-4 hover:bg-neutral-100/60 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                <BarChart2 size={14} />
-              </div>
-              <span className="text-sm font-black text-on-surface">주차별 제출 현황</span>
-              {statsWeeks.length > 0 && (
-                <span className="text-[10px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
-                  총 {statsWeeks.length}주차
-                </span>
-              )}
-              {selectedStatsWeek !== null && (
-                <span className="text-xs font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
-                  {selectedStatsWeek}주차 선택됨
-                </span>
-              )}
-            </div>
-            {showStats ? <ChevronUp size={16} className="text-on-surface-variant/70" /> : <ChevronDown size={16} className="text-on-surface-variant/70" />}
-          </button>
-
-          {showStats && (
-            <div className="px-6 pb-5">
-              {statsLoading ? (
-                <div className="flex items-center justify-center py-6">
-                  <span className="text-xs font-bold text-on-surface-variant/70">불러오는 중...</span>
-                </div>
-              ) : statsWeeks.length === 0 ? (
-                <div className="text-center py-6">
-                  <p className="text-xs font-black text-on-surface-variant/70">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-hover-reveal">
-                    {statsWeeks.map(week => {
-                      const topic = weeklyPlan.find(p => p.week === week)?.topic;
-                      const weekResultCount = getObsOnWeek(week).size;
-                      const isSelected = selectedStatsWeek === week;
-                      const isScrollTarget = selectedStatsWeek !== null ? isSelected : week === statsWeeks[statsWeeks.length - 1];
-                      return (
-                        <button
-                          key={week}
-                          ref={(el) => {
-                            if (isScrollTarget && el && !statsWeekScrolledRef.current) {
-                              statsWeekScrolledRef.current = true;
-                              el.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
-                            }
-                          }}
-                          onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
-                          className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
-                            isSelected
-                              ? 'bg-primary text-white border-primary shadow-sm'
-                              : 'bg-white text-neutral-600 border-neutral-300 hover:border-primary/40 hover:text-primary'
-                          }`}
-                        >
-                          <span>{week}주차</span>
-                          {topic && <span className={`text-[11px] ${isSelected ? 'text-white/90' : 'text-neutral-500'}`}>· {topic}</span>}
-                          {weekResultCount > 0 && (
-                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
-                              {weekResultCount}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selectedStatsWeek !== null ? (
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black bg-emerald-50 border-emerald-100 text-emerald-700">
-                        <span>📋 제출완료</span>
-                        <span className="text-base font-black">{obsOnWeek.size}</span>
-                        <span className="font-bold opacity-60">명</span>
-                      </div>
-                      <p className="text-xs font-bold text-on-surface-variant/70 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
-                    </div>
-                  ) : (
-                    <p className="text-xs font-bold text-on-surface-variant/70">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* 5. Student Content Area */}
       <section className="px-2 pb-20">
         {students.length === 0 ? (
-          <div className="py-32 flex flex-col items-center justify-center space-y-8 layered-card rounded-[3rem] border-dashed border-primary/20 bg-gradient-to-br from-white via-white to-primary/5">
-            <div className="w-24 h-24 bg-primary/5 rounded-[2rem] flex items-center justify-center shadow-inner group">
-               <Users size={40} className="text-primary/40 group-hover:scale-110 transition-all duration-700" />
+          <div className="py-20 flex flex-col items-center justify-center space-y-6 rounded-2xl border border-dashed border-primary/40 bg-surface-container-lowest">
+            <div className="w-20 h-20 bg-primary-container rounded-2xl flex items-center justify-center">
+               <Users size={36} className="text-primary" />
             </div>
             <div className="text-center space-y-3">
-              <h3 className="text-2xl font-black tracking-tightest">등록된 학생이 없습니다.</h3>
-              <p className="text-sm font-bold text-on-surface-variant leading-relaxed max-w-sm mx-auto">
+              <h3 className="text-2xl font-bold text-on-surface">등록된 학생이 없습니다.</h3>
+              <p className="text-[17px] text-on-surface-variant leading-relaxed max-w-sm mx-auto">
                 학생을 직접 추가하거나 <br /><span className="text-primary font-black underline decoration-primary/20 underline-offset-4">입장 코드</span>를 연동하세요.
               </p>
             </div>
             <div className="flex gap-4">
-              <button onClick={onAddStudent} className="btn-vibrant px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3"><Plus size={18} /> 학생 추가</button>
+              <button onClick={onAddStudent} className="px-6 py-3 rounded-xl bg-primary text-white font-bold text-[16px] hover:bg-primary/90 flex items-center gap-2"><Plus size={18} /> 학생 추가</button>
             </div>
           </div>
         ) : (
@@ -658,7 +588,7 @@ const SubjectDashboard = ({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       onClick={() => onNavigateAI(s.id)}
-                      className={`layered-card bg-white/80 rounded-2xl border border-white/60 shadow-soft p-4 cursor-pointer hover:bg-primary/[0.02] transition-all ${selectedIds.includes(s.id) ? 'ring-2 ring-primary/30' : ''}`}
+                      className={`bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 p-4 cursor-pointer hover:border-primary/40 transition-all ${selectedIds.includes(s.id) ? 'ring-2 ring-primary/30' : ''}`}
                     >
                       {/* 카드 헤더 */}
                       <div className="flex items-center justify-between gap-2">
@@ -670,16 +600,16 @@ const SubjectDashboard = ({
                             </div>
                           </label>
                           {s.number !== '-' && (
-                            <span className="text-xs font-black text-on-surface-variant/70 shrink-0 w-6">
+                            <span className="text-[14px] font-bold text-on-surface-variant/70 shrink-0 w-6">
                               {s.number?.toString().padStart(2, '0')}
                             </span>
                           )}
                           <div className="min-w-0">
                             <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                              <span className="text-xs font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
+                              <span className="text-[14px] font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
                               {suggestionCounts[s.id] > 0 && (
-                                <span className="text-[8px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">💬 {suggestionCounts[s.id]}</span>
+                                <span className="text-[12px] font-black text-surface-container0 bg-surface-container px-1.5 py-0.5 rounded border border-slate-200">💬 {suggestionCounts[s.id]}</span>
                               )}
                             </div>
                           </div>
@@ -687,13 +617,13 @@ const SubjectDashboard = ({
                         {/* 승인 상태 배지 */}
                         <div className="shrink-0 flex items-center gap-2">
                           {approvalStatus === 'pending' && (
-                            <span className="text-xs font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ 대기</span>
+                            <span className="text-[14px] font-bold px-2 py-1 rounded-lg bg-surface-container-lowest text-primary border border-primary/60 whitespace-nowrap">승인 대기</span>
                           )}
                           {approvalStatus === 'rejected' && (
-                            <span className="text-xs font-black px-2 py-1 rounded-lg bg-red-50 text-red-500 border border-red-200 whitespace-nowrap">반려됨</span>
+                            <span className="text-[14px] font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200 whitespace-nowrap">반려됨</span>
                           )}
                           {approvalStatus === 'done' && (
-                            <span className="text-xs font-black px-2 py-1 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 whitespace-nowrap">✅ 완료</span>
+                            <span className="text-[14px] font-bold px-2 py-1 rounded-lg bg-primary-container text-primary border border-primary/30 whitespace-nowrap">승인 완료</span>
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }}
@@ -713,13 +643,13 @@ const SubjectDashboard = ({
                             const topic = weeklyPlan.find(p => p.week === w)?.topic;
                             return (
                               <div key={w} className="flex items-center gap-2">
-                                <span className="text-xs font-black text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
-                                {topic && <span className="text-xs font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
+                                <span className="text-[14px] font-bold text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
+                                {topic && <span className="text-[14px] font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
+                                  <span className={`text-[14px] font-bold px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-primary-container text-primary border-primary/30' : 'bg-surface-container text-on-surface-variant border-neutral-200'}`}>
                                     📝 {hasObs ? '제출' : '미제출'}
                                   </span>
-                                  <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
+                                  <span className={`text-[14px] font-bold px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-primary-container text-primary border-primary/30' : 'bg-surface-container text-on-surface-variant border-neutral-200'}`}>
                                     📁 {hasResult ? '제출' : '미제출'}
                                   </span>
                                 </div>
@@ -735,7 +665,7 @@ const SubjectDashboard = ({
                           <textarea
                             autoFocus
                             rows={2}
-                            className="w-full text-xs font-medium bg-surface-container/60 rounded-xl px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary/30 border border-surface-container"
+                            className="w-full text-[14px] font-medium bg-surface-container/60 rounded-xl px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary/30 border border-surface-container"
                             value={memoDraft}
                             onChange={(e) => setMemoDraft(e.target.value)}
                             onBlur={() => { saveMemo(s.id, memoDraft); setEditingMemoId(null); }}
@@ -744,9 +674,9 @@ const SubjectDashboard = ({
                         ) : (
                           <button
                             onClick={() => { setEditingMemoId(s.id); setMemoDraft(s.memo || ''); }}
-                            className={`w-full text-left text-xs font-medium rounded-xl px-3 py-2 transition-all ${
+                            className={`w-full text-left text-[14px] font-medium rounded-xl px-3 py-2 transition-all ${
                               s.memo
-                                ? 'bg-amber-50 border border-amber-100 text-on-surface-variant'
+                                ? 'bg-surface-container border border-slate-200 text-on-surface-variant'
                                 : 'bg-neutral-50 text-neutral-300 italic hover:bg-neutral-100'
                             }`}
                           >
@@ -757,9 +687,9 @@ const SubjectDashboard = ({
 
                       {/* 관리 버튼 */}
                       <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
-                        <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
-                        <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-violet-50 text-neutral-400 hover:text-violet-500 transition-all rounded-lg"><KeyRound size={14} /></button>
+                        <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-primary-container text-on-surface-variant hover:text-primary transition-all rounded-lg"><KeyRound size={14} /></button>
                       </div>
                     </motion.div>
                   );
@@ -772,7 +702,7 @@ const SubjectDashboard = ({
                 initial={{ opacity: 0, scale: 0.99 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.01 }}
-                className="hidden md:block layered-card rounded-3xl border-white/60 shadow-soft overflow-hidden bg-white/60"
+                className="hidden md:block rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-surface-container-lowest"
               >
                 <div className="overflow-x-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse min-w-[800px]">
@@ -792,33 +722,33 @@ const SubjectDashboard = ({
                           </label>
                         </th>
                         {colVis.number && (
-                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">
+                          <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant whitespace-nowrap hidden sm:table-cell">
                             <button className="flex items-center gap-2 group" onClick={() => onSort('number')}>
                               NO. <ArrowRight size={14} className={`group-hover:text-primary transition-all rotate-90 ${sortConfig.key === 'number' ? 'text-primary' : 'opacity-20'}`} />
                             </button>
                           </th>
                         )}
-                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
+                        <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant whitespace-nowrap">학생 정보</th>
                         {colVis.activity && (
-                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden lg:table-cell">활동 및 관찰 기록</th>
+                          <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant whitespace-nowrap hidden lg:table-cell">활동 및 관찰 기록</th>
                         )}
                         {colVis.approval && (
-                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
+                          <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant text-center whitespace-nowrap">승인</th>
                         )}
                         {selectedStatsWeek !== null && (
                           <>
-                            <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
+                            <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant text-center whitespace-nowrap">
                               {selectedStatsWeek}주차 활동 기록
                             </th>
-                            <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center whitespace-nowrap">
+                            <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant text-center whitespace-nowrap">
                               {selectedStatsWeek}주차 결과제출
                             </th>
                           </>
                         )}
-                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-8 lg:pr-12 whitespace-nowrap">관리</th>
+                        <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant text-right pr-8 lg:pr-12 whitespace-nowrap">관리</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-neutral-100">
+                    <tbody className="bg-surface-container-lowest divide-y divide-slate-200 dark:divide-slate-700">
                       {filteredStudents.map((s) => {
                         const isEditing = editingId === s.id;
                         return (
@@ -850,7 +780,7 @@ const SubjectDashboard = ({
                                   onChange={(e) => setEditNumber(e.target.value)}
                                   onClick={(e) => e.stopPropagation()}
                                   placeholder="번호"
-                                  className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
+                                  className="w-16 px-3 py-2 bg-surface-container-lowest border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
                                 />
                               ) : (
                                 <span className="font-manrope font-black text-on-surface-variant/60 group-hover:text-primary transition-colors text-lg">
@@ -867,7 +797,7 @@ const SubjectDashboard = ({
                                 onChange={(e) => setEditName(e.target.value)}
                                 onClick={(e) => e.stopPropagation()}
                                 placeholder="이름"
-                                className="w-40 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black focus:outline-none focus:border-primary"
+                                className="w-40 px-3 py-2 bg-surface-container-lowest border-2 border-primary/30 rounded-xl text-sm font-black focus:outline-none focus:border-primary"
                               />
                             ) : (
                             <div className="flex items-center gap-3 lg:gap-4">
@@ -881,17 +811,17 @@ const SubjectDashboard = ({
                               <div className="flex flex-col">
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-xs font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
+                                  <span className="text-[14px] font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
                                   {colVis.group && groupMap[s.id] && (
                                     <span
-                                      className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                                      className="text-[12px] font-black px-1.5 py-0.5 rounded-md text-white"
                                       style={{ backgroundColor: groupMap[s.id].color }}
                                     >
                                       {groupMap[s.id].name}
                                     </span>
                                   )}
                                   {suggestionCounts[s.id] > 0 && (
-                                    <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 text-[8px] font-black text-rose-500 rounded border border-rose-100">
+                                    <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-surface-container text-[12px] font-black text-surface-container0 rounded border border-slate-200">
                                       💬 {suggestionCounts[s.id]}건
                                     </span>
                                   )}
@@ -919,15 +849,15 @@ const SubjectDashboard = ({
                               {(() => {
                                 if (selectedStatsWeek !== null) {
                                   const ws = getApprovalStatusForWeek(s.id, selectedStatsWeek);
-                                  if (ws === 'none') return <span className="text-on-surface-variant/50 text-xs font-bold">—</span>;
-                                  if (ws === 'pending') return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>;
-                                  if (ws === 'rejected') return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-red-50 text-red-500 border-red-200">반려됨</span>;
-                                  return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>;
+                                  if (ws === 'none') return <span className="text-on-surface-variant/50 text-[14px] font-bold">—</span>;
+                                  if (ws === 'pending') return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-surface-container-lowest text-primary border-primary/60">승인 대기</span>;
+                                  if (ws === 'rejected') return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-red-50 text-red-600 border-red-200">반려됨</span>;
+                                  return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-primary-container text-primary border-primary/30">승인 완료</span>;
                                 }
-                                if (s.status === '미작성') return <span className="text-on-surface-variant/50 text-xs font-bold">—</span>;
-                                if (s.pending_obs_ids?.length > 0) return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>;
-                                if (s.has_rejected) return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-red-50 text-red-500 border-red-200">반려됨</span>;
-                                return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>;
+                                if (s.status === '미작성') return <span className="text-on-surface-variant/50 text-[14px] font-bold">—</span>;
+                                if (s.pending_obs_ids?.length > 0) return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-surface-container-lowest text-primary border-primary/60">승인 대기</span>;
+                                if (s.has_rejected) return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-red-50 text-red-600 border-red-200">반려됨</span>;
+                                return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-primary-container text-primary border-primary/30">승인 완료</span>;
                               })()}
                             </td>
                           )}
@@ -936,14 +866,14 @@ const SubjectDashboard = ({
                             <>
                               <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                 {obsOnWeek.has(s.id) ? (
-                                  <span className="px-2 py-1 rounded-md text-xs font-black bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">📝 제출</span>
+                                  <span className="px-2 py-1 rounded-md text-[14px] font-bold bg-primary-container text-primary border border-primary/30 whitespace-nowrap">📝 제출</span>
                                 ) : (
                                   <span className="text-neutral-500 font-bold text-sm">—</span>
                                 )}
                               </td>
                               <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                 {resultsOnWeek.has(s.id) ? (
-                                  <span className="px-2 py-1 rounded-md text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">📁 제출</span>
+                                  <span className="px-2 py-1 rounded-md text-[14px] font-bold bg-primary-container text-primary border border-primary/30 whitespace-nowrap">📁 제출</span>
                                 ) : (
                                   <span className="text-neutral-500 font-bold text-sm">—</span>
                                 )}
@@ -957,34 +887,34 @@ const SubjectDashboard = ({
                                 <button
                                   onClick={handleSaveEdit}
                                   disabled={saving}
-                                  className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50"
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50"
                                 >
                                   <Save size={13} />
                                   {saving ? '저장 중' : '저장'}
                                 </button>
                                 <button
                                   onClick={handleCancelEdit}
-                                  className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-xl transition-all"
+                                  className="p-2 text-on-surface-variant hover:text-neutral-600 hover:bg-neutral-100 rounded-xl transition-all"
                                 >
                                   <X size={16} />
                                 </button>
                               </div>
                             ) : (
                             <div className="flex items-center justify-end gap-1">
-                              <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
-                              <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
+                              <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
                               {/* PIN 보기 */}
                               <div className="relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setPinPopupId(pinPopupId === s.id ? null : s.id); }}
-                                  className="p-2 hover:bg-violet-50 text-neutral-400 hover:text-violet-500 transition-all rounded-lg"
+                                  className="p-2 hover:bg-primary-container text-on-surface-variant hover:text-primary transition-all rounded-lg"
                                   title="PIN 보기"
                                 >
                                   {pinPopupId === s.id ? <EyeOff size={14} /> : <Eye size={14} />}
                                 </button>
                                 {pinPopupId === s.id && (
                                   <div className="absolute right-0 bottom-9 z-50 bg-neutral-900 text-white rounded-xl px-4 py-2.5 shadow-xl whitespace-nowrap">
-                                    <p className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-1">PIN</p>
+                                    <p className="text-[14px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">PIN</p>
                                     <p className="text-lg font-black tracking-widest font-manrope">
                                       {s.pin ?? <span className="text-neutral-500 text-sm">미설정</span>}
                                     </p>
@@ -992,7 +922,7 @@ const SubjectDashboard = ({
                                   </div>
                                 )}
                               </div>
-                              <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-amber-50 text-neutral-400 hover:text-amber-500 transition-all rounded-lg" title="PIN 초기화"><KeyRound size={14} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-primary-container text-on-surface-variant hover:text-primary transition-all rounded-lg" title="PIN 초기화"><KeyRound size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/70 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
                             </div>
                             )}
@@ -1015,7 +945,7 @@ const SubjectDashboard = ({
                   <motion.div
                     key={s.id}
                     variants={itemVariants}
-                    className="layered-card rounded-2xl bg-white/90 shadow-soft border border-white/60 hover:bg-white hover:shadow-md transition-all flex flex-col overflow-hidden"
+                    className="rounded-xl bg-surface-container-lowest border border-slate-200 dark:border-slate-700 hover:border-primary/40 transition-all flex flex-col overflow-hidden"
                   >
                     {/* 상단: 아바타 + 이름 + 상태 */}
                     <div
@@ -1031,7 +961,7 @@ const SubjectDashboard = ({
                           )}
                         </div>
                         {s.number && s.number !== '-' && (
-                          <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 bg-on-surface text-surface rounded text-[9px] font-black flex items-center justify-center shadow-sm leading-none">
+                          <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 bg-on-surface text-surface rounded text-[12px] font-black flex items-center justify-center shadow-sm leading-none">
                             {s.number}
                           </span>
                         )}
@@ -1042,7 +972,7 @@ const SubjectDashboard = ({
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
                           {colVis.group && groupMap[s.id] && (
                             <span
-                              className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                              className="text-[12px] font-black px-1.5 py-0.5 rounded-md text-white"
                               style={{ backgroundColor: groupMap[s.id].color }}
                             >
                               {groupMap[s.id].name}
@@ -1057,7 +987,7 @@ const SubjectDashboard = ({
                       className="px-4 py-1.5 cursor-pointer"
                       onClick={() => onNavigateAI(s.id)}
                     >
-                      <p className="text-xs text-on-surface-variant/75 font-medium line-clamp-2 leading-relaxed">
+                      <p className="text-[14px] text-on-surface-variant/75 font-medium line-clamp-2 leading-relaxed">
                         {(() => {
                           const text = selectedStatsWeek !== null
                             ? getActivityTextForWeek(s.id, selectedStatsWeek)
@@ -1075,7 +1005,7 @@ const SubjectDashboard = ({
                         <textarea
                           autoFocus
                           rows={2}
-                          className="w-full text-[11px] font-medium bg-surface-container/60 rounded-lg px-2.5 py-1.5 resize-none outline-none focus:ring-1 focus:ring-primary/30 border border-surface-container"
+                          className="w-full text-[13px] font-medium bg-surface-container/60 rounded-lg px-2.5 py-1.5 resize-none outline-none focus:ring-1 focus:ring-primary/30 border border-surface-container"
                           value={memoDraft}
                           onChange={(e) => setMemoDraft(e.target.value)}
                           onBlur={() => {
@@ -1090,9 +1020,9 @@ const SubjectDashboard = ({
                             setEditingMemoId(s.id);
                             setMemoDraft(s.memo || '');
                           }}
-                          className={`w-full text-left text-[11px] font-medium rounded-lg px-2.5 py-1.5 transition-all min-h-[30px] ${
+                          className={`w-full text-left text-[13px] font-medium rounded-lg px-2.5 py-1.5 transition-all min-h-[30px] ${
                             s.memo
-                              ? 'text-on-surface-variant bg-amber-50/70 border border-amber-100 hover:bg-amber-50'
+                              ? 'text-on-surface-variant bg-surface-container border border-slate-200 hover:bg-surface-container-high'
                               : 'text-on-surface-variant/30 italic bg-surface-container/20 hover:bg-surface-container/40'
                           }`}
                         >
@@ -1111,7 +1041,7 @@ const SubjectDashboard = ({
                     >
                       <button
                         onClick={() => onNavigateAI(s.id)}
-                        className="text-xs font-black text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all"
+                        className="text-[14px] font-bold text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all"
                       >
                         기록 보기 <ArrowRight size={11} />
                       </button>
@@ -1166,7 +1096,7 @@ const SubjectDashboard = ({
                 </div>
                 <h3 className="text-base font-black text-on-surface">컬럼 표시 설정</h3>
               </div>
-              <button onClick={() => setShowColDropdown(false)} className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-all">
+              <button onClick={() => setShowColDropdown(false)} className="p-2 rounded-xl text-on-surface-variant hover:text-neutral-600 hover:bg-neutral-100 transition-all">
                 <X size={18} />
               </button>
             </div>
@@ -1242,7 +1172,7 @@ const SubjectDashboard = ({
           setMobileStatusTab('submitted');
         };
 
-        const tabColor = activityTab === 'obs' ? 'violet' : 'emerald';
+        const tabColor = activityTab === 'obs' ? 'primary' : 'primary';
         const tabLabel = activityTab === 'obs' ? '활동 기록' : '결과제출';
 
         return (
@@ -1251,73 +1181,73 @@ const SubjectDashboard = ({
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+              className="relative bg-surface-container-lowest rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-10 py-4 sm:py-5 border-b border-neutral-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-10 py-4 sm:py-5 border-b border-slate-200 dark:border-slate-700">
                 <div className="space-y-1 min-w-0">
-                  <p className="text-xs font-black text-secondary uppercase tracking-[0.2em]">활동 참여율</p>
-                  <h3 className="text-lg sm:text-xl font-black tracking-tight truncate">
+                  <p className="text-[14px] font-semibold text-on-surface-variant">활동 참여율</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-on-surface truncate">
                     {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0">
                   <div className="flex items-center gap-3 sm:gap-4 text-right">
                     <div className="space-y-0.5 whitespace-nowrap">
-                      <p className="text-xl sm:text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
-                      <p className="text-[10px] sm:text-xs font-black text-secondary/70 uppercase tracking-widest whitespace-nowrap">제출 완료</p>
+                      <p className="text-xl sm:text-2xl font-bold text-primary">{submitted.length}<span className="text-[15px] ml-1 opacity-70">명</span></p>
+                      <p className="text-[14px] font-semibold text-on-surface-variant whitespace-nowrap">제출 완료</p>
                     </div>
-                    <div className="w-px h-10 bg-neutral-200 shrink-0" />
+                    <div className="w-px h-10 bg-slate-200 dark:bg-slate-700 shrink-0" />
                     <div className="space-y-0.5 whitespace-nowrap">
-                      <p className="text-xl sm:text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
-                      <p className="text-[10px] sm:text-xs font-black text-amber-500/70 uppercase tracking-widest whitespace-nowrap">미제출</p>
+                      <p className="text-xl sm:text-2xl font-bold text-on-surface-variant">{notSubmitted.length}<span className="text-[15px] ml-1 opacity-70">명</span></p>
+                      <p className="text-[14px] font-semibold text-on-surface-variant whitespace-nowrap">미제출</p>
                     </div>
                   </div>
-                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all shrink-0">
+                  <button onClick={closeModal} className="p-2.5 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all shrink-0">
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
               {/* 탭 선택 */}
-              <div className="px-5 sm:px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
+              <div className="px-5 sm:px-10 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
                 <button
                   onClick={() => setActivityTab('obs')}
-                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all border whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[14px] font-bold transition-all border whitespace-nowrap ${
                     activityTab === 'obs'
-                      ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
-                      : 'bg-white text-neutral-500 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary'
                   }`}
                 >
-                  📋 활동 기록
+                  활동 기록
                   {activityTab === 'obs' && selectedActivityWeek === null && (
-                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{allObsIds.size}명</span>
+                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[14px]">{allObsIds.size}명</span>
                   )}
                 </button>
                 <button
                   onClick={() => setActivityTab('results')}
-                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all border whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[14px] font-bold transition-all border whitespace-nowrap ${
                     activityTab === 'results'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-white text-neutral-500 border-neutral-200 hover:border-emerald-300 hover:text-emerald-600'
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary'
                   }`}
                 >
-                  📦 결과제출
+                  결과제출
                   {activityTab === 'results' && selectedActivityWeek === null && (
-                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{allResultIds.size}명</span>
+                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[14px]">{allResultIds.size}명</span>
                   )}
                 </button>
               </div>
 
               {/* 주차 필터 칩 */}
               {statsWeeks.length > 0 && (
-                <div className="pl-5 sm:pl-10 pt-4 sm:pt-5 pb-6 sm:pb-8 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <div className="pl-5 sm:pl-10 pt-4 sm:pt-5 pb-6 sm:pb-8 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 overflow-x-auto custom-scrollbar">
                   <button
                     onClick={() => setSelectedActivityWeek(null)}
-                    className={`shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all border ${
+                    className={`shrink-0 px-4 py-2 rounded-full text-[14px] font-bold transition-all border ${
                       selectedActivityWeek === null
-                        ? 'bg-neutral-700 text-white border-neutral-700 shadow-sm'
-                        : 'bg-white text-neutral-500 border-neutral-300 hover:border-neutral-500'
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40'
                     }`}
                   >
                     전체
@@ -1329,16 +1259,16 @@ const SubjectDashboard = ({
                       <button
                         key={week}
                         onClick={() => setSelectedActivityWeek(week)}
-                        className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all border ${
+                        className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-[14px] font-bold transition-all border ${
                           selectedActivityWeek === week
-                            ? tabColor === 'violet' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                            : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500'
+                            ? tabColor === 'primary' ? 'bg-primary text-white border-primary' : 'bg-primary text-white border-primary'
+                            : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40'
                         }`}
                       >
                         {week}주차{topic && <span className="opacity-75">· {topic}</span>}
                         {weekCount > 0 && (
-                          <span className={`px-1.5 py-0.5 rounded-md text-xs font-black ${
-                            selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                          <span className={`px-1.5 py-0.5 rounded-md text-[14px] font-bold ${
+                            selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'primary' ? 'bg-primary-container text-primary' : 'bg-primary-container text-primary'
                           }`}>{weekCount}</span>
                         )}
                       </button>
@@ -1350,37 +1280,37 @@ const SubjectDashboard = ({
               )}
 
               {/* 모바일 전용: 제출완료/미제출 서브탭 */}
-              <div className="sm:hidden flex border-b border-neutral-100">
+              <div className="sm:hidden flex border-b border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => setMobileStatusTab('submitted')}
-                  className={`flex-1 py-3 text-xs font-black transition-all border-b-2 ${
+                  className={`flex-1 py-3 text-[14px] font-bold transition-all border-b-2 ${
                     mobileStatusTab === 'submitted'
-                      ? tabColor === 'violet' ? 'text-violet-600 border-violet-600' : 'text-emerald-600 border-emerald-600'
-                      : 'text-neutral-400 border-transparent'
+                      ? tabColor === 'primary' ? 'text-primary border-primary' : 'text-primary border-primary'
+                      : 'text-on-surface-variant border-transparent'
                   }`}
                 >
-                  ✓ 제출 완료 ({submitted.length})
+                  제출 완료 ({submitted.length})
                 </button>
                 <button
                   onClick={() => setMobileStatusTab('notSubmitted')}
-                  className={`flex-1 py-3 text-xs font-black transition-all border-b-2 ${
+                  className={`flex-1 py-3 text-[14px] font-bold transition-all border-b-2 ${
                     mobileStatusTab === 'notSubmitted'
-                      ? 'text-amber-600 border-amber-600'
-                      : 'text-neutral-400 border-transparent'
+                      ? 'text-primary border-primary'
+                      : 'text-on-surface-variant border-transparent'
                   }`}
                 >
-                  ⏳ 미제출 ({notSubmitted.length})
+                  미제출 ({notSubmitted.length})
                 </button>
               </div>
 
               {/* Modal Body */}
-              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-neutral-100">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-slate-200 dark:divide-slate-700">
                 {/* 제출 완료 */}
                 <div className={`${mobileStatusTab === 'submitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
-                  <div className={`hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 border-b items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                    <CheckCheck size={14} className={tabColor === 'violet' ? 'text-violet-600' : 'text-emerald-600'} />
-                    <span className={`text-sm font-black ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
-                      ✓ 제출 완료 ({submitted.length}명)
+                  <div className={`hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 border-b items-center gap-2 ${tabColor === 'primary' ? 'bg-primary-container/40 border-slate-200 dark:border-slate-700' : 'bg-primary-container/40 border-slate-200 dark:border-slate-700'}`}>
+                    <CheckCheck size={14} className={tabColor === 'primary' ? 'text-primary' : 'text-primary'} />
+                    <span className={`text-[15px] font-bold ${tabColor === 'primary' ? 'text-primary' : 'text-primary'}`}>
+                      제출 완료 ({submitted.length}명)
                     </span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
@@ -1391,28 +1321,28 @@ const SubjectDashboard = ({
                           onClick={() => activityTab === 'results' ? handleResultStudentClick(s) : undefined}
                           className={`flex items-center gap-3 px-5 sm:px-8 py-3 transition-all group ${
                             activityTab === 'results' ? 'cursor-pointer' : ''
-                          } ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
+                          } ${tabColor === 'primary' ? 'hover:bg-primary-container/40' : 'hover:bg-primary-container/40'}`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tabColor === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tabColor === 'primary' ? 'bg-primary-container text-primary' : 'bg-primary-container text-primary'}`}>
                             <Users size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-black transition-colors ${tabColor === 'violet' ? 'group-hover:text-violet-600' : 'group-hover:text-emerald-600'}`}>
+                            <p className={`text-[15px] font-bold transition-colors ${tabColor === 'primary' ? 'group-hover:text-primary' : 'group-hover:text-primary'}`}>
                               {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-xs text-neutral-500 font-medium truncate">{getActivityLabel(s)}</p>
+                            <p className="text-[14px] text-on-surface-variant font-medium truncate">{getActivityLabel(s)}</p>
                           </div>
                           {activityTab === 'results' ? (
-                            <ExternalLink size={13} className="shrink-0 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <ExternalLink size={13} className="shrink-0 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                           ) : (
-                            <CheckCircle2 size={14} className={`shrink-0 ${tabColor === 'violet' ? 'text-violet-500' : 'text-emerald-500'}`} />
+                            <CheckCircle2 size={14} className={`shrink-0 ${tabColor === 'primary' ? 'text-primary' : 'text-primary'}`} />
                           )}
                         </div>
                       ))
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-on-surface-variant/50 gap-2">
                         <CheckCheck size={32} />
-                        <p className="text-xs font-bold">제출한 학생이 없습니다</p>
+                        <p className="text-[14px] font-bold">제출한 학생이 없습니다</p>
                       </div>
                     )}
                   </div>
@@ -1420,30 +1350,30 @@ const SubjectDashboard = ({
 
                 {/* 미제출 */}
                 <div className={`${mobileStatusTab === 'notSubmitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
-                  <div className="hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 bg-amber-50 border-b border-amber-100 items-center gap-2">
-                    <ClockIcon size={14} className="text-amber-500" />
-                    <span className="text-sm font-black text-amber-700">⏳ 미제출 ({notSubmitted.length}명)</span>
+                  <div className="hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 bg-surface-container border-b border-slate-200 dark:border-slate-700 items-center gap-2">
+                    <ClockIcon size={14} className="text-on-surface-variant" />
+                    <span className="text-[15px] font-bold text-on-surface">미제출 ({notSubmitted.length}명)</span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
                     {notSubmitted.length > 0 ? (
                       notSubmitted.map(s => (
-                        <div key={s.id} className="flex items-center gap-3 px-5 sm:px-8 py-3 hover:bg-amber-50 transition-all group">
-                          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
+                        <div key={s.id} className="flex items-center gap-3 px-5 sm:px-8 py-3 hover:bg-surface-container transition-all group">
+                          <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant shrink-0">
                             <Users size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black group-hover:text-amber-600 transition-colors">
+                            <p className="text-[15px] font-bold group-hover:text-primary transition-colors">
                               {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-xs text-neutral-500 font-medium">미제출</p>
+                            <p className="text-[14px] text-on-surface-variant font-medium">미제출</p>
                           </div>
-                          <ClockIcon size={14} className="text-amber-300 shrink-0" />
+                          <ClockIcon size={14} className="text-on-surface-variant/60 shrink-0" />
                         </div>
                       ))
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-on-surface-variant/50 gap-2">
                         <ClockIcon size={32} />
-                        <p className="text-xs font-bold">모두 제출 완료!</p>
+                        <p className="text-[14px] font-bold">모두 제출 완료!</p>
                       </div>
                     )}
                   </div>
@@ -1451,19 +1381,19 @@ const SubjectDashboard = ({
               </div>
 
               {/* Modal Footer */}
-              <div className="px-5 sm:px-10 py-4 sm:py-5 border-t border-neutral-100 bg-neutral-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="px-5 sm:px-10 py-4 sm:py-5 border-t border-slate-200 dark:border-slate-700 bg-surface-container-low flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-2 bg-neutral-100 rounded-full flex-1 sm:w-40 sm:flex-none overflow-hidden">
+                  <div className="h-2 bg-surface-container rounded-full flex-1 sm:w-40 sm:flex-none overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${tabColor === 'violet' ? 'bg-violet-500' : 'bg-emerald-500'}`}
+                      className={`h-full rounded-full transition-all ${tabColor === 'primary' ? 'bg-primary' : 'bg-primary'}`}
                       style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
                     />
                   </div>
-                  <span className="text-sm font-black text-on-surface-variant/80 whitespace-nowrap">
+                  <span className="text-[15px] font-bold text-on-surface-variant/80 whitespace-nowrap">
                     {tabLabel} 참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
                   </span>
                 </div>
-                <button onClick={closeModal} className="w-full sm:w-auto px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all">
+                <button onClick={closeModal} className="w-full sm:w-auto px-6 py-2.5 border border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary rounded-xl text-[15px] font-bold text-on-surface transition-all">
                   닫기
                 </button>
               </div>

@@ -481,3 +481,19 @@
 @page :first {
   @bottom-center { content: none; }
 }
+
+/* 모션 줄이기 설정을 켠 사용자는 움직임을 거의 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 키보드로 이동할 때 현재 위치가 보이게 */
+button:focus-visible, a:focus-visible, [role="tab"]:focus-visible {
+  outline: 2px solid var(--color-primary, #8b5cf6);
+  outline-offset: 2px;
+}

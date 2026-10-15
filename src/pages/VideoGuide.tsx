@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { parseVideoUrl } from '../lib/gallery';
 import { useAuth, isAnonymousUser } from '../lib/auth';
+import GuideOutdatedNotice from '../components/GuideOutdatedNotice';
 
 export interface VideoGuideItem {
   id: string;
@@ -104,6 +105,7 @@ export default function VideoGuide() {
           <p className="text-sm text-amber-700/70 mt-1.5">
             클래스로그 AI 사용 방법을 영상으로 확인하세요
           </p>
+          <GuideOutdatedNotice className="mt-4 text-left" />
         </div>
 
         {/* 카테고리 탭 */}

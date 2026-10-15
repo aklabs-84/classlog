@@ -431,6 +431,13 @@ const TeachingTools = () => {
     if (tool.planRequired === 'basic') return !isBasicOrAboveArg && !byokUnlocked;
     return false;
   };
+  // 수업 자료 에디터가 입력 화면일 때는 제목 옆 '수업 도구 목록으로' 버튼을 숨긴다 (자료 목록으로 가는 버튼과 헷갈리지 않게)
+  const [materialEditorOpen, setMaterialEditorOpen] = useState(false);
+  useEffect(() => {
+    const h = (e: Event) => setMaterialEditorOpen(!!(e as CustomEvent).detail);
+    window.addEventListener('material-editor-open', h);
+    return () => window.removeEventListener('material-editor-open', h);
+  }, []);
   const [activeTool, setActiveTool] = useState<Tool | null>(() => {
     const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
     const queryToolId = searchParams.get('tool');
@@ -677,20 +684,20 @@ const TeachingTools = () => {
         </button>
       )}
       <div className="flex items-center gap-3 flex-wrap">
-        {activeTool && (
+        {activeTool && !(activeTool.id === 'material-editor' && materialEditorOpen) && (
           <button
             onClick={() => setActiveTool(null)}
-            className="p-2.5 rounded-full bg-surface-container hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all shadow-sm"
+            className="p-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface-variant hover:text-primary transition-all"
             title="수업 도구 목록으로"
           >
             <ArrowLeft size={20} />
           </button>
         )}
         <div>
-          <h1 className="text-3xl font-black gradient-text">
+          <h1 className="text-[28px] font-bold text-on-surface">
             {activeTool ? activeTool.label : '수업 도구'}
           </h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">
+          <p className="text-[15px] text-on-surface-variant mt-1">
             {activeTool
               ? activeTool.description
               : '수업에 바로 활용할 수 있는 도구 모음'}

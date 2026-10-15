@@ -23,7 +23,7 @@ interface StudentDetailDrawerProps {
   onAskAI?: (studentId: string) => void;
 }
 
-const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI }: StudentDetailDrawerProps) => {
+const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: StudentDetailDrawerProps) => {
   const { user } = useAuth();
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -313,12 +313,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                   {loading ? (
                     <div className="h-6 w-24 bg-surface-container animate-pulse rounded-md mb-2" />
                   ) : (
-                    <h2 className="text-2xl font-black tracking-tight">{student?.full_name}</h2>
+                    <h2 className="text-2xl font-bold tracking-tight">{student?.full_name}</h2>
                   )}
                   {loading ? (
                      <div className="h-4 w-12 bg-surface-container animate-pulse rounded-md" />
                   ) : (
-                    <span className="px-2 py-0.5 bg-surface-container-high text-xs font-black uppercase text-on-surface-variant/75 rounded border border-neutral-200">
+                    <span className="px-2 py-0.5 bg-surface-container-high text-[14px] font-bold  text-on-surface-variant/75 rounded border border-slate-200 dark:border-slate-700">
                        {student?.student_number ? `${student.student_number}번` : '번호 미등록'}
                     </span>
                   )}
@@ -335,23 +335,15 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
             <div className="flex gap-2">
               <button
                 onClick={() => handleNavigateToFullPage()}
-                className="flex-1 py-3 bg-on-surface text-surface rounded-xl text-xs font-black hover:bg-primary transition-all shadow-soft active:scale-95 flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-on-surface text-surface rounded-xl text-[14px] font-bold hover:bg-primary transition-all shadow-none active:scale-95 flex items-center justify-center gap-2"
               >
                 <BookOpen size={14} /> 전체 기록실 이동
               </button>
-              {onAskAI && (
-                <button
-                  onClick={() => studentId && onAskAI(studentId)}
-                  className="flex-1 py-3 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/85 transition-all shadow-soft active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={14} /> AI에게 물어보기
-                </button>
-              )}
             </div>
             {fromClassId && studentId && (
               <button
                 onClick={() => setShowStudentView(true)}
-                className="w-full py-2.5 bg-white border border-neutral-200 text-on-surface-variant rounded-xl text-xs font-black hover:border-primary hover:text-primary transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-white border border-slate-200 dark:border-slate-700 text-on-surface-variant rounded-xl text-[14px] font-bold hover:border-primary hover:text-primary transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <Eye size={14} /> 학생 화면으로 보기 (반려·피드백 확인)
               </button>
@@ -369,11 +361,11 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
             ) : (
               <>
                 {/* Quick AI Summary Hook */}
-                <div className="p-5 layered-card rounded-2xl bg-gradient-to-br from-primary/5 to-transparent border-primary/10 relative overflow-hidden group">
+                <div className="p-5 bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent border-primary/10 relative overflow-hidden group">
                    <div className="absolute -right-4 -top-4 text-primary/10 group-hover:rotate-12 transition-transform duration-500"><Sparkles size={60} /></div>
                    <div className="relative z-10 flex items-center gap-2 mb-3">
                       <Sparkles size={16} className="text-primary" />
-                      <h4 className="text-xs font-black uppercase tracking-widest text-primary">AI 빠른 인사이트</h4>
+                      <h4 className="text-[14px] font-bold  text-primary">AI 빠른 인사이트</h4>
                    </div>
                    <p className="text-sm font-bold text-on-surface-variant leading-relaxed relative z-10 line-clamp-3">
                      {student?.observations?.length > 0 ?
@@ -384,19 +376,19 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
 
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 gap-4">
-                   <div className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100 flex flex-col gap-2">
+                   <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-secondary/60">
                          <Activity size={14} />
-                         <span className="text-xs font-black uppercase tracking-widest">전체 활동</span>
+                         <span className="text-[14px] font-bold ">전체 활동</span>
                       </div>
-                      <span className="text-2xl font-black">{student?.observations?.length || 0}</span>
+                      <span className="text-2xl font-bold">{student?.observations?.length || 0}</span>
                    </div>
-                   <div className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100 flex flex-col gap-2">
+                   <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-primary/60">
                          <FileText size={14} />
-                         <span className="text-xs font-black uppercase tracking-widest">기록 보고서</span>
+                         <span className="text-[14px] font-bold ">기록 보고서</span>
                       </div>
-                      <span className="text-2xl font-black">0</span>
+                      <span className="text-2xl font-bold">0</span>
                    </div>
                 </div>
 
@@ -407,16 +399,16 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                        onClick={() => handleNavigateToFullPage()}
                        className="flex items-center gap-2 group"
                      >
-                       <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
+                       <h4 className="text-[14px] font-bold  text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
                          <Clock size={14} /> Recent Activities
                        </h4>
-                       <span className="text-xs font-black text-primary/70 group-hover:text-primary transition-colors flex items-center gap-1">
+                       <span className="text-[14px] font-bold text-primary/70 group-hover:text-primary transition-colors flex items-center gap-1">
                          전체 보기 →
                        </span>
                      </button>
                      <button
                        onClick={() => setShowObsForm(v => !v)}
-                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[14px] font-bold transition-all ${
                          showObsForm
                            ? 'bg-primary/10 text-primary'
                            : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
@@ -434,14 +426,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                          value={obsTitle}
                          onChange={e => setObsTitle(e.target.value)}
                          placeholder="활동명 (예: 모둠 발표)"
-                         className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                         className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-[14px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                        />
                        <div className="flex gap-1.5 flex-wrap">
                          {['발표', '과제물', '토론', '실험'].map(cat => (
                            <button
                              key={cat}
                              onClick={() => setObsCategory(cat)}
-                             className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                             className={`px-3 py-1.5 rounded-lg text-[14px] font-bold transition-all ${
                                obsCategory === cat
                                  ? 'bg-primary-container text-primary'
                                  : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
@@ -456,19 +448,19 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                          onChange={e => setObsContent(e.target.value)}
                          placeholder="관찰 내용을 입력하세요..."
                          rows={3}
-                         className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-xs font-medium resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                         className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                        />
                        <div className="flex gap-2 justify-end">
                          <button
                            onClick={() => { setShowObsForm(false); setObsTitle(''); setObsContent(''); setObsCategory('과제물'); }}
-                           className="px-3 py-1.5 text-xs font-black text-on-surface-variant bg-surface-container hover:bg-surface-container-high rounded-lg transition-all"
+                           className="px-3 py-1.5 text-[14px] font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high rounded-lg transition-all"
                          >
                            취소
                          </button>
                          <button
                            onClick={handleSaveObs}
                            disabled={savingObs || !obsTitle.trim() || !obsContent.trim()}
-                           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-black disabled:opacity-50 hover:bg-primary/80 transition-all"
+                           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[14px] font-bold disabled:opacity-50 hover:bg-primary/80 transition-all"
                          >
                            {savingObs ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 저장
                          </button>
@@ -484,37 +476,37 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                          <div
                            key={obs.id}
                            onClick={() => handleNavigateToFullPage(obs.id)}
-                           className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 hover:bg-primary/[0.02] transition-colors cursor-pointer"
+                           className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/50 hover:border-primary/20 hover:bg-primary/[0.02] transition-colors cursor-pointer"
                          >
                             <div className="flex items-start justify-between mb-1">
-                              <p className="text-xs font-bold text-on-surface-variant/65">
+                              <p className="text-[14px] font-bold text-on-surface-variant/65">
                                 {new Date(obs.created_at).toLocaleDateString('ko-KR')}
                               </p>
                               {obs.is_student_record && (
                                 <div className="flex flex-col items-end gap-1">
                                   {obs.status === 'rejected' ? (
                                     <div className="flex items-center gap-1.5">
-                                      <span className="flex items-center gap-1 text-xs font-black text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
+                                      <span className="flex items-center gap-1 text-[14px] font-bold text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
                                         <XCircle size={9} /> 반려됨
                                       </span>
                                       <button onClick={(e) => { e.stopPropagation(); handleApproveObs(obs.id); }}
-                                        className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
+                                        className="text-[14px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
                                         승인으로 변경
                                       </button>
                                     </div>
                                   ) : obs.status === 'pending' ? (
-                                    <span className="flex items-center gap-1 text-xs font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                    <span className="flex items-center gap-1 text-[14px] font-bold text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
                                       <Clock size={9} /> 승인대기
                                     </span>
                                   ) : (
-                                    <span className="flex items-center gap-1 text-xs font-black text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
+                                    <span className="flex items-center gap-1 text-[14px] font-bold text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
                                       <CheckCircle2 size={9} /> 승인완료
                                     </span>
                                   )}
                                   {obs.status !== 'rejected' && rejectingObsId !== obs.id && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setRejectingObsId(obs.id); setObsFeedback(''); }}
-                                      className="flex items-center gap-1 text-xs font-bold text-neutral-500 bg-white border border-neutral-300 px-1.5 py-0.5 rounded-md hover:bg-neutral-50 hover:text-neutral-700 transition-all"
+                                      className="flex items-center gap-1 text-[14px] font-bold text-on-surface-variant bg-white border border-neutral-300 px-1.5 py-0.5 rounded-md hover:bg-surface-container-low hover:text-neutral-700 transition-all"
                                     >
                                       <XCircle size={9} /> 반려하기
                                     </button>
@@ -522,14 +514,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                 </div>
                               )}
                             </div>
-                            <p className="text-sm font-black text-on-surface/80">{obs.activity_name}</p>
+                            <p className="text-sm font-bold text-on-surface/80">{obs.activity_name}</p>
                             {/* AI 검토 권장 카드 */}
                             {obs.ai_concern && (
                               <div className="mt-2 rounded-xl border-2 border-amber-300 bg-amber-50 overflow-hidden">
                                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border-b border-amber-200">
                                   <AlertTriangle size={11} className="text-amber-600 shrink-0" />
-                                  <span className="text-xs font-black text-amber-800 uppercase tracking-widest flex-1">AI 검토 권장</span>
-                                  <span className={`text-xs font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                                  <span className="text-[14px] font-bold text-amber-800  flex-1">AI 검토 권장</span>
+                                  <span className={`text-[14px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
                                     obs.status === 'approved'
                                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                       : obs.status === 'rejected'
@@ -541,12 +533,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                     {obs.status === 'pending'  && '⏳ 대기'}
                                   </span>
                                 </div>
-                                <p className="px-3 py-2 text-xs font-bold text-amber-900 leading-relaxed">{obs.ai_concern}</p>
+                                <p className="px-3 py-2 text-[14px] font-bold text-amber-900 leading-relaxed">{obs.ai_concern}</p>
                               </div>
                             )}
                             {/* 기존 피드백 표시 */}
                             {obs.teacher_feedback && obs.status === 'rejected' && (
-                              <p className="mt-1.5 text-xs font-bold text-red-600 bg-red-50 rounded-lg px-2 py-1">
+                              <p className="mt-1.5 text-[14px] font-bold text-red-600 bg-red-50 rounded-lg px-2 py-1">
                                 💬 {obs.teacher_feedback}
                               </p>
                             )}
@@ -557,17 +549,17 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                   value={obsFeedback}
                                   onChange={e => setObsFeedback(e.target.value)}
                                   placeholder="반려 사유를 입력하세요..."
-                                  className="w-full text-xs p-2.5 border border-red-200 rounded-xl resize-none bg-red-50 focus:outline-none focus:border-red-400"
+                                  className="w-full text-[14px] p-2.5 border border-red-200 rounded-xl resize-none bg-red-50 focus:outline-none focus:border-red-400"
                                   rows={2}
                                   autoFocus
                                 />
                                 <div className="flex gap-1.5">
                                   <button onClick={handleRejectObs} disabled={savingObsReject || !obsFeedback.trim()}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[14px] font-bold disabled:opacity-50 transition-all">
                                     {savingObsReject ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 반려 전송
                                   </button>
                                   <button onClick={(e) => { e.stopPropagation(); setRejectingObsId(null); setObsFeedback(''); }}
-                                    className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
+                                    className="px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-lg text-[14px] font-bold hover:bg-neutral-200 transition-all">
                                     취소
                                   </button>
                                 </div>
@@ -577,20 +569,20 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                               <div className="mt-2" onClick={e => e.stopPropagation()}>
                                 <button
                                   onClick={() => setOpenPrevObsIds(prev => { const n = new Set(prev); n.has(obs.id) ? n.delete(obs.id) : n.add(obs.id); return n; })}
-                                  className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                                  className="inline-flex items-center gap-1 text-[14px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
                                 >
                                   🔁 {prevSubmissionLabel(older[obs.id].length, older[obs.id].filter((p: any) => p.status === 'rejected').length)} · {openPrevObsIds.has(obs.id) ? '접기 ▲' : '이전 제출 보기 ▼'}
                                 </button>
                                 {openPrevObsIds.has(obs.id) && (
                                   <div className="mt-1.5 space-y-1.5">
                                     {older[obs.id].map((p: any) => (
-                                      <div key={p.id} className="rounded-lg bg-neutral-50 border border-neutral-100 px-2.5 py-1.5">
-                                        <p className="text-[11px] font-bold text-neutral-400">
+                                      <div key={p.id} className="rounded-lg bg-surface-container-low border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+                                        <p className="text-[14px] font-bold text-on-surface-variant">
                                           {new Date(p.created_at).toLocaleDateString('ko-KR')} · {p.status === 'rejected' ? '반려됨' : p.status === 'pending' ? '승인대기' : '승인완료'}
                                         </p>
-                                        <p className="text-xs text-neutral-600 line-clamp-2">{p.content}</p>
+                                        <p className="text-[14px] text-neutral-600 line-clamp-2">{p.content}</p>
                                         {p.teacher_feedback && p.status === 'rejected' && (
-                                          <p className="text-[11px] font-bold text-red-500 mt-0.5">💬 {p.teacher_feedback}</p>
+                                          <p className="text-[14px] font-bold text-red-500 mt-0.5">💬 {p.teacher_feedback}</p>
                                         )}
                                       </div>
                                     ))}
@@ -603,8 +595,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                        })()}
                      </div>
                    ) : (
-                     <div className="p-6 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
-                        <p className="text-xs font-bold text-neutral-400">최근 활동 기록이 없습니다.</p>
+                     <div className="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                        <p className="text-[14px] font-bold text-on-surface-variant">최근 활동 기록이 없습니다.</p>
                      </div>
                    )}
                 </div>
@@ -612,10 +604,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                 {/* 결과 제출 목록 */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                    <h4 className="text-[14px] font-bold  text-on-surface-variant flex items-center gap-2">
                       <FolderOpen size={14} /> 결과 제출
                     </h4>
-                    <span className="text-xs font-black text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
+                    <span className="text-[14px] font-bold text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
                       {(() => {
                         const keys = new Set(results.map(r => r.submission_group || r.id));
                         return keys.size;
@@ -626,8 +618,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                   {loading ? (
                     <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary" /></div>
                   ) : results.length === 0 ? (
-                    <div className="p-4 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
-                      <p className="text-xs font-bold text-neutral-400">제출된 결과물이 없습니다.</p>
+                    <div className="p-4 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                      <p className="text-[14px] font-bold text-on-surface-variant">제출된 결과물이 없습니다.</p>
                     </div>
                   ) : (() => {
                     const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
@@ -670,31 +662,31 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                           const imagePublicUrls = getResultImagePublicUrls(supabase.storage, imageItem);
 
                           return (
-                            <div key={groupId} className="p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors group">
+                            <div key={groupId} className="p-3.5 bg-white rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/20 transition-colors group">
                               <div className="flex items-start gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-                                    {title && <span className="font-black text-xs text-on-surface w-full">{title}</span>}
+                                    {title && <span className="font-bold text-[14px] text-on-surface w-full">{title}</span>}
                                     {groupItems.find(r => r.week_number)?.week_number && (
-                                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                      <span className="text-[14px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                                         {groupItems.find(r => r.week_number).week_number}주차
                                       </span>
                                     )}
                                     {types.map(type => {
                                       const cfg = typeConfig[type] || typeConfig.file;
                                       return (
-                                        <span key={type} className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
+                                        <span key={type} className={`flex items-center gap-1 text-[14px] font-bold  tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
                                           {cfg.icon}{cfg.label}
                                         </span>
                                       );
                                     })}
                                   </div>
                                   {textItem?.text_content && (
-                                    <p className="text-xs font-medium text-on-surface/80 line-clamp-2 leading-relaxed mb-1">{textItem.text_content}</p>
+                                    <p className="text-[14px] font-medium text-on-surface/80 line-clamp-2 leading-relaxed mb-1">{textItem.text_content}</p>
                                   )}
                                   {linkItem?.link_url && (
                                     <a href={linkItem.link_url} target="_blank" rel="noopener noreferrer"
-                                      className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate mb-1">
+                                      className="text-[14px] font-bold text-blue-500 hover:underline flex items-center gap-1 truncate mb-1">
                                       <ExternalLink size={10} />{linkItem.link_url}
                                     </a>
                                   )}
@@ -716,7 +708,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                   )}
                                   {fileItem && (
                                     <div className="flex items-center justify-between gap-2">
-                                      <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-0.5">
+                                      <p className="text-[14px] font-bold text-amber-600 flex items-center gap-1 mt-0.5">
                                         <File size={10} />{fileItem.display_name}
                                         {fileItem.file_size ? ` (${formatFileSize(fileItem.file_size)})` : ''}
                                       </p>
@@ -748,13 +740,13 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                               {/* 기존 피드백 표시 */}
                               {teacherFeedback && (
                                 <div className="mt-2 flex items-start justify-between gap-2 bg-indigo-50 rounded-lg px-2 py-1">
-                                  <p className="text-xs font-bold text-indigo-600 flex-1">
+                                  <p className="text-[14px] font-bold text-indigo-600 flex-1">
                                     💬 선생님 피드백: {teacherFeedback}
                                   </p>
                                   <button
                                     onClick={() => handleDeleteResultFeedback(groupId)}
                                     disabled={savingResultFeedback}
-                                    className="text-[10px] font-black text-indigo-400 hover:text-red-500 transition-colors shrink-0"
+                                    className="text-[14px] font-bold text-indigo-400 hover:text-red-500 transition-colors shrink-0"
                                   >
                                     삭제
                                   </button>
@@ -767,17 +759,17 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                     value={resultFeedback}
                                     onChange={e => setResultFeedback(e.target.value)}
                                     placeholder="피드백 내용을 입력하세요..."
-                                    className="w-full text-xs p-2.5 border border-indigo-200 rounded-xl resize-none bg-indigo-50 focus:outline-none focus:border-indigo-400"
+                                    className="w-full text-[14px] p-2.5 border border-indigo-200 rounded-xl resize-none bg-indigo-50 focus:outline-none focus:border-indigo-400"
                                     rows={2}
                                     autoFocus
                                   />
                                   <div className="flex gap-1.5">
                                     <button onClick={handleSaveResultFeedback} disabled={savingResultFeedback || !resultFeedback.trim()}
-                                      className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[14px] font-bold disabled:opacity-50 transition-all">
                                       {savingResultFeedback ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 전송
                                     </button>
                                     <button onClick={() => { setFeedbackResultId(null); setResultFeedback(''); }}
-                                      className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
+                                      className="px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-lg text-[14px] font-bold hover:bg-neutral-200 transition-all">
                                       취소
                                     </button>
                                   </div>
@@ -785,16 +777,16 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                               ) : (
                                 <button
                                   onClick={() => { setFeedbackResultId(groupId); setResultFeedback(firstItem.teacher_feedback || teacherFeedback || ''); }}
-                                  className="mt-1.5 flex items-center gap-1 text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
+                                  className="mt-1.5 flex items-center gap-1 text-[14px] font-bold text-indigo-500 hover:text-indigo-600 transition-colors"
                                 >
                                   <MessageCircle size={10} /> {teacherFeedback ? '피드백 수정' : '피드백 남기기'}
                                 </button>
                               )}
                               {older.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-neutral-100">
+                                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                                   <button
                                     onClick={() => setOpenPrevResultIds(prev => { const n = new Set(prev); n.has(groupId) ? n.delete(groupId) : n.add(groupId); return n; })}
-                                    className="inline-flex items-center gap-1 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+                                    className="inline-flex items-center gap-1 text-[14px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
                                   >
                                     🔁 {prevSubmissionLabel(older.length, older.filter(o => o.groupItems.some(r => r.status === 'rejected')).length)} · {openPrevResultIds.has(groupId) ? '접기 ▲' : '이전 제출 보기 ▼'}
                                   </button>
@@ -808,13 +800,13 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                         const oTypes = [...new Set(o.groupItems.map(r => typeConfig[r.result_type]?.label || r.result_type))].join('·');
                                         const oStatus = o.groupItems.some(r => r.status === 'rejected') ? '반려됨' : o.groupItems.every(r => r.status === 'approved') ? '승인완료' : '승인대기';
                                         return (
-                                          <div key={o.groupId} className="rounded-lg bg-neutral-50 border border-neutral-100 px-2.5 py-1.5">
-                                            <p className="text-[11px] font-bold text-neutral-400">
+                                          <div key={o.groupId} className="rounded-lg bg-surface-container-low border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
+                                            <p className="text-[14px] font-bold text-on-surface-variant">
                                               {new Date(o.groupItems[0].created_at).toLocaleDateString('ko-KR')} · {oStatus} · {oTypes}
                                             </p>
-                                            {oText && <p className="text-xs text-neutral-600 line-clamp-2">{oText}</p>}
-                                            {oLink && <p className="text-xs text-blue-500 truncate">{oLink}</p>}
-                                            {oFile?.display_name && <p className="text-xs text-amber-600 font-bold truncate flex items-center gap-1"><File size={10} />{oFile.display_name}</p>}
+                                            {oText && <p className="text-[14px] text-neutral-600 line-clamp-2">{oText}</p>}
+                                            {oLink && <p className="text-[14px] text-blue-500 truncate">{oLink}</p>}
+                                            {oFile?.display_name && <p className="text-[14px] text-amber-600 font-bold truncate flex items-center gap-1"><File size={10} />{oFile.display_name}</p>}
                                             {oImageUrls.length > 0 && (
                                               <div className="mt-1">
                                                 <ImageCarousel urls={oImageUrls} alt="이전 제출 이미지" thumbClassName="max-h-16 rounded-lg object-cover hover:opacity-80" />
@@ -838,10 +830,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                 {/* 건의사항 */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                    <h4 className="text-[14px] font-bold  text-on-surface-variant flex items-center gap-2">
                       <Megaphone size={14} /> 질문·건의함
                     </h4>
-                    <span className="text-xs font-black text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
+                    <span className="text-[14px] font-bold text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
                       {suggestions.length}건
                     </span>
                   </div>
@@ -849,23 +841,23 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                   {loading ? (
                     <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary" /></div>
                   ) : suggestions.length === 0 ? (
-                    <div className="p-4 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
-                      <p className="text-xs font-bold text-neutral-400">등록된 질문·건의함 내용이 없습니다.</p>
+                    <div className="p-4 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                      <p className="text-[14px] font-bold text-on-surface-variant">등록된 질문·건의함 내용이 없습니다.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {suggestions.map(s => {
                         const isReplying = replyingId === s.id;
                         return (
-                          <div key={s.id} className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
+                          <div key={s.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white overflow-hidden">
                             {/* 학생 건의 내용 */}
                             <div className="flex items-start gap-3 p-3.5">
                               <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-400 shrink-0">
                                 <MessageSquare size={13} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-on-surface/85 leading-relaxed">{s.content}</p>
-                                <p className="text-xs font-bold text-on-surface-variant/65 mt-1 flex items-center gap-1">
+                                <p className="text-[14px] font-medium text-on-surface/85 leading-relaxed">{s.content}</p>
+                                <p className="text-[14px] font-bold text-on-surface-variant/65 mt-1 flex items-center gap-1">
                                   <Clock size={9} />
                                   {new Date(s.created_at).toLocaleDateString('ko-KR')}
                                 </p>
@@ -874,27 +866,27 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
 
                             {/* 답변 영역 */}
                             {isReplying ? (
-                              <div className="border-t border-neutral-100 bg-primary/[0.02] p-3.5 space-y-2">
+                              <div className="border-t border-slate-200 dark:border-slate-700 bg-primary/[0.02] p-3.5 space-y-2">
                                 <textarea
                                   value={replyText}
                                   onChange={e => setReplyText(e.target.value)}
                                   rows={3}
                                   autoFocus
                                   placeholder="학생에게 전달할 답변을 입력하세요..."
-                                  className="w-full px-3 py-2 bg-white rounded-xl text-xs font-medium border border-neutral-200 focus:border-primary/40 focus:outline-none resize-none transition-all"
+                                  className="w-full px-3 py-2 bg-white rounded-xl text-[14px] font-medium border border-slate-200 dark:border-slate-700 focus:border-primary/40 focus:outline-none resize-none transition-all"
                                 />
                                 <div className="flex gap-2">
                                   <button
                                     onClick={() => handleSaveReply(s.id)}
                                     disabled={savingReplyId === s.id || !replyText.trim()}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-black hover:bg-primary/80 disabled:opacity-50 transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[14px] font-bold hover:bg-primary/80 disabled:opacity-50 transition-all"
                                   >
                                     {savingReplyId === s.id ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
                                     답변 저장
                                   </button>
                                   <button
                                     onClick={() => { setReplyingId(null); setReplyText(''); }}
-                                    className="px-3 py-1.5 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-100 transition-all"
+                                    className="px-3 py-1.5 text-on-surface-variant rounded-lg text-[14px] font-bold hover:bg-surface-container transition-all"
                                   >
                                     취소
                                   </button>
@@ -907,10 +899,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                     <Reply size={11} />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-black text-primary uppercase tracking-wider mb-1">선생님 답변</p>
-                                    <p className="text-xs font-medium text-on-surface/85 leading-relaxed">{s.teacher_reply}</p>
+                                    <p className="text-[14px] font-bold text-primary  mb-1">선생님 답변</p>
+                                    <p className="text-[14px] font-medium text-on-surface/85 leading-relaxed">{s.teacher_reply}</p>
                                     {s.replied_at && (
-                                      <p className="text-xs font-bold text-on-surface-variant/65 mt-1 flex items-center gap-1">
+                                      <p className="text-[14px] font-bold text-on-surface-variant/65 mt-1 flex items-center gap-1">
                                         <Clock size={9} />
                                         {new Date(s.replied_at).toLocaleDateString('ko-KR')}
                                       </p>
@@ -918,17 +910,17 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId, onAskAI 
                                   </div>
                                   <button
                                     onClick={() => { setReplyingId(s.id); setReplyText(s.teacher_reply); }}
-                                    className="text-xs font-black text-primary/70 hover:text-primary transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-primary/10"
+                                    className="text-[14px] font-bold text-primary/70 hover:text-primary transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-primary/10"
                                   >
                                     수정
                                   </button>
                                 </div>
                               </div>
                             ) : (
-                              <div className="border-t border-neutral-100 px-3.5 py-2.5">
+                              <div className="border-t border-slate-200 dark:border-slate-700 px-3.5 py-2.5">
                                 <button
                                   onClick={() => { setReplyingId(s.id); setReplyText(''); }}
-                                  className="text-xs font-black text-primary/75 hover:text-primary flex items-center gap-1.5 transition-colors"
+                                  className="text-[14px] font-bold text-primary/75 hover:text-primary flex items-center gap-1.5 transition-colors"
                                 >
                                   <Reply size={11} /> 답변 작성
                                 </button>

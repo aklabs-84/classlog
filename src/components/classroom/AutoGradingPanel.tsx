@@ -286,7 +286,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
               }
             }}
             onClick={() => setSelectedWeek(w.week)}
-            className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-xl text-sm font-black transition-all ${selectedWeek === w.week ? 'bg-on-surface text-surface' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container/70'}`}
+            className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${selectedWeek === w.week ? 'bg-on-surface text-surface' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container/70'}`}
           >
             {w.week}주차 · {w.topic}
           </button>
@@ -294,8 +294,8 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
       </div>
 
       {/* 채점 기준 입력 */}
-      <div className="surface-card p-6 border border-white/60 space-y-3">
-        <label className="text-xs font-black uppercase tracking-widest text-on-surface-variant/50">이번 주 채점 기준</label>
+      <div className="surface-card p-6 border border-slate-200 dark:border-slate-700 space-y-3">
+        <label className="text-[14px] font-bold  text-on-surface-variant">이번 주 채점 기준</label>
         <textarea
           value={rubric}
           onChange={e => setRubric(e.target.value)}
@@ -306,20 +306,20 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
         <button
           onClick={handleClickAutoGrade}
           disabled={checkingLimit || grading || selectedWeek === null}
-          className="flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-sm font-black transition-all disabled:opacity-50"
+          className="flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50"
         >
           {checkingLimit || grading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
           {grading ? `AI 자동 채점 중... (${gradeProgress.done}/${gradeProgress.total})` : 'AI 자동 채점'}
         </button>
-        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant">제출물 1건당 <AiCreditCost feature="result_auto_grade" /></p>
+        <p className="mt-1.5 flex items-center gap-1.5 text-[14px] font-bold text-on-surface-variant">제출물 1건당 <AiCreditCost feature="result_auto_grade" /></p>
       </div>
 
       {/* 결과 카드 목록 */}
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-primary" /></div>
       ) : groups.length === 0 ? (
-        <div className="p-8 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
-          <p className="text-sm font-bold text-neutral-400">{selectedWeek === null ? '주차를 선택해주세요.' : '이 주차에 제출된 결과물이 없습니다.'}</p>
+        <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+          <p className="text-sm font-bold text-on-surface-variant">{selectedWeek === null ? '주차를 선택해주세요.' : '이 주차에 제출된 결과물이 없습니다.'}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -335,36 +335,36 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
             const isSkipped = skippedIds.has(group.key);
 
             return (
-              <div key={group.key} className="surface-card p-6 border border-white/60 space-y-5">
+              <div key={group.key} className="surface-card p-6 border border-slate-200 dark:border-slate-700 space-y-5">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-black text-lg text-on-surface">{group.studentName}</span>
+                    <span className="font-bold text-lg text-on-surface">{group.studentName}</span>
                     {types.map(type => {
                       const cfg = typeConfig[type] || typeConfig.file;
                       return (
-                        <span key={type} className={`flex items-center gap-1 text-xs font-black uppercase tracking-wide px-2 py-1 rounded-md ${cfg.color}`}>
+                        <span key={type} className={`flex items-center gap-1 text-[14px] font-bold  tracking-wide px-2 py-1 rounded-md ${cfg.color}`}>
                           {cfg.icon}{cfg.label}
                         </span>
                       );
                     })}
                     {!group.gradable && (
-                      <span className="flex items-center gap-1 text-xs font-black px-2 py-1 rounded-md bg-neutral-100 text-neutral-500">
+                      <span className="flex items-center gap-1 text-[14px] font-bold px-2 py-1 rounded-md bg-surface-container text-on-surface-variant">
                         <AlertTriangle size={13} /> 직접 확인 필요
                       </span>
                     )}
                     {group.alreadyEvaluated && !ev.aiSuggested && (
-                      <span className="text-xs font-black px-2 py-1 rounded-md bg-secondary/10 text-secondary">이미 평가됨</span>
+                      <span className="text-[14px] font-bold px-2 py-1 rounded-md bg-secondary/10 text-secondary">이미 평가됨</span>
                     )}
                     {isSkipped && (
-                      <span className="text-xs font-black px-2 py-1 rounded-md bg-amber-100 text-amber-700">한도 초과로 스킵</span>
+                      <span className="text-[14px] font-bold px-2 py-1 rounded-md bg-amber-100 text-amber-700">한도 초과로 스킵</span>
                     )}
                     {isFailed && (
-                      <span className="flex items-center gap-1 text-xs font-black px-2 py-1 rounded-md bg-red-100 text-red-600">
+                      <span className="flex items-center gap-1 text-[14px] font-bold px-2 py-1 rounded-md bg-red-100 text-red-600">
                         <X size={13} /> AI 채점 실패 - 직접 입력
                       </span>
                     )}
                     {ev.aiSuggested && (
-                      <span className="flex items-center gap-1 text-xs font-black px-2 py-1 rounded-md bg-violet-100 text-violet-600">
+                      <span className="flex items-center gap-1 text-[14px] font-bold px-2 py-1 rounded-md bg-violet-100 text-violet-600">
                         <Sparkles size={13} /> AI 제안
                       </span>
                     )}
@@ -396,12 +396,12 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
                 {/* 평가 입력 */}
                 <div className="p-5 bg-violet-50/50 rounded-xl border border-violet-100 space-y-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-black uppercase tracking-widest text-violet-400">평가 입력</span>
+                    <span className="text-[14px] font-bold  text-violet-400">평가 입력</span>
                     <button
                       onClick={() => handleSingleGrade(group)}
                       disabled={!group.gradable || grading || singleGradingKey === group.key}
                       title={!group.gradable ? '텍스트/이미지/PDF 등으로 확인 가능한 제출물만 AI 채점할 수 있어요.' : undefined}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black text-violet-500 bg-white border border-violet-200 hover:bg-violet-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[14px] font-bold text-violet-500 bg-white border border-violet-200 hover:bg-violet-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {singleGradingKey === group.key ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                       이 학생만 AI 채점
@@ -413,13 +413,13 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
                         className={`text-3xl leading-none transition-colors ${star <= ev.score ? 'text-amber-400' : 'text-neutral-200 hover:text-amber-200'}`}
                       >★</button>
                     ))}
-                    {ev.score > 0 && <span className="text-sm font-black text-amber-500 ml-1.5">{ev.score}점</span>}
+                    {ev.score > 0 && <span className="text-sm font-bold text-amber-500 ml-1.5">{ev.score}점</span>}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {EVAL_TAGS.map(tag => (
                       <button key={tag} onClick={() => toggleTag(group.key, tag)}
-                        className={`px-4 py-1.5 rounded-full text-sm font-black border transition-all ${
-                          ev.tags.includes(tag) ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-500'
+                        className={`px-4 py-1.5 rounded-full text-sm font-bold border transition-all ${
+                          ev.tags.includes(tag) ? 'bg-violet-500 text-white border-violet-500' : 'bg-white text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-violet-300 hover:text-violet-500'
                         }`}
                       >{tag}</button>
                     ))}
@@ -432,7 +432,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
                     className="w-full px-4 py-3 bg-white rounded-lg text-sm border border-violet-100 focus:border-violet-300 focus:outline-none resize-none transition-all"
                   />
                   <button onClick={() => saveCard(group)} disabled={savingId === group.key || !evalForms[group.key]}
-                    className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-sm font-black transition-all disabled:opacity-40">
+                    className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-sm font-bold transition-all disabled:opacity-40">
                     {savingId === group.key ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                     저장
                   </button>
@@ -447,7 +447,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
       {confirmState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmState(null)}>
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="font-black text-base text-on-surface flex items-center gap-2"><Wand2 size={18} className="text-violet-500" />AI 자동 채점 확인</h3>
+            <h3 className="font-bold text-base text-on-surface flex items-center gap-2"><Wand2 size={18} className="text-violet-500" />AI 자동 채점 확인</h3>
             <p className="text-sm font-bold text-on-surface-variant leading-relaxed">
               {confirmState.n}명 자동 채점 시 {confirmState.n}회가 소모됩니다.<br />
               이번 달 남은 AI 사용 횟수: {confirmState.m === Infinity ? '무제한' : `${confirmState.m}회`}
@@ -456,8 +456,8 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
               )}
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmState(null)} className="flex-1 px-4 py-2.5 bg-neutral-100 text-neutral-500 rounded-xl text-sm font-black hover:bg-neutral-200 transition-all">취소</button>
-              <button onClick={runAutoGrade} className="flex-1 px-4 py-2.5 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-sm font-black transition-all">진행</button>
+              <button onClick={() => setConfirmState(null)} className="flex-1 px-4 py-2.5 bg-surface-container text-on-surface-variant rounded-xl text-sm font-bold hover:bg-neutral-200 transition-all">취소</button>
+              <button onClick={runAutoGrade} className="flex-1 px-4 py-2.5 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-sm font-bold transition-all">진행</button>
             </div>
           </div>
         </div>

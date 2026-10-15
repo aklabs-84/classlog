@@ -22,6 +22,7 @@ export interface PlanMaterialRow {
   origin_dismissed_at?: string | null;
   origin_backup?: OriginBackup | null;
   content_updated_at?: string | null;
+  viewer_style?: string | null;
 }
 
 // 원본 반영 직전의 내 내용 1단계 백업 (되돌리기용)
@@ -35,7 +36,7 @@ export interface OriginBackup {
 }
 
 const COPY_COLUMNS =
-  'id, class_id, teacher_id, week_number, title, content, ai_versions, attachments, activity_urls, is_published, plan_origin_id, origin_synced_at, origin_dismissed_at, origin_backup, content_updated_at';
+  'id, class_id, teacher_id, week_number, title, content, ai_versions, attachments, activity_urls, is_published, plan_origin_id, origin_synced_at, origin_dismissed_at, origin_backup, content_updated_at, viewer_style';
 
 // 이 반의 복사본들을 "원본 id → 복사본" 지도로 가져온다
 export async function fetchOverrides(classId: string): Promise<Map<string, PlanMaterialRow>> {
@@ -94,7 +95,7 @@ export async function forkPlanMaterial(params: {
 
   const { data: orig, error: origErr } = await supabase
     .from('class_materials')
-    .select('id, week_number, title, content, ai_versions, attachments, activity_urls, content_updated_at')
+    .select('id, week_number, title, content, ai_versions, attachments, activity_urls, content_updated_at, viewer_style')
     .eq('id', originalId)
     .single();
   if (origErr) throw origErr;
@@ -110,6 +111,7 @@ export async function forkPlanMaterial(params: {
       ai_versions: orig.ai_versions ?? [],
       attachments: orig.attachments ?? [],
       activity_urls: orig.activity_urls ?? [],
+      viewer_style: orig.viewer_style ?? 'default',
       is_published: true,
       plan_origin_id: orig.id,
       origin_synced_at: orig.content_updated_at,

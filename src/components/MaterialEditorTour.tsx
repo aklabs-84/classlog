@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sparkles, X, LocateFixed } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { isDemoTeacher, EDITOR_TOUR_KEY } from '../lib/demo';
+import GuideOutdatedNotice from './GuideOutdatedNotice';
 
 // 수업 자료 에디터 체험 투어. /demo/material-editor 에서 시작한 체험용 계정에게만 보이며,
 // 실제 에디터 화면의 data-tour 이름표가 붙은 요소를 비추고 그 자리로 화면을 스크롤해 준다.
@@ -454,6 +455,7 @@ const MaterialEditorTour = () => {
             </button>
           </div>
         </div>
+        {tour?.step === 0 && <GuideOutdatedNotice variant="dark" className="mb-3 !text-[13px] !px-3 !py-2" />}
         <p className="text-sm font-black mb-1">{step.title}</p>
         <p className="text-xs font-bold text-white/80 leading-relaxed mb-3 whitespace-pre-line">
           {notFound ? '이 단계의 화면이 보이지 않아요. 에디터 화면(새 자료 작성)으로 돌아와 이어가거나 "다음"을 눌러 주세요.' : step.description}

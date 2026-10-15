@@ -375,8 +375,8 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                 <Volume2 size={18} className="text-indigo-400" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">이동 중 브리핑</p>
-                <h2 className="text-sm font-black text-white leading-tight">{className}</h2>
+                <p className="text-[14px] font-bold text-indigo-400 ">이동 중 브리핑</p>
+                <h2 className="text-sm font-bold text-white leading-tight">{className}</h2>
               </div>
             </div>
             <button onClick={handleClose} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all">
@@ -395,17 +395,17 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                 {/* 요약 카운트 + 주차 필터 — 모바일 통합 한 줄 */}
                 <div className="md:hidden px-4 pt-3 pb-0 flex items-center gap-2">
                   {!loading && byStudent.length > 0 && (
-                    <span className="text-[11px] font-black text-slate-400 shrink-0">총 {byStudent.length}명</span>
+                    <span className="text-[14px] font-bold text-slate-400 shrink-0">총 {byStudent.length}명</span>
                   )}
                   {!loading && byStudent.filter(s => s.status === 'pending').length > 0 && (
-                    <span className="text-[10px] font-black text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded-md border border-amber-700/40 shrink-0">
+                    <span className="text-[14px] font-bold text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded-md border border-amber-700/40 shrink-0">
                       ⏳ {byStudent.filter(s => s.status === 'pending').length}건 대기
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 overflow-x-auto min-w-0">
                     <button
                       onClick={() => handleWeekChange('all')}
-                      className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10'}`}
+                      className={`shrink-0 px-2.5 py-1 rounded-lg text-[14px] font-bold border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10'}`}
                     >
                       전체
                     </button>
@@ -413,7 +413,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                       <button
                         key={w}
                         onClick={() => handleWeekChange(w)}
-                        className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10'}`}
+                        className={`shrink-0 px-2.5 py-1 rounded-lg text-[14px] font-bold border transition-all ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10'}`}
                       >
                         {w}주
                       </button>
@@ -424,14 +424,14 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                 {/* 요약 카운트 — 데스크탑 전용 */}
                 {!loading && byStudent.length > 0 && (
                   <div className="hidden md:flex px-6 pt-3 pb-0 items-center gap-3 flex-wrap">
-                    <span className="text-[11px] font-black text-slate-400">총 {byStudent.length}명 제출</span>
+                    <span className="text-[14px] font-bold text-slate-400">총 {byStudent.length}명 제출</span>
                     {byStudent.filter(s => s.status === 'pending').length > 0 && (
-                      <span className="text-[11px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-lg border border-amber-700/40">
+                      <span className="text-[14px] font-bold text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-lg border border-amber-700/40">
                         ⏳ 승인 대기 {byStudent.filter(s => s.status === 'pending').length}건
                       </span>
                     )}
                     {byStudent.filter(s => s.status === 'approved').length > 0 && (
-                      <span className="text-[11px] font-black text-emerald-400">
+                      <span className="text-[14px] font-bold text-emerald-400">
                         ✅ {byStudent.filter(s => s.status === 'approved').length}건 승인 완료
                       </span>
                     )}
@@ -447,7 +447,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                   ) : byStudent.length === 0 ? (
                     <div className="text-center py-8 space-y-2">
                       <p className="text-slate-400 font-bold text-sm">제출된 활동 기록이 없습니다</p>
-                      <p className="text-slate-600 text-xs">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
+                      <p className="text-slate-600 text-[14px]">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
                     </div>
                   ) : (
                     <div className={`rounded-2xl border p-4 transition-all ${isPlaying && phase === 'reading' ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-white/5 border-white/10'}`}>
@@ -457,8 +457,8 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                             <Volume2 size={16} className="text-indigo-400 animate-pulse" />
                           </div>
                           <div>
-                            <p className="text-xs font-black text-indigo-400">브리핑 시작 중...</p>
-                            <p className="text-sm font-black text-white mt-0.5">
+                            <p className="text-[14px] font-bold text-indigo-400">브리핑 시작 중...</p>
+                            <p className="text-sm font-bold text-white mt-0.5">
                               {weekFilter === 'all' ? '전체' : `${weekFilter}주차`} · 총 {byStudent.length}명
                             </p>
                           </div>
@@ -469,8 +469,8 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                             <CheckCircle2 size={16} className="text-emerald-400" />
                           </div>
                           <div>
-                            <p className="text-xs font-black text-emerald-400">브리핑 완료</p>
-                            <p className="text-sm font-black text-white mt-0.5">전체 {byStudent.length}명 읽기 완료</p>
+                            <p className="text-[14px] font-bold text-emerald-400">브리핑 완료</p>
+                            <p className="text-sm font-bold text-white mt-0.5">전체 {byStudent.length}명 읽기 완료</p>
                           </div>
                         </div>
                       ) : current ? (
@@ -478,9 +478,9 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               {current.student_number !== '-' && (
-                                <span className="text-[10px] font-black text-slate-500">{current.student_number}번</span>
+                                <span className="text-[14px] font-bold text-slate-500">{current.student_number}번</span>
                               )}
-                              <span className="text-base font-black text-white">{current.student_name}</span>
+                              <span className="text-base font-bold text-white">{current.student_name}</span>
                               {isPlaying && phase === 'reading' && (
                                 <span className="flex gap-0.5 items-end h-4">
                                   {[0, 1, 2].map(i => (
@@ -495,20 +495,20 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                               )}
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                              <span className={`text-[13px] font-bold px-2 py-0.5 rounded-full border ${
                                 current.status === 'pending'
                                   ? 'bg-amber-900/40 text-amber-400 border-amber-700/50'
                                   : 'bg-emerald-900/40 text-emerald-400 border-emerald-700/50'
                               }`}>
                                 {current.status === 'pending' ? '⏳ 대기' : '✅ 승인'}
                               </span>
-                              <span className="text-[10px] font-black text-slate-500">
+                              <span className="text-[14px] font-bold text-slate-500">
                                 {currentIndex + 1} / {byStudent.length}
                               </span>
                             </div>
                           </div>
-                          <p className="text-xs font-black text-indigo-300 mb-1 truncate">{current.activity_name}</p>
-                          <p className="hidden md:block text-xs text-slate-400 font-bold leading-relaxed line-clamp-2">{current.content}</p>
+                          <p className="text-[14px] font-bold text-indigo-300 mb-1 truncate">{current.activity_name}</p>
+                          <p className="hidden md:block text-[14px] text-slate-400 font-bold leading-relaxed line-clamp-2">{current.content}</p>
                         </div>
                       ) : (
                         <p className="text-sm text-slate-500 font-bold text-center py-2">재생 버튼을 눌러 시작하세요</p>
@@ -564,12 +564,12 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
 
                 {/* 속도 선택 */}
                 <div className="flex items-center justify-center gap-1.5 md:gap-2">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">속도</span>
+                  <span className="text-[14px] font-bold text-slate-500  mr-1">속도</span>
                   {SPEEDS.map(s => (
                     <button
                       key={s}
                       onClick={() => handleSpeedChange(s)}
-                      className={`px-2.5 md:px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
+                      className={`px-2.5 md:px-3 py-1.5 rounded-xl text-[14px] font-bold transition-all border ${
                         speed === s
                           ? 'bg-indigo-500 text-white border-indigo-500'
                           : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'
@@ -588,7 +588,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                     {byStudent.length > 0 && (
                       <button
                         onClick={handleNotebookLMExport}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-xs font-black text-slate-400 active:scale-95 transition-all"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-[14px] font-bold text-slate-400 active:scale-95 transition-all"
                       >
                         <Download size={12} />
                         내보내기
@@ -596,7 +596,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                     )}
                     <button
                       onClick={handleClose}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-xs font-black text-slate-400 active:scale-95 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-[14px] font-bold text-slate-400 active:scale-95 transition-all"
                     >
                       <X size={12} />
                       닫기
@@ -607,13 +607,13 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                     <div className="hidden md:block space-y-2">
                       <button
                         onClick={handleNotebookLMExport}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-indigo-500/15 border border-white/10 hover:border-indigo-500/40 rounded-2xl text-xs font-black text-slate-400 hover:text-indigo-300 transition-all group"
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-indigo-500/15 border border-white/10 hover:border-indigo-500/40 rounded-2xl text-[14px] font-bold text-slate-400 hover:text-indigo-300 transition-all group"
                       >
                         <Download size={13} className="group-hover:-translate-y-0.5 transition-transform" />
                         NotebookLM 소스 텍스트 내보내기
                         <BookOpen size={13} className="opacity-50" />
                       </button>
-                      <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
+                      <p className="text-[13px] text-slate-600 font-bold text-center leading-relaxed">
                         .txt 다운로드 → NotebookLM 소스 추가 → 오디오 개요 생성
                       </p>
                     </div>
@@ -626,11 +626,11 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
             <div className="hidden md:flex flex-col w-64 border-l border-slate-700/40 shrink-0">
               {/* 주차 필터 */}
               <div className="px-4 pt-4 pb-3 border-b border-slate-700/30 shrink-0">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">주차 필터</p>
+                <p className="text-[13px] font-bold text-slate-500  mb-2">주차 필터</p>
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => handleWeekChange('all')}
-                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
+                    className={`w-full text-left px-3 py-1.5 rounded-xl text-[14px] font-bold border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
                   >
                     전체
                   </button>
@@ -638,7 +638,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                     <button
                       key={w}
                       onClick={() => handleWeekChange(w)}
-                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-black border transition-all truncate ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-[14px] font-bold border transition-all truncate ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
                     >
                       {w}주차{weeklyPlan.find(p => p.week === w)?.topic ? ` · ${weeklyPlan.find(p => p.week === w)!.topic}` : ''}
                     </button>
@@ -648,7 +648,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
 
               {/* 학생 목록 — 전체 높이 스크롤 */}
               <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-4 pt-3 pb-1.5">
+                <p className="text-[13px] font-bold text-slate-500  px-4 pt-3 pb-1.5">
                   학생 목록 ({byStudent.length}명)
                 </p>
                 {byStudent.map((r, i) => (
@@ -671,13 +671,13 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                       <Circle size={13} className="text-slate-600 shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-black truncate ${i === currentIndex ? 'text-white' : i < currentIndex ? 'text-slate-500' : 'text-slate-300'}`}>
+                      <p className={`text-[14px] font-bold truncate ${i === currentIndex ? 'text-white' : i < currentIndex ? 'text-slate-500' : 'text-slate-300'}`}>
                         {r.student_number !== '-' ? `${r.student_number}번 ` : ''}{r.student_name}
                       </p>
-                      <p className="text-[10px] text-slate-600 truncate">{r.activity_name}</p>
+                      <p className="text-[14px] text-slate-600 truncate">{r.activity_name}</p>
                     </div>
                     {r.status === 'pending' && (
-                      <span className="text-[8px] font-black text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-700/40 shrink-0">대기</span>
+                      <span className="text-[13px] font-bold text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-700/40 shrink-0">대기</span>
                     )}
                   </button>
                 ))}

@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Search,
   ArrowRight,
-  Sparkles,
   CheckCircle2,
   ArrowLeftRight,
   UserPlus,
@@ -225,11 +224,6 @@ const HomeroomDashboard = ({
     }
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 }
-  };
-
   return (
     <>
     <motion.div
@@ -239,105 +233,67 @@ const HomeroomDashboard = ({
       className="space-y-12 font-pretendard"
     >
       {/* 1. Header Section */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 py-2">
-        <div className="space-y-2">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-4 py-2">
+        <div className="space-y-1">
           <div className="flex items-center gap-2.5">
-            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-[0.12em] bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
-              Homeroom Dashboard
+            <span className="px-3 py-1 rounded-full text-[14px] font-bold bg-primary-container text-primary whitespace-nowrap">
+              담임 학급
             </span>
             {classInfo?.linked_class_id && (
-              <span className="flex items-center gap-1.5 px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-xs font-black uppercase tracking-[0.12em] whitespace-nowrap">
-                <ArrowLeftRight size={10} /> Live Synced
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-surface-container text-on-surface-variant rounded-full text-[14px] font-bold whitespace-nowrap">
+                <ArrowLeftRight size={12} /> 실시간 연동 중
               </span>
             )}
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-3xl md:text-4xl font-black tracking-tightest leading-tight">
-              <span className="gradient-text">{classInfo?.name}</span>
-            </h1>
-            <p className="text-on-surface-variant font-bold text-base mt-1 tracking-tight">담임 학급 관리 시스템</p>
-          </div>
+          <h1 className="text-3xl md:text-[32px] font-bold text-on-surface leading-tight">{classInfo?.name}</h1>
+          <p className="text-on-surface-variant text-[16px]">담임 학급 관리</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => navigate(`/suggestions?classId=${classInfo.id}`)}
-            className="relative flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
+            className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary text-on-surface font-bold text-[15px] transition-colors whitespace-nowrap"
           >
             <Megaphone size={16} />
             <span>질문·건의함</span>
             {Object.values(suggestionCounts).reduce((a, b) => a + b, 0) > 0 && (
-              <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+              <span className="absolute -top-2 -right-2 bg-primary text-white text-[12px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                 {Object.values(suggestionCounts).reduce((a, b) => a + b, 0)}
               </span>
             )}
           </button>
           <button
             onClick={onInviteTeachers}
-            className="btn-vibrant group px-4 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all whitespace-nowrap"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white font-bold text-[15px] hover:bg-primary/90 transition-colors whitespace-nowrap"
           >
-            <UserPlus size={16} className="group-hover:rotate-12 transition-transform" />
+            <UserPlus size={16} />
             <span>선생님 초대</span>
           </button>
         </div>
       </header>
 
-      {/* 2. Bento Grid Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 px-4">
-        <motion.div variants={itemVariants} className="layered-card p-6 flex flex-col justify-between min-h-[200px] group relative overflow-hidden">
-          <div className="absolute -top-8 -left-8 w-32 h-32 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors" />
-          <div className="flex items-center justify-between relative z-10">
-            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform shadow-sm"><Users size={20} /></div>
-            <span className="text-xs font-black text-on-surface-variant/75 tracking-[0.12em] uppercase">전체 학생</span>
-          </div>
-          <div className="relative z-10">
-            <h3 className="text-4xl font-black tracking-tighter">{students.length}<span className="text-base ml-1.5 opacity-70">명</span></h3>
-            <p className="text-xs font-bold text-on-surface-variant/75 uppercase tracking-wide">학급 전체 인원</p>
-          </div>
-        </motion.div>
-
-        <motion.div
-          variants={itemVariants}
-          onClick={() => setShowActivityModal(true)}
-          className="layered-card p-6 flex flex-col justify-between min-h-[200px] group relative overflow-hidden cursor-pointer hover:shadow-lg hover:border-secondary/30 transition-all"
-        >
-          <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-secondary/5 rounded-full blur-3xl group-hover:bg-secondary/10 transition-colors" />
-          <div className="flex items-center justify-between relative z-10">
-            <div className="w-10 h-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary group-hover:scale-110 transition-transform shadow-sm"><BookOpen size={20} /></div>
-            <span className="text-xs font-black text-on-surface-variant/75 tracking-[0.12em] uppercase">활동 참여율</span>
-          </div>
-          <div className="relative z-10">
-            <h3 className="text-4xl font-black tracking-tighter">
-              {students.filter(s => s.activity && s.activity !== '기록 없음').length}<span className="text-base ml-1.5 opacity-70">명</span>
-            </h3>
-            <p className="text-xs font-bold text-on-surface-variant/75 uppercase tracking-wide">최근 활동 참여</p>
-            <p className="text-xs font-black text-secondary/75 mt-1 uppercase tracking-widest group-hover:text-secondary transition-colors">클릭하여 현황 보기 →</p>
-          </div>
-        </motion.div>
-
-        <motion.div variants={itemVariants} className="layered-card p-6 col-span-1 md:col-span-2 flex flex-col justify-between min-h-[200px] group relative overflow-hidden border-primary/5 bg-gradient-to-br from-white via-white to-primary/5">
-          <div className="absolute -top-10 -right-10 text-primary/5 group-hover:scale-110 transition-all duration-1000"><Sparkles size={200} /></div>
-          <div className="flex items-center justify-between relative z-10">
-            <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent shadow-sm"><CheckCircle2 size={20} /></div>
-            <button
-              onClick={() => { onCopyCode(); setShowCodeModal(true); }}
-              className="px-6 py-2.5 bg-on-surface text-surface rounded-xl text-[10px] font-black uppercase tracking-[0.12em] hover:bg-primary transition-all shadow-soft active:scale-95"
-            >
-              {copySuccess ? 'Copied! ✨' : `Code: ${classInfo.entry_code}`}
-            </button>
-          </div>
-          <div className="relative z-10 space-y-2 max-w-sm">
-             <p className="text-sm font-bold text-on-surface leading-snug">
-               학생들에게 참여 코드를 공유하여 <span className="text-primary font-black underline decoration-primary/20 underline-offset-4">수업 기록</span>을 시작하세요.
-             </p>
-             <p className="text-xs font-black text-on-surface-variant/75 tracking-[0.12em] uppercase">학생 전용 입장 코드</p>
-          </div>
-        </motion.div>
-      </div>
+      {/* 2. 한 줄 통계 */}
+      <section className="px-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[17px] text-on-surface">
+          <span className="flex items-center gap-2"><Users size={18} className="text-primary" /><b className="font-black">{students.length}명</b> 등록</span>
+          <button type="button" onClick={() => setShowActivityModal(true)} className="flex items-center gap-2 hover:text-primary transition-colors" title="최근 활동 현황 보기">
+            <BookOpen size={18} className="text-primary" /><b className="font-black">{students.filter(s => s.activity && s.activity !== '기록 없음').length}명</b> 참여 중
+            <span className="text-[14px] font-bold text-primary">현황 보기 ›</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { onCopyCode(); setShowCodeModal(true); }}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary text-[15px] font-bold transition-colors"
+            title="학생 전용 입장 코드"
+          >
+            {copySuccess ? '복사됨' : `입장 코드 ${classInfo.entry_code}`}
+          </button>
+        </div>
+      </section>
 
       {/* 3. Student Data Center - Full Width */}
       <section className="px-4 pb-16">
-        <div className="layered-card p-8 bg-white flex flex-col">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-8 bg-surface-container-lowest flex flex-col">
            <div className="flex flex-col gap-4 mb-8">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -345,12 +301,12 @@ const HomeroomDashboard = ({
                     <div className="w-9 h-9 md:w-10 md:h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0"><LayoutDashboard size={18} /></div>
                     학급 데이터 센터
                   </h2>
-                  <p className="text-xs font-bold text-on-surface-variant/60 ml-12">실시간 연동 데이터 기반 학생 프로필</p>
+                  <p className="text-[14px] font-bold text-on-surface-variant/60 ml-12">실시간 연동 데이터 기반 학생 프로필</p>
                 </div>
                 {/* 전체화면 버튼 — 오른쪽 상단 */}
                 <button
                   onClick={() => setShowFullscreen(true)}
-                  className="self-start sm:self-auto p-3 rounded-2xl border-2 border-neutral-200 hover:border-primary/40 hover:bg-primary/5 text-neutral-400 hover:text-primary transition-all"
+                  className="self-start sm:self-auto p-3 rounded-2xl border-2 border-neutral-200 hover:border-primary/40 hover:bg-primary/5 text-on-surface-variant hover:text-primary transition-all"
                   title="전체화면으로 보기"
                 >
                   <Maximize2 size={18} />
@@ -360,13 +316,13 @@ const HomeroomDashboard = ({
               {/* 검색 + 액션 버튼 — 모바일 세로 스택 */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative group flex-1">
-                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
+                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
                   <input
                     type="text"
                     placeholder="학생 검색..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 text-sm font-bold text-neutral-900 outline-none pl-10 pr-4 py-3 rounded-2xl w-full transition-all placeholder:text-neutral-400 shadow-sm"
+                    className="bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 text-sm font-bold text-neutral-900 outline-none pl-10 pr-4 py-3 rounded-2xl w-full transition-all placeholder:text-on-surface-variant shadow-sm"
                   />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -379,7 +335,7 @@ const HomeroomDashboard = ({
                       >
                         <CheckCheck size={15} />
                         <span>일괄 승인</span>
-                        <span className="bg-amber-200 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-lg">{pendingCount}</span>
+                        <span className="bg-amber-200 text-amber-800 text-[13px] font-black px-1.5 py-0.5 rounded-lg">{pendingCount}</span>
                       </button>
                     ) : null;
                   })()}
@@ -395,7 +351,7 @@ const HomeroomDashboard = ({
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
                         <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]">
-                          <p className="text-xs font-black text-neutral-600 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
+                          <p className="text-[14px] font-bold text-neutral-600 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
                           <div className="space-y-1">
                             {Object.entries(HOMEROOM_COL_LABELS).map(([key, label]) => (
                               <label
@@ -412,7 +368,7 @@ const HomeroomDashboard = ({
                           </div>
                           <button
                             onClick={resetCols}
-                            className="mt-3 w-full text-xs font-black text-neutral-500 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
+                            className="mt-3 w-full text-[14px] font-bold text-on-surface-variant hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
                           >
                             기본값으로 초기화
                           </button>
@@ -432,7 +388,7 @@ const HomeroomDashboard = ({
            </div>
 
            {/* ── 주차별 제출 현황 통계 ── */}
-           <div className="mb-6 rounded-2xl border border-neutral-100 bg-neutral-50/60 overflow-hidden">
+           <div className="mb-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface-container-low overflow-hidden">
              <button
                onClick={() => setShowStats(v => !v)}
                className="w-full flex items-center justify-between px-6 py-4 hover:bg-neutral-100/60 transition-colors"
@@ -443,12 +399,12 @@ const HomeroomDashboard = ({
                  </div>
                  <span className="text-sm font-black text-on-surface">주차별 제출 현황</span>
                  {statsWeeks.length > 0 && (
-                   <span className="text-[10px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
+                   <span className="text-[13px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
                      총 {statsWeeks.length}주차
                    </span>
                  )}
                  {selectedStatsWeek !== null && (
-                   <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
+                   <span className="text-[13px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
                      {selectedStatsWeek}주차 선택됨
                    </span>
                  )}
@@ -460,11 +416,11 @@ const HomeroomDashboard = ({
                <div className="px-6 pb-5">
                  {statsLoading ? (
                    <div className="flex items-center justify-center py-6 text-on-surface-variant/70">
-                     <span className="text-xs font-bold">불러오는 중...</span>
+                     <span className="text-[14px] font-bold">불러오는 중...</span>
                    </div>
                  ) : statsWeeks.length === 0 ? (
                    <div className="text-center py-6 text-on-surface-variant/70">
-                     <p className="text-xs font-black">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
+                     <p className="text-[14px] font-bold">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
                    </div>
                  ) : (
                    <div className="space-y-4">
@@ -485,16 +441,16 @@ const HomeroomDashboard = ({
                                }
                              }}
                              onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
-                             className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
+                             className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[14px] font-bold transition-all border ${
                                isSelected
                                  ? 'bg-primary text-white border-primary shadow-sm'
-                                 : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                                 : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary'
                              }`}
                            >
                              <span>{week}주차</span>
-                             {topic && <span className={`text-[11px] ${isSelected ? 'text-white/90' : 'text-neutral-500'}`}>· {topic}</span>}
+                             {topic && <span className={`text-[14px] ${isSelected ? 'text-white/90' : 'text-on-surface-variant'}`}>· {topic}</span>}
                              {weekResultCount > 0 && (
-                               <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                               <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[14px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                                  {weekResultCount}
                                </span>
                              )}
@@ -506,15 +462,15 @@ const HomeroomDashboard = ({
                      {/* 선택 주차 요약 */}
                      {selectedStatsWeek !== null ? (
                        <div className="flex items-center gap-3 flex-wrap">
-                         <div className="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black bg-emerald-50 border-emerald-100 text-emerald-700">
+                         <div className="flex items-center gap-2 px-4 py-2 rounded-xl border text-[14px] font-bold bg-primary-container border-primary/30 text-primary">
                            <span>📋 제출완료</span>
                            <span className="text-base font-black">{obsOnWeek.size}</span>
                            <span className="font-bold opacity-60">명</span>
                          </div>
-                         <p className="text-xs font-bold text-on-surface-variant/70 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
+                         <p className="text-[14px] font-bold text-on-surface-variant/70 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
                        </div>
                      ) : (
-                       <p className="text-xs font-bold text-on-surface-variant/70">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
+                       <p className="text-[14px] font-bold text-on-surface-variant/70">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
                      )}
                    </div>
                  )}
@@ -548,34 +504,34 @@ const HomeroomDashboard = ({
                          </div>
                        </label>
                        {s.number !== '-' && (
-                         <span className="text-xs font-black text-on-surface-variant/70 shrink-0 w-6">
+                         <span className="text-[14px] font-bold text-on-surface-variant/70 shrink-0 w-6">
                            {s.number?.toString().padStart(2, '0')}
                          </span>
                        )}
                        <div className="min-w-0">
                          <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                           <span className="text-xs font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
+                           <span className="text-[14px] font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
                            {colVis.group && groupMap[s.id] && (
                              <span
-                               className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                               className="text-[12px] font-black px-1.5 py-0.5 rounded-md text-white"
                                style={{ backgroundColor: groupMap[s.id].color }}
                              >
                                {groupMap[s.id].name}
                              </span>
                            )}
                            {suggestionCounts[s.id] > 0 && (
-                             <span className="text-[8px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">💬 {suggestionCounts[s.id]}</span>
+                             <span className="text-[12px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">💬 {suggestionCounts[s.id]}</span>
                            )}
                          </div>
                        </div>
                      </div>
                      <div className="shrink-0 flex items-center gap-2">
                        {approvalStatus === 'pending' && (
-                         <span className="text-xs font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ 대기</span>
+                         <span className="text-[14px] font-bold px-2 py-1 rounded-lg bg-surface-container-lowest text-primary border border-primary/60 whitespace-nowrap">⏳ 대기</span>
                        )}
                        {approvalStatus === 'done' && (
-                         <span className="text-xs font-black px-2 py-1 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 whitespace-nowrap">✅ 완료</span>
+                         <span className="text-[14px] font-bold px-2 py-1 rounded-lg bg-primary-container text-primary border border-primary/30 whitespace-nowrap">✅ 완료</span>
                        )}
                        <button
                          onClick={(e) => { e.stopPropagation(); onNavigateToStudent(s.id); }}
@@ -595,13 +551,13 @@ const HomeroomDashboard = ({
                          const topic = weeklyPlan.find(p => p.week === w)?.topic;
                          return (
                            <div key={w} className="flex items-center gap-2">
-                             <span className="text-xs font-black text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
-                             {topic && <span className="text-xs font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
+                             <span className="text-[14px] font-bold text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
+                             {topic && <span className="text-[14px] font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
                              <div className="flex items-center gap-1.5 shrink-0">
-                               <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
+                               <span className={`text-[14px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-neutral-100 text-on-surface-variant border-neutral-200'}`}>
                                  📝 {hasObs ? '제출' : '미제출'}
                                </span>
-                               <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
+                               <span className={`text-[14px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-neutral-100 text-on-surface-variant border-neutral-200'}`}>
                                  📁 {hasResult ? '제출' : '미제출'}
                                </span>
                              </div>
@@ -613,9 +569,9 @@ const HomeroomDashboard = ({
 
                    {/* 관리 버튼 */}
                    <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                     <button onClick={(e) => { e.stopPropagation(); handleStartEdit(e, s); }} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
-                     <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
-                     <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-violet-50 text-neutral-400 hover:text-violet-500 transition-all rounded-lg"><KeyRound size={14} /></button>
+                     <button onClick={(e) => { e.stopPropagation(); handleStartEdit(e, s); }} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
+                     <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
+                     <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-primary-container text-on-surface-variant hover:text-primary transition-all rounded-lg"><KeyRound size={14} /></button>
                    </div>
                  </motion.div>
                );
@@ -641,26 +597,26 @@ const HomeroomDashboard = ({
                      </label>
                    </th>
                    {colVis.number && (
-                     <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">NO.</th>
+                     <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">NO.</th>
                    )}
-                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
+                   <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
                    {colVis.linkedSubjects && (
-                     <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden lg:table-cell">연동 과목</th>
+                     <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden lg:table-cell">연동 과목</th>
                    )}
                    {colVis.approval && (
-                     <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
+                     <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
                    )}
                    {selectedStatsWeek !== null && (
                      <>
-                       <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
+                       <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface uppercase tracking-widest text-center whitespace-nowrap">
                          {selectedStatsWeek}주차 활동 기록
                        </th>
-                       <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center whitespace-nowrap">
+                       <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface uppercase tracking-widest text-center whitespace-nowrap">
                          {selectedStatsWeek}주차 결과제출
                        </th>
                      </>
                    )}
-                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-8 lg:pr-12 whitespace-nowrap">관리</th>
+                   <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-8 lg:pr-12 whitespace-nowrap">관리</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-neutral-100">
@@ -702,7 +658,7 @@ const HomeroomDashboard = ({
                                />
                              ) : (
                                <span className="font-manrope font-black text-on-surface-variant/60 group-hover:text-primary transition-colors text-lg">
-                                 {s.number === '-' ? <span className="text-neutral-500 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                                 {s.number === '-' ? <span className="text-on-surface-variant text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
                                </span>
                              )}
                            </td>
@@ -731,17 +687,17 @@ const HomeroomDashboard = ({
                                <div className="flex flex-col">
                                  <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                  <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="px-1.5 py-0.5 bg-primary/5 text-[8px] font-black text-primary/70 uppercase tracking-wider rounded border border-primary/10">{s.tag || '학생'}</span>
+                                    <span className="px-1.5 py-0.5 bg-primary/5 text-[12px] font-black text-primary/70 uppercase tracking-wider rounded border border-primary/10">{s.tag || '학생'}</span>
                                     {colVis.group && groupMap[s.id] && (
                                       <span
-                                        className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                                        className="text-[12px] font-black px-1.5 py-0.5 rounded-md text-white"
                                         style={{ backgroundColor: groupMap[s.id].color }}
                                       >
                                         {groupMap[s.id].name}
                                       </span>
                                     )}
                                     {suggestionCounts[s.id] > 0 && (
-                                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 text-[8px] font-black text-rose-500 rounded border border-rose-100">
+                                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 text-[12px] font-black text-rose-500 rounded border border-rose-100">
                                         💬 {suggestionCounts[s.id]}건
                                       </span>
                                     )}
@@ -759,13 +715,13 @@ const HomeroomDashboard = ({
                                    <div
                                      key={linkedClass.id}
                                      title={linkedClass.subject}
-                                     className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-xs font-black text-on-surface-variant/70 group-hover:border-primary/20 group-hover:text-primary transition-all shadow-sm shrink-0"
+                                     className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-[14px] font-bold text-on-surface-variant/70 group-hover:border-primary/20 group-hover:text-primary transition-all shadow-sm shrink-0"
                                    >
                                      {linkedClass.subject.charAt(0)}
                                    </div>
                                  ))
                                ) : (
-                                 <span className="text-xs font-bold text-on-surface-variant/60 italic">연동 과목 없음</span>
+                                 <span className="text-[14px] font-bold text-on-surface-variant/60 italic">연동 과목 없음</span>
                                )}
                              </div>
                            </td>
@@ -775,11 +731,11 @@ const HomeroomDashboard = ({
                          {colVis.approval && (
                            <td className="p-3 lg:p-6 text-center">
                              {(!s.activity || s.activity === '기록 없음') ? (
-                               <span className="text-on-surface-variant/50 text-xs font-bold">—</span>
+                               <span className="text-on-surface-variant/50 text-[14px] font-bold">—</span>
                              ) : (s.pending_obs_ids?.length > 0) ? (
-                               <span className="px-2 lg:px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300 whitespace-nowrap">승인 대기</span>
+                               <span className="px-2 lg:px-3 py-1 rounded-lg text-[14px] font-bold border bg-surface-container-lowest text-primary border-primary/60 whitespace-nowrap">승인 대기</span>
                              ) : (
-                               <span className="px-2 lg:px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30 whitespace-nowrap">승인 완료</span>
+                               <span className="px-2 lg:px-3 py-1 rounded-lg text-[14px] font-bold border bg-primary-container text-primary border-primary/30 whitespace-nowrap">승인 완료</span>
                              )}
                            </td>
                          )}
@@ -789,14 +745,14 @@ const HomeroomDashboard = ({
                            <>
                              <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                {obsOnWeek.has(s.id) ? (
-                                 <span className="px-2 py-1 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝 제출</span>
+                                 <span className="px-2 py-1 rounded-md text-[12px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝 제출</span>
                                ) : (
                                  <span className="text-neutral-300 font-bold text-sm">—</span>
                                )}
                              </td>
                              <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                {resultsOnWeek.has(s.id) ? (
-                                 <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출</span>
+                                 <span className="px-2 py-1 rounded-md text-[12px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출</span>
                                ) : (
                                  <span className="text-neutral-300 font-bold text-sm">—</span>
                                )}
@@ -811,14 +767,14 @@ const HomeroomDashboard = ({
                                <button
                                  onClick={handleSaveEdit}
                                  disabled={saving}
-                                 className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50"
+                                 className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50"
                                >
                                  <Save size={13} />
                                  {saving ? '저장 중' : '저장'}
                                </button>
                                <button
                                  onClick={handleCancelEdit}
-                                 className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-xl transition-all"
+                                 className="p-2 text-on-surface-variant hover:text-neutral-600 hover:bg-neutral-100 rounded-xl transition-all"
                                >
                                  <X size={16} />
                                </button>
@@ -827,14 +783,14 @@ const HomeroomDashboard = ({
                              <div className="flex items-center justify-end gap-1">
                                <button
                                  onClick={(e) => handleStartEdit(e, s)}
-                                 className="p-2 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+                                 className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
                                  title="학생 정보 편집"
                                >
                                  <Pencil size={16} />
                                </button>
                                <button
                                  onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }}
-                                 className="p-2 text-neutral-400 hover:text-error hover:bg-error/10 rounded-xl transition-all"
+                                 className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-xl transition-all"
                                  title="학생 삭제"
                                >
                                  <Trash2 size={16} />
@@ -842,16 +798,16 @@ const HomeroomDashboard = ({
                                <div className="relative">
                                  <button
                                    onClick={(e) => { e.stopPropagation(); setPinPopupId(pinPopupId === s.id ? null : s.id); }}
-                                   className="p-2 text-neutral-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                                   className="p-2 text-on-surface-variant hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
                                    title="PIN 보기"
                                  >
                                    {pinPopupId === s.id ? <EyeOff size={14} /> : <Eye size={14} />}
                                  </button>
                                  {pinPopupId === s.id && (
                                    <div className="absolute right-0 bottom-9 z-50 bg-neutral-900 text-white rounded-xl px-4 py-2.5 shadow-xl whitespace-nowrap">
-                                     <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-1">PIN</p>
+                                     <p className="text-[12px] font-black text-on-surface-variant uppercase tracking-widest mb-1">PIN</p>
                                      <p className="text-lg font-black tracking-widest font-manrope">
-                                       {s.pin ?? <span className="text-neutral-500 text-sm">미설정</span>}
+                                       {s.pin ?? <span className="text-on-surface-variant text-sm">미설정</span>}
                                      </p>
                                      <div className="absolute bottom-[-5px] right-4 w-2.5 h-2.5 bg-neutral-900 rotate-45" />
                                    </div>
@@ -859,7 +815,7 @@ const HomeroomDashboard = ({
                                </div>
                                <button
                                  onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }}
-                                 className="p-2 text-neutral-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                                 className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-xl transition-all"
                                  title="PIN 초기화"
                                >
                                  <KeyRound size={16} />
@@ -882,7 +838,7 @@ const HomeroomDashboard = ({
                       <td colSpan={selectedStatsWeek !== null ? 7 : 6} className="py-24 text-center">
                         <div className="flex flex-col items-center justify-center text-on-surface-variant/20 gap-4">
                           <div className="p-6 bg-neutral-50 rounded-full shadow-inner"><Search size={40} /></div>
-                          <p className="font-black text-xs tracking-widest uppercase">일치하는 학생이 없습니다</p>
+                          <p className="font-black text-[14px] tracking-widest uppercase">일치하는 학생이 없습니다</p>
                         </div>
                       </td>
                     </tr>
@@ -1115,7 +1071,7 @@ const HomeroomDashboard = ({
           setMobileStatusTab('submitted');
         };
 
-        const tabColor = activityTab === 'obs' ? 'violet' : 'emerald';
+        const tabColor = activityTab === 'obs' ? 'primary' : 'primary';
         const tabLabel = activityTab === 'obs' ? '활동 기록' : '결과제출';
 
         return (
@@ -1125,58 +1081,58 @@ const HomeroomDashboard = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               onClick={e => e.stopPropagation()}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+              className="relative bg-surface-container-lowest rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-10 py-4 sm:py-7 border-b border-neutral-100">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-10 py-4 sm:py-7 border-b border-slate-200 dark:border-slate-700">
                 <div className="space-y-1 min-w-0">
-                  <p className="text-[10px] font-black text-secondary uppercase tracking-[0.25em]">Activity Rate</p>
-                  <h3 className="text-lg sm:text-2xl font-black tracking-tight truncate">
+                  <p className="text-[14px] font-semibold text-on-surface-variant">활동 참여율</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-on-surface truncate">
                     {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0">
                   <div className="flex items-center gap-3 sm:gap-4 text-right">
                     <div className="space-y-0.5 whitespace-nowrap">
-                      <p className="text-xl sm:text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
-                      <p className="text-[9px] font-black text-secondary/60 uppercase tracking-widest whitespace-nowrap">제출 완료</p>
+                      <p className="text-xl sm:text-2xl font-bold text-primary">{submitted.length}<span className="text-[15px] ml-1 opacity-50">명</span></p>
+                      <p className="text-[14px] font-semibold text-on-surface-variant whitespace-nowrap">제출 완료</p>
                     </div>
-                    <div className="w-px h-10 bg-neutral-100 shrink-0" />
+                    <div className="w-px h-10 bg-surface-container shrink-0" />
                     <div className="space-y-0.5 whitespace-nowrap">
-                      <p className="text-xl sm:text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
-                      <p className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest whitespace-nowrap">미제출</p>
+                      <p className="text-xl sm:text-2xl font-bold text-on-surface-variant">{notSubmitted.length}<span className="text-[15px] ml-1 opacity-50">명</span></p>
+                      <p className="text-[14px] font-semibold text-on-surface-variant whitespace-nowrap">미제출</p>
                     </div>
                   </div>
-                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all shrink-0">
+                  <button onClick={closeModal} className="p-2.5 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all shrink-0">
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
               {/* 탭 선택 */}
-              <div className="px-5 sm:px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
+              <div className="px-5 sm:px-10 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
                 <button
                   onClick={() => setActivityTab('obs')}
-                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl text-[14px] font-bold transition-all border whitespace-nowrap ${
                     activityTab === 'obs'
-                      ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
-                      : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-white text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary'
                   }`}
                 >
-                  📋 활동 기록
+                  활동 기록
                   {activityTab === 'obs' && selectedActivityWeek === null && (
                     <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[9px]">{allObsIds.size}명</span>
                   )}
                 </button>
                 <button
                   onClick={() => setActivityTab('results')}
-                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl text-[14px] font-bold transition-all border whitespace-nowrap ${
                     activityTab === 'results'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-white text-neutral-400 border-neutral-200 hover:border-emerald-300 hover:text-emerald-600'
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-white text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary'
                   }`}
                 >
-                  📦 결과제출
+                  결과제출
                   {activityTab === 'results' && selectedActivityWeek === null && (
                     <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[9px]">{allResultIds.size}명</span>
                   )}
@@ -1185,13 +1141,13 @@ const HomeroomDashboard = ({
 
               {/* 주차 필터 칩 */}
               {statsWeeks.length > 0 && (
-                <div className="px-5 sm:px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <div className="px-5 sm:px-10 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 overflow-x-auto custom-scrollbar">
                   <button
                     onClick={() => setSelectedActivityWeek(null)}
-                    className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-[14px] font-bold transition-all border ${
                       selectedActivityWeek === null
-                        ? 'bg-neutral-700 text-white border-neutral-700 shadow-sm'
-                        : 'bg-white text-neutral-400 border-neutral-200 hover:border-neutral-400'
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40'
                     }`}
                   >
                     전체
@@ -1203,16 +1159,16 @@ const HomeroomDashboard = ({
                       <button
                         key={week}
                         onClick={() => setSelectedActivityWeek(week)}
-                        className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                        className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[14px] font-bold transition-all border ${
                           selectedActivityWeek === week
-                            ? tabColor === 'violet' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                            : 'bg-white text-neutral-400 border-neutral-200 hover:border-neutral-400'
+                            ? tabColor === 'primary' ? 'bg-primary text-white border-primary' : 'bg-primary text-white border-primary'
+                            : 'bg-white text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40'
                         }`}
                       >
                         {week}주차{topic && <span className="opacity-60">· {topic}</span>}
                         {weekCount > 0 && (
-                          <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black ${
-                            selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
+                          <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
+                            selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'primary' ? 'bg-primary-container text-primary' : 'bg-primary-container text-primary'
                           }`}>{weekCount}</span>
                         )}
                       </button>
@@ -1222,36 +1178,36 @@ const HomeroomDashboard = ({
               )}
 
               {/* 모바일 전용: 제출완료/미제출 서브탭 */}
-              <div className="sm:hidden flex border-b border-neutral-100">
+              <div className="sm:hidden flex border-b border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => setMobileStatusTab('submitted')}
-                  className={`flex-1 py-3 text-xs font-black transition-all border-b-2 ${
+                  className={`flex-1 py-3 text-[14px] font-bold transition-all border-b-2 ${
                     mobileStatusTab === 'submitted'
-                      ? tabColor === 'violet' ? 'text-violet-600 border-violet-600' : 'text-emerald-600 border-emerald-600'
-                      : 'text-neutral-400 border-transparent'
+                      ? tabColor === 'primary' ? 'text-primary border-primary' : 'text-primary border-primary'
+                      : 'text-on-surface-variant border-transparent'
                   }`}
                 >
-                  ✓ 제출 완료 ({submitted.length})
+                  제출 완료 ({submitted.length})
                 </button>
                 <button
                   onClick={() => setMobileStatusTab('notSubmitted')}
-                  className={`flex-1 py-3 text-xs font-black transition-all border-b-2 ${
+                  className={`flex-1 py-3 text-[14px] font-bold transition-all border-b-2 ${
                     mobileStatusTab === 'notSubmitted'
-                      ? 'text-amber-600 border-amber-600'
-                      : 'text-neutral-400 border-transparent'
+                      ? 'text-primary border-primary'
+                      : 'text-on-surface-variant border-transparent'
                   }`}
                 >
-                  ⏳ 미제출 ({notSubmitted.length})
+                  미제출 ({notSubmitted.length})
                 </button>
               </div>
 
               {/* Modal Body */}
-              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-neutral-100">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-slate-200 dark:divide-slate-700">
                 {/* 제출 완료 */}
                 <div className={`${mobileStatusTab === 'submitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
-                  <div className={`hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 border-b items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                    <CheckCheck size={14} className={tabColor === 'violet' ? 'text-violet-600' : 'text-emerald-600'} />
-                    <span className={`text-[11px] font-black uppercase tracking-widest ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
+                  <div className={`hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 border-b items-center gap-2 ${tabColor === 'primary' ? 'bg-primary-container/40 border-slate-200 dark:border-slate-700' : 'bg-primary-container/40 border-slate-200 dark:border-slate-700'}`}>
+                    <CheckCheck size={14} className={tabColor === 'primary' ? 'text-primary' : 'text-primary'} />
+                    <span className={`text-[14px] font-bold uppercase tracking-widest ${tabColor === 'primary' ? 'text-primary' : 'text-primary'}`}>
                       제출 완료 ({submitted.length}명)
                     </span>
                   </div>
@@ -1261,24 +1217,24 @@ const HomeroomDashboard = ({
                         <div
                           key={s.id}
                           onClick={() => { onNavigateToStudent(s.id); closeModal(); }}
-                          className={`flex items-center gap-3 px-5 sm:px-8 py-3 cursor-pointer transition-all group ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
+                          className={`flex items-center gap-3 px-5 sm:px-8 py-3 cursor-pointer transition-all group ${tabColor === 'primary' ? 'hover:bg-primary-container/40' : 'hover:bg-primary-container/40'}`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tabColor === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tabColor === 'primary' ? 'bg-primary-container text-primary' : 'bg-primary-container text-primary'}`}>
                             <Users size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-black transition-colors ${tabColor === 'violet' ? 'group-hover:text-violet-600' : 'group-hover:text-emerald-600'}`}>
+                            <p className={`text-[15px] font-bold transition-colors ${tabColor === 'primary' ? 'group-hover:text-primary' : 'group-hover:text-primary'}`}>
                               {s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-[10px] text-neutral-400 font-medium truncate">{getActivityLabel(s)}</p>
+                            <p className="text-[10px] text-on-surface-variant font-medium truncate">{getActivityLabel(s)}</p>
                           </div>
-                          <CheckCircle2 size={14} className={`shrink-0 ${tabColor === 'violet' ? 'text-violet-500' : 'text-emerald-500'}`} />
+                          <CheckCircle2 size={14} className={`shrink-0 ${tabColor === 'primary' ? 'text-primary' : 'text-primary'}`} />
                         </div>
                       ))
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-on-surface-variant/50 gap-2">
                         <CheckCheck size={32} />
-                        <p className="text-xs font-bold">제출한 학생이 없습니다</p>
+                        <p className="text-[14px] font-bold">제출한 학생이 없습니다</p>
                       </div>
                     )}
                   </div>
@@ -1286,9 +1242,9 @@ const HomeroomDashboard = ({
 
                 {/* 미제출 */}
                 <div className={`${mobileStatusTab === 'notSubmitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
-                  <div className="hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 bg-amber-50 border-b border-amber-100 items-center gap-2">
-                    <ClockIcon size={14} className="text-amber-500" />
-                    <span className="text-[11px] font-black text-amber-600 uppercase tracking-widest">미제출 ({notSubmitted.length}명)</span>
+                  <div className="hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 bg-surface-container border-b border-slate-200 dark:border-slate-700 items-center gap-2">
+                    <ClockIcon size={14} className="text-on-surface-variant" />
+                    <span className="text-[14px] font-bold text-on-surface uppercase tracking-widest">미제출 ({notSubmitted.length}명)</span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
                     {notSubmitted.length > 0 ? (
@@ -1296,24 +1252,24 @@ const HomeroomDashboard = ({
                         <div
                           key={s.id}
                           onClick={() => { onNavigateToStudent(s.id); closeModal(); }}
-                          className="flex items-center gap-3 px-5 sm:px-8 py-3 hover:bg-amber-50 cursor-pointer transition-all group"
+                          className="flex items-center gap-3 px-5 sm:px-8 py-3 hover:bg-surface-container cursor-pointer transition-all group"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant shrink-0">
                             <Users size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black group-hover:text-amber-600 transition-colors">
+                            <p className="text-[15px] font-bold group-hover:text-primary transition-colors">
                               {s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-[10px] text-neutral-300 font-medium">미제출</p>
+                            <p className="text-[10px] text-on-surface-variant/50 font-medium">미제출</p>
                           </div>
-                          <ClockIcon size={14} className="text-amber-300 shrink-0" />
+                          <ClockIcon size={14} className="text-on-surface-variant/60 shrink-0" />
                         </div>
                       ))
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-on-surface-variant/50 gap-2">
                         <ClockIcon size={32} />
-                        <p className="text-xs font-bold">모두 제출 완료!</p>
+                        <p className="text-[14px] font-bold">모두 제출 완료!</p>
                       </div>
                     )}
                   </div>
@@ -1321,19 +1277,19 @@ const HomeroomDashboard = ({
               </div>
 
               {/* Modal Footer */}
-              <div className="px-5 sm:px-10 py-4 sm:py-5 border-t border-neutral-100 bg-neutral-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="px-5 sm:px-10 py-4 sm:py-5 border-t border-slate-200 dark:border-slate-700 bg-surface-container-low flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-2 bg-neutral-100 rounded-full flex-1 sm:w-40 sm:flex-none overflow-hidden">
+                  <div className="h-2 bg-surface-container rounded-full flex-1 sm:w-40 sm:flex-none overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${tabColor === 'violet' ? 'bg-violet-500' : 'bg-emerald-500'}`}
+                      className={`h-full rounded-full transition-all ${tabColor === 'primary' ? 'bg-primary' : 'bg-primary'}`}
                       style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
                     />
                   </div>
-                  <span className="text-xs font-black text-on-surface-variant/60 whitespace-nowrap">
+                  <span className="text-[14px] font-bold text-on-surface-variant/60 whitespace-nowrap">
                     {tabLabel} 참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
                   </span>
                 </div>
-                <button onClick={closeModal} className="w-full sm:w-auto px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all">
+                <button onClick={closeModal} className="w-full sm:w-auto px-6 py-2.5 border border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary rounded-xl text-[15px] font-bold text-on-surface transition-all">
                   닫기
                 </button>
               </div>

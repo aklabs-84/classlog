@@ -1411,10 +1411,15 @@ const MaterialEditor = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const isCreatingFolderRef = useRef(false);
   const [moveMenuFor, setMoveMenuFor] = useState<string | null>(null);
+  const [moreOpenFor, setMoreOpenFor] = useState<string | null>(null);
   const [deleteFolderConfirmId, setDeleteFolderConfirmId] = useState<string | null>(null);
 
   // 에디터 열림 여부
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('material-editor-open', { detail: isEditorOpen }));
+    return () => { window.dispatchEvent(new CustomEvent('material-editor-open', { detail: false })); };
+  }, [isEditorOpen]);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
 
   // 폼 필드
@@ -2192,11 +2197,14 @@ const MaterialEditor = () => {
   ).sort(byWeekThenTitle);
 
   // 카드/리스트 보기가 함께 쓰는 자료별 빠른 보기 버튼 (발표 모드·슬라이드·미리보기)
-  const renderQuickButtons = (material: Material, size = 16, compact = false) => {
-    const qcls = compact ? 'p-1.5 rounded-lg bg-surface-container-low' : 'p-2.5 rounded-xl bg-white/90';
+  const renderQuickButtons = (material: Material, size = 16, compact = false, part: 'all' | 'view' | 'extra' = 'all') => {
+    const qcls = part !== 'all' ? 'flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50' : compact ? 'p-1.5 rounded-lg bg-surface-container-low' : 'p-2.5 rounded-xl bg-white/90';
+    const lbl = (t: string) => (part !== 'all' ? <span>{t}</span> : null);
+    const showExtra = part !== 'view';
+    const showView = part !== 'extra';
     return (
       <>
-                      {material.content && (
+                      {showExtra && material.content && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2208,12 +2216,12 @@ const MaterialEditor = () => {
                             });
                           }}
                           title="전체화면 발표 모드"
-                          className={`${qcls} text-violet-700 hover:bg-white transition-colors`}
+                          className={`${qcls} text-on-surface transition-colors`}
                         >
-                          <Presentation size={size} />
+                          <Presentation size={size} />{lbl('발표 모드')}
                         </button>
                       )}
-                      {material.content && (
+                      {showExtra && material.content && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2226,48 +2234,69 @@ const MaterialEditor = () => {
                             });
                           }}
                           title="슬라이드로 보기"
-                          className={`${qcls} text-sky-700 hover:bg-white transition-colors`}
+                          className={`${qcls} text-on-surface transition-colors`}
                         >
-                          <GalleryHorizontal size={size} />
+                          <GalleryHorizontal size={size} />{lbl('슬라이드로 보기')}
                         </button>
                       )}
-                      <button
+                      {showView && <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments, viewerStyle: normalizeViewerStyle(material.viewer_style), answersSource: material.class_id && material.content ? material : null });
+                          setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content, links: material.activity_urls, attachments: material.attachments, viewerStyle: normalizeViewerStyle(material.viewer_style), answersSource: material.content ? material : null });
                         }}
                         title="내용 미리보기"
                         className={`${qcls} text-on-surface hover:bg-white transition-colors`}
                       >
-                        <Eye size={size} />
-                      </button>
+                        <Eye size={size} />{lbl('보기')}
+                      </button>}
       </>
     );
   };
 
   // 카드/리스트 보기가 함께 쓰는 자료별 액션 버튼 줄 (공개 전환·복사·폴더 이동·수정·삭제 등)
   const renderMaterialActions = (material: Material, compact = false, tourFirst = false) => (
-                    <div data-tour={tourFirst ? 'me-card-actions' : undefined} className={compact ? 'flex items-center gap-1' : 'flex items-center gap-1 flex-wrap mt-auto pt-2 border-t border-surface-container'}>
+                    <div data-tour={tourFirst ? 'me-card-actions' : undefined} className={compact ? 'flex flex-col items-start sm:items-end gap-2' : 'flex flex-col gap-2 mt-auto pt-2 border-t border-slate-200 dark:border-slate-700'}>
+                      <div className="flex items-center gap-2 flex-wrap">
                       {/* 학생이 표·체크박스·밑줄에 적은 답변 보기 (반에 연결된 자료만) — 마우스를 올리지 않아도 항상 보이게 글자 버튼으로 둔다 */}
                       {material.class_id && material.content && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setAnswersMaterial(material); }}
                           title="학생들이 자료에 적은 답변 보기"
-                          className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold text-primary bg-primary-container hover:bg-primary-container/70 transition-colors"
                         >
-                          <PenLine size={13} />
-                          <span className={compact ? 'hidden md:inline' : ''}>학생 답변</span>
+                          <PenLine size={15} />
+                          <span>학생 답변</span>
                         </button>
                       )}
+                        {compact && renderQuickButtons(material, 15, true, 'view')}
+                        <button
+                          onClick={() => handleEdit(material)}
+                          title="수정"
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[14px] font-bold bg-primary text-white hover:bg-primary/90 transition-colors"
+                        >
+                          <Pencil size={15} /> 수정
+                        </button>
+                        <button
+                          onClick={() => setMoreOpenFor(v => v === material.id ? null : material.id)}
+                          aria-expanded={moreOpenFor === material.id}
+                          title="발표·복사·폴더 이동·삭제 등 더 보기"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
+                        >
+                          ⋯ 더보기
+                        </button>
+                      </div>
+                      {moreOpenFor === material.id && (
+                      <div className="flex items-center gap-2 flex-wrap w-full p-2 rounded-xl bg-surface-container-low">
+                        {compact && renderQuickButtons(material, 15, true, 'extra')}
                       {/* 원본/AI 정리 버전 선택 — 목록 화면에서도 선택해서 볼 수 있게 */}
                       {(material.ai_versions?.length ?? 0) > 0 && (
                         <div className="relative shrink-0">
                           <button
                             onClick={() => setVersionMenuFor(v => v === material.id ? null : material.id)}
                             title="보고 싶은 버전 선택 (원본 / AI 정리 결과)"
-                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            <History size={14} />
+                            <History size={15} /> 버전 선택
                           </button>
                           {versionMenuFor === material.id && (
                             <>
@@ -2321,17 +2350,17 @@ const MaterialEditor = () => {
                           <button
                             onClick={() => { setLinkingMaterial(material); setLinkAsPublish(true); }}
                             title="클래스를 골라 그 클래스 학생에게 바로 공개하기 (공통 자료함 자료 자체는 계속 비공개)"
-                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            <Send size={14} />
+                            <Send size={15} /> 클래스에 공개
                           </button>
                           {/* 클래스에 연결(비공개) */}
                           <button
                             onClick={() => { setLinkingMaterial(material); setLinkAsPublish(false); }}
                             title="이 공통 자료를 원하는 클래스에 연결(복사, 비공개)"
-                            className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            <Link2 size={14} />
+                            <Link2 size={15} /> 클래스에 연결
                           </button>
                         </>
                       ) : (
@@ -2340,21 +2369,18 @@ const MaterialEditor = () => {
                           <button
                             onClick={() => handleTogglePublish(material)}
                             title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              material.is_published
-                                ? 'text-emerald-600 hover:bg-emerald-50'
-                                : 'text-on-surface-variant hover:bg-surface-container'
-                            }`}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            {material.is_published ? <Globe size={14} /> : <Lock size={14} />}
+                            {material.is_published ? <Lock size={15} /> : <Globe size={15} />}
+                            {material.is_published ? '비공개로 전환' : '학생에게 공개'}
                           </button>
                           {/* 복사 */}
                           <button
                             onClick={() => handleCopy(material)}
                             title="다른 주차로 복사"
-                            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            <Copy size={14} />
+                            <Copy size={15} /> 다른 주차로 복사
                           </button>
                         </>
                       )}
@@ -2363,9 +2389,9 @@ const MaterialEditor = () => {
                         <button
                           onClick={() => setMoveMenuFor(v => v === material.id ? null : material.id)}
                           title="폴더로 이동"
-                          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                         >
-                          <FolderInput size={14} />
+                          <FolderInput size={15} /> 폴더로 이동
                         </button>
                         {moveMenuFor === material.id && (
                           <>
@@ -2401,22 +2427,16 @@ const MaterialEditor = () => {
                           </>
                         )}
                       </div>
-                      {/* 수정 */}
-                      <button
-                        onClick={() => handleEdit(material)}
-                        title="수정"
-                        className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors"
-                      >
-                        <Pencil size={14} />
-                      </button>
                       {/* 삭제 */}
                       <button
                         onClick={() => handleDelete(material.id)}
                         title="삭제"
-                        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors ml-auto"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors ml-auto"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={15} /> 삭제
                       </button>
+                      </div>
+                      )}
                     </div>
   );
 
@@ -2686,22 +2706,23 @@ const MaterialEditor = () => {
           <button
             onClick={closeEditor}
             title={libraryMode ? '공통 자료 목록으로' : '자료 목록으로'}
-            className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-black text-xs transition-colors shrink-0"
+            className="flex items-center gap-1.5 pl-3 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface font-semibold text-[15px] transition-colors shrink-0"
           >
             <ArrowLeft size={14} />
             {libraryMode ? '공통 자료 목록' : '자료 목록'}
           </button>
         )}
         <div className="relative" data-tour="me-class-select">
+          {classDropdownOpen && <div className="fixed inset-0 z-40" onClick={() => setClassDropdownOpen(false)} />}
           <button
             onClick={() => setClassDropdownOpen(o => !o)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-surface-container rounded-2xl border-2 border-transparent hover:border-primary/20 transition-all font-black text-sm"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 transition-all font-semibold text-[15px]"
           >
             {libraryMode ? '클래스 선택' : (selectedClass ? selectedClass.name : '클래스 선택')}
             <ChevronDown size={15} className="text-on-surface-variant" />
           </button>
           {classDropdownOpen && (
-            <div className="absolute top-full mt-2 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 min-w-[200px] overflow-hidden">
+            <div className="absolute top-full mt-2 left-0 bg-surface-container-lowest rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 z-50 min-w-[200px] overflow-hidden">
               {classes.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-on-surface-variant font-bold">클래스 없음</p>
               ) : classes.map(cls => (
@@ -2719,12 +2740,12 @@ const MaterialEditor = () => {
 
         <button
           data-tour="me-library-btn"
-          onClick={() => { setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); fetchFolders(null); }}
+          onClick={() => { setClassDropdownOpen(false); setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); fetchFolders(null); }}
           title="클래스 선택 없이 공통으로 쓸 자료를 만들고, 나중에 원하는 클래스에 연결할 수 있습니다"
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all font-black text-sm ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all font-semibold text-[15px] ${
             libraryMode
-              ? 'bg-primary/10 border-primary/30 text-primary'
-              : 'bg-surface-container border-transparent hover:border-primary/20'
+              ? 'bg-primary-container border-primary/40 text-primary'
+              : 'border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50'
           }`}
         >
           <Library size={15} /> 공통 자료함
@@ -2734,8 +2755,8 @@ const MaterialEditor = () => {
         {(selectedClass || libraryMode) && !isEditorOpen && !(!libraryMode && (selectedClass?._assignedOnly || (selectedClass?.parent_class_id && selectedClass?.teacher_id && selectedClass.teacher_id !== user?.id))) && (
           <button
             data-tour="me-new-btn"
-            onClick={handleNew}
-            className="flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-2xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+            onClick={() => { setClassDropdownOpen(false); handleNew(); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 font-bold text-[15px] text-white transition-all"
           >
             <Plus size={15} /> 새 자료 작성
           </button>
@@ -2743,8 +2764,8 @@ const MaterialEditor = () => {
         {(selectedClass || libraryMode) && !isEditorOpen && (
           <button
             data-tour="me-ai-btn"
-            onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setAiIdeaModalOpen(true))}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 border-primary/20 bg-primary-container/40 text-primary font-black text-sm hover:bg-primary-container/70 transition-all"
+            onClick={() => { setClassDropdownOpen(false); isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setAiIdeaModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface font-semibold text-[15px] transition-all"
           >
             <Wand2 size={15} /> AI와 아이디어로 만들기
           </button>
@@ -2755,7 +2776,7 @@ const MaterialEditor = () => {
             onClick={() => setListHelpSignal(n => n + 1)}
             title="이 화면 도움말"
             aria-label="이 화면 도움말"
-            className="ml-auto w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+            className="ml-auto w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-primary bg-primary-container hover:bg-primary-container/70 transition-colors"
           >
             <HelpCircle size={16} />
           </button>
@@ -2818,7 +2839,7 @@ const MaterialEditor = () => {
           {/* 에디터 헤더 */}
           <div className="border-b border-surface-container bg-surface-container-low rounded-t-3xl">
             {/* 1줄: 목록 이동 + 제목 + 뷰 모드 + 저장(가장 중요한 것만). 모바일은 폭이 부족하면 줄바꿈 */}
-            <div className="flex items-center flex-wrap gap-2 px-3 sm:px-5 pt-3.5 pb-2">
+            <div className="flex items-center flex-wrap gap-2 px-3 sm:px-5 pt-4 pb-3.5">
               <span className="hidden sm:inline-block font-bold text-xs text-on-surface-variant truncate">
                 {libraryMode
                   ? (editingMaterial ? '공통 자료 수정' : '새 공통 자료 작성')
@@ -2830,18 +2851,18 @@ const MaterialEditor = () => {
                   onClick={() => setEditorHelpSignal(n => n + 1)}
                   title="이 화면 도움말"
                   aria-label="이 화면 도움말"
-                  className="flex items-center justify-center w-8 h-8 rounded-xl bg-surface-container text-primary hover:bg-white transition-all shrink-0"
+                  className="flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest text-primary hover:bg-primary-container/50 transition-all shrink-0"
                 >
                   <HelpCircle size={16} />
                 </button>
                 {/* 미리보기: 학생 화면처럼 목차와 함께 전체화면으로 연다 */}
                 <button
                   data-tour="me-preview"
-                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments, viewerStyle, answersSource: editingMaterial?.class_id && editingMaterial.content ? editingMaterial : null })}
+                  onClick={() => setFullscreenPreview({ title, content, links: activityLinks, attachments, viewerStyle, answersSource: editingMaterial?.content ? editingMaterial : null })}
                   title="학생 화면처럼 전체화면으로 미리보기"
-                  className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:text-primary hover:bg-white transition-all shrink-0"
+                  className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest text-[14px] font-semibold text-on-surface hover:text-primary hover:bg-primary-container/50 transition-all shrink-0"
                 >
-                  <Eye size={12} />
+                  <Eye size={15} />
                   <span className="hidden sm:inline">미리보기</span>
                 </button>
                 {/* 저장 (가장 중요한 동작이므로 항상 눈에 띄게 우측 고정) */}
@@ -2849,23 +2870,23 @@ const MaterialEditor = () => {
                   onClick={handleSave}
                   disabled={saving || uploading}
                   title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
-                  className="flex items-center gap-1.5 px-3 py-1.5 btn-gradient rounded-xl font-black text-xs text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 shrink-0"
+                  className="flex items-center gap-1.5 px-5 py-2 bg-primary hover:bg-primary/90 rounded-xl font-bold text-[14px] text-white transition-all disabled:opacity-50 shrink-0"
                 >
-                  {(saving || uploading) ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                  {(saving || uploading) ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                   {editingMaterial ? '수정 완료' : '저장'}
                 </button>
               </div>
             </div>
 
-            {/* 2줄: 부가 도구 — 작고 옅은 톤으로 눌러서 1줄과 위계를 구분 */}
-            <div data-tour="me-tools" className="flex items-center flex-wrap gap-1.5 px-3 sm:px-5 pb-3">
+            {/* 2줄: 부가 도구 — 1줄과 위계를 구분 */}
+            <div data-tour="me-tools" className="flex items-center flex-wrap gap-x-3 gap-y-2.5 px-3 sm:px-5 pb-4">
               {cameFromIdeaRecord && (
                 <button
                   onClick={() => navigate('/ideas')}
                   title="아이디어 기록 페이지로 돌아갑니다"
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-container text-primary hover:opacity-80 font-bold text-[11px] transition-opacity"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-container text-primary hover:opacity-80 font-semibold text-[14px] transition-opacity"
                 >
-                  <Lightbulb size={11} /> 아이디어 기록으로
+                  <Lightbulb size={15} /> 아이디어 기록으로
                 </button>
               )}
               {/* AI로 정리 */}
@@ -2873,18 +2894,18 @@ const MaterialEditor = () => {
                 onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setShowAiReorganize(true))}
                 disabled={!content.trim()}
                 title={content.trim() ? 'AI로 학습 가이드/발표 자료 정리' : '내용을 먼저 작성해주세요'}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-container text-primary hover:bg-primary-container/70 font-semibold text-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Sparkles size={11} /> AI로 정리
+                <Sparkles size={15} /> AI로 정리
               </button>
               {/* 오탈자 검수 */}
               <button
                 onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setShowProofread(true))}
                 disabled={!content.trim()}
                 title={content.trim() ? 'AI로 맞춤법·오탈자만 검수' : '내용을 먼저 작성해주세요'}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-container text-primary hover:bg-primary-container/70 font-semibold text-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <SpellCheck2 size={11} /> 오탈자 검수
+                <SpellCheck2 size={15} /> 오탈자 검수
               </button>
               {/* AI 정리 히스토리 */}
               {aiVersions.length > 0 && (
@@ -2892,9 +2913,9 @@ const MaterialEditor = () => {
                   <button
                     onClick={() => setShowVersionMenu(o => !o)}
                     title="AI로 정리한 이전 결과 보기"
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-container text-primary hover:bg-primary-container/70 font-semibold text-[14px] transition-colors"
                   >
-                    <History size={11} /> 정리 히스토리 ({aiVersions.length})
+                    <History size={15} /> 정리 히스토리 ({aiVersions.length})
                   </button>
                   {showVersionMenu && (
                     <>
@@ -2957,20 +2978,20 @@ const MaterialEditor = () => {
                 onClick={() => (isDemoTeacher(user) ? showActionToast('체험에서는 AI 기능을 쓸 수 없어요. 가입하면 바로 쓸 수 있어요!') : setShowLessonPlan(true))}
                 disabled={!content.trim() || !editingMaterial}
                 title={!editingMaterial ? '먼저 저장한 뒤 이용할 수 있습니다' : (content.trim() ? '수업 자료로 제출용 계획서 초안 만들기' : '내용을 먼저 작성해주세요')}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-container text-primary hover:bg-primary-container/70 font-semibold text-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <FileText size={11} /> 계획서 만들기
+                <FileText size={15} /> 계획서 만들기
               </button>
               {/* 계획서 기반 초안 생성 시 함께 받은 확장 가이드 — 언제든 다시 열어볼 수 있는 토글 */}
               {expansionGuide && expansionGuide.length > 0 && (
                 <button
                   onClick={() => setShowExpansionGuide(o => !o)}
                   title="이 초안을 어떻게 확장하면 좋을지 AI 제안 보기"
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors ${
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
                     showExpansionGuide ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                   }`}
                 >
-                  <Lightbulb size={11} /> 확장 가이드
+                  <Lightbulb size={15} /> 확장 가이드
                 </button>
               )}
               {/* 편집 중인 내용을 바로 발표 모드로 */}
@@ -2994,9 +3015,9 @@ const MaterialEditor = () => {
                 }}
                 disabled={!content.trim()}
                 title={content.trim() ? '지금 편집 중인 내용을 바로 발표 모드로 보기' : '내용을 먼저 작성해주세요'}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-container text-primary hover:bg-primary-container/70 font-semibold text-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Presentation size={11} /> 발표
+                <Presentation size={15} /> 발표
               </button>
 
               <div className="w-px h-4 bg-surface-container mx-0.5" />
@@ -3005,9 +3026,9 @@ const MaterialEditor = () => {
               <button
                 onClick={() => setShowImportModal(true)}
                 title="다른 클래스·공통 자료함에서 가져오기"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-semibold text-[14px] transition-colors"
               >
-                <Download size={11} /> 가져오기
+                <Download size={15} /> 가져오기
               </button>
               {/* 공통 자료함에서 가져온(연결된) 사본이면 — 수정한 내용을 원본에 반영 */}
               {!libraryMode && editingMaterial?.source_material_id && (
@@ -3015,27 +3036,27 @@ const MaterialEditor = () => {
                   onClick={() => setSyncConfirmOpen(true)}
                   disabled={syncing}
                   title="지금 이 내용을 공통 자료함의 원본 자료에 반영합니다"
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-primary hover:bg-primary/10 font-bold text-[11px] transition-colors disabled:opacity-40"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-primary hover:bg-primary/10 font-semibold text-[14px] transition-colors disabled:opacity-40"
                 >
-                  {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} 원본에 동기화
+                  {syncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} 원본에 동기화
                 </button>
               )}
               {/* 표지 설정 — PDF 다운로드 시 맨 앞에 자동으로 붙는 표지 페이지 */}
               <button
                 onClick={() => setShowCoverModal(true)}
                 title="PDF 표지 설정"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-semibold text-[14px] transition-colors"
               >
-                <ImageIcon size={11} /> 표지
+                <ImageIcon size={15} /> 표지
               </button>
               {/* PDF 다운로드 — 화면에 보이는 서식 그대로 브라우저 인쇄를 통해 PDF로 저장 */}
               <button
                 onClick={handlePrintPdf}
                 disabled={!content.trim()}
                 title={content.trim() ? '지금 작성된 내용을 PDF로 다운로드 (인쇄창에서 "PDF로 저장" 선택)' : '내용을 먼저 작성해주세요'}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-bold text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary font-semibold text-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <FileDown size={11} /> PDF 다운로드
+                <FileDown size={15} /> PDF 다운로드
               </button>
             </div>
           </div>
@@ -3223,49 +3244,50 @@ const MaterialEditor = () => {
             </div>
           )}
 
+          <div className="mx-5 mt-4 mb-5 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           {/* 학생이 직접 입력할 수 있는 요소 안내 */}
-          <details className="group mx-5 mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60">
+          <details className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest">
             <summary className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer list-none select-none">
-              <PenLine size={14} className="shrink-0 text-emerald-700" />
-              <span className="flex-1 text-xs font-black text-emerald-900">학생이 직접 적는 칸 만드는 법</span>
-              <ChevronDown size={14} className="shrink-0 text-emerald-700 transition-transform group-open:rotate-180" />
+              <PenLine size={16} className="shrink-0 text-primary" />
+              <span className="flex-1 text-[15px] font-bold text-on-surface">학생이 직접 적는 칸 만드는 법</span>
+              <ChevronDown size={16} className="shrink-0 text-primary transition-transform group-open:rotate-180" />
             </summary>
-            <div className="px-3.5 pb-3.5 pt-1 space-y-2.5 text-xs font-bold text-emerald-900/90 leading-relaxed">
+            <div className="px-3.5 pb-3.5 pt-1 space-y-2.5 text-[14px] text-on-surface leading-relaxed">
               <p>
-                글 쓰는 곳에서 <code className="px-1 rounded bg-white/80">/</code> 를 누르고 <span className="font-black">"학생 입력"</span>이라고 검색해 보세요.
-                아래 3가지 중 하나를 고르면 자료에 바로 들어가고, 학생 화면에서는 <span className="font-black">직접 적는 칸</span>이 돼요. 표는 필요할 때만 쓰면 돼요.
+                글 쓰는 곳에서 <code className="px-1 rounded bg-white/80">/</code> 를 누르고 <span className="font-bold">"학생 입력"</span>이라고 검색해 보세요.
+                아래 3가지 중 하나를 고르면 자료에 바로 들어가고, 학생 화면에서는 <span className="font-bold">직접 적는 칸</span>이 돼요. 표는 필요할 때만 쓰면 돼요.
               </p>
               <ul className="space-y-2">
                 <li>
-                  <span className="font-black">✍ 메모 표</span> — 번호와 빈 칸이 있는 표가 들어가요. 학생은 <span className="font-black">비어 있는 칸</span>에 글을 적어요. 이미 글자가 적힌 칸은 그대로 보여요.
+                  <span className="font-bold">✍ 메모 표</span> — 번호와 빈 칸이 있는 표가 들어가요. 학생은 <span className="font-bold">비어 있는 칸</span>에 글을 적어요. 이미 글자가 적힌 칸은 그대로 보여요.
                 </li>
                 <li>
-                  <span className="font-black">☑ 체크 항목</span> — 학생이 눌러서 체크하는 네모 칸이 들어가요. 뒤에 문장을 이어서 쓰세요. 예) 불편함을 3개 적었어요.
+                  <span className="font-bold">☑ 체크 항목</span> — 학생이 눌러서 체크하는 네모 칸이 들어가요. 뒤에 문장을 이어서 쓰세요. 예) 불편함을 3개 적었어요.
                 </li>
                 <li>
-                  <span className="font-black">＿ 밑줄 빈칸</span> — "답: ______" 이 들어가요. 학생은 밑줄 자리에 한 줄을 적어요. "답:" 대신 원하는 질문으로 바꿔 쓰세요. 예) 좋아하는 장르는 ______
+                  <span className="font-bold">＿ 밑줄 빈칸</span> — "답: ______" 이 들어가요. 학생은 밑줄 자리에 한 줄을 적어요. "답:" 대신 원하는 질문으로 바꿔 쓰세요. 예) 좋아하는 장르는 ______
                 </li>
                 <li>
-                  <span className="font-black">▭ 넓은 칸</span> — 화면 너비의 큰 입력 칸이 들어가요. 소감이나 생각처럼 길게 쓰는 답에 알맞아요. 칸 바로 위에 질문 문장을 쓰세요.
+                  <span className="font-bold">▭ 넓은 칸</span> — 화면 너비의 큰 입력 칸이 들어가요. 소감이나 생각처럼 길게 쓰는 답에 알맞아요. 칸 바로 위에 질문 문장을 쓰세요.
                 </li>
               </ul>
-              <ul className="list-disc pl-4 space-y-1 text-emerald-900/80">
-                <li>편집 화면에서는 그냥 기호로 보여요. 위쪽 <span className="font-black">미리보기</span>를 누르면 학생 화면처럼 적어볼 수 있어요. (미리보기에서 적은 내용은 저장되지 않아요)</li>
-                <li>학생이 실제로 적으려면 <span className="font-black">반에 연결하고 공개</span>한 자료여야 해요.</li>
-                <li>학생이 적은 답은 자료 목록의 <PenLine size={11} className="inline -mt-0.5" /> <span className="font-black">학생 답변 보기</span> 버튼에서 학생별로 볼 수 있어요.</li>
-                <li>학생이 답을 적기 시작한 뒤에는 적는 칸을 <span className="font-black">중간에 넣거나 지우지 마세요.</span> 위에서부터 순서대로 답을 저장해서, 뒤쪽 칸의 답이 한 칸씩 밀릴 수 있어요. (글 고치기, 줄 추가는 괜찮아요)</li>
+              <ul className="list-disc pl-4 space-y-1 text-on-surface-variant">
+                <li>편집 화면에서는 그냥 기호로 보여요. 위쪽 <span className="font-bold">미리보기</span>를 누르면 학생 화면처럼 적어볼 수 있어요. (미리보기에서 적은 내용은 저장되지 않아요)</li>
+                <li>학생이 실제로 적으려면 <span className="font-bold">반에 연결하고 공개</span>한 자료여야 해요.</li>
+                <li>학생이 적은 답은 자료 목록의 <PenLine size={11} className="inline -mt-0.5" /> <span className="font-bold">학생 답변 보기</span> 버튼에서 학생별로 볼 수 있어요.</li>
+                <li>학생이 답을 적기 시작한 뒤에는 적는 칸을 <span className="font-bold">중간에 넣거나 지우지 마세요.</span> 위에서부터 순서대로 답을 저장해서, 뒤쪽 칸의 답이 한 칸씩 밀릴 수 있어요. (글 고치기, 줄 추가는 괜찮아요)</li>
                 <li>직접 쓰고 싶다면: 체크 칸은 문장 맨 앞에 <code className="px-1 rounded bg-white/80">[ ]</code>, 밑줄 칸은 <code className="px-1 rounded bg-white/80">_</code> 를 3개 이상 이어서 쓰면 돼요. (밑줄만 한 줄에 혼자 쓰면 구분선이 되니 앞에 글을 꼭 붙이세요)</li>
               </ul>
             </div>
           </details>
 
           {/* 보기 모양별 틀로 시작하기 — 글이 비어 있으면 펼쳐 보이고, 글이 있으면 한 줄로 접혀 있다 (위쪽 메뉴를 늘리지 않으려고 이 자리에 둠) */}
-          <details open={content.trim() === ''} className="group mx-5 mt-3 rounded-xl border border-primary/30 bg-primary/5">
+          <details open={content.trim() === ''} className="group rounded-xl border border-primary/30 bg-primary-container/40">
             <summary className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer list-none select-none">
-              <span className="flex-1 text-xs font-black text-on-surface">✨ 틀로 시작하기 <span className="font-bold text-on-surface-variant">— 누르면 예시가 들어가요. 내용만 바꿔 쓰세요</span></span>
+              <span className="flex-1 text-[15px] font-bold text-on-surface">✨ 틀로 시작하기 <span className="font-normal text-on-surface-variant text-[14px]">— 누르면 예시가 들어가요</span></span>
               <ChevronDown size={14} className="shrink-0 text-primary transition-transform group-open:rotate-180" />
             </summary>
-            <div className="px-3.5 pb-3 grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="px-3.5 pb-3 grid grid-cols-2 gap-2">
               {MATERIAL_TEMPLATES.map(tpl => (
                 <button
                   key={tpl.style}
@@ -3275,14 +3297,15 @@ const MaterialEditor = () => {
                     setContent(tpl.build(title));
                     setViewerStyle(tpl.style);
                   }}
-                  className="text-left rounded-xl border border-surface-container bg-white px-3 py-2 hover:border-primary/50 transition-colors"
+                  className="text-left rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest px-3 py-2 hover:border-primary/50 transition-colors"
                 >
-                  <div className="text-sm font-black text-on-surface">{tpl.icon} {tpl.name}</div>
-                  <div className="text-[11px] text-on-surface-variant mt-0.5">{tpl.hint}</div>
+                  <div className="text-[15px] font-bold text-on-surface">{tpl.icon} {tpl.name}</div>
+                  <div className="text-[14px] text-on-surface-variant mt-0.5">{tpl.hint}</div>
                 </button>
               ))}
             </div>
           </details>
+          </div>
 
           {/* 편집 / 미리보기 영역 */}
           <div data-tour="me-editor">
@@ -3365,7 +3388,7 @@ const MaterialEditor = () => {
       {(selectedClass || libraryMode) && !isEditorOpen && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
+            <p className="text-[17px] font-bold text-on-surface">
               {libraryMode ? `공통 자료함 (${materials.length}개)` : `${selectedClass.name} 수업 자료 (${materials.length}개)`}
             </p>
           </div>
@@ -3374,16 +3397,16 @@ const MaterialEditor = () => {
           <div className="flex items-center flex-wrap gap-1.5">
             <button
               onClick={() => setActiveFolderId('all')}
-              className={`px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
-                activeFolderId === 'all' ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+              className={`px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
+                activeFolderId === 'all' ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
               }`}
             >
               전체
             </button>
             <button
               onClick={() => setActiveFolderId(null)}
-              className={`px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
-                activeFolderId === null ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+              className={`px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
+                activeFolderId === null ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
               }`}
             >
               미분류
@@ -3391,8 +3414,8 @@ const MaterialEditor = () => {
             {folders.map(folder => (
               <div
                 key={folder.id}
-                className={`group flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-xl font-black text-xs transition-colors ${
-                  activeFolderId === folder.id ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
+                className={`group flex items-center gap-1 pl-3.5 pr-2 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
+                  activeFolderId === folder.id ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
                 }`}
               >
                 {renamingFolderId === folder.id ? (
@@ -3441,7 +3464,7 @@ const MaterialEditor = () => {
             ) : (
               <button
                 onClick={() => setNewFolderOpen(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-xs text-on-surface-variant hover:bg-surface-container transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-semibold text-[14px] text-on-surface-variant hover:bg-surface-container transition-colors"
               >
                 <FolderPlus size={12} /> 새 폴더
               </button>
@@ -3469,20 +3492,20 @@ const MaterialEditor = () => {
               <Loader2 size={28} className="animate-spin text-primary" />
             </div>
           ) : materials.length === 0 ? (
-            <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
-              <BookOpen size={48} />
-              <p className="font-black">{libraryMode ? '아직 등록된 공통 자료가 없습니다.' : '아직 작성된 수업 자료가 없습니다.'}</p>
-              <p className="text-sm font-bold">위의 '새 자료 작성' 버튼을 눌러 시작하세요.</p>
+            <div className="flex flex-col items-center py-16 space-y-3 text-on-surface-variant">
+              <BookOpen size={48} className="text-primary/50" />
+              <p className="text-xl font-bold text-on-surface">{libraryMode ? '아직 등록된 공통 자료가 없습니다.' : '아직 작성된 수업 자료가 없습니다.'}</p>
+              <p className="text-[15px]">위의 '새 자료 작성' 버튼을 눌러 시작하세요.</p>
             </div>
           ) : visibleMaterials.length === 0 ? (
-            <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
-              <Folder size={48} />
-              <p className="font-black">이 폴더에는 아직 자료가 없습니다.</p>
+            <div className="flex flex-col items-center py-16 space-y-3 text-on-surface-variant">
+              <Folder size={48} className="text-primary/50" />
+              <p className="text-lg font-bold text-on-surface">이 폴더에는 아직 자료가 없습니다.</p>
             </div>
           ) : viewLayout === 'list' ? (
             <div className="flex flex-col gap-2">
               {visibleMaterials.map((material, idx) => (
-                <div key={material.id} className="bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/30 hover:shadow-sm p-2.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <div key={material.id} className="bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div
                       onClick={() => handleEdit(material)}
@@ -3500,32 +3523,31 @@ const MaterialEditor = () => {
                       />
                     </div>
                     <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleEdit(material)}>
-                      <p className="font-black text-sm truncate" title={material.title}>{material.title}</p>
+                      <p className="font-bold text-[17px] truncate" title={material.title}>{material.title}</p>
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        <span className={`shrink-0 whitespace-nowrap text-[10px] font-black px-2 py-0.5 rounded-full ${
-                          material.is_published ? 'bg-emerald-50 text-emerald-600' : 'bg-surface-container text-on-surface-variant'
+                        <span className={`shrink-0 whitespace-nowrap text-[14px] font-semibold px-2.5 py-0.5 rounded-full ${
+                          material.is_published ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'
                         }`}>
                           {material.is_published ? '● 공개 중' : '● 비공개'}
                         </span>
                         {!libraryMode && (
-                          <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">{material.week_number}주차</span>
+                          <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">{material.week_number}주차</span>
                         )}
                         {material.plan_origin_id && (
-                          <span className="shrink-0 whitespace-nowrap text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
+                          <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-primary bg-primary-container px-2.5 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
                         )}
                         {material.content && (
-                          <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>
+                          <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">내용 있음</span>
                         )}
                         {(material.view_count ?? 0) > 0 && (
-                          <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[10px] font-black text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
-                            <Users size={9} /> {material.view_count}
+                          <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">
+                            <Users size={13} /> {material.view_count}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="shrink-0 flex items-center gap-1">
-                    {renderQuickButtons(material, 14, true)}
+                  <div className="sm:shrink-0 sm:max-w-[60%]">
                     {renderMaterialActions(material, true, idx === 0)}
                   </div>
                 </div>
@@ -3534,7 +3556,7 @@ const MaterialEditor = () => {
           ) : (
             <div data-tour="me-card-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {visibleMaterials.map((material, idx) => (
-                <div key={material.id} className="group bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/30 hover:shadow-md flex flex-col">
+                <div key={material.id} className="group bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 flex flex-col">
                   {/* 표지 썸네일 */}
                   <div
                     onClick={() => handleEdit(material)}
@@ -3572,14 +3594,14 @@ const MaterialEditor = () => {
 
                   {/* 정보 + 액션 */}
                   <div className="p-3 flex flex-col gap-2 flex-1">
-                    <p className="font-black text-sm truncate" title={material.title}>{material.title}</p>
+                    <p className="font-bold text-[16px] truncate" title={material.title}>{material.title}</p>
 
                     {material.plan_origin_id && (
-                      <span className="self-start shrink-0 whitespace-nowrap text-[10px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
+                      <span className="self-start shrink-0 whitespace-nowrap text-[14px] font-semibold text-primary bg-primary-container px-2.5 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
                     )}
 
                     {material.content && (
-                      <span className="self-start shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>
+                      <span className="self-start shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">내용 있음</span>
                     )}
 
                     {renderMaterialActions(material, false, idx === 0)}
@@ -3593,10 +3615,10 @@ const MaterialEditor = () => {
 
       {/* 클래스 미선택 안내 */}
       {!selectedClass && !libraryMode && !isEditorOpen && (
-        <div className="flex flex-col items-center py-24 space-y-3 opacity-30">
-          <BookOpen size={56} />
-          <p className="font-black text-lg">클래스를 선택하세요</p>
-          <p className="text-sm font-bold">위에서 클래스를 선택하거나, '공통 자료함'에서 클래스 구분 없이 자료를 관리할 수 있습니다.</p>
+        <div className="flex flex-col items-center py-20 space-y-3 text-center px-4">
+          <BookOpen size={56} className="text-primary/50" />
+          <p className="font-bold text-2xl text-on-surface">먼저 클래스를 골라 주세요</p>
+          <p className="text-[15px] text-on-surface-variant">위에서 클래스를 고르면 그 반의 자료가 보입니다. 클래스 없이 만들려면 '공통 자료함'을 누르세요.</p>
         </div>
       )}
     </div>

@@ -25,11 +25,11 @@ const STATUSES = [
 type StatusKey = (typeof STATUSES)[number]['key'];
 
 const COLOR_MAP: Record<string, { bg: string; text: string; border: string; ring: string }> = {
-  emerald: { bg: 'bg-emerald-50',  text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-400' },
+  emerald: { bg: 'bg-primary-container', text: 'text-primary', border: 'border-primary/40', ring: 'ring-primary' },
   rose:    { bg: 'bg-rose-50',     text: 'text-rose-700',    border: 'border-rose-200',    ring: 'ring-rose-400'    },
-  amber:   { bg: 'bg-amber-50',    text: 'text-amber-700',   border: 'border-amber-200',   ring: 'ring-amber-400'   },
-  orange:  { bg: 'bg-orange-50',   text: 'text-orange-700',  border: 'border-orange-200',  ring: 'ring-orange-400'  },
-  violet:  { bg: 'bg-violet-50',   text: 'text-violet-700',  border: 'border-violet-200',  ring: 'ring-violet-400'  },
+  amber:   { bg: 'bg-surface-container', text: 'text-on-surface', border: 'border-slate-300 dark:border-slate-600', ring: 'ring-slate-400' },
+  orange:  { bg: 'bg-surface-container', text: 'text-on-surface', border: 'border-slate-300 dark:border-slate-600', ring: 'ring-slate-400' },
+  violet:  { bg: 'bg-surface-container', text: 'text-on-surface', border: 'border-slate-300 dark:border-slate-600', ring: 'ring-slate-400' },
 };
 
 const toDateStr = (d: Date) => {
@@ -381,7 +381,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           {/* 이전 날짜 */}
           <button
             onClick={() => changeDate(-1)}
-            className="w-10 h-10 rounded-xl bg-surface-container hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant"
+            className="w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center text-on-surface-variant"
           >
             <ChevronLeft size={20} />
           </button>
@@ -395,12 +395,12 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                 setCalMonth(d.getMonth());
                 setShowCalendar(v => !v);
               }}
-              className="flex items-center gap-3 px-6 py-3 bg-white rounded-2xl shadow-soft border border-white/60 min-w-[260px] justify-center hover:border-primary/30 hover:shadow-md transition-all group"
+              className="flex items-center gap-3 px-6 py-3 bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 min-w-[260px] justify-center hover:border-primary/40 transition-all group"
             >
               <CalendarDays size={18} className="text-primary/60 group-hover:text-primary transition-colors" />
-              <span className="font-black text-sm tracking-tight">{formatDisplayDate(selectedDate)}</span>
+              <span className="font-bold text-[17px]">{formatDisplayDate(selectedDate)}</span>
               {isToday && (
-                <span className="px-2 py-0.5 bg-primary/10 text-primary text-[9px] font-black rounded-full uppercase tracking-widest">오늘</span>
+                <span className="px-2 py-0.5 bg-primary-container text-primary text-[13px] font-bold rounded-full">오늘</span>
               )}
             </button>
 
@@ -412,7 +412,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.97 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-neutral-100 p-4 w-72"
+                  className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-surface-container-lowest rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 w-80"
                 >
                   {/* 달력 헤더 */}
                   <div className="flex items-center justify-between mb-3">
@@ -422,7 +422,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                     >
                       <ChevronLeft size={16} />
                     </button>
-                    <span className="text-sm font-black">
+                    <span className="text-[16px] font-bold">
                       {calYear}년 {calMonth + 1}월
                     </span>
                     <button
@@ -437,7 +437,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   {/* 요일 헤더 */}
                   <div className="grid grid-cols-7 mb-1">
                     {WEEK_LABELS.map(d => (
-                      <div key={d} className={`text-center text-[10px] font-black py-1 ${d === '일' ? 'text-rose-400' : d === '토' ? 'text-blue-400' : 'text-on-surface-variant/40'}`}>
+                      <div key={d} className={`text-center text-[13px] font-bold py-1 text-on-surface-variant`}>
                         {d}
                       </div>
                     ))}
@@ -453,9 +453,6 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                       const isSelected = dateStr === selectedDate;
                       const isAttended = allAttendedDates.has(dateStr);
                       const isTod      = dateStr === today;
-                      const dayOfWeek  = (firstDayOfMonth + day - 1) % 7;
-                      const isSun = dayOfWeek === 0;
-                      const isSat = dayOfWeek === 6;
 
                       return (
                         <button
@@ -463,17 +460,13 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                           disabled={isFuture}
                           onClick={() => selectDate(dateStr)}
                           className={`
-                            relative flex flex-col items-center justify-center h-9 rounded-xl text-xs font-bold transition-all
+                            relative flex flex-col items-center justify-center h-10 rounded-xl text-[15px] font-semibold transition-all
                             ${isSelected
                               ? 'bg-primary text-white shadow-md shadow-primary/30'
                               : isTod
                               ? 'bg-primary/10 text-primary font-black'
                               : isFuture
-                              ? 'text-neutral-200 cursor-not-allowed'
-                              : isSun
-                              ? 'text-rose-400 hover:bg-rose-50'
-                              : isSat
-                              ? 'text-blue-400 hover:bg-blue-50'
+                              ? 'text-on-surface-variant/30 cursor-not-allowed'
                               : 'text-on-surface hover:bg-surface-container'
                             }
                           `}
@@ -489,12 +482,12 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   </div>
 
                   {/* 범례 */}
-                  <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center gap-3 text-[11px] text-on-surface-variant font-bold">
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3 text-[14px] text-on-surface-variant font-semibold">
                     <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" /> 출석 기록 있음
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="w-5 h-5 rounded-lg bg-primary/10 inline-flex items-center justify-center text-primary text-[9px] font-black">오</span> 오늘
+                      <span className="w-6 h-6 rounded-lg bg-primary-container inline-flex items-center justify-center text-primary text-[12px] font-bold">오</span> 오늘
                     </span>
                   </div>
                 </motion.div>
@@ -506,7 +499,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           <button
             onClick={() => changeDate(1)}
             disabled={selectedDate >= today}
-            className="w-10 h-10 rounded-xl bg-surface-container hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronRight size={20} />
           </button>
@@ -514,7 +507,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           {!isToday && !showOnlyAttended && (
             <button
               onClick={() => setSelectedDate(today)}
-              className="px-4 py-2 text-xs font-black text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-all"
+              className="px-4 py-2.5 text-[15px] font-bold text-primary bg-primary-container hover:bg-primary/20 rounded-xl transition-all"
             >
               오늘로
             </button>
@@ -523,13 +516,13 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           {/* 출석 기록만 보기 토글 */}
           <button
             onClick={() => setShowOnlyAttended(v => !v)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[15px] font-bold border transition-all ${
               showOnlyAttended
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'bg-surface-container text-on-surface-variant hover:bg-white hover:shadow-soft'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-surface-container-lowest border-slate-200 dark:border-slate-700 text-on-surface hover:border-primary/40 hover:text-primary'
             }`}
           >
-            <Filter size={13} />
+            <Filter size={15} />
             출석 기록만
           </button>
         </div>
@@ -539,19 +532,19 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           <div className="flex flex-col items-center gap-3" data-tour="session-control">
             {/* 현재 상태 표시 */}
             {isEndedToday ? (
-              <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black bg-rose-50 text-rose-600 border-2 border-rose-200">
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[16px] font-bold bg-surface-container text-on-surface border border-slate-300 dark:border-slate-600">
                 <CheckCircle2 size={18} /> 오늘 수업이 종료되었습니다
               </div>
             ) : isStartedToday ? (
-              <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl text-sm font-black bg-emerald-50 text-emerald-700 border-2 border-emerald-300">
+              <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-[16px] font-bold bg-primary-container text-primary border border-primary/40">
                 <span className="relative flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 motion-safe:animate-ping" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
                 </span>
                 수업 진행 중{activeWeek ? ` · ${activeWeek}주차` : ''}
               </div>
             ) : (
-              <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black bg-surface-container text-on-surface-variant border-2 border-surface-container-high">
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[16px] font-bold bg-surface-container text-on-surface-variant border border-slate-200 dark:border-slate-700">
                 <Clock size={18} /> 수업 시작 전
               </div>
             )}
@@ -561,7 +554,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                 <select
                   value={selectedStartWeek}
                   onChange={(e) => setSelectedStartWeek(e.target.value ? Number(e.target.value) : '')}
-                  className="px-3 py-2 rounded-xl text-xs font-black border-2 border-blue-200 text-blue-600 bg-white cursor-pointer"
+                  className="px-3.5 py-2.5 rounded-xl text-[15px] font-semibold border border-slate-200 dark:border-slate-700 text-on-surface bg-surface-container-lowest cursor-pointer focus:border-primary outline-none"
                 >
                   <option value="">오늘 진행 주차 선택...</option>
                   {weeklyPlan.map((w: any, idx: number) => (
@@ -575,7 +568,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   onClick={toggleSessionStart}
                   disabled={sessionSaving || (weeklyPlan.length > 0 && !selectedStartWeek)}
                   title={weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 주차를 선택해주세요' : undefined}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black border-2 bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[16px] font-bold bg-primary text-white hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Clock size={16} /> 오늘 수업 시작
                 </button>
@@ -585,7 +578,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   type="button"
                   onClick={toggleSessionEnd}
                   disabled={sessionSaving}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black border-2 bg-rose-600 text-white border-rose-600 shadow-sm hover:bg-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[16px] font-bold border border-rose-300 text-rose-600 bg-surface-container-lowest hover:bg-rose-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <XCircle size={16} /> 오늘 수업 종료
                 </button>
@@ -593,7 +586,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
             </div>
 
             <div className="flex items-center gap-2 flex-wrap justify-center">
-              <span className="text-[11px] font-bold text-on-surface-variant/50">
+              <span className="text-[15px] font-medium text-on-surface-variant">
                 {isEndedToday
                   ? '오늘 수업이 종료되어 쉬는시간·수업종료 알람이 더 이상 울리지 않습니다.'
                   : isStartedToday
@@ -602,13 +595,13 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
               </span>
               {isStartedToday && !isEndedToday && (
                 <button type="button" onClick={toggleSessionStart} disabled={sessionSaving}
-                  className="text-[11px] font-black text-on-surface-variant/60 underline hover:text-on-surface disabled:opacity-40">
+                  className="text-[15px] font-semibold text-on-surface-variant underline hover:text-on-surface disabled:opacity-40">
                   시작 취소
                 </button>
               )}
               {isEndedToday && (
                 <button type="button" onClick={toggleSessionEnd} disabled={sessionSaving}
-                  className="text-[11px] font-black text-on-surface-variant/60 underline hover:text-on-surface disabled:opacity-40">
+                  className="text-[15px] font-semibold text-on-surface-variant underline hover:text-on-surface disabled:opacity-40">
                   종료 취소
                 </button>
               )}
@@ -623,15 +616,15 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
               const c = COLOR_MAP[s.color];
               const count = counts[s.key] || 0;
               return (
-                <div key={s.key} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${c.bg} ${c.text} ${c.border} text-xs font-black`}>
-                  <s.icon size={13} />
+                <div key={s.key} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border ${c.bg} ${c.text} ${c.border} text-[15px] font-bold`}>
+                  <s.icon size={15} />
                   {s.label} <span className="font-manrope">{count}</span>명
                 </div>
               );
             })}
             {unmarked > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-neutral-50 text-neutral-400 border-neutral-200 text-xs font-black">
-                <Users size={13} />
+              <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 text-[15px] font-bold">
+                <Users size={15} />
                 미기록 <span className="font-manrope">{unmarked}</span>명
               </div>
             )}
@@ -643,20 +636,20 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
       {showOnlyAttended ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <p className="text-sm font-black text-on-surface-variant">
+            <p className="text-[16px] font-bold text-on-surface-variant">
               출석 기록이 있는 날짜
               <span className="ml-2 text-primary">{attendedDatesList.length}일</span>
             </p>
             <button
               onClick={() => setShowOnlyAttended(false)}
-              className="text-xs font-black text-on-surface-variant/50 hover:text-on-surface transition-all"
+              className="text-[15px] font-semibold text-on-surface-variant hover:text-primary transition-all"
             >
               전체 보기로 돌아가기
             </button>
           </div>
 
           {attendedDatesList.length === 0 ? (
-            <div className="py-20 text-center text-on-surface-variant/30 text-sm font-black">
+            <div className="py-20 text-center text-on-surface-variant text-[16px] font-semibold">
               아직 출석 기록이 없습니다
             </div>
           ) : (
@@ -670,19 +663,19 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     onClick={() => { setSelectedDate(date); setShowOnlyAttended(false); }}
-                    className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all text-left ${
+                    className={`w-full flex items-center justify-between px-5 py-4 rounded-xl border transition-all text-left ${
                       isSelected
-                        ? 'bg-primary/8 border-primary/30'
-                        : 'bg-white border-white hover:border-primary/20 hover:shadow-soft'
+                        ? 'bg-primary-container/50 border-primary/40'
+                        : 'bg-surface-container-lowest border-slate-200 dark:border-slate-700 hover:border-primary/40'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <CalendarDays size={16} className={isSelected ? 'text-primary' : 'text-on-surface-variant/40'} />
-                      <span className={`font-black text-sm ${isSelected ? 'text-primary' : 'text-on-surface'}`}>
+                      <span className={`font-bold text-[16px] ${isSelected ? 'text-primary' : 'text-on-surface'}`}>
                         {formatDisplayDate(date)}
                       </span>
                       {date === today && (
-                        <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] font-black rounded-full">오늘</span>
+                        <span className="px-1.5 py-0.5 bg-primary-container text-primary text-[13px] font-bold rounded-full">오늘</span>
                       )}
                     </div>
 
@@ -693,7 +686,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                         if (!cnt) return null;
                         const c = COLOR_MAP[s.color];
                         return (
-                          <span key={s.key} className={`text-[10px] font-black px-1.5 py-0.5 rounded-lg border ${c.bg} ${c.text} ${c.border}`}>
+                          <span key={s.key} className={`text-[14px] font-bold px-2 py-0.5 rounded-lg border ${c.bg} ${c.text} ${c.border}`}>
                             {s.short}{cnt}
                           </span>
                         );
@@ -710,61 +703,61 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           {/* ── 빠른 액션 ── */}
           <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-on-surface-variant/50 uppercase tracking-widest">일괄 설정</span>
+              <span className="text-[15px] font-semibold text-on-surface-variant">일괄 설정</span>
               <button
                 onClick={() => handleMarkAll('present')}
-                className="px-3 py-1.5 text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-all"
+                className="px-3.5 py-2 text-[15px] font-bold bg-primary-container text-primary border border-primary/40 rounded-xl hover:bg-primary/20 transition-all"
               >
                 전체 출석
               </button>
               <button
                 onClick={handleClearAll}
-                className="px-3 py-1.5 text-[11px] font-black bg-neutral-50 text-neutral-400 border border-neutral-200 rounded-xl hover:bg-neutral-100 transition-all"
+                className="px-3.5 py-2 text-[15px] font-bold bg-surface-container-lowest text-on-surface-variant border border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary/40 hover:text-primary transition-all"
               >
                 전체 초기화
               </button>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-on-surface-variant/50 uppercase tracking-widest flex items-center gap-1">
-                <Download size={11} /> 다운로드
+              <span className="text-[15px] font-semibold text-on-surface-variant flex items-center gap-1">
+                <Download size={14} /> 다운로드
               </span>
               <button
                 onClick={downloadDay}
                 disabled={dlLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 rounded-xl hover:bg-blue-100 transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-[15px] font-bold bg-surface-container-lowest text-on-surface border border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary/40 hover:text-primary transition-all disabled:opacity-50"
                 title="선택 날짜 출석 엑셀 다운로드"
               >
-                {dlLoading ? <Loader2 size={11} className="animate-spin" /> : <FileSpreadsheet size={11} />}
+                {dlLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
                 선택일
               </button>
               <button
                 onClick={downloadMonth}
                 disabled={dlLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-[15px] font-bold bg-surface-container-lowest text-on-surface border border-slate-200 dark:border-slate-700 rounded-xl hover:border-primary/40 hover:text-primary transition-all disabled:opacity-50"
                 title="선택 달 전체 출석 엑셀 다운로드"
               >
-                {dlLoading ? <Loader2 size={11} className="animate-spin" /> : <FileSpreadsheet size={11} />}
+                {dlLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
                 이번 달
               </button>
             </div>
           </div>
 
           {/* ── 출석 테이블 ── */}
-          <div className="layered-card rounded-[2rem] overflow-hidden border border-white/60">
+          <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-surface-container-lowest">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-neutral-100">
-                  <th className="p-5 text-left text-[11px] font-black text-on-surface/60 uppercase tracking-widest w-16">NO.</th>
-                  <th className="p-5 text-left text-[11px] font-black text-on-surface/60 uppercase tracking-widest">이름</th>
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-surface-container-low">
+                  <th className="p-4 text-left text-[15px] font-semibold text-on-surface-variant w-16">NO.</th>
+                  <th className="p-4 text-left text-[15px] font-semibold text-on-surface-variant">이름</th>
                   {STATUSES.map(s => (
-                    <th key={s.key} className="p-5 text-center text-[11px] font-black text-on-surface/60 uppercase tracking-widest">
+                    <th key={s.key} className="p-4 text-center text-[15px] font-semibold text-on-surface-variant">
                       {s.label}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-50">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 <AnimatePresence>
                   {loading ? (
                     <tr>
@@ -774,7 +767,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                     </tr>
                   ) : students.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-16 text-center text-on-surface-variant/30 text-sm font-black">
+                      <td colSpan={7} className="py-16 text-center text-on-surface-variant text-[16px] font-semibold">
                         학생이 없습니다
                       </td>
                     </tr>
@@ -788,16 +781,16 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: idx * 0.02 }}
-                          className={`transition-colors ${currentStatus ? 'bg-white' : 'bg-neutral-50/30'}`}
+                          className={`transition-colors ${currentStatus ? 'bg-surface-container-lowest' : 'bg-surface-container-low/50'}`}
                         >
-                          <td className="p-5">
-                            <span className="font-manrope font-black text-on-surface-variant/30 text-lg">
+                          <td className="p-3">
+                            <span className="font-manrope font-bold text-on-surface-variant text-[17px]">
                               {s.number === '-' ? '—' : String(s.number).padStart(2, '0')}
                             </span>
                           </td>
-                          <td className="p-5">
+                          <td className="p-3">
                             <div className="flex items-center gap-2">
-                              <span className={`font-black text-sm ${currentStatus ? 'text-on-surface' : 'text-on-surface/50'}`}>
+                              <span className={`font-bold text-[17px] ${currentStatus ? 'text-on-surface' : 'text-on-surface-variant'}`}>
                                 {s.name}
                               </span>
                               {isSaving && <Loader2 size={12} className="animate-spin text-primary/40" />}
@@ -807,23 +800,23 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                             const isActive = currentStatus === st.key;
                             const c = COLOR_MAP[st.color];
                             return (
-                              <td key={st.key} className="p-5 text-center">
+                              <td key={st.key} className="p-3 text-center">
                                 <button
                                   onClick={() => handleStatus(s.id, st.key)}
                                   disabled={isSaving}
                                   className={`
-                                    w-10 h-10 rounded-xl border-2 flex items-center justify-center mx-auto
+                                    w-11 h-11 rounded-xl border-2 flex items-center justify-center mx-auto
                                     transition-all duration-200 active:scale-90 disabled:opacity-50
                                     ${isActive
-                                      ? `${c.bg} ${c.text} ${c.border} shadow-sm ring-2 ${c.ring}/30 scale-110`
-                                      : 'bg-white border-neutral-100 text-neutral-300 hover:border-neutral-200 hover:text-neutral-400'
+                                      ? `${c.bg} ${c.text} ${c.border} font-bold`
+                                      : 'bg-surface-container-lowest border-slate-200 dark:border-slate-700 text-on-surface-variant hover:border-primary/40 hover:text-primary'
                                     }
                                   `}
                                   title={st.label}
                                 >
                                   {isActive
                                     ? <st.icon size={16} strokeWidth={2.5} />
-                                    : <span className="text-[10px] font-black">{st.short}</span>
+                                    : <span className="text-[15px] font-bold">{st.short}</span>
                                   }
                                 </button>
                               </td>
@@ -838,7 +831,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
             </table>
           </div>
 
-          <p className="text-center text-[10px] font-bold text-on-surface-variant/30 tracking-widest uppercase pb-4">
+          <p className="text-center text-[15px] font-medium text-on-surface-variant pb-4">
             상태를 클릭하면 자동 저장됩니다 · 다시 클릭하면 미기록으로 초기화
           </p>
         </>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Compass, ListChecks, Presentation, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import StudentGuideModal from './StudentGuideModal';
+import GuideOutdatedNotice from '../GuideOutdatedNotice';
 
 // 클래스룸 첫 사용 안내 투어 (1단계: 반 확인 → 입장 방식 → 현장 입력 수락)
 // - 보기 전용: 화면 요소를 대신 눌러 주지 않는다 (수락·삭제 같은 동작은 선생님이 직접)
@@ -52,7 +53,7 @@ const STEPS: TourStep[] = [
     title: '학생이 입력하면 여기에 모여요',
     lead: '"현장에서 학생이 직접 입력"을 골랐을 때 나타나는 칸이에요. 숫자는 3초마다 저절로 올라가요.',
     points: [
-      '오른쪽 아래 + 버튼 → "학생 입장 코드 확인"을 열어 학생들에게 보여 주세요.',
+      '오른쪽 "바로가기" 칸 → "학생 입장 코드 확인"을 열어 학생들에게 보여 주세요.',
       '학생들이 번호·이름을 쓰면 숫자가 올라가요. "명단 보기"로 확인해요.',
       '잘못 쓴 이름은 ✕로 지우고, 전부 다시 받으려면 "전체 취소·다시 받기"를 눌러요.',
       '다 모이면 "수락하고 시작"을 눌러요. 그러면 학생 화면이 이름 고르기로 넘어가요.',
@@ -67,9 +68,8 @@ const STEPS: TourStep[] = [
 const RUN_STEPS: TourStep[] = [
   {
     target: 'fab-plus',
-    reserve: { up: 280, left: 260 },
-    title: '오른쪽 아래 + 버튼에 자주 쓰는 메뉴가 모여 있어요',
-    lead: '이 + 버튼을 누르면 수업 중에 자주 쓰는 메뉴가 펼쳐져요.',
+    title: '오른쪽 "바로가기" 칸에 자주 쓰는 메뉴가 모여 있어요',
+    lead: '이 칸에는 수업 중에 자주 쓰는 메뉴가 모여 있어요.',
     points: [
       '수업 자료실: 이 반의 수업 자료를 열어 보고, 내 버전으로 고칠 수 있어요.',
       '학생 화면 미리보기: 학생이 보는 화면을 선생님 화면에서 미리 봐요.',
@@ -77,22 +77,21 @@ const RUN_STEPS: TourStep[] = [
     ],
     why: '수업 중에 탭을 옮겨 다니지 않고도 자료와 학생 화면을 바로 열 수 있어요.',
     mistake: '원본 자료는 고칠 수 없어요. 고치려면 자료실에서 "내 버전 편집하기"를 눌러요.',
-    missing: '오른쪽 아래 + 버튼을 찾지 못했어요. 반을 선택한 뒤 다시 열어 주세요.',
+    missing: '오른쪽 "바로가기" 칸을 찾지 못했어요. 도우미 칸이 접혀 있다면 펼친 뒤 다시 열어 주세요.',
   },
   {
     target: 'fab-plus',
-    reserve: { up: 280, left: 260 },
     title: '수업 자료를 내 수업에 맞게 고치는 방법이에요',
     lead: '원본 자료는 모두가 같이 쓰는 거라 바로 고칠 수 없어요. 내 수업용 복사본을 만들어서 고쳐요.',
     points: [
-      '+ 버튼 → "수업 자료실"을 열어 고칠 자료를 눌러요.',
+      '"바로가기" 칸 → "수업 자료실"을 열어 고칠 자료를 눌러요.',
       '"내 수업용으로 수정"을 누르면 내 버전이 만들어져요. (처음 한 번만)',
       '"내 버전 편집하기"를 누르면 수업 자료 에디터가 열려요. 글·그림·슬라이드를 직접 고치고 저장해요.',
       '학생에게는 내가 고친 버전이 보여요. 원본이 바뀌면 알려 주고, 내 버전 유지·원본으로 되돌리기를 고를 수 있어요.',
     ],
     why: '원본은 그대로 두고 내 반에만 맞춰 고칠 수 있어서, 다른 선생님 수업에는 영향이 없어요.',
     mistake: '"내 수업용으로 수정"을 누르기 전에는 고칠 수 없어요. 원본 화면에서 편집이 안 되면 이 버튼부터 눌러요.',
-    missing: '오른쪽 아래 + 버튼을 찾지 못했어요. 반을 선택한 뒤 다시 열어 주세요.',
+    missing: '오른쪽 "바로가기" 칸을 찾지 못했어요. 도우미 칸이 접혀 있다면 펼친 뒤 다시 열어 주세요.',
   },
   {
     tab: 'attendance',
@@ -239,6 +238,20 @@ const ClassroomGuideTour = ({ classId, eligible, entryCode, entryMode, studentCo
   };
   const startRun = () => { setSteps(RUN_STEPS); setStepIdx(0); };
 
+  // 도우미 칸의 "안내 보기" 버튼이 보내는 신호
+  const startRef = useRef({ start, startRun });
+  startRef.current = { start, startRun };
+  useEffect(() => {
+    const onTour = (e: Event) => {
+      const kind = (e as CustomEvent<string>).detail;
+      if (kind === 'entry') startRef.current.start();
+      else if (kind === 'run') startRef.current.startRun();
+      else if (kind === 'student') setStudentGuideOpen(true);
+    };
+    window.addEventListener('classroom-tour', onTour);
+    return () => window.removeEventListener('classroom-tour', onTour);
+  }, []);
+
   // 반이 바뀌면 진행 중인 투어는 닫는다
   useEffect(() => { setStepIdx(null); }, [classId]);
 
@@ -321,17 +334,7 @@ const ClassroomGuideTour = ({ classId, eligible, entryCode, entryMode, studentCo
             </div>
           </div>
         ) : (
-          <div className="ml-auto flex flex-wrap items-center gap-1">
-            <button type="button" onClick={start} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-indigo-700 hover:bg-indigo-50 transition-all">
-              <Compass size={14} /> 학생 입장 준비 안내 {seen ? '다시 보기' : '보기'}
-            </button>
-            <button type="button" onClick={() => setStudentGuideOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-indigo-700 hover:bg-indigo-50 transition-all">
-              <Presentation size={14} /> 학생에게 보여 줄 안내
-            </button>
-            <button type="button" onClick={startRun} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-indigo-700 hover:bg-indigo-50 transition-all">
-              <ListChecks size={14} /> 수업 진행 안내 보기
-            </button>
-          </div>
+          null
         )}
       </div>
       )}
@@ -368,6 +371,7 @@ const ClassroomGuideTour = ({ classId, eligible, entryCode, entryMode, studentCo
               <p className="text-xs font-black text-indigo-600">{steps === RUN_STEPS ? '수업 진행' : '학생 입장 준비'} · {stepNo + 1}/{steps.length}</p>
               <button type="button" onClick={close} aria-label="안내 닫기" className="p-1.5 -m-1.5 rounded-lg text-gray-500 hover:bg-gray-100"><X size={18} /></button>
             </div>
+            {stepNo === 0 && <GuideOutdatedNotice className="mb-3 !text-[14px] !px-3 !py-2" />}
             <h3 className="text-lg font-black leading-snug mb-2">{needTab ? `"${step.tabLabel}" 탭을 눌러 주세요` : step.title}</h3>
             <p className="text-[15px] font-medium leading-7 text-gray-800">
               {needTab ? '표시된 탭을 직접 눌러 이동해 주세요. 누르면 이 단계의 설명이 이어져요.' : missing ? step.missing : step.lead}

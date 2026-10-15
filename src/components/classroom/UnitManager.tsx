@@ -130,14 +130,14 @@ const UnitManager = ({ classId, teacherId }: Props) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-black">단원 관리</h3>
+          <h3 className="text-xl font-bold">단원 관리</h3>
           <p className="text-sm font-bold text-on-surface-variant mt-1">
             단원을 만들고 마무리 시 학생 서식 제출을 관리하세요.
           </p>
         </div>
         <button
           onClick={() => { setEditUnit(null); setIsCreateModalOpen(true); }}
-          className="flex items-center gap-2 px-6 py-3 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+          className="flex items-center gap-2 px-6 py-3 btn-gradient rounded-2xl font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
         >
           <Plus size={18} />
           새 단원
@@ -147,7 +147,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
       {/* Info Banner */}
       <div className="flex items-start gap-4 p-5 bg-primary/5 border border-primary/10 rounded-2xl">
         <AlertCircle size={18} className="text-primary mt-0.5 shrink-0" />
-        <p className="text-xs font-bold text-primary/70 leading-relaxed">
+        <p className="text-[14px] font-bold text-primary/70 leading-relaxed">
           단원을 <strong>마무리</strong>하면 학생들의 "단원 마무리" 탭에 서식이 표시됩니다.
           학생이 제출한 내용은 AI 세특 초안 생성 시 자동으로 활용됩니다.
         </p>
@@ -155,17 +155,17 @@ const UnitManager = ({ classId, teacherId }: Props) => {
 
       {/* Units List */}
       {units.length === 0 ? (
-        <div className="py-20 flex flex-col items-center justify-center space-y-4 text-on-surface-variant/40">
+        <div className="py-20 flex flex-col items-center justify-center space-y-4 text-on-surface-variant">
           <div className="w-20 h-20 bg-surface-container rounded-3xl flex items-center justify-center">
             <BookOpen size={40} className="opacity-30" />
           </div>
-          <p className="font-black text-lg">아직 만든 단원이 없습니다.</p>
+          <p className="font-bold text-lg">아직 만든 단원이 없습니다.</p>
           <p className="text-sm font-bold text-center leading-relaxed">
             단원을 만들면 학생들이 단원 마무리 서식을 제출할 수 있습니다.
           </p>
           <button
             onClick={() => { setEditUnit(null); setIsCreateModalOpen(true); }}
-            className="mt-2 flex items-center gap-2 px-8 py-4 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20"
+            className="mt-2 flex items-center gap-2 px-8 py-4 btn-gradient rounded-2xl font-bold text-sm shadow-lg shadow-primary/20"
           >
             <Plus size={18} /> 첫 단원 만들기
           </button>
@@ -207,9 +207,9 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <h4 className="font-black text-base">{unit.title}</h4>
+                      <h4 className="font-bold text-base">{unit.title}</h4>
                       <span
-                        className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                        className={`px-2 py-0.5 rounded-lg text-[13px] font-bold  shrink-0 ${
                           unit.status === 'active'
                             ? 'bg-primary/10 text-primary'
                             : unit.status === 'completed'
@@ -224,13 +224,13 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                       {enabledForms.map(form => (
                         <span
                           key={form}
-                          className="text-[10px] font-bold text-on-surface-variant bg-white border border-surface-container px-2 py-0.5 rounded-md"
+                          className="text-[14px] font-bold text-on-surface-variant bg-white border border-surface-container px-2 py-0.5 rounded-md"
                         >
                           {form}
                         </span>
                       ))}
                       {enabledForms.length === 0 && (
-                        <span className="text-[10px] font-bold text-on-surface-variant/40">서식 없음</span>
+                        <span className="text-[14px] font-bold text-on-surface-variant">서식 없음</span>
                       )}
                     </div>
                   </div>
@@ -240,7 +240,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                     {unit.status === 'active' && (
                       <button
                         onClick={() => handleCompleteUnit(unit.id)}
-                        className="px-4 py-2 bg-secondary text-white rounded-xl font-black text-xs hover:bg-secondary/80 active:scale-95 transition-all shadow-sm"
+                        className="px-4 py-2 bg-secondary text-white rounded-xl font-bold text-[14px] hover:bg-secondary/80 active:scale-95 transition-all shadow-sm"
                       >
                         단원 마무리
                       </button>
@@ -248,7 +248,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                     {unit.status === 'completed' && (
                       <button
                         onClick={() => handleToggleExpand(unit.id)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-surface-container hover:bg-surface-container-high rounded-xl font-black text-xs transition-all"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-surface-container hover:bg-surface-container-high rounded-xl font-bold text-[14px] transition-all"
                       >
                         <Users size={14} />
                         제출 현황
@@ -287,11 +287,11 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                     >
                       <div className="p-6 bg-white space-y-4">
                         <div className="flex items-center justify-between">
-                          <h5 className="text-sm font-black flex items-center gap-2">
+                          <h5 className="text-sm font-bold flex items-center gap-2">
                             <Users size={16} className="text-secondary" />
                             학생 제출 현황
                           </h5>
-                          <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">
+                          <span className="text-[14px] font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">
                             {submissionList.length}명 제출
                           </span>
                         </div>
@@ -301,7 +301,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                             <div className="w-6 h-6 border-2 border-secondary border-t-transparent rounded-full animate-spin" />
                           </div>
                         ) : submissionList.length === 0 ? (
-                          <p className="text-sm font-bold text-on-surface-variant/50 text-center py-6">
+                          <p className="text-sm font-bold text-on-surface-variant text-center py-6">
                             아직 제출한 학생이 없습니다.
                           </p>
                         ) : (
@@ -319,8 +319,8 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                                       <FileText size={14} />
                                     </div>
                                     <div>
-                                      <p className="font-black text-sm">{sub.students?.full_name}</p>
-                                      <p className="text-[10px] font-bold text-on-surface-variant">
+                                      <p className="font-bold text-sm">{sub.students?.full_name}</p>
+                                      <p className="text-[14px] font-bold text-on-surface-variant">
                                         {sub.students?.student_number}번 ·{' '}
                                         {new Date(sub.submitted_at).toLocaleDateString('ko-KR')}
                                       </p>
@@ -328,11 +328,11 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {hasContent && (
-                                      <span className="text-[9px] font-black text-primary/50 hover:text-primary transition-colors">
+                                      <span className="text-[13px] font-bold text-primary hover:text-primary transition-colors">
                                         내용 보기 →
                                       </span>
                                     )}
-                                    <span className="text-[10px] font-black text-secondary bg-secondary/10 px-2 py-1 rounded-lg">
+                                    <span className="text-[14px] font-bold text-secondary bg-secondary/10 px-2 py-1 rounded-lg">
                                       제출 완료
                                     </span>
                                   </div>
@@ -375,17 +375,17 @@ const UnitManager = ({ classId, teacherId }: Props) => {
               initial={{ opacity: 0, scale: 0.95, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="w-full max-w-xl bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+              className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               {/* 헤더 */}
-              <div className="flex items-start justify-between p-7 pb-4 border-b border-neutral-100">
+              <div className="flex items-start justify-between p-7 pb-4 border-b border-slate-200 dark:border-slate-700">
                 <div>
-                  <p className="text-[10px] font-black text-primary/50 uppercase tracking-widest mb-1">{detailModal.unitTitle}</p>
-                  <h3 className="text-lg font-black">
+                  <p className="text-[14px] font-bold text-primary  mb-1">{detailModal.unitTitle}</p>
+                  <h3 className="text-lg font-bold">
                     {detailModal.sub.students?.student_number}번 {detailModal.sub.students?.full_name}
                   </h3>
-                  <p className="text-xs font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                  <p className="text-[14px] font-bold text-on-surface-variant mt-1 flex items-center gap-1">
                     <Clock size={11} />
                     {new Date(detailModal.sub.submitted_at).toLocaleString('ko-KR')} 제출
                   </p>
@@ -402,37 +402,37 @@ const UnitManager = ({ classId, teacherId }: Props) => {
               <div className="px-7 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
                 {detailModal.sub.performance_record && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">수행평가 활동 기술</p>
+                    <p className="text-[14px] font-bold text-primary ">수행평가 활동 기술</p>
                     <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
                       {detailModal.sub.performance_record}
                     </div>
-                    <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{detailModal.sub.performance_record.length}자</p>
+                    <p className="text-[14px] font-bold text-on-surface-variant text-right">{detailModal.sub.performance_record.length}자</p>
                   </div>
                 )}
                 {detailModal.sub.inquiry_reflection && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">탐구소감문</p>
+                    <p className="text-[14px] font-bold text-violet-600 ">탐구소감문</p>
                     <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
                       {detailModal.sub.inquiry_reflection}
                     </div>
-                    <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{detailModal.sub.inquiry_reflection.length}자</p>
+                    <p className="text-[14px] font-bold text-on-surface-variant text-right">{detailModal.sub.inquiry_reflection.length}자</p>
                   </div>
                 )}
                 {detailModal.sub.self_eval && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">자기평가서</p>
+                    <p className="text-[14px] font-bold text-emerald-600 ">자기평가서</p>
                     <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
                       {detailModal.sub.self_eval}
                     </div>
-                    <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{detailModal.sub.self_eval.length}자</p>
+                    <p className="text-[14px] font-bold text-on-surface-variant text-right">{detailModal.sub.self_eval.length}자</p>
                   </div>
                 )}
                 {detailModal.sub.reading_record_title && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">독서기록</p>
+                    <p className="text-[14px] font-bold text-amber-600 ">독서기록</p>
                     <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-100 space-y-2">
                       <div className="flex items-center gap-3 text-sm">
-                        <span className="font-black text-on-surface">{detailModal.sub.reading_record_title}</span>
+                        <span className="font-bold text-on-surface">{detailModal.sub.reading_record_title}</span>
                         {detailModal.sub.reading_record_author && (
                           <span className="text-on-surface-variant/60 font-bold">— {detailModal.sub.reading_record_author}</span>
                         )}
@@ -447,10 +447,10 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                 )}
               </div>
 
-              <div className="px-7 py-4 border-t border-neutral-100 flex justify-end">
+              <div className="px-7 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
                 <button
                   onClick={() => setDetailModal(null)}
-                  className="px-6 py-2.5 bg-surface-container hover:bg-surface-container-high rounded-xl font-black text-sm text-on-surface-variant transition-all"
+                  className="px-6 py-2.5 bg-surface-container hover:bg-surface-container-high rounded-xl font-bold text-sm text-on-surface-variant transition-all"
                 >
                   닫기
                 </button>
