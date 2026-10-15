@@ -808,7 +808,7 @@ const SchoolProjectDetailPage = () => {
                       className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-primary hover:bg-primary/10 transition-all"
                       title="수업일·수업 시간·쉬는 시간 설정"
                     >
-                      <CalendarDays size={13} /> 수업 설정
+                      <CalendarDays size={13} /> 수업 시간 설정
                     </button>
                     <button
                       onClick={() => setRosterClass(c)}

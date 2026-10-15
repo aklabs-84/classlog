@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import RecapKeywordsEditor from '../components/classroom/RecapKeywordsEditor';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -15,11 +14,8 @@ import {
   FileText,
   Plus,
   X,
-  ChevronDown,
   Link2,
   Trash2,
-  Save,
-  CalendarRange,
 } from 'lucide-react';
 
 interface StudentRow {
@@ -43,16 +39,6 @@ interface LessonPlanRow {
   updated_at: string;
 }
 
-interface WeeklyPlanItem {
-  week: number;
-  topic: string;
-  url?: string;
-  material_id?: string;
-  recap?: string[];
-  requires_result?: boolean;
-  requires_activity?: boolean;
-}
-
 interface GeneralMaterialRow {
   id: string;
   title: string;
@@ -62,7 +48,7 @@ interface GeneralMaterialRow {
 const TABS = [
   { key: 'students', label: '학생 현황' },
   { key: 'materials', label: '수업 자료 현황' },
-  { key: 'plan', label: '주차별 자료 설정' },
+  { key: 'links', label: '일반 자료' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -77,11 +63,6 @@ const SchoolProjectClassDetailPage = () => {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [lessonPlans, setLessonPlans] = useState<LessonPlanRow[]>([]);
-
-  // 주차별 계획(syllabus) 관리 — 배정 강사가 직접 설정할 수 없어 관리자가 대신 구성
-  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanItem[]>([]);
-  const [planSaving, setPlanSaving] = useState(false);
-  const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
 
   // 우리 반 수업일 — 비우면 학교 전체 기간을 따름
   const [classDates, setClassDates] = useState<string[]>([]);
@@ -116,7 +97,6 @@ const SchoolProjectClassDetailPage = () => {
         teacherName = profile?.full_name || null;
       }
       setClassInfo(cls ? { id: cls.id, name: cls.name, teacherName } : null);
-      setWeeklyPlan(cls?.weekly_plan || []);
       if ((cls?.weekly_plan || []).length > 0) setPeriodCount(Math.min(8, cls!.weekly_plan.length));
       setClassDates(cls?.schedule_mode === 'dates' ? [...(cls?.class_specific_dates || [])] : []);
       setTimeForm({
@@ -182,21 +162,6 @@ const SchoolProjectClassDetailPage = () => {
   }, [classId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  const handleSavePlan = async () => {
-    if (!classId) return;
-    setPlanSaving(true);
-    try {
-      const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan }).eq('id', classId);
-      if (error) throw error;
-      alert('주차별 계획이 저장되었습니다.');
-    } catch (err) {
-      console.error('handleSavePlan error:', err);
-      alert('저장 중 오류가 발생했습니다.');
-    } finally {
-      setPlanSaving(false);
-    }
-  };
 
   const handleSaveDates = async () => {
     if (!classId) return;
@@ -311,7 +276,7 @@ const SchoolProjectClassDetailPage = () => {
         onClick={() => navigate(`/school-projects/${projectId}/schools/${schoolId}`)}
         className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant hover:text-primary transition-colors"
       >
-        <ArrowLeft size={14} /> 강사 관리로
+        <ArrowLeft size={14} /> 개요 화면으로
       </button>
 
       <div>
@@ -550,159 +515,11 @@ const SchoolProjectClassDetailPage = () => {
         </div>
       )}
 
-      {tab === 'plan' && (
+      {tab === 'links' && (
         <div className="space-y-6">
-          <div className="flex items-start gap-3 px-4 py-3 bg-primary/5 border border-primary/20 rounded-2xl">
-            <CalendarRange size={16} className="text-primary shrink-0 mt-0.5" />
-            <p className="text-xs font-bold text-on-surface-variant">
-              공용 프로젝트 반이라 배정 강사가 직접 주차별 설정을 할 수 없어요. 이 화면에서 관리자가 전체 주차 수·주차별 제목·자료를 대신 구성합니다.
-              주차별 자료는 강사가 "수업 자료 에디터"로 작성한 자료를 연결하거나, 특정 수업 페이지 URL을 직접 입력해 사용할 수 있어요.
-            </p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-black flex items-center gap-1.5"><ClipboardList size={14} /> 주차별 수업 계획</h2>
-              <button
-                type="button"
-                onClick={() => setWeeklyPlan(prev => [...prev, { week: prev.length + 1, topic: '', url: '', material_id: '', requires_result: true, requires_activity: true }])}
-                className="flex items-center gap-1 text-xs font-black px-3 py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-all"
-              >
-                <Plus size={13} /> 주차 추가
-              </button>
-            </div>
-
-            {weeklyPlan.length === 0 ? (
-              <div className="surface-card p-8 text-center text-on-surface-variant/60 text-sm border-2 border-dashed border-surface-container-high">
-                등록된 주차별 계획이 없습니다. [+ 주차 추가]를 눌러 시작하세요.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {weeklyPlan.map((item, idx) => (
-                  <div key={idx} className="surface-card p-4 border border-surface-container-high space-y-3 relative">
-                    <button
-                      type="button"
-                      onClick={() => setWeeklyPlan(prev => prev.filter((_, i) => i !== idx))}
-                      className="absolute top-3 right-3 text-on-surface-variant/40 hover:text-red-500 transition-colors"
-                    >
-                      <X size={15} />
-                    </button>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-11 h-11 bg-surface-container border border-surface-container-high rounded-xl flex flex-col items-center justify-center shrink-0">
-                        <span className="text-[9px] font-black text-on-surface-variant/60 uppercase">Week</span>
-                        <span className="text-sm font-black text-primary">{item.week}</span>
-                      </div>
-                      <div className="flex-1 space-y-3 min-w-0">
-                        <input
-                          type="text"
-                          value={item.topic}
-                          onChange={e => setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, topic: e.target.value } : p))}
-                          placeholder="예: 1주차 오리엔테이션"
-                          className="w-full px-3.5 py-2 bg-surface-container-low border border-surface-container-high rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
-                        />
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest ml-0.5">자료 링크 (URL)</label>
-                          <input
-                            type="text"
-                            value={item.url || ''}
-                            disabled={!!item.material_id}
-                            onChange={e => setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, url: e.target.value, material_id: '' } : p))}
-                            placeholder={item.material_id ? '수업 자료 에디터 자료가 연결됨' : 'https://...'}
-                            className={`w-full px-3.5 py-2 border rounded-xl text-sm font-bold outline-none transition-all ${
-                              item.material_id
-                                ? 'bg-surface-container border-surface-container-high text-on-surface-variant/40 cursor-not-allowed'
-                                : 'bg-surface-container-low border-surface-container-high focus:border-primary/40'
-                            }`}
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest ml-0.5">
-                            수업 자료 에디터 연결 {materials.length === 0 && <span className="normal-case font-bold">(등록된 자료 없음)</span>}
-                          </label>
-                          {item.material_id ? (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border-2 border-primary/20 rounded-xl">
-                              <BookOpen size={13} className="text-primary shrink-0" />
-                              <span className="text-sm font-black text-primary flex-1 truncate">
-                                {materials.find(m => m.id === item.material_id)?.title || '선택된 자료'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, material_id: '' } : p))}
-                                className="p-0.5 text-on-surface-variant/40 hover:text-red-500 transition-colors"
-                              >
-                                <X size={13} />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="relative">
-                              <button
-                                type="button"
-                                disabled={materials.length === 0}
-                                onClick={() => setMaterialDropdownIdx(materialDropdownIdx === idx ? null : idx)}
-                                className={`w-full flex items-center justify-between px-3.5 py-2 border rounded-xl text-sm font-bold transition-all ${
-                                  materials.length === 0
-                                    ? 'bg-surface-container border-surface-container-high text-on-surface-variant/30 cursor-not-allowed'
-                                    : 'bg-surface-container-low border-surface-container-high hover:border-primary/40 cursor-pointer'
-                                }`}
-                              >
-                                <span className="text-on-surface-variant/50">에디터 자료 선택...</span>
-                                <ChevronDown size={13} className="text-on-surface-variant/40" />
-                              </button>
-                              {materialDropdownIdx === idx && materials.length > 0 && (
-                                <div className="mt-1 bg-white rounded-xl shadow-md border border-surface-container-high max-h-80 overflow-y-auto">
-                                  {materials.map(mat => (
-                                    <button
-                                      key={mat.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, material_id: mat.id, url: '' } : p));
-                                        setMaterialDropdownIdx(null);
-                                      }}
-                                      className="w-full text-left px-4 py-2.5 hover:bg-primary/5 transition-colors flex items-center gap-2"
-                                    >
-                                      {mat.week_number != null && (
-                                        <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center shrink-0">
-                                          {mat.week_number}
-                                        </span>
-                                      )}
-                                      <span className="text-sm font-bold truncate">{mat.title}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <RecapKeywordsEditor
-                          recap={item.recap}
-                          materialId={item.material_id}
-                          topic={item.topic}
-                          classId={classId}
-                          onChange={recap => setWeeklyPlan(prev => prev.map((p, i) => i === idx ? { ...p, recap } : p))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex justify-end mt-3">
-              <button
-                type="button"
-                onClick={handleSavePlan}
-                disabled={planSaving}
-                className="flex items-center gap-1.5 text-sm font-black px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-dim transition-all disabled:opacity-50"
-              >
-                {planSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {planSaving ? '저장 중...' : '주차별 계획 저장'}
-              </button>
-            </div>
-          </div>
+          <p className="text-xs font-bold text-on-surface-variant/70">
+            이 반 학생 화면에 보일 참고 링크를 모아 둡니다. 차시별 내용은 학교 화면의 "주차별 계획"에서 설정하세요.
+          </p>
 
           <div>
             <div className="flex items-center justify-between mb-2">
