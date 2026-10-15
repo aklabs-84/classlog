@@ -82,6 +82,15 @@ const SchoolProjectClassDetailPage = () => {
   const [planSaving, setPlanSaving] = useState(false);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
 
+  // 우리 반 수업일 — 비우면 학교 전체 기간을 따름
+  const [classDates, setClassDates] = useState<string[]>([]);
+  const [schoolRange, setSchoolRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
+  const [datesSaving, setDatesSaving] = useState(false);
+
+  // 우리 반 수업 시간·쉬는 시간·종료 알람
+  const [timeForm, setTimeForm] = useState<{ start: string; end: string; alarms: number[]; breaks: string[] }>({ start: '', end: '', alarms: [], breaks: [] });
+  const [timeSaving, setTimeSaving] = useState(false);
+
   // 일반 자료(주차와 무관한 링크) 관리
   const [generalMaterials, setGeneralMaterials] = useState<GeneralMaterialRow[]>([]);
   const [generalMatForm, setGeneralMatForm] = useState({ title: '', url: '' });
@@ -94,7 +103,7 @@ const SchoolProjectClassDetailPage = () => {
     try {
       const { data: cls } = await supabase
         .from('classes')
-        .select('id, name, assigned_teacher_id, weekly_plan')
+        .select('id, name, assigned_teacher_id, weekly_plan, schedule_mode, class_specific_dates, class_start_time, class_end_time, end_alarm_minutes, break_times')
         .eq('id', classId)
         .single();
 
@@ -105,6 +114,17 @@ const SchoolProjectClassDetailPage = () => {
       }
       setClassInfo(cls ? { id: cls.id, name: cls.name, teacherName } : null);
       setWeeklyPlan(cls?.weekly_plan || []);
+      setClassDates(cls?.schedule_mode === 'dates' ? [...(cls?.class_specific_dates || [])] : []);
+      setTimeForm({
+        start: (cls?.class_start_time || '').slice(0, 5),
+        end: (cls?.class_end_time || '').slice(0, 5),
+        alarms: cls?.end_alarm_minutes || [],
+        breaks: (cls?.break_times || []).map((t: string) => t.slice(0, 5)),
+      });
+      if (schoolId) {
+        const { data: sp } = await supabase.from('school_projects').select('start_date, end_date').eq('id', schoolId).single();
+        setSchoolRange({ start: sp?.start_date || null, end: sp?.end_date || null });
+      }
 
       const { data: generalRows } = await supabase
         .from('class_general_materials')
@@ -174,6 +194,53 @@ const SchoolProjectClassDetailPage = () => {
     }
   };
 
+  const handleSaveDates = async () => {
+    if (!classId) return;
+    const dates = Array.from(new Set(classDates.filter(d => d))).sort();
+    if (schoolRange.start && schoolRange.end && dates.some(d => d < schoolRange.start! || d > schoolRange.end!)) {
+      alert('학교 전체 기간 밖의 날짜가 있어요. 학교 기간 안에서 골라 주세요.');
+      return;
+    }
+    setDatesSaving(true);
+    try {
+      const { error } = await supabase.from('classes')
+        .update(dates.length > 0 ? { schedule_mode: 'dates', class_specific_dates: dates } : { schedule_mode: null, class_specific_dates: [] })
+        .eq('id', classId);
+      if (error) throw error;
+      setClassDates(dates);
+      alert(dates.length > 0 ? '우리 반 수업일이 저장되었습니다.' : '수업일을 비웠어요. 학교 전체 기간을 따릅니다.');
+    } catch (err) {
+      console.error('handleSaveDates error:', err);
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setDatesSaving(false);
+    }
+  };
+
+  const handleSaveTime = async () => {
+    if (!classId) return;
+    if (timeForm.start && timeForm.end && timeForm.end <= timeForm.start) {
+      alert('종료 시각은 시작 시각보다 늦어야 해요.');
+      return;
+    }
+    setTimeSaving(true);
+    try {
+      const { error } = await supabase.from('classes').update({
+        class_start_time: timeForm.start || null,
+        class_end_time: timeForm.end || null,
+        end_alarm_minutes: timeForm.end ? timeForm.alarms : [],
+        break_times: timeForm.breaks.filter(t => t).sort(),
+      }).eq('id', classId);
+      if (error) throw error;
+      alert('수업 시간이 저장되었습니다.');
+    } catch (err) {
+      console.error('handleSaveTime error:', err);
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setTimeSaving(false);
+    }
+  };
+
   const handleAddGeneralMat = async () => {
     if (!user || !classId || !generalMatForm.title.trim() || !generalMatForm.url.trim()) return;
     setGeneralMatSaving(true);
@@ -240,6 +307,86 @@ const SchoolProjectClassDetailPage = () => {
         <p className="text-sm text-on-surface-variant mt-1">
           {classInfo.teacherName ? `담당 강사: ${classInfo.teacherName}` : <span className="text-orange-500">담당 강사 미배정</span>}
         </p>
+      </div>
+
+      <div className="surface-card p-4 border border-surface-container-high space-y-3">
+        <div>
+          <h2 className="text-sm font-black">우리 반 수업일</h2>
+          <p className="text-xs text-on-surface-variant mt-1">
+            이 반이 수업하는 날짜를 골라 주세요. 비워 두면 학교 전체 기간
+            {schoolRange.start && schoolRange.end ? `(${schoolRange.start.slice(5).replace('-', '/')} ~ ${schoolRange.end.slice(5).replace('-', '/')})` : ''}을 따릅니다.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {classDates.map((d, idx) => (
+            <div key={idx} className="flex items-center gap-1">
+              <input
+                type="date"
+                value={d}
+                min={schoolRange.start || undefined}
+                max={schoolRange.end || undefined}
+                onChange={e => setClassDates(prev => prev.map((x, i) => (i === idx ? e.target.value : x)))}
+                className="px-2 py-1.5 rounded-lg border border-surface-container-high bg-surface text-sm"
+              />
+              <button onClick={() => setClassDates(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-on-surface-variant hover:text-red-500" aria-label="날짜 삭제">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          <button onClick={() => setClassDates(prev => [...prev, ''])} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-dashed border-primary/40 text-primary text-xs font-bold">
+            <Plus size={12} /> 날짜 추가
+          </button>
+        </div>
+        <button onClick={handleSaveDates} disabled={datesSaving} className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold disabled:opacity-50">
+          {datesSaving ? '저장 중...' : '수업일 저장'}
+        </button>
+      </div>
+
+      <div className="surface-card p-4 border border-surface-container-high space-y-3">
+        <div>
+          <h2 className="text-sm font-black">수업 시간 · 쉬는 시간</h2>
+          <p className="text-xs text-on-surface-variant mt-1">
+            담당 강사 화면의 수업 시작·종료 알림에 쓰입니다. 비워 두면 알림이 울리지 않아요.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="time" value={timeForm.start} onChange={e => setTimeForm(f => ({ ...f, start: e.target.value }))} className="px-2 py-1.5 rounded-lg border border-surface-container-high bg-surface text-sm" aria-label="시작 시각" />
+          <span className="text-on-surface-variant">~</span>
+          <input type="time" value={timeForm.end} onChange={e => setTimeForm(f => ({ ...f, end: e.target.value }))} className="px-2 py-1.5 rounded-lg border border-surface-container-high bg-surface text-sm" aria-label="종료 시각" />
+        </div>
+        {timeForm.end && (
+          <div className="flex items-center gap-4">
+            <span className="text-xs font-bold text-on-surface-variant">종료 알림</span>
+            {[30, 15, 10].map(m => (
+              <label key={m} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={timeForm.alarms.includes(m)}
+                  onChange={e => setTimeForm(f => ({ ...f, alarms: e.target.checked ? [...f.alarms, m] : f.alarms.filter(x => x !== m) }))}
+                  className="accent-primary"
+                />
+                <span className="text-xs font-bold">{m}분 전</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-on-surface-variant">쉬는 시간</span>
+          {timeForm.breaks.map((t, idx) => (
+            <div key={idx} className="flex items-center gap-1">
+              <input type="time" value={t} onChange={e => setTimeForm(f => ({ ...f, breaks: f.breaks.map((x, i) => (i === idx ? e.target.value : x)) }))} className="px-2 py-1.5 rounded-lg border border-surface-container-high bg-surface text-sm" />
+              <button onClick={() => setTimeForm(f => ({ ...f, breaks: f.breaks.filter((_, i) => i !== idx) }))} className="p-1 text-on-surface-variant hover:text-red-500" aria-label="쉬는 시간 삭제">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          <button onClick={() => setTimeForm(f => ({ ...f, breaks: [...f.breaks, ''] }))} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-dashed border-primary/40 text-primary text-xs font-bold">
+            <Plus size={12} /> 쉬는 시간 추가
+          </button>
+        </div>
+        <button onClick={handleSaveTime} disabled={timeSaving} className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold disabled:opacity-50">
+          {timeSaving ? '저장 중...' : '수업 시간 저장'}
+        </button>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

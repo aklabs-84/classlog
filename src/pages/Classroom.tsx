@@ -1062,7 +1062,12 @@ const Classroom = () => {
 
       // 학교 프로젝트 부모 클래스이면 하위 클래스 전체에 공통 설정 cascade
       if (updateClassData.school_project_id && !updateClassData.parent_class_id) {
-        await supabase.from('classes').update(sharedSettings).eq('parent_class_id', updateClassData.id);
+        // 하위 반이 따로 정한 수업일·수업 시간이 덮어써지지 않게 제외 (전체 반에 값이 있을 때만 시간 복사)
+        const { schedule_mode: _sm, class_specific_dates: _sd, ...cascade } = sharedSettings as any;
+        if (!cascade.class_start_time) {
+          delete cascade.class_start_time; delete cascade.class_end_time; delete cascade.end_alarm_minutes; delete cascade.break_times;
+        }
+        await supabase.from('classes').update(cascade).eq('parent_class_id', updateClassData.id);
       }
 
       setIsUpdateModalOpen(false);

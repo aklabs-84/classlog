@@ -162,7 +162,7 @@ const SubjectDashboard = ({
         (r.submission_group || r.id) === groupId ? { ...r, status: 'rejected', rejection_feedback: feedback.trim() || null } : r
       ));
       if (resultDetailStudent?.id) {
-        const rTitle = firstItem?.title || (firstItem?.week_number ? `${firstItem.week_number}주차 결과물` : '결과물');
+        const rTitle = firstItem?.title || (firstItem?.week_number ? `${firstItem.week_number}${weekWord} 결과물` : '결과물');
         const { error: notifErr } = await supabase.from('student_notifications').insert({
           student_id: resultDetailStudent.id,
           class_id: classInfo?.id,
@@ -227,6 +227,8 @@ const SubjectDashboard = ({
   const [linkedWeeklyPlan, setLinkedWeeklyPlan] = useState<{week: number, topic: string}[]>([]);
 
   // 주차 목록: parent_class의 weekly_plan 우선, 없으면 본인 클래스
+  // 학교 프로젝트는 하루에 여러 차시를 하므로 '주차' 대신 '차시'로 표기
+  const weekWord = classInfo?.school_project_id ? '차시' : '주차';
   const weeklyPlan: {week: number, topic: string}[] = classInfo?.parent_class_id
     ? (linkedWeeklyPlan.length > 0 ? linkedWeeklyPlan : classInfo?.weekly_plan || [])
     : classInfo?.weekly_plan || [];
@@ -291,7 +293,7 @@ const SubjectDashboard = ({
     const weekResults = rawResults
       .filter(r => r.student_id === studentId && r.week_number === week)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    if (weekResults.length > 0) return weekResults[0].title || `${week}주차 결과 제출`;
+    if (weekResults.length > 0) return weekResults[0].title || `${week}${weekWord} 결과 제출`;
     return null;
   };
 
@@ -443,8 +445,8 @@ const SubjectDashboard = ({
       <section className="px-4">
         <div className="flex items-center gap-2 mb-3">
           <BarChart2 size={18} className="text-primary" />
-          <h2 className="text-[19px] font-bold text-on-surface">주차별 제출 현황</h2>
-          {statsWeeks.length > 0 && <span className="text-[14px] text-on-surface-variant">총 {statsWeeks.length}주차 · 주차를 누르면 아래 표가 그 주차 기준으로 바뀌어요</span>}
+          <h2 className="text-[19px] font-bold text-on-surface">{weekWord}별 제출 현황</h2>
+          {statsWeeks.length > 0 && <span className="text-[14px] text-on-surface-variant">총 {statsWeeks.length}{weekWord} · {weekWord}를 누르면 아래 표가 그 주차 기준으로 바뀌어요</span>}
         </div>
         {statsLoading ? (
           <p className="py-6 text-[15px] text-on-surface-variant">불러오는 중...</p>
@@ -474,7 +476,7 @@ const SubjectDashboard = ({
                     isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200 dark:border-slate-700 hover:border-primary/40'
                   }`}
                 >
-                  <span className="block text-[17px] font-bold text-on-surface">{week}주차</span>
+                  <span className="block text-[17px] font-bold text-on-surface">{week}{weekWord}</span>
                   <span className="block text-[14px] text-on-surface-variant truncate min-h-[21px]">{topic || ' '}</span>
                   <span className="block mt-3 h-2 rounded-full bg-surface-container overflow-hidden">
                     <span className="block h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
@@ -486,7 +488,7 @@ const SubjectDashboard = ({
           </div>
         )}
         {selectedStatsWeek !== null && (
-          <p className="mt-2 text-[15px] text-on-surface-variant">{selectedStatsWeek}주차 제출완료 <b className="font-black text-on-surface">{obsOnWeek.size}명</b> · 아래 표에서 확인하세요</p>
+          <p className="mt-2 text-[15px] text-on-surface-variant">{selectedStatsWeek}{weekWord} 제출완료 <b className="font-black text-on-surface">{obsOnWeek.size}명</b> · 아래 표에서 확인하세요</p>
         )}
       </section>
 
@@ -643,7 +645,7 @@ const SubjectDashboard = ({
                             const topic = weeklyPlan.find(p => p.week === w)?.topic;
                             return (
                               <div key={w} className="flex items-center gap-2">
-                                <span className="text-[14px] font-bold text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
+                                <span className="text-[14px] font-bold text-on-surface-variant/75 w-10 shrink-0">{w}{weekWord}</span>
                                 {topic && <span className="text-[14px] font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <span className={`text-[14px] font-bold px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-primary-container text-primary border-primary/30' : 'bg-surface-container text-on-surface-variant border-neutral-200'}`}>
@@ -738,10 +740,10 @@ const SubjectDashboard = ({
                         {selectedStatsWeek !== null && (
                           <>
                             <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant text-center whitespace-nowrap">
-                              {selectedStatsWeek}주차 활동 기록
+                              {selectedStatsWeek}{weekWord} 활동 기록
                             </th>
                             <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant text-center whitespace-nowrap">
-                              {selectedStatsWeek}주차 결과제출
+                              {selectedStatsWeek}{weekWord} 결과제출
                             </th>
                           </>
                         )}
@@ -1151,15 +1153,23 @@ const SubjectDashboard = ({
               : allResultIds;
           }
         };
-        const submittedIds = getTabSubmittedIds();
+        // 학교 프로젝트 전체 보기: 모든 차시를 낸 학생만 '제출 완료', 일부만 낸 학생은 '미완료'에 부분 제출로 표시
+        const multi = !!classInfo?.school_project_id && selectedActivityWeek === null && statsWeeks.length > 1;
+        const weekSets = statsWeeks.map(w => (activityTab === 'obs' ? getObsOnWeek(w) : getResultsOnWeek(w)));
+        const doneCount = (id: string) => weekSets.filter(set => set.has(id)).length;
+        const submittedIds = multi
+          ? new Set(students.filter(s => doneCount(s.id) === statsWeeks.length).map(s => s.id))
+          : getTabSubmittedIds();
         const submitted = students.filter(s => submittedIds.has(s.id));
         const notSubmitted = students.filter(s => !submittedIds.has(s.id));
+        const weekDots = (id: string) => statsWeeks.map((w, i) => `${w}${weekSets[i].has(id) ? '✓' : '–'}`).join(' ');
 
         const getActivityLabel = (s: any) => {
           if (submittedIds.has(s.id)) {
             if (selectedActivityWeek !== null) {
-              return activityTab === 'obs' ? `${selectedActivityWeek}주차 활동 기록 제출` : `${selectedActivityWeek}주차 결과물 제출`;
+              return activityTab === 'obs' ? `${selectedActivityWeek}${weekWord} 활동 기록 제출` : `${selectedActivityWeek}${weekWord} 결과물 제출`;
             }
+            if (multi) return `모든 ${weekWord} 제출 · ${weekDots(s.id)}`;
             return activityTab === 'obs' ? '활동 기록 제출' : '결과물 제출';
           }
           return s.activity || '기록 없음';
@@ -1188,7 +1198,7 @@ const SubjectDashboard = ({
                 <div className="space-y-1 min-w-0">
                   <p className="text-[14px] font-semibold text-on-surface-variant">활동 참여율</p>
                   <h3 className="text-xl sm:text-2xl font-bold text-on-surface truncate">
-                    {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
+                    {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}${weekWord} ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0">
@@ -1265,7 +1275,7 @@ const SubjectDashboard = ({
                             : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40'
                         }`}
                       >
-                        {week}주차{topic && <span className="opacity-75">· {topic}</span>}
+                        {week}{weekWord}{topic && <span className="opacity-75">· {topic}</span>}
                         {weekCount > 0 && (
                           <span className={`px-1.5 py-0.5 rounded-md text-[14px] font-bold ${
                             selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'primary' ? 'bg-primary-container text-primary' : 'bg-primary-container text-primary'
@@ -1352,7 +1362,7 @@ const SubjectDashboard = ({
                 <div className={`${mobileStatusTab === 'notSubmitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
                   <div className="hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 bg-surface-container border-b border-slate-200 dark:border-slate-700 items-center gap-2">
                     <ClockIcon size={14} className="text-on-surface-variant" />
-                    <span className="text-[15px] font-bold text-on-surface">미제출 ({notSubmitted.length}명)</span>
+                    <span className="text-[15px] font-bold text-on-surface">{multi ? '미완료' : '미제출'} ({notSubmitted.length}명)</span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
                     {notSubmitted.length > 0 ? (
@@ -1365,7 +1375,11 @@ const SubjectDashboard = ({
                             <p className="text-[15px] font-bold group-hover:text-primary transition-colors">
                               {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-[14px] text-on-surface-variant font-medium">미제출</p>
+                            {multi && doneCount(s.id) > 0 ? (
+                              <p className="text-[14px] font-bold text-amber-600">부분 제출 {doneCount(s.id)}/{statsWeeks.length} · {weekDots(s.id)}</p>
+                            ) : (
+                              <p className="text-[14px] text-on-surface-variant font-medium">미제출</p>
+                            )}
                           </div>
                           <ClockIcon size={14} className="text-on-surface-variant/60 shrink-0" />
                         </div>
@@ -1423,7 +1437,7 @@ const SubjectDashboard = ({
                   {resultDetailStudent.name}
                 </p>
                 <p className="text-[11px] text-neutral-400 font-bold mt-0.5">
-                  {selectedActivityWeek ? `${selectedActivityWeek}주차 결과물` : '전체 결과물'} · 삭제/반려 처리
+                  {selectedActivityWeek ? `${selectedActivityWeek}${weekWord} 결과물` : '전체 결과물'} · 삭제/반려 처리
                 </p>
               </div>
               <button onClick={() => setResultDetailStudent(null)} className="p-2 rounded-xl hover:bg-neutral-100 text-neutral-400 transition-all">
@@ -1467,7 +1481,7 @@ const SubjectDashboard = ({
                         <div className="flex-1 min-w-0 space-y-2">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {g.week_number && (
-                              <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{g.week_number}주차</span>
+                              <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{g.week_number}{weekWord}</span>
                             )}
                             {g.items.map((r: any) => {
                               const cfg = typeConfig[r.result_type] || typeConfig.file;

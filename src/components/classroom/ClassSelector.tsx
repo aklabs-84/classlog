@@ -43,6 +43,18 @@ function getScheduleLabel(start: string | null | undefined, end: string | null |
   return { text: `${end ? `${md(start)} ~ ${md(end)}` : `${md(start)} 시작`} · ${week}주차`, tone: 'ongoing' };
 }
 
+// 반 자체 수업일(날짜 직접 선택) 배지 — 여러 날이면 가장 가까운 다음 수업일 기준
+function getDatesLabel(dates: string[]): { text: string; tone: 'upcoming' | 'today' | 'ongoing' | 'ended' } | null {
+  const ds = [...dates].filter(Boolean).sort();
+  if (ds.length === 0) return null;
+  const today = toYmd(new Date());
+  const list = ds.map(md).join(', ');
+  if (ds.includes(today)) return { text: `오늘 수업 · ${list}`, tone: 'today' };
+  const next = ds.find(d => d > today);
+  if (!next) return { text: '수업 종료', tone: 'ended' };
+  return { text: `${list} · D-${dayDiff(next, today)}`, tone: 'upcoming' };
+}
+
 // 수동 종료(is_closed) 또는 종료일(end_date) 경과 여부
 const isClassClosed = (c: any) => {
   if (c.is_closed) return true;
@@ -196,7 +208,8 @@ const ClassSelector = ({
         {/* 학교 프로젝트 수업 일정 배지 — 배정받은 담당 반을 볼 때만 (반 자체 일정이 없으면 소속 학교 일정 사용) */}
         {activeClass?.parent_class_id && (() => {
           const school = activeClass.school_project_id ? schoolSchedules?.[activeClass.school_project_id] : undefined;
-          const label = getScheduleLabel(activeClass.start_date || school?.start_date, activeClass.end_date || school?.end_date);
+          const ownDates: string[] = activeClass.schedule_mode === 'dates' ? (activeClass.class_specific_dates || []) : [];
+          const label = getDatesLabel(ownDates) || getScheduleLabel(activeClass.start_date || school?.start_date, activeClass.end_date || school?.end_date);
           if (!label && projectProDaysLeft == null) return null;
           const tone = label?.tone === 'ended'
             ? 'bg-surface-container border-slate-200 dark:border-slate-700 text-on-surface-variant'
