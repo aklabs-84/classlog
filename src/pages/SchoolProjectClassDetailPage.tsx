@@ -3,6 +3,7 @@ import RecapKeywordsEditor from '../components/classroom/RecapKeywordsEditor';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { SCHOOL_LEVEL_PRESETS, buildDaySchedule } from '../lib/breakTimes';
 import {
   ArrowLeft,
   Users,
@@ -90,6 +91,8 @@ const SchoolProjectClassDetailPage = () => {
   // 우리 반 수업 시간·쉬는 시간·종료 알람
   const [timeForm, setTimeForm] = useState<{ start: string; end: string; alarms: number[]; breaks: string[] }>({ start: '', end: '', alarms: [], breaks: [] });
   const [timeSaving, setTimeSaving] = useState(false);
+  const [levelIdx, setLevelIdx] = useState(1);
+  const [periodCount, setPeriodCount] = useState(3);
 
   // 일반 자료(주차와 무관한 링크) 관리
   const [generalMaterials, setGeneralMaterials] = useState<GeneralMaterialRow[]>([]);
@@ -114,6 +117,7 @@ const SchoolProjectClassDetailPage = () => {
       }
       setClassInfo(cls ? { id: cls.id, name: cls.name, teacherName } : null);
       setWeeklyPlan(cls?.weekly_plan || []);
+      if ((cls?.weekly_plan || []).length > 0) setPeriodCount(Math.min(8, cls!.weekly_plan.length));
       setClassDates(cls?.schedule_mode === 'dates' ? [...(cls?.class_specific_dates || [])] : []);
       setTimeForm({
         start: (cls?.class_start_time || '').slice(0, 5),
@@ -241,6 +245,14 @@ const SchoolProjectClassDetailPage = () => {
     }
   };
 
+  const handleAutoFill = () => {
+    if (!timeForm.start) { alert('먼저 시작 시각을 골라 주세요.'); return; }
+    const lv = SCHOOL_LEVEL_PRESETS[levelIdx];
+    const r = buildDaySchedule(timeForm.start, periodCount, lv.periodMinutes, lv.breakMinutes);
+    if (!r) return;
+    setTimeForm(f => ({ ...f, end: r.end, breaks: r.breaks, alarms: f.alarms.length ? f.alarms : [10] }));
+  };
+
   const handleAddGeneralMat = async () => {
     if (!user || !classId || !generalMatForm.title.trim() || !generalMatForm.url.trim()) return;
     setGeneralMatSaving(true);
@@ -348,6 +360,31 @@ const SchoolProjectClassDetailPage = () => {
           <p className="text-xs text-on-surface-variant mt-1">
             담당 강사 화면의 수업 시작·종료 알림에 쓰입니다. 비워 두면 알림이 울리지 않아요.
           </p>
+        </div>
+        <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high space-y-2.5">
+          <p className="text-xs font-bold text-on-surface-variant">빠른 설정 — 학교급·교시 수·시작 시각만 고르면 종료 시각과 쉬는 시간이 자동으로 채워져요</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {SCHOOL_LEVEL_PRESETS.map((p, i) => (
+              <button key={p.label} onClick={() => setLevelIdx(i)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${levelIdx === i ? 'bg-primary text-white border-primary' : 'border-surface-container-high text-on-surface-variant'}`}>
+                {p.label} ({p.periodMinutes}분 수업 · {p.breakMinutes}분 쉬는 시간)
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-on-surface-variant">하루 교시</span>
+            <button onClick={() => setPeriodCount(c => Math.max(1, c - 1))} className="w-7 h-7 rounded-lg border border-surface-container-high font-bold" aria-label="교시 줄이기">−</button>
+            <span className="text-sm font-black tabular-nums w-6 text-center">{periodCount}</span>
+            <button onClick={() => setPeriodCount(c => Math.min(8, c + 1))} className="w-7 h-7 rounded-lg border border-surface-container-high font-bold" aria-label="교시 늘리기">+</button>
+            <span className="text-xs font-bold text-on-surface-variant ml-2">시작 시각</span>
+            {['08:50', '09:00', '09:30', '10:00', '13:00'].map(t => (
+              <button key={t} onClick={() => setTimeForm(f => ({ ...f, start: t }))}
+                className={`px-2 py-1 rounded-lg text-xs font-bold border ${timeForm.start === t ? 'bg-primary/10 text-primary border-primary/40' : 'border-surface-container-high text-on-surface-variant'}`}>{t}</button>
+            ))}
+          </div>
+          <button onClick={handleAutoFill} className="w-full py-2 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary text-xs font-bold">
+            ✨ 종료 시각·쉬는 시간 자동 채우기
+          </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input type="time" value={timeForm.start} onChange={e => setTimeForm(f => ({ ...f, start: e.target.value }))} className="px-2 py-1.5 rounded-lg border border-surface-container-high bg-surface text-sm" aria-label="시작 시각" />
