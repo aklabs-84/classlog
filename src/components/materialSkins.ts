@@ -39,12 +39,13 @@ export const defaultViewerTheme = (v: ViewerStyle): ViewerTheme => {
   }
   return 'light';
 };
-export const readViewerTheme = (v: ViewerStyle): ViewerTheme => {
+// fallback을 주면 저장된 선택이 없을 때 모양별 기본값 대신 그 값을 쓴다(학생 화면은 항상 라이트로 시작)
+export const readViewerTheme = (v: ViewerStyle, fallback?: ViewerTheme): ViewerTheme => {
   try {
     const t = localStorage.getItem(`${THEME_KEY}:${v}`);
     if (t === 'light' || t === 'dark') return t;
   } catch { /* 무시 */ }
-  return defaultViewerTheme(v);
+  return fallback ?? defaultViewerTheme(v);
 };
 export const saveViewerTheme = (v: ViewerStyle, t: ViewerTheme) => {
   try { localStorage.setItem(`${THEME_KEY}:${v}`, t); } catch { /* 무시 */ }

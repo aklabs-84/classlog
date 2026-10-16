@@ -2539,6 +2539,7 @@ const Classroom = () => {
             else openGeneralMaterial(full);
           }}
           teacherTools
+          boardsClassId={previewMaterial.class_id ?? activeClassId ?? null}
           onShowAnswers={previewMaterial.id ? () => setAnswersMaterial({ id: previewMaterial.plan_origin_id ?? previewMaterial.id!, class_id: previewMaterial.class_id ?? activeClassId ?? null, title: previewMaterial.title, content: previewMaterial.content, activity_urls: previewMaterial.activity_urls, viewer_style: previewMaterial.viewer_style }) : undefined}
           previewOnly
           onClose={() => setPreviewMaterial(null)}

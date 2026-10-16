@@ -6,6 +6,7 @@ import rehypeRaw from 'rehype-raw';
 import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon, PenLine } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
+import TeacherBoardsButton from './TeacherBoardsButton';
 import MaterialAttachments, { MaterialAttachmentsButton, type MaterialAttachment } from './MaterialAttachments';
 import { InTeacherNoteContext, TeacherViewContext } from './teacherOnly';
 import { normalizeViewerStyle, viewerStyleInfo, readViewerTheme, saveViewerTheme, type ViewerTheme } from './materialSkins';
@@ -54,6 +55,10 @@ interface Props {
   onOpenFile?: (mat: RelatedMaterial, download: boolean) => void;
   /** 선생님 미리보기일 때만 켜는 수업 도구(돋보기·펜·스포트라이트, PC 화면 전용) */
   teacherTools?: boolean;
+  /** 학생이 보는 화면일 때 켠다 — 항상 "단계별"로 보이고(전체/단계별 선택 숨김), 처음 화면은 라이트 모드 */
+  studentView?: boolean;
+  /** 선생님 화면에서만 넘기는 협업보드 목록용 클래스 id. teacherTools가 켜져 있고 이 값이 있을 때만 "협업보드" 버튼을 그린다 */
+  boardsClassId?: string | null;
   /** 선생님 화면에서만 넘기는 "학생 답변" 열기 동작. teacherTools가 켜져 있고 이 값이 있을 때만 버튼을 그린다(학생 화면에는 넘기지 않음) */
   onShowAnswers?: () => void;
   /** 에디터 미리보기용 — 입력은 써볼 수 있지만 저장되지 않으므로 "저장됨" 표시를 숨긴다 */
@@ -297,12 +302,12 @@ const withSkinComponents = (base: any) => ({
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, onShowAnswers, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, studentView = false, boardsClassId, onShowAnswers, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
   const skin = normalizeViewerStyle(viewerStyle);
   const skinInfo = viewerStyleInfo(skin);
   const skinned = skin !== 'default';
-  const [theme, setTheme] = useState<ViewerTheme>(() => readViewerTheme(skin));
-  useEffect(() => { setTheme(readViewerTheme(skin)); }, [skin]);
+  const [theme, setTheme] = useState<ViewerTheme>(() => readViewerTheme(skin, studentView ? 'light' : undefined));
+  useEffect(() => { setTheme(readViewerTheme(skin, studentView ? 'light' : undefined)); }, [skin, studentView]);
   const toggleTheme = () => setTheme(prev => { const next = prev === 'dark' ? 'light' : 'dark'; saveViewerTheme(skin, next); return next; });
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
@@ -312,7 +317,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   const relatedRef = useRef<HTMLElement>(null);
   // 단계별 보기: 본문을 `##`(없으면 `#`) 제목 단위로 나눠 한 단계씩 보여 준다. 기본은 전체 보기.
   // 안 보이는 단계는 지우지 않고 숨기기만 해서(DOM 유지) 학생 입력칸 순번이 밀리지 않는다.
-  const [stepMode, setStepMode] = useState(false);
+  const [stepMode, setStepMode] = useState(studentView);
   const [step, setStep] = useState(0);
   const [groups, setGroups] = useState<HTMLElement[][]>([]);
   const [stepOf, setStepOf] = useState<Record<string, number>>({});
@@ -651,9 +656,10 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
           </span>
         )}
         {teacherTools && <TeacherPageTools scrollRef={scrollRef} />}
+        {teacherTools && boardsClassId && <TeacherBoardsButton classId={boardsClassId} />}
         <ActivityLinksButton links={links} dark />
         <MaterialAttachmentsButton attachments={attachments} dark />
-        {canStep && (
+        {canStep && !studentView && (
           <div className="flex items-center gap-0.5 p-1 rounded-xl bg-white/10 shrink-0" role="group" aria-label="보기 방식">
             {([false, true] as const).map(toStep => (
               <button
