@@ -1069,7 +1069,13 @@ const ColorableTable = Table.extend({
               const isHeader = cell.type.name === 'tableHeader';
               const tag = isHeader ? 'th' : 'td';
               const bg: string | null = cell.attrs?.backgroundColor ?? null;
-              const cellStyle = bg ? ` style="background-color:${bg}"` : '';
+              // 드래그로 조정한 열 너비도 함께 저장 (colwidth는 편집기가 다시 불러올 때, width는 미리보기·학생 화면이 읽는다)
+              const cw: number[] | null = Array.isArray(cell.attrs?.colwidth) && cell.attrs.colwidth.every((n: number) => n > 0) ? cell.attrs.colwidth : null;
+              const styleParts = [
+                bg ? `background-color:${bg}` : '',
+                cw ? `width:${cw.reduce((a, b) => a + b, 0)}px` : '',
+              ].filter(Boolean).join(';');
+              const cellStyle = `${styleParts ? ` style="${styleParts}"` : ''}${cw ? ` colwidth="${cw.join(',')}"` : ''}${cell.attrs?.colspan > 1 ? ` colspan="${cell.attrs.colspan}"` : ''}${cell.attrs?.rowspan > 1 ? ` rowspan="${cell.attrs.rowspan}"` : ''}`;
               state.write(`<${tag}${cellStyle}>${cellToHtml(cell)}</${tag}>`);
             });
             state.write('</tr>\n');

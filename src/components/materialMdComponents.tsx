@@ -44,16 +44,17 @@ export const mdComponents: any = {
   hr: () => <hr className="border-surface-container my-5" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
   em: ({ children }: any) => <em className="italic">{children}</em>,
-  table: ({ children }: any) => (
+  // 표: 선·헤더 색을 또렷하게, 편집기에서 조정한 열 너비(style.width)와 헤더 색(--table-header-bg)을 그대로 따른다
+  table: ({ children, style }: any) => (
     <div className="overflow-auto mb-3">
-      <table className="w-full border-collapse text-sm">{children}</table>
+      <table className="w-full border-collapse text-sm" style={style?.['--table-header-bg'] ? { ['--table-header-bg' as any]: style['--table-header-bg'] } : undefined}>{children}</table>
     </div>
   ),
-  th: ({ children }: any) => (
-    <th className="border border-surface-container px-3 py-2 bg-surface-container font-black text-left">{children}</th>
+  th: ({ children, style }: any) => (
+    <th className="border border-slate-300 px-3 py-2 bg-[var(--table-header-bg,#ede9fe)] text-indigo-950 border-b-2 border-b-violet-400 font-black text-left" style={style?.width ? { width: style.width } : undefined}>{children}</th>
   ),
-  td: ({ children }: any) => (
-    <td className="border border-surface-container px-3 py-2">{children}</td>
+  td: ({ children, style }: any) => (
+    <td className="border border-slate-300 px-3 py-2" style={style?.width ? { width: style.width } : undefined}>{children}</td>
   ),
   details: ({ children }: any) => (
     <details className="my-3 rounded-xl border border-surface-container overflow-hidden">

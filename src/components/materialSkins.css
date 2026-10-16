@@ -54,6 +54,8 @@
 /* ── 공통: 윗줄(헤더) ── */
 [class*='mv-skin-'] .mv-header { background: var(--mv-hd) !important; border-bottom: 1px solid var(--mv-line); }
 [class*='mv-skin-'] .mv-header, [class*='mv-skin-'] .mv-header :is(span, svg):not([class*='15151f'] *) { color: var(--mv-hdink) !important; }
+/* 보라색 채운 버튼(체험해보기·기획서 등)의 아이콘·글씨는 배경 위에서 항상 흰색 */
+[class*='mv-skin-'] .mv-header button.bg-primary, [class*='mv-skin-'] .mv-header button.bg-primary :is(span, svg), [class*='mv-skin-'] .mv-header a.bg-primary, [class*='mv-skin-'] .mv-header a.bg-primary :is(span, svg) { color: #ffffff !important; }
 [class*='mv-skin-'] .mv-header > button:first-child { background: var(--mv-hdbtn) !important; color: var(--mv-hdbtnink) !important; box-shadow: none; }
 [class*='mv-skin-'] .mv-header > button:first-child :is(span, svg) { color: var(--mv-hdbtnink) !important; }
 [class*='mv-skin-'] .mv-header > button:not(:first-child), [class*='mv-skin-'] .mv-header > [role='group'] { background: color-mix(in srgb, var(--mv-hdink) 13%, transparent) !important; }

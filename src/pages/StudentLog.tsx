@@ -219,10 +219,10 @@ const MATERIAL_MD_COMPONENTS = {
   hr: () => <hr className="border-surface-container my-6" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
   em: ({ children }: any) => <em className="italic">{children}</em>,
-  table: ({ children }: any) => <div className="overflow-auto my-4 rounded-xl border border-surface-container"><table className="w-full border-collapse text-lg">{children}</table></div>,
+  table: ({ children, style }: any) => <div className="overflow-auto my-4 rounded-xl border border-slate-300"><table className="w-full border-collapse text-lg" style={style?.['--table-header-bg'] ? { ['--table-header-bg' as any]: style['--table-header-bg'] } : undefined}>{children}</table></div>,
   thead: ({ children }: any) => <thead>{children}</thead>,
-  th: ({ children }: any) => <th className="border border-surface-container px-4 py-2.5 bg-surface-container-low font-black text-left">{children}</th>,
-  td: ({ children }: any) => <td className="border border-surface-container px-4 py-2.5 align-top">{children}</td>,
+  th: ({ children, style }: any) => <th className="border border-slate-300 px-4 py-2.5 bg-[var(--table-header-bg,#ede9fe)] text-indigo-950 border-b-2 border-b-violet-400 font-black text-left" style={style?.width ? { width: style.width } : undefined}>{children}</th>,
+  td: ({ children, style }: any) => <td className="border border-slate-300 px-4 py-2.5 align-top" style={style?.width ? { width: style.width } : undefined}>{children}</td>,
   details: ({ children }: any) => <details className="group my-4 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
   summary: ({ children }: any) => (
     <summary className="px-4 py-3 bg-surface-container-low cursor-pointer font-black text-lg list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
@@ -689,7 +689,11 @@ const StudentLog = () => {
           const { is_fresh_entry: _, ...rest } = parsed;
           sessionStorage.setItem('student_session', JSON.stringify(rest));
         }
-        if (!hiddenToday) {
+        // 사용 방법 안내는 처음 한 번만 보여 준다(보여 주는 순간 기록 — 닫지 않고 지나가도 다시 뜨지 않음)
+        let seenOnce = false;
+        try { seenOnce = localStorage.getItem(`guide_seen_${parsed.student_id}`) === '1'; } catch { /* 무시 */ }
+        if (!hiddenToday && !seenOnce) {
+          try { localStorage.setItem(`guide_seen_${parsed.student_id}`, '1'); } catch { /* 무시 */ }
           setShowGuideModal(true);
         }
       } catch {

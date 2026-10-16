@@ -142,6 +142,18 @@ export default function TourGuide({ steps, onClose }: Props) {
     return { width: w, top: PAD, left: clampLeft((vw - w) / 2) };
   }, [target, cardH]);
 
+  // 안내 카드 밖을 누르면(다른 메뉴 버튼 등) 안내를 닫는다 — 누른 버튼은 그대로 동작한다
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (cardRef.current?.contains(e.target as Node)) return;
+      onCloseRef.current(false);
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, []);
+
   const goNext = () => {
     if (isLast) onClose(dontShow);
     else setIdx(i => i + 1);
@@ -149,9 +161,6 @@ export default function TourGuide({ steps, onClose }: Props) {
 
   return (
     <>
-      {/* 클릭 차단 레이어 (보이지 않음 — 화면을 어둡게 가리지 않는다) */}
-      <div className="fixed inset-0 z-[9990]" />
-
       {/* 대상 강조: 어두운 막 없이 테두리만 */}
       {target && (
         <div

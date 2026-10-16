@@ -123,7 +123,7 @@ const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3 }: { fieldKey: stri
       disabled={ctx.readOnly}
       placeholder={ctx.readOnly ? '' : '여기에 적어요'}
       onChange={e => onChange(e.target.value)}
-      className={`${FIELD_CLS} block w-full min-w-[8rem] resize-none`}
+      className={`${FIELD_CLS} block w-full min-w-[5rem] resize-none`}
     />
   );
 };
