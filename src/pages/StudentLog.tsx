@@ -1954,15 +1954,10 @@ const StudentLog = () => {
 
   const fetchActiveBoardSessions = async () => {
     if (!session?.class_id) return;
-    const { data } = await supabase
-      .from('class_board_sessions')
-      .select('id, class_name, session_code, group_count, group_size, created_at')
-      .eq('class_id', session.class_id)
-      .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false });
+    // 학생은 로그인 없이 들어오므로 토큰 검증 RPC로 자기 반의 진행 중 보드 세션만 조회
+    const { data } = await supabase.rpc('student_active_board_sessions', { p_token: session.token });
 
-    const sessions = data || [];
+    const sessions = (data || []) as { id: string; class_name: string; session_code: string; group_count: number; group_size: number; created_at: string }[];
 
     // 세션이 있어도 실제로 공개된 보드가 없으면 입장 버튼 숨김
     // (선생님이 공유 중지 시 session.status 업데이트가 RLS로 막혀도 안전하게 동작)
