@@ -50,6 +50,7 @@ import RichEditor from '../../components/RichEditor';
 import StudentMaterialPage from '../../components/StudentMaterialPage';
 import { MATERIAL_TEMPLATES } from '../../lib/materialTemplates';
 import { VIEWER_STYLES, normalizeViewerStyle, viewerStyleInfo, readViewerTheme, type ViewerStyle } from '../../components/materialSkins';
+import { keepsOriginalFields } from '../../lib/answerFieldSignature';
 import MaterialAnswersModal from '../../components/MaterialAnswersModal';
 import PresentationModal from '../../components/PresentationModal';
 // Marp 렌더링 라이브러리가 무거워 슬라이드 보기 모드를 실제로 열 때만 불러오도록 지연 로딩한다
@@ -1921,6 +1922,14 @@ const MaterialEditor = () => {
   const handleSave = async () => {
     if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
     if (!title.trim()) { alert('제목을 입력해주세요.'); return; }
+    // 내 수업용 수정본은 학생 답이 원본에 저장되므로 원본의 입력칸(순서·종류)은 그대로 둬야 한다(맨 뒤에 더하는 것만 허용)
+    if (editingMaterial?.plan_origin_id && (content ?? '').trim() !== (editingMaterial.content ?? '').trim()) {
+      const { data: orig } = await supabase.from('class_materials').select('content').eq('id', editingMaterial.plan_origin_id).maybeSingle();
+      if (orig && !keepsOriginalFields(orig.content ?? '', content ?? '')) {
+        alert('원본에 있던 입력칸(빈 칸, [ ], ___)이 지워지거나 순서가 바뀌었어요.\n\n학생 답은 원본에 함께 저장돼서, 원본의 입력칸은 그대로 두어야 해요. 새 입력칸은 글 맨 뒤에만 더할 수 있어요.\n\n입력칸을 마음대로 바꾸고 싶다면 내 자료함에 새 자료를 따로 만들어 쓰세요.');
+        return;
+      }
+    }
     // 학생이 이미 답을 쓴 자료의 내용을 고치면 입력칸 순서가 밀려 답이 엉뚱한 칸에 보일 수 있어 먼저 알린다
     if (editingMaterial && (content ?? '').trim() !== (editingMaterial.content ?? '').trim()) {
       const { count } = await supabase
@@ -2554,7 +2563,7 @@ const MaterialEditor = () => {
     )}
     {answersMaterial && (
       <MaterialAnswersModal
-        material={answersMaterial}
+        material={{ ...answersMaterial, id: answersMaterial.plan_origin_id ?? answersMaterial.id }}
         mdComponents={mdComponents}
         onClose={() => setAnswersMaterial(null)}
       />
@@ -2997,6 +3006,12 @@ const MaterialEditor = () => {
 
           {/* 메타 정보 입력 */}
           <div className="flex flex-wrap gap-2.5 px-5 py-3 border-b border-surface-container bg-surface-container-low/50">
+            {editingMaterial?.plan_origin_id && (
+              <p className="basis-full text-[13px] leading-relaxed rounded-xl bg-primary-container/50 text-on-surface px-3.5 py-2.5">
+                <b>내 수업용으로 고친 자료예요.</b> 학생이 쓴 답은 원본에 함께 저장돼요. 내용·그림·설명은 마음껏 고쳐도 되지만,
+                <b> 원본의 입력칸(빈 칸, [ ], ___)은 그대로</b> 두어야 해요. 새 입력칸은 <b>글 맨 뒤에만</b> 더할 수 있어요.
+              </p>
+            )}
             {!libraryMode && (
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">주차</span>

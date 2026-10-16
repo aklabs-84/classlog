@@ -101,8 +101,20 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     let cancelled = false;
     (async () => {
       try {
-        const stuRes = material.class_id
-          ? await supabase.from('students').select('id, full_name, student_number').eq('class_id', material.class_id)
+        // 내 자료함 원본(class_id 없음)은 주차 계획이 이 자료를 가리키는 반 + 그 반에서 만든 수업용 수정본의 반 학생을 모은다
+        let classIds: string[] = material.class_id ? [material.class_id] : [];
+        if (!material.class_id) {
+          const [planRes, forkRes] = await Promise.all([
+            supabase.from('classes').select('id').contains('weekly_plan', [{ material_id: material.id }]),
+            supabase.from('class_materials').select('class_id').eq('plan_origin_id', material.id).not('class_id', 'is', null),
+          ]);
+          const ids = new Set<string>();
+          (planRes.data || []).forEach((c: any) => ids.add(c.id));
+          (forkRes.data || []).forEach((m: any) => m.class_id && ids.add(m.class_id));
+          classIds = [...ids];
+        }
+        const stuRes = classIds.length > 0
+          ? await supabase.from('students').select('id, full_name, student_number').in('class_id', classIds)
           : { data: [] as StudentRow[], error: null };
         if (stuRes.error) throw stuRes.error;
         await loadAnswers();

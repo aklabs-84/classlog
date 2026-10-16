@@ -372,7 +372,7 @@ const Classroom = () => {
   // 이 반이 실제로 따르는 주차별 계획 (반 자신의 계획이 있으면 그것, 없으면 부모 계획)
   const effectivePlanInfo = useMemo(() => resolveEffectivePlan(classInfo, parentWeeklyPlan), [classInfo, parentWeeklyPlan]);
   const [answersMaterial, setAnswersMaterial] = useState<{ id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[]; viewer_style?: string | null } | null>(null);
-  const [previewMaterial, setPreviewMaterial] = useState<{ id?: string; class_id?: string | null; title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[]; viewer_style?: string | null } | null>(null);
+  const [previewMaterial, setPreviewMaterial] = useState<{ id?: string; plan_origin_id?: string | null; class_id?: string | null; title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[]; viewer_style?: string | null } | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   const [slideModeMaterial, setSlideModeMaterial] = useState<{ title: string; content: string; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
@@ -2539,7 +2539,7 @@ const Classroom = () => {
             else openGeneralMaterial(full);
           }}
           teacherTools
-          onShowAnswers={previewMaterial.id ? () => setAnswersMaterial({ id: previewMaterial.id!, class_id: previewMaterial.class_id ?? activeClassId ?? null, title: previewMaterial.title, content: previewMaterial.content, activity_urls: previewMaterial.activity_urls, viewer_style: previewMaterial.viewer_style }) : undefined}
+          onShowAnswers={previewMaterial.id ? () => setAnswersMaterial({ id: previewMaterial.plan_origin_id ?? previewMaterial.id!, class_id: previewMaterial.class_id ?? activeClassId ?? null, title: previewMaterial.title, content: previewMaterial.content, activity_urls: previewMaterial.activity_urls, viewer_style: previewMaterial.viewer_style }) : undefined}
           previewOnly
           onClose={() => setPreviewMaterial(null)}
         />
@@ -5585,7 +5585,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setPreviewMaterial({ id: matInfo.id, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
+                                      setPreviewMaterial({ id: matInfo.id, plan_origin_id: (matInfo as any).plan_origin_id ?? null, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
                                       showToast('연결된 자료를 불러오지 못했어요. 삭제됐거나 볼 권한이 없을 수 있어요. 확인 후 필요하면 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5653,7 +5653,7 @@ const Classroom = () => {
                                 onClick={() => {
                                   if (isMaterial) {
                                     if (matInfo) {
-                                      setPreviewMaterial({ id: matInfo.id, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
+                                      setPreviewMaterial({ id: matInfo.id, plan_origin_id: (matInfo as any).plan_origin_id ?? null, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
                                       showToast('연결된 자료를 불러오지 못했어요. 삭제됐거나 볼 권한이 없을 수 있어요. 확인 후 필요하면 학급 수정에서 다시 연결해주세요.');
                                     }
@@ -5776,7 +5776,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setPreviewMaterial({ id: mat.id, class_id: mat.class_id, title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments, viewer_style: mat.viewer_style })}
+                              onClick={() => setPreviewMaterial({ id: mat.id, plan_origin_id: (mat as any).plan_origin_id ?? null, class_id: mat.class_id, title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments, viewer_style: mat.viewer_style })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
@@ -5795,7 +5795,7 @@ const Classroom = () => {
                               </div>
                             </button>
                             <button
-                                onClick={() => setAnswersMaterial({ id: mat.id, class_id: mat.class_id ?? activeClassId ?? null, title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, viewer_style: mat.viewer_style })}
+                                onClick={() => setAnswersMaterial({ id: (mat as any).plan_origin_id ?? mat.id, class_id: mat.class_id ?? activeClassId ?? null, title: mat.title, content: mat.content || '', activity_urls: mat.activity_urls, viewer_style: mat.viewer_style })}
                                 title="학생 답변 보기"
                                 className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-bold text-[14px] bg-primary-container/50 text-primary hover:bg-primary-container transition-colors"
                               >
