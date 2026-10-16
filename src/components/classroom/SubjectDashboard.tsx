@@ -455,9 +455,11 @@ const SubjectDashboard = ({
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hover-reveal">
             {statsWeeks.map(week => {
               const topic = weeklyPlan.find(pl => pl.week === week)?.topic;
-              const done = getObsOnWeek(week).size;
+              const obsDone = getObsOnWeek(week).size;
+              const resDone = getResultsOnWeek(week).size;
               const total = students.length;
-              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              const obsPct = total > 0 ? Math.round((obsDone / total) * 100) : 0;
+              const resPct = total > 0 ? Math.round((resDone / total) * 100) : 0;
               const isSelected = selectedStatsWeek === week;
               const isScrollTarget = selectedStatsWeek !== null ? isSelected : week === statsWeeks[statsWeeks.length - 1];
               return (
@@ -477,17 +479,21 @@ const SubjectDashboard = ({
                 >
                   <span className="block text-[17px] font-bold text-on-surface">{week}{weekWord}</span>
                   <span className="block text-[14px] text-on-surface-variant truncate min-h-[21px]">{topic || ' '}</span>
-                  <span className="block mt-3 h-2 rounded-full bg-surface-container overflow-hidden">
-                    <span className="block h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                  <span className="block mt-3 text-[14px] text-on-surface-variant">활동 기록 <b className="font-black text-on-surface">{obsDone}/{total}</b>명</span>
+                  <span className="block mt-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                    <span className="block h-full bg-primary rounded-full" style={{ width: `${obsPct}%` }} />
                   </span>
-                  <span className="block mt-2 text-[14px] text-on-surface-variant">{done}/{total}명 제출</span>
+                  <span className="block mt-2 text-[14px] text-on-surface-variant">결과제출 <b className="font-black text-on-surface">{resDone}/{total}</b>명</span>
+                  <span className="block mt-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                    <span className="block h-full bg-emerald-600 rounded-full" style={{ width: `${resPct}%` }} />
+                  </span>
                 </button>
               );
             })}
           </div>
         )}
         {selectedStatsWeek !== null && (
-          <p className="mt-2 text-[15px] text-on-surface-variant">{selectedStatsWeek}{weekWord} 제출완료 <b className="font-black text-on-surface">{obsOnWeek.size}명</b> · 아래 표에서 확인하세요</p>
+          <p className="mt-2 text-[15px] text-on-surface-variant">{selectedStatsWeek}{weekWord} 활동 기록 <b className="font-black text-on-surface">{obsOnWeek.size}명</b> · 결과제출 <b className="font-black text-on-surface">{resultsOnWeek.size}명</b> · 아래 표에서 확인하세요</p>
         )}
       </section>
 

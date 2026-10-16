@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon, PenLine } from 'lucide-react';
+import { ArrowLeft, Eye, ListTree, PanelRightClose, Link2, File, ExternalLink, Download, Paperclip, Check, Loader2, AlertCircle, Gamepad2, StickyNote, ScrollText, Layers, ChevronLeft, ChevronRight, Sun, Moon, PenLine, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import TeacherPageTools from './TeacherPageTools';
 import TeacherBoardsButton from './TeacherBoardsButton';
@@ -308,6 +308,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   const skinned = skin !== 'default';
   const [theme, setTheme] = useState<ViewerTheme>(() => readViewerTheme(skin, studentView ? 'light' : undefined));
   useEffect(() => { setTheme(readViewerTheme(skin, studentView ? 'light' : undefined)); }, [skin, studentView]);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const toggleTheme = () => setTheme(prev => { const next = prev === 'dark' ? 'light' : 'dark'; saveViewerTheme(skin, next); return next; });
   const scrollRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
@@ -659,25 +660,65 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
         {teacherTools && boardsClassId && <TeacherBoardsButton classId={boardsClassId} />}
         <ActivityLinksButton links={links} dark />
         <MaterialAttachmentsButton attachments={attachments} dark />
-        {canStep && !studentView && (
-          <div className="flex items-center gap-0.5 p-1 rounded-xl bg-white/10 shrink-0" role="group" aria-label="보기 방식">
-            {([false, true] as const).map(toStep => (
-              <button
-                key={String(toStep)}
-                onClick={() => switchMode(toStep)}
-                aria-pressed={stepping === toStep}
-                title={toStep ? '한 단계씩 보기' : '전체 한 번에 보기'}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-black text-sm sm:text-base transition-all ${
-                  stepping === toStep ? 'bg-white text-slate-800' : 'text-white/80 hover:bg-white/15'
-                }`}
-              >
-                {toStep ? <Layers size={17} /> : <ScrollText size={17} />}
-                <span className="hidden sm:inline">{toStep ? '단계별' : '전체'}</span>
-              </button>
-            ))}
+        {/* 선생님 화면: 보기 방식(전체/단계별)과 화면 색(라이트/다크)을 '보기' 메뉴 하나로 합쳤다. 학생 화면은 기존 다크 버튼만 */}
+        {!studentView && (canStep || skinned) && (
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setViewMenuOpen(o => !o)}
+              aria-expanded={viewMenuOpen}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 text-white font-black text-base hover:bg-white/20 active:scale-95 transition-all"
+              title="보기 방식·화면 색 바꾸기"
+            >
+              <SlidersHorizontal size={18} />
+              <span className="hidden lg:inline">보기</span>
+              <span className="hidden xl:inline text-sm font-bold opacity-75">{canStep ? (stepping ? '단계별' : '전체') : ''}{canStep && skinned ? ' · ' : ''}{skinned ? (theme === 'dark' ? '다크' : '라이트') : ''}</span>
+              <ChevronDown size={15} className={`transition-transform ${viewMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {viewMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setViewMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-white/10 bg-[#15151f] text-white shadow-2xl z-50 py-2">
+                  {canStep && (
+                    <>
+                      <p className="px-4 pt-1 pb-1 text-xs font-black tracking-wide text-white/60">보기 방식</p>
+                      {([false, true] as const).map(toStep => (
+                        <button
+                          key={String(toStep)}
+                          onClick={() => { switchMode(toStep); setViewMenuOpen(false); }}
+                          aria-pressed={stepping === toStep}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[15px] font-bold text-white hover:bg-white/10 transition-colors"
+                        >
+                          {toStep ? <Layers size={17} /> : <ScrollText size={17} />}
+                          <span className="flex-1 text-left">{toStep ? '단계별 (한 단계씩)' : '전체 (한 번에)'}</span>
+                          {stepping === toStep && <Check size={16} />}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {canStep && skinned && <div className="my-1.5 border-t border-white/10" />}
+                  {skinned && (
+                    <>
+                      <p className="px-4 pt-1 pb-1 text-xs font-black tracking-wide text-white/60">화면 색</p>
+                      {(['light', 'dark'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => { if (theme !== t) toggleTheme(); setViewMenuOpen(false); }}
+                          aria-pressed={theme === t}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[15px] font-bold text-white hover:bg-white/10 transition-colors"
+                        >
+                          {t === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
+                          <span className="flex-1 text-left">{t === 'dark' ? '다크 (어둡게)' : '라이트 (밝게)'}</span>
+                          {theme === t && <Check size={16} />}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
-        {skinned && (
+        {studentView && skinned && (
           <button
             onClick={toggleTheme}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 text-white font-black text-base hover:bg-white/20 active:scale-95 transition-all shrink-0"
@@ -695,7 +736,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
             title="학생들이 적은 답을 실시간으로 보기"
           >
             <PenLine size={18} />
-            <span className="hidden sm:inline">학생 답변</span>
+            <span className="hidden lg:inline">학생 답변</span>
           </button>
         )}
         {entries.length > 0 && (
@@ -706,7 +747,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
             title={tocOpen ? '목차 접기' : '목차 펼치기'}
           >
             {tocOpen ? <PanelRightClose size={18} /> : <ListTree size={18} />}
-            <span className="hidden sm:inline">목차</span>
+            <span className="hidden lg:inline">목차</span>
           </button>
         )}
       </div>

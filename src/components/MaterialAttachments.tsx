@@ -81,11 +81,12 @@ export function MaterialAttachmentsButton({ attachments, dark = false }: { attac
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
+        title="첨부자료"
         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-sm active:scale-95 transition-all ${
           dark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-900/5 text-slate-700 hover:bg-slate-900/10'
         }`}
       >
-        <Paperclip size={15} /> <span>첨부자료 {list.length}</span> <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        <Paperclip size={15} /> <span className="hidden xl:inline">첨부자료</span><span>{list.length}</span> <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <>

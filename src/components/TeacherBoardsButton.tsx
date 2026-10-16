@@ -64,7 +64,7 @@ const TeacherBoardsButton = ({ classId }: Props) => {
         title="이 클래스에 연결된 협업보드 보기"
       >
         <Presentation size={18} />
-        <span className="hidden sm:inline">협업보드</span>
+        <span className="hidden lg:inline">협업보드</span>
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-32px)] rounded-2xl bg-white text-slate-800 shadow-2xl border border-slate-200 z-50 overflow-hidden">
