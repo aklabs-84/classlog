@@ -37,7 +37,7 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
       const { data } = await supabase
         .from('classes')
         .select('id, name, subject, class_type')
-        .eq('teacher_id', user.id)
+        .or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`)
         .order('name');
       setClasses(data || []);
       setLoading(false);
