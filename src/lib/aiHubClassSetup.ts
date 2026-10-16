@@ -18,6 +18,7 @@ export interface CreateClassFromHubAppResult {
 
 // 공통 자료함(class_id가 없는 내 자료) 중 activity_urls에 이 앱 링크가 걸려있는 자료를 찾아
 // 1~N주차 자료를 채운다. 이미 그 주차에 자료가 있으면 지우지 않고 앱 링크만 병합한다.
+// 자료함 자료는 복사하지 않고 주차 계획(weekly_plan)이 원본을 가리키게 한다(학교 프로젝트에서 배정받은 하위 반만 예전처럼 복사).
 export async function linkPrimaryToolMaterials({
   classId,
   teacherId,
@@ -58,6 +59,11 @@ export async function linkPrimaryToolMaterials({
     return null;
   };
 
+  const { data: clsRow } = await supabase.from('classes').select('weekly_plan, parent_class_id').eq('id', classId).single();
+  const canPoint = !clsRow?.parent_class_id;
+  const nextPlan: any[] = Array.isArray(clsRow?.weekly_plan) ? [...clsRow!.weekly_plan] : [];
+  let planChanged = false;
+
   const insertRows: any[] = [];
   const updatePromises: any[] = [];
 
@@ -72,8 +78,17 @@ export async function linkPrimaryToolMaterials({
       continue;
     }
 
+    // 이 주차 칸이 이미 어떤 자료를 가리키고 있으면 그대로 둔다
+    if (canPoint && nextPlan[week - 1]?.material_id) continue;
+
     const fromLibrary = pickLibraryFor(week);
-    if (fromLibrary) {
+    if (fromLibrary && canPoint) {
+      // 복사하지 않고 원본의 번호표만 적는다
+      while (nextPlan.length < week) nextPlan.push({ week: nextPlan.length + 1, topic: '', url: '', requires_result: true, requires_activity: true });
+      const cur = nextPlan[week - 1];
+      nextPlan[week - 1] = { ...cur, material_id: fromLibrary.id, url: '', topic: (cur.topic || '').trim() ? cur.topic : fromLibrary.title };
+      planChanged = true;
+    } else if (fromLibrary) {
       const urls = Array.isArray(fromLibrary.activity_urls) ? fromLibrary.activity_urls : [];
       insertRows.push({
         class_id: classId,
@@ -98,6 +113,10 @@ export async function linkPrimaryToolMaterials({
     }
   }
 
+  if (planChanged) {
+    const { error } = await supabase.from('classes').update({ weekly_plan: nextPlan }).eq('id', classId);
+    if (error) throw error;
+  }
   if (insertRows.length > 0) {
     const { error } = await supabase.from('class_materials').insert(insertRows);
     if (error) throw error;

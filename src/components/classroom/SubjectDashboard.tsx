@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { resolveEffectivePlan } from '../../lib/effectiveWeeklyPlan';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -229,9 +230,7 @@ const SubjectDashboard = ({
   // 주차 목록: parent_class의 weekly_plan 우선, 없으면 본인 클래스
   // 학교 프로젝트는 하루에 여러 차시를 하므로 '주차' 대신 '차시'로 표기
   const weekWord = classInfo?.school_project_id ? '차시' : '주차';
-  const weeklyPlan: {week: number, topic: string}[] = classInfo?.parent_class_id
-    ? (linkedWeeklyPlan.length > 0 ? linkedWeeklyPlan : classInfo?.weekly_plan || [])
-    : classInfo?.weekly_plan || [];
+  const weeklyPlan: {week: number, topic: string}[] = resolveEffectivePlan<{week: number, topic: string}>(classInfo, linkedWeeklyPlan).plan;
   const submittedWeekNums = [...new Set(rawResults.map(r => r.week_number).filter((w): w is number => w !== null))];
   const statsWeeks = [...new Set([...weeklyPlan.map(p => p.week), ...submittedWeekNums])].sort((a, b) => a - b);
 

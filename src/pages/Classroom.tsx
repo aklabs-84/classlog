@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
+import { resolveEffectivePlan } from '../lib/effectiveWeeklyPlan';
 import { fetchOverrides, forkPlanMaterial, applyOriginUpdate, undoOriginUpdate, dismissOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../lib/planMaterialOverride';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
@@ -368,6 +369,8 @@ const Classroom = () => {
   const [togglingToolId, setTogglingToolId] = useState<string | null>(null);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
+  // 이 반이 실제로 따르는 주차별 계획 (반 자신의 계획이 있으면 그것, 없으면 부모 계획)
+  const effectivePlanInfo = useMemo(() => resolveEffectivePlan(classInfo, parentWeeklyPlan), [classInfo, parentWeeklyPlan]);
   const [answersMaterial, setAnswersMaterial] = useState<{ id: string; class_id: string | null; title: string; content: string; activity_urls?: ActivityLink[]; viewer_style?: string | null } | null>(null);
   const [previewMaterial, setPreviewMaterial] = useState<{ id?: string; class_id?: string | null; title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[]; viewer_style?: string | null } | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number; activity_urls?: ActivityLink[]; attachments?: MaterialAttachment[] } | null>(null);
@@ -375,8 +378,7 @@ const Classroom = () => {
   // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
   // 연결된 주차만 모아 정렬. content는 fetchResources에서 이미 함께 불러와두므로 추가 API 호출 없이 즉시 전환 가능.
   const weekNavList = useMemo(() => {
-    const effectivePlan: any[] = classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || []);
-    return effectivePlan
+    return effectivePlanInfo.plan
       .filter((p: any) => p.material_id)
       .map((p: any) => {
         const mat = planOverrides[p.material_id] ?? classMaterials.find((m: any) => m.id === p.material_id);
@@ -390,7 +392,7 @@ const Classroom = () => {
       })
       .filter((w: any) => w.content !== null)
       .sort((a: any, b: any) => a.week - b.week);
-  }, [classInfo, parentWeeklyPlan, classMaterials, planOverrides]);
+  }, [effectivePlanInfo, classMaterials, planOverrides]);
 
   const handleNavigateWeek = (week: number) => {
     const target = weekNavList.find((w: any) => w.week === week);
@@ -441,8 +443,6 @@ const Classroom = () => {
   const [editingGeneralMatId, setEditingGeneralMatId] = useState<string | null>(null);
   const [showEditorMatPicker, setShowEditorMatPicker] = useState(false);
   const [togglingEditorMatId, setTogglingEditorMatId] = useState<string | null>(null);
-  // 자료 에디터 목록에서 주차별 자료에 이미 연결된 항목을 접어서 보여줄지 여부 (기본 접힘)
-  const [showLinkedEditorMats, setShowLinkedEditorMats] = useState(false);
   const [deletingEditorMatId, setDeletingEditorMatId] = useState<string | null>(null);
 
   // 공지사항 상태
@@ -1834,7 +1834,7 @@ const Classroom = () => {
       const sourceId = classInfo?.parent_class_id || classId;
       // 주차별 계획(학교 프로젝트 전체 적용)이 가리키는 자료는 특정 반이 아니라
       // 프로젝트 공용 자료실(class_id = null)에 있을 수 있으므로 별도로 함께 조회한다.
-      const effectivePlan: any[] = classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || []);
+      const effectivePlan: any[] = effectivePlanInfo.plan;
       const planMaterialIds = [...new Set(effectivePlan.map((p: any) => p.material_id).filter(Boolean))] as string[];
 
       const [matsRes, generalRes, toolsRes, planMatsRes] = await Promise.all([
@@ -1983,6 +1983,8 @@ const Classroom = () => {
       setClassInfo((prev: any) => prev ? { ...prev, primary_tool_id: toolId } : prev);
 
       await linkPrimaryToolMaterials({ classId: activeClassId, teacherId: user?.id ?? '', app, existingMaterials: classMaterials });
+      const { data: freshPlan } = await supabase.from('classes').select('weekly_plan').eq('id', activeClassId).single();
+      if (freshPlan) setClassInfo((prev: any) => prev ? { ...prev, weekly_plan: freshPlan.weekly_plan } : prev);
       await fetchResources(activeClassId);
       showToast(`"${app.name}"을(를) 메인 수업도구로 설정하고 1~${PRIMARY_TOOL_AUTO_WEEKS}주차 자료에 링크를 연결했습니다.`);
     } catch (err) {
@@ -2360,7 +2362,7 @@ const Classroom = () => {
 
   const handleDeleteEditorMat = async (id: string) => {
     // 주차별 자료(weekly_plan)에 연결된 자료인지 확인 — 연결된 채로 삭제하면 주차별 자료실에서 끊어진 링크가 남는다
-    const effectivePlan: any[] = classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || []);
+    const effectivePlan: any[] = effectivePlanInfo.plan;
     const linkedWeeks = effectivePlan.filter((p: any) => p.material_id === id).map((p: any) => p.week);
     if (linkedWeeks.length > 0) {
       const ok = confirm(`이 자료는 ${linkedWeeks.join(', ')}주차 주차별 자료에 연결되어 있습니다.\n삭제하면 해당 주차에서 자료를 열 수 없게 됩니다. 그래도 삭제하시겠습니까?`);
@@ -2369,11 +2371,11 @@ const Classroom = () => {
     setDeletingEditorMatId(id);
     try {
       if (linkedWeeks.length > 0) {
-        const ownerClassId = classInfo?.parent_class_id || activeClassId;
+        const ownerClassId = effectivePlanInfo.fromSelf ? activeClassId : classInfo?.parent_class_id;
         const newPlan = effectivePlan.map((p: any) => p.material_id === id ? { ...p, material_id: '' } : p);
         const { error: planError } = await supabase.from('classes').update({ weekly_plan: newPlan }).eq('id', ownerClassId);
         if (planError) throw planError;
-        if (classInfo?.parent_class_id) {
+        if (!effectivePlanInfo.fromSelf) {
           setParentWeeklyPlan(newPlan);
         } else {
           setClassInfo((prev: any) => prev ? { ...prev, weekly_plan: newPlan } : prev);
@@ -2431,35 +2433,58 @@ const Classroom = () => {
     runOverrideAction(originalId, () => dismissOriginUpdate(copy, originalUpdatedAt), '내 버전을 유지할게요. 원본이 또 바뀌면 알려드려요.');
   };
 
-  // ImportMaterialModal에서 선택한 자료를 이 클래스의 "자료 에디터" 자료로 추가
-  // 이미 이 클래스 소속이면 공개 처리만, 다른 클래스/공통 자료함이면 복사본을 만들어 연결
+  // ImportMaterialModal에서 선택한 자료를 이 클래스에서 쓰기
+  // 이미 이 클래스 소속이면 공개 처리만. 다른 클래스/자료함 자료는 복사하지 않고 주차 계획이 원본을 가리키게 한다(주차 고르기 모달)
+  const [pendingEditorMat, setPendingEditorMat] = useState<ImportableMaterial | null>(null);
+  const [linkingEditorMat, setLinkingEditorMat] = useState(false);
   const handleImportEditorMat = async (m: ImportableMaterial) => {
     if (!activeClassId || !user) return;
-    try {
-      if (m.class_id === activeClassId) {
+    if (m.class_id === activeClassId) {
+      try {
         const { error } = await supabase.from('class_materials').update({ is_published: true, updated_at: new Date().toISOString() }).eq('id', m.id);
         if (error) throw error;
-      } else {
-        const { error } = await supabase.from('class_materials').insert({
-          class_id: activeClassId,
-          teacher_id: user.id,
-          title: m.title,
-          content: m.content,
-          week_number: null,
-          is_published: true,
-          source_material_id: m.id,
-          ai_versions: m.ai_versions ?? [],
-          cover_image_url: m.cover_source === 'upload' ? (m.cover_image_url ?? null) : null,
-          cover_source: m.cover_source ?? 'template',
-          viewer_style: m.viewer_style ?? 'default',
-        });
-        if (error) throw error;
+        await fetchResources(activeClassId);
+        showToast('자료가 추가되었습니다.');
+      } catch (err) {
+        console.error('handleImportEditorMat error:', err);
+        showToast('자료를 추가하는 중 오류가 발생했습니다.');
       }
+      return;
+    }
+    if (classInfo?.parent_class_id) {
+      showToast('학교 프로젝트에서 배정받은 반은 학교 화면의 주차 계획에서 자료를 골라 주세요.');
+      return;
+    }
+    setPendingEditorMat(m);
+  };
+  // 복사 없이 선택한 주차 칸에 원본의 번호표(material_id)만 적는다. weekIdx === -1 이면 맨 뒤에 새 주차 추가
+  const linkEditorMatToWeek = async (weekIdx: number) => {
+    if (!activeClassId || !pendingEditorMat) return;
+    const m = pendingEditorMat;
+    setLinkingEditorMat(true);
+    try {
+      const { data: fresh, error: readErr } = await supabase.from('classes').select('weekly_plan').eq('id', activeClassId).single();
+      if (readErr) throw readErr;
+      const next: any[] = Array.isArray(fresh?.weekly_plan) ? [...fresh.weekly_plan] : [];
+      const idx = weekIdx === -1 || weekIdx >= next.length ? next.length : weekIdx;
+      if (idx === next.length) next.push({ week: idx + 1, topic: '', url: '', requires_result: true, requires_activity: true });
+      const cur = next[idx];
+      if (cur.material_id && cur.material_id !== m.id &&
+        !window.confirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
+        return;
+      }
+      next[idx] = { ...cur, material_id: m.id, url: '', topic: (cur.topic || '').trim() ? cur.topic : m.title };
+      const { error: upErr } = await supabase.from('classes').update({ weekly_plan: next }).eq('id', activeClassId);
+      if (upErr) throw upErr;
+      setClassInfo((prev: any) => prev ? { ...prev, weekly_plan: next } : prev);
+      setPendingEditorMat(null);
       await fetchResources(activeClassId);
-      showToast('자료가 추가되었습니다.');
+      showToast(`${idx + 1}주차에 자료를 연결했어요.`);
     } catch (err) {
-      console.error('handleImportEditorMat error:', err);
-      showToast('자료를 추가하는 중 오류가 발생했습니다.');
+      console.error('linkEditorMatToWeek error:', err);
+      showToast('자료를 연결하는 중 오류가 발생했습니다.');
+    } finally {
+      setLinkingEditorMat(false);
     }
   };
 
@@ -5513,7 +5538,7 @@ const Classroom = () => {
         {/* 수업 자료실 모달 */}
         {isResourceModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-surface-container-lowest p-8 rounded-2xl space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-surface-container-lowest p-8 rounded-2xl space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
 
               {/* 헤더 */}
@@ -5525,9 +5550,7 @@ const Classroom = () => {
               {/* 목록 */}
               {(() => {
                 // 서브클래스면 부모 weekly_plan, 아니면 본인 weekly_plan 사용
-                const effectivePlan = classInfo?.parent_class_id
-                  ? parentWeeklyPlan
-                  : (classInfo?.weekly_plan || []);
+                const effectivePlan = effectivePlanInfo.plan;
                 // weekly_plan 에서 url 또는 material_id 가 있는 항목만 추출
                 const planItems: any[] = effectivePlan.filter(
                   (p: any) => p.url?.trim() || p.material_id
@@ -5564,7 +5587,7 @@ const Classroom = () => {
                                     if (matInfo) {
                                       setPreviewMaterial({ id: matInfo.id, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
-                                      showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
+                                      showToast('연결된 자료를 불러오지 못했어요. 삭제됐거나 볼 권한이 없을 수 있어요. 확인 후 필요하면 학급 수정에서 다시 연결해주세요.');
                                     }
                                   } else {
                                     window.open(item.url, '_blank');
@@ -5586,9 +5609,9 @@ const Classroom = () => {
 
                                 {/* 텍스트 */}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold truncate">
+                                  <p className="text-sm font-bold break-words">
                                     {isMaterial
-                                      ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료가 삭제됨')
+                                      ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료를 불러오지 못함')
                                       : (item.topic || item.url)
                                     }
                                   </p>
@@ -5609,7 +5632,7 @@ const Classroom = () => {
                               </button>
 
                               {isMaterial && matInfo && (<button
-                                onClick={() => setAnswersMaterial({ id: matInfo.id, class_id: matInfo.class_id ?? activeClassId ?? null, title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style })}
+                                onClick={() => setAnswersMaterial({ id: (matInfo as any).plan_origin_id ?? matInfo.id, class_id: matInfo.class_id ?? activeClassId ?? null, title: matInfo.title, content: matInfo.content || '', activity_urls: matInfo.activity_urls, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style })}
                                 title="학생 답변 보기"
                                 className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-xl font-bold text-[14px] bg-primary-container/50 text-primary hover:bg-primary-container transition-colors"
                               >
@@ -5632,7 +5655,7 @@ const Classroom = () => {
                                     if (matInfo) {
                                       setPreviewMaterial({ id: matInfo.id, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
-                                      showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
+                                      showToast('연결된 자료를 불러오지 못했어요. 삭제됐거나 볼 권한이 없을 수 있어요. 확인 후 필요하면 학급 수정에서 다시 연결해주세요.');
                                     }
                                   } else {
                                     window.open(item.url, '_blank');
@@ -5749,8 +5772,7 @@ const Classroom = () => {
                           linkedWeeks: effectivePlan.filter((p: any) => p.material_id === mat.id).map((p: any) => p.week),
                         }));
                         const unlinkedMats = matsWithLinks.filter(({ linkedWeeks }) => linkedWeeks.length === 0);
-                        const linkedMats = matsWithLinks.filter(({ linkedWeeks }) => linkedWeeks.length > 0);
-
+                        
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
@@ -5762,7 +5784,7 @@ const Classroom = () => {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <p className="text-sm font-bold truncate group-hover:text-secondary transition-colors">{mat.title}</p>
+                                  <p className="text-sm font-bold break-words group-hover:text-secondary transition-colors">{mat.title}</p>
                                   {linkedWeeks.length > 0 && (
                                     <span className="text-[13px] font-bold px-1.5 py-0.5 bg-primary-container text-primary rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
                                   )}
@@ -5822,21 +5844,8 @@ const Classroom = () => {
                           <div className="space-y-1.5">
                             {unlinkedMats.map(renderMatRow)}
 
-                            {linkedMats.length > 0 && (
-                              <div className="pt-1">
-                                <button
-                                  onClick={() => setShowLinkedEditorMats(v => !v)}
-                                  className="w-full flex items-center gap-1.5 px-1 py-1.5 text-[14px] font-bold text-on-surface-variant hover:text-on-surface-variant transition-colors"
-                                >
-                                  <ChevronDown size={12} className={`transition-transform ${showLinkedEditorMats ? '' : '-rotate-90'}`} />
-                                  주차에 연결된 자료 ({linkedMats.length})
-                                </button>
-                                {showLinkedEditorMats && (
-                                  <div className="space-y-1.5 mt-1.5">
-                                    {linkedMats.map(renderMatRow)}
-                                  </div>
-                                )}
-                              </div>
+                            {unlinkedMats.length === 0 && (
+                              <p className="text-[14px] text-on-surface-variant px-1 py-2">주차에 연결된 자료는 위쪽 “주차별 자료”에서 볼 수 있어요.</p>
                             )}
                           </div>
                         );
@@ -5855,24 +5864,40 @@ const Classroom = () => {
                             <Plus size={11} /> 추가
                           </button>
                         </div>
-                        {showToolPicker && (
-                          <div className="mb-2 p-2 bg-primary/5 border border-primary/20 rounded-2xl space-y-1">
-                            {LEARNING_TOOLS.filter(t => !Object.prototype.hasOwnProperty.call(enabledTools, t.id)).map(tool => (
-                              <button
-                                key={tool.id}
-                                onClick={() => handleAddBuiltinTool(tool.id)}
-                                disabled={togglingToolId === tool.id}
-                                className="w-full flex items-center gap-3 p-2.5 bg-white rounded-xl text-left hover:bg-primary/10 transition-colors disabled:opacity-50"
-                              >
-                                <div className="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center shrink-0">{tool.icon}</div>
-                                <span className="text-sm font-bold truncate">{tool.label}</span>
-                              </button>
-                            ))}
-                            {LEARNING_TOOLS.every(t => Object.prototype.hasOwnProperty.call(enabledTools, t.id)) && (
-                              <p className="text-[14px] font-bold text-on-surface-variant/60 px-2 py-1.5">추가할 수 있는 도구가 모두 들어와 있어요.</p>
-                            )}
-                          </div>
-                        )}
+                        {showToolPicker && (() => {
+                          const addableBuiltin = LEARNING_TOOLS.filter(t => !Object.prototype.hasOwnProperty.call(enabledTools, t.id));
+                          const addableHub = aiHubApps.filter(app => !Object.prototype.hasOwnProperty.call(enabledTools, `external:${app.id}`));
+                          return (
+                            <div className="mb-2 p-2 bg-primary/5 border border-primary/20 rounded-2xl space-y-1 max-h-72 overflow-y-auto">
+                              <p className="text-[14px] font-bold text-on-surface-variant px-2 py-1">이 반에 넣을 학습 도구를 고르세요 (넣은 뒤에는 비공개 상태로 시작해요)</p>
+                              {addableBuiltin.map(tool => (
+                                <button
+                                  key={tool.id}
+                                  onClick={() => handleAddBuiltinTool(tool.id)}
+                                  disabled={togglingToolId === tool.id}
+                                  className="w-full flex items-center gap-3 p-2.5 bg-white rounded-xl text-left hover:bg-primary/10 transition-colors disabled:opacity-50"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center shrink-0">{tool.icon}</div>
+                                  <span className="text-sm font-bold break-words">{tool.label}</span>
+                                </button>
+                              ))}
+                              {addableHub.map(app => (
+                                <button
+                                  key={app.id}
+                                  onClick={() => handleAddBuiltinTool(`external:${app.id}`)}
+                                  disabled={togglingToolId === `external:${app.id}`}
+                                  className="w-full flex items-center gap-3 p-2.5 bg-white rounded-xl text-left hover:bg-primary/10 transition-colors disabled:opacity-50"
+                                >
+                                  <div className="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center shrink-0"><Sparkles size={14} /></div>
+                                  <span className="text-sm font-bold break-words">{app.name}</span>
+                                </button>
+                              ))}
+                              {addableBuiltin.length === 0 && addableHub.length === 0 && (
+                                <p className="text-[14px] font-bold text-on-surface-variant/60 px-2 py-1.5">추가할 수 있는 도구가 모두 들어와 있어요.</p>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="space-y-1.5">
                           {LEARNING_TOOLS.filter(t => Object.prototype.hasOwnProperty.call(enabledTools, t.id)).map(tool => {
                             const isPublished = !!enabledTools[tool.id];
@@ -6016,7 +6041,7 @@ const Classroom = () => {
                             className="w-full px-3 py-2 bg-white border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
                           />
                           {(() => {
-                            const planList = (classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || [])) as any[];
+                            const planList = effectivePlanInfo.plan as any[];
                             if (planList.length === 0) return null;
                             return (
                               <div className="bg-white border border-slate-200 dark:border-slate-700 rounded-xl p-2">
@@ -6201,6 +6226,54 @@ const Classroom = () => {
           onClose={() => setShowEditorMatPicker(false)}
           onSelect={(m: ImportableMaterial) => { handleImportEditorMat(m); }}
         />
+      )}
+
+      {pendingEditorMat && (
+        <BodyPortal>
+          <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/40 px-4" onClick={() => !linkingEditorMat && setPendingEditorMat(null)}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-sm text-on-surface break-words">"{pendingEditorMat.title}" 수업에 쓰기</p>
+                  <p className="text-[14px] text-on-surface-variant mt-0.5">몇 주차에 쓸지 고르세요 (복사 없이 원본을 그대로 가리켜요)</p>
+                </div>
+                <button onClick={() => setPendingEditorMat(null)} disabled={linkingEditorMat} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5">
+                {(Array.isArray(classInfo?.weekly_plan) ? classInfo.weekly_plan : []).map((it: any, i: number) => {
+                  const mine = it.material_id === pendingEditorMat.id;
+                  const other = !!it.material_id && !mine;
+                  return (
+                    <button
+                      key={i}
+                      disabled={linkingEditorMat || mine}
+                      onClick={() => linkEditorMatToWeek(i)}
+                      className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border border-transparent transition-all ${mine ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-container-low'}`}
+                    >
+                      <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary text-[14px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
+                      <span className="font-bold text-sm flex-1 text-on-surface break-words">{it.topic?.trim() || '(주제 없음)'}</span>
+                      {mine && <span className="text-[14px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">이 자료</span>}
+                      {other && <span className="text-[14px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full shrink-0">다른 자료 있음</span>}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={linkingEditorMat}
+                  onClick={() => linkEditorMatToWeek(-1)}
+                  className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border border-dashed border-primary/40 text-primary font-bold text-sm hover:bg-primary/5 transition-all"
+                >
+                  <Plus size={15} /> 새 주차로 추가 ({(Array.isArray(classInfo?.weekly_plan) ? classInfo.weekly_plan.length : 0) + 1}주차)
+                </button>
+              </div>
+              <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container shrink-0">
+                <p className="flex-1 text-[14px] font-bold text-on-surface-variant">{linkingEditorMat ? '저장 중…' : '고르면 바로 학생에게 보여요'}</p>
+                {linkingEditorMat && <Loader2 size={14} className="animate-spin text-primary" />}
+              </div>
+            </div>
+          </div>
+        </BodyPortal>
       )}
 
       <UpgradeModal

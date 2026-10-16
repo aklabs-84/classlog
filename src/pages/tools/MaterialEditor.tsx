@@ -42,7 +42,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, RefreshCw, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
+  Folder, FolderPlus, FolderInput, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
 } from 'lucide-react';
 import StudentScreenTour, { type StudentScreenStep } from '../../components/student/StudentScreenTour';
 import { mdComponents } from '../../components/materialMdComponents';
@@ -313,182 +313,152 @@ const ImportFromClassModal = ({
   );
 };
 
-// ── 공통 자료함 → 클래스 연결 모달 ────────────────────────────────────────────
+// ── 내 자료함 → 수업에 쓰기 모달 ──────────────────────────────────────────────
+// 복사본을 만들지 않는다. 고른 클래스의 "주차별 계획" 칸에 자료의 번호표(material_id)만 적는다.
+// (학생 화면·학생 답변·공개 처리는 모두 이 번호표를 따라간다. 공개는 DB 장치가 자동으로 켠다.)
 const LinkToClassModal = ({
   material,
   classes,
-  userId,
-  publishOnLink = false,
-  isBasicOrAbove,
   onClose,
   onLinked,
 }: {
   material: Material;
   classes: any[];
-  userId: string;
-  publishOnLink?: boolean;
-  isBasicOrAbove: boolean;
   onClose: () => void;
   onLinked: () => void;
 }) => {
-  const [linkedClassIds, setLinkedClassIds] = useState<string[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [classId, setClassId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const { limitToastMessage, showLimitToast } = useLimitToast();
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    supabase
-      .from('class_materials')
-      .select('class_id')
-      .eq('source_material_id', material.id)
-      .then(({ data }) => {
-        setLinkedClassIds((data || []).map((d: any) => d.class_id));
-        setLoading(false);
-      });
-  }, [material.id]);
+  // 학교 프로젝트에서 배정받은 하위 반은 학교 화면의 주차 계획에서 고른다
+  const usable = classes.filter(c => !c._assignedOnly && !c.parent_class_id);
+  const cls = usable.find(c => c.id === classId) ?? null;
+  const plan: any[] = Array.isArray(cls?.weekly_plan) ? cls.weekly_plan : [];
 
-  const toggle = (classId: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(classId)) next.delete(classId); else next.add(classId);
-      return next;
-    });
-  };
-
-  const handleLink = async () => {
-    if (selected.size === 0) return;
-    if (!isBasicOrAbove) {
-      const { count } = await supabase
-        .from('class_materials')
-        .select('id', { count: 'exact', head: true })
-        .eq('teacher_id', userId);
-      if ((count ?? 0) + selected.size > FREE_MATERIAL_LIMIT) {
-        showLimitToast(`무료 플랜은 자료를 최대 ${FREE_MATERIAL_LIMIT}개까지 만들 수 있습니다. Pro 플랜으로 업그레이드하면 무제한으로 만들 수 있어요.`);
+  // weekIdx === -1 이면 맨 뒤에 새 주차를 추가한다
+  const useOnWeek = async (weekIdx: number) => {
+    if (!cls) return;
+    setSaving(true);
+    setError('');
+    try {
+      // 다른 곳에서 바뀌었을 수 있으니 저장 직전에 최신 계획을 다시 읽는다
+      const { data: fresh, error: readErr } = await supabase.from('classes').select('weekly_plan').eq('id', cls.id).single();
+      if (readErr) throw readErr;
+      const next: any[] = Array.isArray(fresh?.weekly_plan) ? [...fresh.weekly_plan] : [];
+      const idx = weekIdx === -1 || weekIdx >= next.length ? next.length : weekIdx;
+      if (idx === next.length) next.push({ week: idx + 1, topic: '', url: '', requires_result: true, requires_activity: true });
+      const cur = next[idx];
+      if (cur.material_id && cur.material_id !== material.id &&
+        !confirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
+        setSaving(false);
         return;
       }
-    }
-    setSaving(true);
-    try {
-      const rows = Array.from(selected).map(classId => ({
-        class_id: classId,
-        teacher_id: userId,
-        week_number: 1,
-        title: material.title,
-        content: material.content ?? '',
-        ai_versions: material.ai_versions ?? [],
-        attachments: material.attachments ?? [],
-        is_published: publishOnLink,
-        source_material_id: material.id,
-        // 공통 자료함에서 정한 커버 이미지도 함께 가져온다
-        cover_image_url: material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null,
-        cover_source: material.cover_source ?? 'template',
-        viewer_style: material.viewer_style ?? 'default',
-      }));
-      const { error } = await supabase.from('class_materials').insert(rows);
-      if (error) throw error;
+      next[idx] = { ...cur, material_id: material.id, url: '', topic: (cur.topic || '').trim() ? cur.topic : material.title };
+      const { error: upErr } = await supabase.from('classes').update({ weekly_plan: next }).eq('id', cls.id);
+      if (upErr) throw upErr;
       onLinked();
       onClose();
     } catch (err: any) {
-      alert(`연결 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+      setError(`저장하지 못했어요. ${err?.message || ''}`);
     } finally {
       setSaving(false);
     }
   };
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/40 px-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
       <div
         className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* 헤더 */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-on-surface truncate">"{material.title}" {publishOnLink ? '공개하기' : '연결하기'}</p>
+            <p className="font-black text-sm text-on-surface truncate">"{material.title}" 수업에 쓰기</p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {publishOnLink ? '공개할 클래스를 선택하세요 (여러 개 가능)' : '연결할 클래스를 선택하세요 (여러 개 가능)'}
+              {cls ? '몇 주차에 쓸지 고르세요 (복사 없이 이 자료를 그대로 가리켜요)' : '쓸 클래스를 고르세요'}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
             <XIcon size={16} />
           </button>
         </div>
 
-        {/* 본문 */}
         <div className="flex-1 overflow-y-auto p-3">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-primary" />
-            </div>
-          ) : classes.length === 0 ? (
-            <div className="flex flex-col items-center py-12 gap-3 opacity-40">
-              <BookOpen size={36} />
-              <p className="font-black text-sm">연결할 클래스가 없습니다</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {classes.map(cls => {
-                const isLinked = linkedClassIds.includes(cls.id);
-                const isSelected = selected.has(cls.id);
-                return (
+          {!cls ? (
+            usable.length === 0 ? (
+              <div className="flex flex-col items-center py-12 gap-3 opacity-40">
+                <BookOpen size={36} />
+                <p className="font-black text-sm">쓸 수 있는 클래스가 없습니다</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {usable.map(c => (
                   <button
-                    key={cls.id}
-                    onClick={() => !isLinked && toggle(cls.id)}
-                    disabled={isLinked}
-                    className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border transition-all ${
-                      isLinked
-                        ? 'border-transparent opacity-40 cursor-not-allowed'
-                        : isSelected
-                          ? 'border-primary/40 bg-primary/5'
-                          : 'border-transparent hover:bg-surface-container-low'
-                    }`}
+                    key={c.id}
+                    onClick={() => setClassId(c.id)}
+                    className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border border-transparent hover:bg-surface-container-low transition-all"
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant'
-                    }`}>
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-surface-container text-on-surface-variant">
                       <BookOpen size={15} />
                     </div>
-                    <span className="font-bold text-sm flex-1 text-on-surface">{cls.name}</span>
-                    {isLinked
-                      ? <span className="text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full shrink-0">연결됨</span>
-                      : isSelected
-                        ? <Check size={16} className="text-primary shrink-0" />
-                        : null
-                    }
+                    <span className="font-bold text-sm flex-1 text-on-surface">{c.name}</span>
+                    {(Array.isArray(c.weekly_plan) ? c.weekly_plan : []).some((it: any) => it.material_id === material.id) && (
+                      <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">쓰는 중</span>
+                    )}
+                  </button>
+                ))}
+                {hiddenNote(classes.length - usable.length)}
+              </div>
+            )
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <button onClick={() => setClassId(null)} className="self-start text-xs font-bold text-primary px-2 py-1 hover:underline">
+                ← 클래스 다시 고르기 ({cls.name})
+              </button>
+              {plan.map((it, i) => {
+                const mine = it.material_id === material.id;
+                const other = !!it.material_id && !mine;
+                return (
+                  <button
+                    key={i}
+                    disabled={saving || mine}
+                    onClick={() => useOnWeek(i)}
+                    className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border transition-all ${mine ? 'border-transparent opacity-50 cursor-not-allowed' : 'border-transparent hover:bg-surface-container-low'}`}
+                  >
+                    <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary text-[11px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
+                    <span className="font-bold text-sm flex-1 text-on-surface truncate">{it.topic?.trim() || '(주제 없음)'}</span>
+                    {mine && <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">이 자료</span>}
+                    {other && <span className="text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full shrink-0">다른 자료 있음</span>}
                   </button>
                 );
               })}
+              <button
+                disabled={saving}
+                onClick={() => useOnWeek(-1)}
+                className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border border-dashed border-primary/40 text-primary font-bold text-sm hover:bg-primary/5 transition-all"
+              >
+                <Plus size={15} /> 새 주차로 추가 ({plan.length + 1}주차)
+              </button>
             </div>
           )}
         </div>
 
-        {/* 하단 액션 */}
         <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container shrink-0">
-          <p className="flex-1 text-xs font-bold text-on-surface-variant">
-            {selected.size > 0 ? `${selected.size}개 클래스 선택됨` : '클래스를 선택하세요'}
+          <p className={`flex-1 text-xs font-bold ${error ? 'text-red-500' : 'text-on-surface-variant'}`}>
+            {saving ? '저장 중…' : error || '고르면 바로 학생에게 보여요'}
           </p>
-          <button
-            onClick={handleLink}
-            disabled={selected.size === 0 || saving}
-            className="flex items-center gap-2 px-5 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : (publishOnLink ? <Globe size={14} /> : <Link2 size={14} />)}
-            {publishOnLink ? '선택한 클래스에 공개' : '연결하기'}
-          </button>
+          {saving && <Loader2 size={14} className="animate-spin text-primary" />}
         </div>
       </div>
-      <LimitToast message={limitToastMessage} />
     </div>,
     document.body
   );
 };
+
+const hiddenNote = (n: number) => n > 0
+  ? <p key="hidden" className="px-3 pt-2 text-[11px] font-bold text-on-surface-variant">학교 프로젝트에서 배정받은 반 {n}개는 학교 화면의 주차 계획에서 자료를 골라 주세요.</p>
+  : null;
 
 // ── 미리보기 전체화면 모달 ────────────────────────────────────────────────────
 // 학생 화면(본문 + 목차)과 똑같이 보여 주고, 입력칸은 써볼 수 있지만 저장하지 않는다.
@@ -1323,7 +1293,7 @@ const LIST_SCREENS: Record<string, StudentScreenStep> = {
     title: '먼저 어느 반의 자료인지 골라요',
     lead: '여기를 누르면 내 반 목록이 나와요. 반을 고르면 그 반의 수업 자료가 아래에 보여요.',
     points: [
-      '반을 고르지 않고 "공통 자료함"을 눌러도 돼요. 여러 반에 같이 쓸 자료를 모아 두는 곳이에요.',
+      '처음 화면이 "내 자료함"이에요. 반을 고르지 않고 바로 새 자료를 쓰면 되고, 여러 반에 같이 쓸 자료가 여기 모여요.',
       '프로젝트로 배정받은 반은 원본을 고칠 수 없고, "내 버전"만 고칠 수 있어요.',
     ],
   },
@@ -1334,7 +1304,7 @@ const LIST_SCREENS: Record<string, StudentScreenStep> = {
     more: [
       {
         target: 'me-library-btn',
-        title: '② 공통 자료함',
+        title: '② 내 자료함',
         lead: '반 구분 없이 쓸 자료를 모아 두는 보관함이에요. 여기서 만든 자료는 나중에 원하는 반에 연결해서 쓸 수 있어요.',
         points: [
           '카드의 지구본 버튼: 반을 골라 그 반 학생에게 바로 공개해요.',
@@ -1393,9 +1363,13 @@ const MaterialEditor = () => {
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
   // 공통 자료함 — 클래스 선택 없이 만들어두고 나중에 원하는 클래스에 연결
-  const [libraryMode, setLibraryMode] = useState(false);
+  // 첫 화면은 클래스 선택 없이 바로 "내 자료함"(원본 보관함) — 거기서 바로 새 자료를 쓴다
+  const [libraryMode, setLibraryMode] = useState(true);
   const [linkingMaterial, setLinkingMaterial] = useState<Material | null>(null);
-  const [linkAsPublish, setLinkAsPublish] = useState(false);
+  // 공통 자료함 자료가 "어디에 쓰이는지" (학교 프로젝트 주차 계획 + 클래스에 만든 복사본)
+  type MaterialUsage = { projects: string[]; classes: string[] };
+  const [usageMap, setUsageMap] = useState<Record<string, MaterialUsage>>({});
+  const [usageFilter, setUsageFilter] = useState<'all' | 'project' | 'class' | 'none'>('all');
 
   // 자료 목록
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -1503,8 +1477,6 @@ const MaterialEditor = () => {
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string; links?: ActivityLink[]; attachments?: MaterialAttachment[]; viewerStyle?: ViewerStyle; answersSource?: Material | null } | null>(null);
   const [answersMaterial, setAnswersMaterial] = useState<Material | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  // "가져오기"로 공통 자료함 원본을 복사해온 경우 — 아직 저장 전인 새 자료에 다음 저장 시 함께 기록할 원본 id
-  const [importedSourceMaterialId, setImportedSourceMaterialId] = useState<string | null>(null);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
   const [showProofread, setShowProofread] = useState(false);
   const [showLessonPlan, setShowLessonPlan] = useState(false);
@@ -1525,19 +1497,21 @@ const MaterialEditor = () => {
 
   useEffect(() => {
     if (user) fetchClasses();
+    if (user && !isDemoTeacher(user)) { fetchLibraryMaterials(); fetchFolders(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, subject, class_type, weekly_plan')
+      .select('id, name, subject, class_type, weekly_plan, parent_class_id')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
     // 학교 프로젝트에서 배정받은 하위 반도 함께 보여준다 ("프로젝트 자료 · 내 버전" 편집용)
     const { data: assigned } = await supabase
       .from('classes')
-      .select('id, name, subject, class_type, weekly_plan')
+      .select('id, name, subject, class_type, weekly_plan, parent_class_id')
       .eq('assigned_teacher_id', user!.id)
       .not('parent_class_id', 'is', null)
       .eq('is_archived', false)
@@ -1551,6 +1525,7 @@ const MaterialEditor = () => {
       if (mine.length > 0) {
         setClasses(mine);
         setSelectedClass(mine[0]);
+        setLibraryMode(false);
         fetchMaterials(mine[0].id);
         fetchFolders(mine[0].id);
       }
@@ -1599,8 +1574,46 @@ const MaterialEditor = () => {
         .eq('teacher_id', user!.id)
         .order('created_at', { ascending: false });
       setMaterials(data ?? []);
+      fetchUsage((data ?? []).map((m: any) => m.id));
     } finally {
       setMaterialsLoading(false);
+    }
+  };
+
+  // 자료마다 "학교 프로젝트 주차에 연결된 곳"과 "클래스에 복사해 둔 곳"을 모아 꼬리표로 보여준다
+  const fetchUsage = async (materialIds: string[]) => {
+    if (materialIds.length === 0) { setUsageMap({}); return; }
+    try {
+      const [clsRes, copyRes] = await Promise.all([
+        supabase.from('classes')
+          .select('id, name, parent_class_id, school_project_id, weekly_plan')
+          .or(`teacher_id.eq.${user!.id},assigned_teacher_id.eq.${user!.id}`)
+          .eq('is_archived', false),
+        supabase.from('class_materials')
+          .select('source_material_id, class_id, classes(name)')
+          .in('source_material_id', materialIds),
+      ]);
+      const ids = new Set(materialIds);
+      const map: Record<string, { projects: Set<string>; classes: Set<string> }> = {};
+      const slot = (id: string) => (map[id] ??= { projects: new Set(), classes: new Set() });
+      ((clsRes.data ?? []) as any[]).forEach(c => {
+        const isProject = !!(c.school_project_id || c.parent_class_id);
+        (Array.isArray(c.weekly_plan) ? c.weekly_plan : []).forEach((p: any) => {
+          if (!p?.material_id || !ids.has(p.material_id)) return;
+          if (isProject) slot(p.material_id).projects.add(c.school_project_id || c.parent_class_id || c.id);
+          else slot(p.material_id).classes.add(c.name || c.id);
+        });
+      });
+      ((copyRes.data ?? []) as any[]).forEach(r => {
+        if (r.source_material_id && ids.has(r.source_material_id)) {
+          slot(r.source_material_id).classes.add(r.classes?.name || r.class_id);
+        }
+      });
+      const out: Record<string, MaterialUsage> = {};
+      Object.entries(map).forEach(([k, v]) => { out[k] = { projects: [...v.projects], classes: [...v.classes] }; });
+      setUsageMap(out);
+    } catch (e) {
+      console.error('Error fetching material usage:', e);
     }
   };
 
@@ -1663,7 +1676,7 @@ const MaterialEditor = () => {
     autoSavedRef.current = false;
     setTitle(''); setWeekNumber(1); setContent(''); setViewerStyle('default'); setIsPublished(false);
     setEditingMaterial(null); setAiVersions([]);
-    setCoverImageUrl(null); setCoverSource('template'); setImportedSourceMaterialId(null);
+    setCoverImageUrl(null); setCoverSource('template');
     setActivityLinks([]); setNewLinkUrl(''); setAttachments([]);
     setExpansionGuide(null); setShowExpansionGuide(false);
     setFromLessonPlan(false);
@@ -1891,7 +1904,6 @@ const MaterialEditor = () => {
     const promise = (async () => {
       const insertPayload = {
         ...payload,
-        source_material_id: importedSourceMaterialId,
         folder_id: activeFolderId && activeFolderId !== 'all' ? activeFolderId : null,
       };
       const { data, error } = await supabase.from('class_materials').insert(insertPayload).select().single();
@@ -1909,6 +1921,14 @@ const MaterialEditor = () => {
   const handleSave = async () => {
     if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
     if (!title.trim()) { alert('제목을 입력해주세요.'); return; }
+    // 학생이 이미 답을 쓴 자료의 내용을 고치면 입력칸 순서가 밀려 답이 엉뚱한 칸에 보일 수 있어 먼저 알린다
+    if (editingMaterial && (content ?? '').trim() !== (editingMaterial.content ?? '').trim()) {
+      const { count } = await supabase
+        .from('student_material_answers')
+        .select('id', { count: 'exact', head: true })
+        .eq('material_id', editingMaterial.plan_origin_id ?? editingMaterial.id);
+      if ((count ?? 0) > 0 && !window.confirm('이 자료에는 학생들이 이미 쓴 답이 있어요.\n입력칸(빈 칸, [ ], ___)을 추가하거나 지우면 학생 답이 엉뚱한 칸에 보일 수 있어요.\n\n그래도 저장할까요?')) return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -1930,14 +1950,6 @@ const MaterialEditor = () => {
         const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
         if (error) throw error;
         syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
-        if (libraryMode) {
-          // 공통 자료 원본 수정 시, 이미 연결된 클래스 자료들의 에디터 내용도 함께 반영
-          const { error: syncError } = await supabase
-            .from('class_materials')
-            .update({ content: payload.content, ai_versions: payload.ai_versions, attachments: payload.attachments, updated_at: payload.updated_at })
-            .eq('source_material_id', editingMaterial.id);
-          if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
-        }
       } else {
         const inserted = await createMaterialOnce(payload);
         syncMaterialEmbedding(inserted.id, payload.title, payload.content);
@@ -1982,13 +1994,6 @@ const MaterialEditor = () => {
         if (error) throw error;
         if (!updated || updated.length === 0) throw new Error('저장된 행이 없습니다');
         syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
-        if (libraryMode) {
-          const { error: syncError } = await supabase
-            .from('class_materials')
-            .update({ content: payload.content, ai_versions: payload.ai_versions, attachments: payload.attachments, updated_at: payload.updated_at })
-            .eq('source_material_id', editingMaterial.id);
-          if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
-        }
       } else {
         // 아직 한 번도 저장된 적 없는 새 자료 — 첫 자동저장 시 생성하고, 이후엔 위 update 경로를 탄다
         const data = await createMaterialOnce(payload);
@@ -2042,38 +2047,6 @@ const MaterialEditor = () => {
     return () => { clearTimeout(timer); if (autosaveTimerRef.current === timer) autosaveTimerRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource, activityLinks, attachments, viewerStyle]);
-
-  // ── 공통 자료함 원본에 동기화 ─────────────────────────────────────────────
-  // 공통 자료함에서 가져와(연결해) 만든 클래스 사본을 이 클래스 맥락에 맞게 편집한 뒤,
-  // 그 최종본을 원본(source_material_id)에 반영. 다른 클래스에 연결된 사본들은 건드리지 않는다.
-  const [syncing, setSyncing] = useState(false);
-  // window.confirm/alert는 미리보기 창(iframe) 등에서 브라우저가 조용히 차단할 수 있어
-  // 항상 확실히 뜨는 자체 모달로 확인/결과 안내를 처리한다
-  const [syncConfirmOpen, setSyncConfirmOpen] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const runSyncToSource = async () => {
-    if (!editingMaterial?.source_material_id) return;
-    setSyncConfirmOpen(false);
-    setSyncing(true);
-    try {
-      const { error } = await supabase
-        .from('class_materials')
-        .update({
-          title: title.trim(),
-          content: (content ?? '').trim(),
-          ai_versions: aiVersions,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingMaterial.source_material_id);
-      if (error) throw error;
-      setSyncResult({ ok: true, message: '공통 자료함의 원본에 동기화되었습니다.' });
-    } catch (err: any) {
-      console.error('[MaterialEditor] sync to source error:', err);
-      setSyncResult({ ok: false, message: `동기화 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}` });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   // ── PDF 다운로드 (브라우저 인쇄 → PDF로 저장) ────────────────────────────────
   const handlePrintPdf = () => {
@@ -2191,10 +2164,41 @@ const MaterialEditor = () => {
     if (wa !== wb) return wa < wb ? -1 : 1;
     return a.title.localeCompare(b.title, 'ko', { numeric: true, sensitivity: 'base' });
   };
+  const usageOf = (id: string): MaterialUsage => usageMap[id] ?? { projects: [], classes: [] };
+  const matchesUsageFilter = (m: Material) => {
+    if (!libraryMode || usageFilter === 'all') return true;
+    const u = usageOf(m.id);
+    if (usageFilter === 'project') return u.projects.length > 0;
+    if (usageFilter === 'class') return u.classes.length > 0;
+    return u.projects.length === 0 && u.classes.length === 0;
+  };
   const visibleMaterials = (activeFolderId === 'all'
     ? [...materials]
     : materials.filter(m => (m.folder_id ?? null) === activeFolderId)
-  ).sort(byWeekThenTitle);
+  ).filter(matchesUsageFilter).sort(byWeekThenTitle);
+
+  // 공통 자료함 카드의 "쓰는 곳" 꼬리표 (공개/비공개 대신 — 쓰이는 순간 학생에게 자동으로 보인다)
+  const renderUsageChips = (m: Material) => {
+    const u = usageOf(m.id);
+    const base = 'shrink-0 whitespace-nowrap text-[14px] font-semibold px-2.5 py-0.5 rounded-full';
+    if (u.projects.length === 0 && u.classes.length === 0) {
+      return <span className={`${base} bg-surface-container text-on-surface-variant`}>○ 아직 안 씀</span>;
+    }
+    return (
+      <>
+        {u.projects.length > 0 && (
+          <span className={`${base} bg-primary-container text-primary`} title="학교 프로젝트 주차 계획에 연결됨 (복사 없이 원본을 그대로 사용)">
+            ● 학교 프로젝트 {u.projects.length}곳
+          </span>
+        )}
+        {u.classes.length > 0 && (
+          <span className={`${base} bg-surface-container-low text-on-surface`} title={u.classes.join(', ')}>
+            ● 클래스 {u.classes.length}곳
+          </span>
+        )}
+      </>
+    );
+  };
 
   // 카드/리스트 보기가 함께 쓰는 자료별 빠른 보기 버튼 (발표 모드·슬라이드·미리보기)
   const renderQuickButtons = (material: Material, size = 16, compact = false, part: 'all' | 'view' | 'extra' = 'all') => {
@@ -2346,21 +2350,13 @@ const MaterialEditor = () => {
 
                       {libraryMode ? (
                         <>
-                          {/* 클래스 선택해서 바로 공개 */}
+                          {/* 수업에 쓰기 — 복사 없이 클래스의 주차 계획에 이 자료를 가리키게 한다 */}
                           <button
-                            onClick={() => { setLinkingMaterial(material); setLinkAsPublish(true); }}
-                            title="클래스를 골라 그 클래스 학생에게 바로 공개하기 (공통 자료함 자료 자체는 계속 비공개)"
+                            onClick={() => { setLinkingMaterial(material); }}
+                            title="클래스를 골라 이 자료의 복사본을 만들고 학생에게 바로 공개해요. (학교 프로젝트는 주차 계획에서 고르면 복사 없이 연결돼요)"
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            <Send size={15} /> 클래스에 공개
-                          </button>
-                          {/* 클래스에 연결(비공개) */}
-                          <button
-                            onClick={() => { setLinkingMaterial(material); setLinkAsPublish(false); }}
-                            title="이 공통 자료를 원하는 클래스에 연결(복사, 비공개)"
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
-                          >
-                            <Link2 size={15} /> 클래스에 연결
+                            <Send size={15} /> 수업에 쓰기
                           </button>
                         </>
                       ) : (
@@ -2504,15 +2500,12 @@ const MaterialEditor = () => {
       <ImportFromClassModal
         currentClassId={selectedClass?.id}
         userId={user.id}
-        onImport={(importedTitle, importedContent, importedWeek, sourceMaterialId, sourceIsLibrary, importedAttachments, importedCover) => {
+        onImport={(importedTitle, importedContent, importedWeek, _sourceMaterialId, _sourceIsLibrary, importedAttachments, importedCover) => {
           setTitle(importedTitle ?? '');
           setWeekNumber(importedWeek ?? 1);
           setContent(importedContent ?? '');
           setAttachments(importedAttachments);
           if (importedCover) { setCoverImageUrl(importedCover.url); setCoverSource(importedCover.source); }
-          // 공통 자료함에서 가져온 경우에만 원본으로 기록 — 다음 클래스 자료로 저장될 때 source_material_id로 연결되어
-          // 이후 "원본에 동기화" 버튼으로 편집 내용을 그 공통 자료함 원본에 반영할 수 있게 된다
-          setImportedSourceMaterialId(sourceIsLibrary ? sourceMaterialId : null);
         }}
         onClose={() => setShowImportModal(false)}
       />
@@ -2542,51 +2535,6 @@ const MaterialEditor = () => {
               className="px-3 py-1.5 rounded-lg text-sm font-bold bg-red-600 text-white hover:opacity-90"
             >
               삭제
-            </button>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )}
-    {syncConfirmOpen && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4" onClick={() => setSyncConfirmOpen(false)}>
-        <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
-          <h3 className="font-bold text-on-surface mb-2">원본에 동기화할까요?</h3>
-          <p className="text-sm text-on-surface-variant whitespace-pre-line mb-5">
-            공통 자료함의 원본 자료가 지금 이 내용으로 덮어씌워집니다.
-            (다른 클래스에 연결된 사본들은 영향을 받지 않습니다.)
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setSyncConfirmOpen(false)}
-              className="px-3 py-1.5 rounded-lg text-sm font-bold text-on-surface-variant hover:bg-surface-container"
-            >
-              취소
-            </button>
-            <button
-              onClick={runSyncToSource}
-              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:opacity-90"
-            >
-              동기화
-            </button>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )}
-    {syncResult && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4" onClick={() => setSyncResult(null)}>
-        <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
-          <h3 className={`font-bold mb-2 ${syncResult.ok ? 'text-primary' : 'text-red-600'}`}>
-            {syncResult.ok ? '동기화 완료' : '동기화 실패'}
-          </h3>
-          <p className="text-sm text-on-surface-variant whitespace-pre-line mb-5">{syncResult.message}</p>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setSyncResult(null)}
-              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-primary text-on-primary hover:opacity-90"
-            >
-              확인
             </button>
           </div>
         </div>
@@ -2692,10 +2640,7 @@ const MaterialEditor = () => {
       <LinkToClassModal
         material={linkingMaterial}
         classes={classes}
-        userId={user.id}
-        publishOnLink={linkAsPublish}
-        isBasicOrAbove={checkIsBasicOrAbove(profile)}
-        onLinked={() => fetchLibraryMaterials()}
+        onLinked={() => { fetchLibraryMaterials(); fetchClasses(); }}
         onClose={() => setLinkingMaterial(null)}
       />
     )}
@@ -2705,11 +2650,11 @@ const MaterialEditor = () => {
         {isEditorOpen && (
           <button
             onClick={closeEditor}
-            title={libraryMode ? '공통 자료 목록으로' : '자료 목록으로'}
+            title={libraryMode ? '내 자료함으로' : '자료 목록으로'}
             className="flex items-center gap-1.5 pl-3 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface font-semibold text-[15px] transition-colors shrink-0"
           >
             <ArrowLeft size={14} />
-            {libraryMode ? '공통 자료 목록' : '자료 목록'}
+            {libraryMode ? '내 자료함' : '자료 목록'}
           </button>
         )}
         <div className="relative" data-tour="me-class-select">
@@ -2718,7 +2663,7 @@ const MaterialEditor = () => {
             onClick={() => setClassDropdownOpen(o => !o)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 transition-all font-semibold text-[15px]"
           >
-            {libraryMode ? '클래스 선택' : (selectedClass ? selectedClass.name : '클래스 선택')}
+            {libraryMode ? '클래스별 보기' : (selectedClass ? selectedClass.name : '클래스별 보기')}
             <ChevronDown size={15} className="text-on-surface-variant" />
           </button>
           {classDropdownOpen && (
@@ -2741,14 +2686,14 @@ const MaterialEditor = () => {
         <button
           data-tour="me-library-btn"
           onClick={() => { setClassDropdownOpen(false); setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); fetchFolders(null); }}
-          title="클래스 선택 없이 공통으로 쓸 자료를 만들고, 나중에 원하는 클래스에 연결할 수 있습니다"
+          title="클래스 선택 없이 바로 자료를 쓰고, 나중에 학교 프로젝트 주차나 클래스에 쓸 수 있습니다"
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all font-semibold text-[15px] ${
             libraryMode
               ? 'bg-primary-container border-primary/40 text-primary'
               : 'border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50'
           }`}
         >
-          <Library size={15} /> 공통 자료함
+          <Library size={15} /> 내 자료함
         </button>
 
         {/* 배정받은 프로젝트 반은 "내 버전" 수정만 가능 — 새 자료는 만들 수 없다(권한상 저장도 거부됨) */}
@@ -3030,17 +2975,6 @@ const MaterialEditor = () => {
               >
                 <Download size={15} /> 가져오기
               </button>
-              {/* 공통 자료함에서 가져온(연결된) 사본이면 — 수정한 내용을 원본에 반영 */}
-              {!libraryMode && editingMaterial?.source_material_id && (
-                <button
-                  onClick={() => setSyncConfirmOpen(true)}
-                  disabled={syncing}
-                  title="지금 이 내용을 공통 자료함의 원본 자료에 반영합니다"
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-primary hover:bg-primary/10 font-semibold text-[14px] transition-colors disabled:opacity-40"
-                >
-                  {syncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} 원본에 동기화
-                </button>
-              )}
               {/* 표지 설정 — PDF 다운로드 시 맨 앞에 자동으로 붙는 표지 페이지 */}
               <button
                 onClick={() => setShowCoverModal(true)}
@@ -3324,7 +3258,7 @@ const MaterialEditor = () => {
           <div data-tour="me-bottom" className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 border-t border-surface-container bg-surface-container-low/50">
             {libraryMode ? (
               <p className="hidden sm:flex min-w-0 text-xs font-bold text-on-surface-variant opacity-60 items-center gap-1.5">
-                <Library size={14} className="shrink-0" /> 공통 자료함에는 학생에게 공개되지 않습니다. 저장 후 원하는 클래스에 연결하면 그 클래스에서 공개 여부를 설정할 수 있습니다.
+                <Library size={14} className="shrink-0" /> 내 자료함은 자료의 원본 보관함이에요. 학교 프로젝트 주차 계획에서 고르거나 “수업에 쓰기”를 하면 학생에게 보여요.
               </p>
             ) : (
               <>
@@ -3389,9 +3323,31 @@ const MaterialEditor = () => {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[17px] font-bold text-on-surface">
-              {libraryMode ? `공통 자료함 (${materials.length}개)` : `${selectedClass.name} 수업 자료 (${materials.length}개)`}
+              {libraryMode ? `내 자료함 (${materials.length}개)` : `${selectedClass.name} 수업 자료 (${materials.length}개)`}
             </p>
           </div>
+          {libraryMode && classes.some(c => c._assignedOnly) && (
+            <p className="text-[13px] text-on-surface-variant -mt-1">
+              배정받은 반의 자료(내 버전 포함)는 위쪽 “클래스별 보기”에서 반을 고르면 볼 수 있어요.
+            </p>
+          )}
+
+          {/* 공통 자료함: 쓰는 곳 필터 */}
+          {libraryMode && (
+            <div className="flex items-center flex-wrap gap-1.5">
+              {([['all', '전체'], ['project', '학교 프로젝트에 쓰는 중'], ['class', '클래스에 쓰는 중'], ['none', '아직 안 씀']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setUsageFilter(key)}
+                  className={`px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
+                    usageFilter === key ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 폴더 칩 바 */}
           <div className="flex items-center flex-wrap gap-1.5">
@@ -3525,11 +3481,13 @@ const MaterialEditor = () => {
                     <div className="min-w-0 flex-1 cursor-pointer" onClick={() => handleEdit(material)}>
                       <p className="font-bold text-[17px] truncate" title={material.title}>{material.title}</p>
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                        <span className={`shrink-0 whitespace-nowrap text-[14px] font-semibold px-2.5 py-0.5 rounded-full ${
-                          material.is_published ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'
-                        }`}>
-                          {material.is_published ? '● 공개 중' : '● 비공개'}
-                        </span>
+                        {libraryMode ? renderUsageChips(material) : (
+                          <span className={`shrink-0 whitespace-nowrap text-[14px] font-semibold px-2.5 py-0.5 rounded-full ${
+                            material.is_published ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'
+                          }`}>
+                            {material.is_published ? '● 공개 중' : '● 비공개'}
+                          </span>
+                        )}
                         {!libraryMode && (
                           <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">{material.week_number}주차</span>
                         )}
@@ -3574,11 +3532,22 @@ const MaterialEditor = () => {
 
                     {/* 상태 배지 */}
                     <div className="absolute top-2 inset-x-2 z-10 flex items-center justify-between gap-1">
+                      {libraryMode ? (() => {
+                        const u = usageOf(material.id);
+                        const used = u.projects.length + u.classes.length > 0;
+                        return (
+                          <span className={`shrink-0 whitespace-nowrap text-[10px] font-black px-2 py-0.5 rounded-full backdrop-blur ${used ? 'bg-emerald-500/90 text-white' : 'bg-black/45 text-white/85'}`}
+                            title={[...(u.projects.length ? [`학교 프로젝트 ${u.projects.length}곳`] : []), ...(u.classes.length ? [`클래스: ${u.classes.join(', ')}`] : [])].join(' / ')}>
+                            {used ? `● 쓰는 중 ${u.projects.length + u.classes.length}곳` : '○ 아직 안 씀'}
+                          </span>
+                        );
+                      })() : (
                       <span className={`shrink-0 whitespace-nowrap text-[10px] font-black px-2 py-0.5 rounded-full backdrop-blur ${
                         material.is_published ? 'bg-emerald-500/90 text-white' : 'bg-black/45 text-white/85'
                       }`}>
                         {material.is_published ? '● 공개 중' : '● 비공개'}
                       </span>
+                      )}
                       {(material.view_count ?? 0) > 0 && (
                         <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[10px] font-black text-white bg-black/45 backdrop-blur px-2 py-0.5 rounded-full">
                           <Users size={9} /> {material.view_count}
