@@ -5587,7 +5587,7 @@ const Classroom = () => {
                                     if (matInfo) {
                                       setPreviewMaterial({ id: matInfo.id, plan_origin_id: (matInfo as any).plan_origin_id ?? null, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
-                                      showToast('연결된 자료를 불러오지 못했어요. 삭제됐거나 볼 권한이 없을 수 있어요. 확인 후 필요하면 학급 수정에서 다시 연결해주세요.');
+                                      showToast('연결된 자료를 불러오지 못했어요. 원본이 비공개이거나 삭제됐을 수 있어요. 원본 주인에게 공개로 바꿔 달라고 요청해 주세요.');
                                     }
                                   } else {
                                     window.open(item.url, '_blank');
@@ -5611,7 +5611,7 @@ const Classroom = () => {
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-bold break-words">
                                     {isMaterial
-                                      ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료를 불러오지 못함')
+                                      ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료가 안 보여요 (원본 비공개/삭제)')
                                       : (item.topic || item.url)
                                     }
                                   </p>
@@ -5655,7 +5655,7 @@ const Classroom = () => {
                                     if (matInfo) {
                                       setPreviewMaterial({ id: matInfo.id, plan_origin_id: (matInfo as any).plan_origin_id ?? null, class_id: matInfo.class_id, title: matInfo.title, content: matInfo.content || '', weekNumber: item.week, activity_urls: matInfo.activity_urls, attachments: matInfo.attachments, viewer_style: matInfo.viewer_style ?? origInfo?.viewer_style });
                                     } else {
-                                      showToast('연결된 자료를 불러오지 못했어요. 삭제됐거나 볼 권한이 없을 수 있어요. 확인 후 필요하면 학급 수정에서 다시 연결해주세요.');
+                                      showToast('연결된 자료를 불러오지 못했어요. 원본이 비공개이거나 삭제됐을 수 있어요. 원본 주인에게 공개로 바꿔 달라고 요청해 주세요.');
                                     }
                                   } else {
                                     window.open(item.url, '_blank');

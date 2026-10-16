@@ -75,7 +75,6 @@ const SchoolProjectDetailPage = lazy(() => import('./pages/SchoolProjectDetailPa
 const SchoolProjectClassDetailPage = lazy(() => import('./pages/SchoolProjectClassDetailPage'));
 const AttachmentView = lazy(() => import('./pages/AttachmentView'));
 const Community = lazy(() => import('./pages/Community'));
-import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
 import MaterialEditorTour from './components/MaterialEditorTour';
@@ -238,7 +237,7 @@ function App() {
       <ClassAlarmProvider>
       <IdleWarningModal />
       <ReferralNotice />
-      <InstallPromptBanner />
+      {/* 첫 화면 설치 팝업은 숨김: 로그인 후 내비게이션의 설치 버튼으로 대체 */}
       <div className="relative min-h-screen bg-surface">
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />

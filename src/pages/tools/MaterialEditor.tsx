@@ -1956,7 +1956,9 @@ const MaterialEditor = () => {
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
-        const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
+        // 내 자료함 자료는 공개 여부를 이 화면에서 정하지 않는다(이미 수업에 쓰이며 공개된 자료를 저장만으로 비공개로 되돌리지 않기 위해)
+        const { is_published: _keep, ...updatePayload } = payload;
+        const { error } = await supabase.from('class_materials').update(libraryMode ? updatePayload : payload).eq('id', editingMaterial.id);
         if (error) throw error;
         syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
       } else {
@@ -1999,7 +2001,8 @@ const MaterialEditor = () => {
       };
       if (editingMaterial) {
         // select()로 실제 수정된 행이 있는지 확인 — 권한 문제 등으로 0행이 수정돼도 오류가 나지 않기 때문
-        const { data: updated, error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id).select('id');
+        const { is_published: _keep, ...updatePayload } = payload;
+        const { data: updated, error } = await supabase.from('class_materials').update(libraryMode ? updatePayload : payload).eq('id', editingMaterial.id).select('id');
         if (error) throw error;
         if (!updated || updated.length === 0) throw new Error('저장된 행이 없습니다');
         syncMaterialEmbedding(editingMaterial.id, payload.title, payload.content);
@@ -2193,8 +2196,19 @@ const MaterialEditor = () => {
     if (u.projects.length === 0 && u.classes.length === 0) {
       return <span className={`${base} bg-surface-container text-on-surface-variant`}>○ 아직 안 씀</span>;
     }
+    const hiddenFromOthers = !m.is_published && u.projects.length > 0;
     return (
       <>
+        {hiddenFromOthers && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleTogglePublish(m); }}
+            title="이 자료가 비공개라 배정받은 강사와 학생에게 보이지 않아요. 누르면 공개로 바꿔요."
+            className={`${base} bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition-colors`}
+          >
+            ⚠ 강사·학생에게 안 보여요 · 눌러서 공개
+          </button>
+        )}
         {u.projects.length > 0 && (
           <span className={`${base} bg-primary-container text-primary`} title="학교 프로젝트 주차 계획에 연결됨 (복사 없이 원본을 그대로 사용)">
             ● 학교 프로젝트 {u.projects.length}곳
@@ -3553,7 +3567,7 @@ const MaterialEditor = () => {
                         return (
                           <span className={`shrink-0 whitespace-nowrap text-[10px] font-black px-2 py-0.5 rounded-full backdrop-blur ${used ? 'bg-emerald-500/90 text-white' : 'bg-black/45 text-white/85'}`}
                             title={[...(u.projects.length ? [`학교 프로젝트 ${u.projects.length}곳`] : []), ...(u.classes.length ? [`클래스: ${u.classes.join(', ')}`] : [])].join(' / ')}>
-                            {used ? `● 쓰는 중 ${u.projects.length + u.classes.length}곳` : '○ 아직 안 씀'}
+                            {used ? (!material.is_published && u.projects.length > 0 ? '⚠ 비공개 · 안 보임' : `● 쓰는 중 ${u.projects.length + u.classes.length}곳`) : '○ 아직 안 씀'}
                           </span>
                         );
                       })() : (
