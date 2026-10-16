@@ -3364,11 +3364,12 @@ const MaterialEditor = () => {
           {/* 공통 자료함: 쓰는 곳 필터 */}
           {libraryMode && (
             <div className="flex items-center flex-wrap gap-1.5">
+              <span className="w-11 shrink-0 text-[13px] font-black text-on-surface-variant">상태</span>
               {([['all', '전체'], ['project', '학교 프로젝트에 쓰는 중'], ['class', '클래스에 쓰는 중'], ['none', '아직 안 씀']] as const).map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => setUsageFilter(key)}
-                  className={`px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
+                  className={`px-3.5 py-2 rounded-full font-semibold text-[14px] transition-colors ${
                     usageFilter === key ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
                   }`}
                 >
@@ -3378,20 +3379,21 @@ const MaterialEditor = () => {
             </div>
           )}
 
-          {/* 폴더 칩 바 */}
-          <div className="flex items-center flex-wrap gap-1.5">
+          {/* 폴더 칩 바 — 위의 '상태' 줄과 다른 종류의 선택이라 이름표·청록색·폴더 탭 모양으로 구분 */}
+          <div className={`flex items-center flex-wrap gap-1.5 ${libraryMode ? 'pt-3 border-t border-slate-200' : ''}`}>
+            <span className="w-11 shrink-0 text-[13px] font-black text-teal-800">폴더</span>
             <button
               onClick={() => setActiveFolderId('all')}
-              className={`px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
-                activeFolderId === 'all' ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
+              className={`px-3.5 py-2 rounded-t-xl rounded-b-md font-semibold text-[14px] transition-colors ${
+                activeFolderId === 'all' ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-900 hover:bg-teal-100'
               }`}
             >
               전체
             </button>
             <button
               onClick={() => setActiveFolderId(null)}
-              className={`px-3.5 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
-                activeFolderId === null ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
+              className={`px-3.5 py-2 rounded-t-xl rounded-b-md font-semibold text-[14px] transition-colors ${
+                activeFolderId === null ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-900 hover:bg-teal-100'
               }`}
             >
               미분류
@@ -3399,8 +3401,8 @@ const MaterialEditor = () => {
             {folders.map(folder => (
               <div
                 key={folder.id}
-                className={`group flex items-center gap-1 pl-3.5 pr-2 py-2 rounded-lg font-semibold text-[14px] transition-colors ${
-                  activeFolderId === folder.id ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface hover:bg-primary-container/50'
+                className={`group flex items-center gap-1 pl-3.5 pr-2 py-2 rounded-t-xl rounded-b-md font-semibold text-[14px] transition-colors ${
+                  activeFolderId === folder.id ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-900 hover:bg-teal-100'
                 }`}
               >
                 {renamingFolderId === folder.id ? (
