@@ -127,7 +127,7 @@ const ClassroomHelperRail = (p: Props) => {
   const guideBtn = 'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[15px] font-semibold text-on-surface hover:bg-primary-container/60 transition-colors text-left';
 
   return (
-    <aside className="w-full xl:w-[320px] xl:sticky xl:top-24 xl:self-start space-y-3" data-tour="helper-rail">
+    <aside className="w-full xl:w-[320px] xl:sticky xl:top-24 xl:self-start xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:overscroll-contain space-y-3" data-tour="helper-rail">
       <div className="flex justify-end">
         <button
           type="button"
@@ -137,6 +137,23 @@ const ClassroomHelperRail = (p: Props) => {
           <PanelRightClose size={16} /> 도우미 칸 접기
         </button>
       </div>
+
+      {quick.length > 0 && (
+        <section className={panel} data-tour="fab-plus">
+          <Head k="quick" title="바로가기" sub="수업 중 자주 쓰는 메뉴" />
+          {!pref.shut.quick && (
+            <div className="px-2 pb-2.5">
+              {quick.map(({ key, label, icon: Icon, run, badge }) => (
+                <button key={key} type="button" onClick={run} className={guideBtn}>
+                  <Icon size={17} className="text-primary shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  {!!badge && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[12px] font-black inline-flex items-center justify-center">{badge}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className={panel}>
         <Head k="start" title="시작하기" sub={allDone ? '준비가 모두 끝났어요' : `${doneCount}/3 완료`} />
@@ -183,23 +200,6 @@ const ClassroomHelperRail = (p: Props) => {
           </div>
         )}
       </section>
-
-      {quick.length > 0 && (
-        <section className={panel} data-tour="fab-plus">
-          <Head k="quick" title="바로가기" sub="수업 중 자주 쓰는 메뉴" />
-          {!pref.shut.quick && (
-            <div className="px-2 pb-2.5">
-              {quick.map(({ key, label, icon: Icon, run, badge }) => (
-                <button key={key} type="button" onClick={run} className={guideBtn}>
-                  <Icon size={17} className="text-primary shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {!!badge && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[12px] font-black inline-flex items-center justify-center">{badge}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
     </aside>
   );
 };

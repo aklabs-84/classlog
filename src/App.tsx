@@ -73,6 +73,7 @@ const SchoolProjectSchoolsPage = lazy(() => import('./pages/SchoolProjectSchools
 const SchoolProjectNewPage = lazy(() => import('./pages/SchoolProjectNewPage'));
 const SchoolProjectDetailPage = lazy(() => import('./pages/SchoolProjectDetailPage'));
 const SchoolProjectClassDetailPage = lazy(() => import('./pages/SchoolProjectClassDetailPage'));
+const AttachmentView = lazy(() => import('./pages/AttachmentView'));
 const Community = lazy(() => import('./pages/Community'));
 import InstallPromptBanner from './components/InstallPromptBanner';
 import DemoTourOverlay from './components/DemoTourOverlay';
@@ -265,6 +266,7 @@ function App() {
               <Route path="/quiz" element={<QuizStudentView />} />
               <Route path="/survey/:pin" element={<SurveyStudent />} />
               <Route path="/survey" element={<SurveyStudent />} />
+              <Route path="/attachment-view" element={<AttachmentView />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/video-guide" element={<VideoGuide />} />
