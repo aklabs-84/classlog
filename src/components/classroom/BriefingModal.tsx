@@ -477,7 +477,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              {current.student_number !== '-' && (
+                              {current.student_number && current.student_number !== '-' && (
                                 <span className="text-[14px] font-bold text-slate-500">{current.student_number}번</span>
                               )}
                               <span className="text-base font-bold text-white">{current.student_name}</span>

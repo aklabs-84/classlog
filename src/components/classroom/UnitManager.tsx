@@ -321,7 +321,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                                     <div>
                                       <p className="font-bold text-sm">{sub.students?.full_name}</p>
                                       <p className="text-[14px] font-bold text-on-surface-variant">
-                                        {sub.students?.student_number}번 ·{' '}
+                                        {sub.students?.student_number ? `${sub.students.student_number}번 · ` : ''}
                                         {new Date(sub.submitted_at).toLocaleDateString('ko-KR')}
                                       </p>
                                     </div>
@@ -383,7 +383,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                 <div>
                   <p className="text-[14px] font-bold text-primary  mb-1">{detailModal.unitTitle}</p>
                   <h3 className="text-lg font-bold">
-                    {detailModal.sub.students?.student_number}번 {detailModal.sub.students?.full_name}
+                    {detailModal.sub.students?.student_number ? `${detailModal.sub.students.student_number}번 ` : ''}{detailModal.sub.students?.full_name}
                   </h3>
                   <p className="text-[14px] font-bold text-on-surface-variant mt-1 flex items-center gap-1">
                     <Clock size={11} />

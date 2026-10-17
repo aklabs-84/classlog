@@ -497,7 +497,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
 
                   {/* Student */}
                   <p className="text-[11px] text-gray-400 mb-1">
-                    {current.className} · {current.studentNumber}번 {current.studentName}
+                    {current.className} · {current.studentNumber ? `${current.studentNumber}번 ` : ''}{current.studentName}
                   </p>
 
                   {/* Title */}

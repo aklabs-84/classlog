@@ -1294,7 +1294,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 shrink-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-black text-on-surface">
-                      {fsRow.student_number}번 {fsRow.full_name}
+                      {fsRow.student_number ? `${fsRow.student_number}번 ` : ''}{fsRow.full_name}
                     </span>
                     <span className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">세특 내용 작성</span>
                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${STATUS_COLORS[fsRow.status]}`}>

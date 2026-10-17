@@ -61,7 +61,7 @@ const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
     onReset?.();
   };
 
-  const sorted = [...rows].sort((a, b) => (parseInt(a.student_number) || 9999) - (parseInt(b.student_number) || 9999));
+  const sorted = [...rows].sort((a, b) => (parseInt(a.student_number) || 9999) - (parseInt(b.student_number) || 9999) || a.full_name.localeCompare(b.full_name, 'ko'));
 
   return (
     <div data-tour="live-roster-panel" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-6 py-5 space-y-4">
@@ -93,7 +93,7 @@ const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
           {sorted.length === 0 && <p className="col-span-full text-xs font-bold text-on-surface-variant">아직 입력한 학생이 없어요.</p>}
           {sorted.map(r => (
             <div key={r.id} className="flex items-center justify-between gap-2 bg-white rounded-xl px-3 py-2 border border-surface-container-high">
-              <span className="text-xs font-black truncate">{r.student_number}번 {r.full_name}</span>
+              <span className="text-xs font-black truncate">{r.student_number ? `${r.student_number}번 ` : ''}{r.full_name}</span>
               <button onClick={() => handleRemove(r.id)} title="이 입력 삭제" className="text-on-surface-variant hover:text-error shrink-0"><X size={14} /></button>
             </div>
           ))}
