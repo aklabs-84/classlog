@@ -93,6 +93,8 @@ const SubjectDashboard = ({
     SUBJECT_COL_DEFAULTS
   );
   const [showColDropdown, setShowColDropdown] = useState(false);
+  // 학급별 설정: 번호를 쓰지 않는 학급은 번호 열·배지·"○번" 표기를 모두 숨긴다 (저장된 번호는 그대로 유지)
+  const showNum = !!classInfo?.show_student_number;
   const [copyCodeSuccess, setCopyCodeSuccess] = useState(false);
 
   const handleCopyEntryCode = () => {
@@ -606,7 +608,7 @@ const SubjectDashboard = ({
                               {selectedIds.includes(s.id) && <Check size={12} className="text-white" strokeWidth={4} />}
                             </div>
                           </label>
-                          {s.number !== '-' && (
+                          {showNum && s.number !== '-' && (
                             <span className="text-[14px] font-bold text-on-surface-variant/70 shrink-0 w-6">
                               {s.number?.toString().padStart(2, '0')}
                             </span>
@@ -728,7 +730,7 @@ const SubjectDashboard = ({
                             </div>
                           </label>
                         </th>
-                        {colVis.number && (
+                        {showNum && colVis.number && (
                           <th className="p-4 lg:p-6 text-[14px] font-semibold text-on-surface-variant whitespace-nowrap hidden sm:table-cell">
                             <button className="flex items-center gap-2 group" onClick={() => onSort('number')}>
                               NO. <ArrowRight size={14} className={`group-hover:text-primary transition-all rotate-90 ${sortConfig.key === 'number' ? 'text-primary' : 'opacity-20'}`} />
@@ -778,7 +780,7 @@ const SubjectDashboard = ({
                               </div>
                             </label>
                           </td>
-                          {colVis.number && (
+                          {showNum && colVis.number && (
                             <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
                               {isEditing ? (
                                 <input
@@ -967,7 +969,7 @@ const SubjectDashboard = ({
                             s.name.charAt(0)
                           )}
                         </div>
-                        {s.number && s.number !== '-' && (
+                        {showNum && s.number && s.number !== '-' && (
                           <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 bg-on-surface text-surface rounded text-[12px] font-black flex items-center justify-center shadow-sm leading-none">
                             {s.number}
                           </span>
@@ -1108,7 +1110,7 @@ const SubjectDashboard = ({
               </button>
             </div>
             <div className="space-y-1 mb-5">
-              {Object.entries(SUBJECT_COL_LABELS).map(([key, label]) => (
+              {Object.entries(SUBJECT_COL_LABELS).filter(([key]) => key !== 'number' || showNum).map(([key, label]) => (
                 <label
                   key={key}
                   onClick={() => toggleCol(key)}
@@ -1343,7 +1345,7 @@ const SubjectDashboard = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`text-[15px] font-bold transition-colors ${tabColor === 'primary' ? 'group-hover:text-primary' : 'group-hover:text-primary'}`}>
-                              {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
+                              {showNum && s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
                             <p className="text-[14px] text-on-surface-variant font-medium truncate">{getActivityLabel(s)}</p>
                           </div>
@@ -1378,7 +1380,7 @@ const SubjectDashboard = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[15px] font-bold group-hover:text-primary transition-colors">
-                              {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
+                              {showNum && s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
                             {multi && doneCount(s.id) > 0 ? (
                               <p className="text-[14px] font-bold text-amber-600">부분 제출 {doneCount(s.id)}/{statsWeeks.length} · {weekDots(s.id)}</p>
@@ -1438,7 +1440,7 @@ const SubjectDashboard = ({
             <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 shrink-0">
               <div>
                 <p className="font-black text-base">
-                  {resultDetailStudent.number && resultDetailStudent.number !== '-' ? `${resultDetailStudent.number}번 ` : ''}
+                  {showNum && resultDetailStudent.number && resultDetailStudent.number !== '-' ? `${resultDetailStudent.number}번 ` : ''}
                   {resultDetailStudent.name}
                 </p>
                 <p className="text-[11px] text-neutral-400 font-bold mt-0.5">

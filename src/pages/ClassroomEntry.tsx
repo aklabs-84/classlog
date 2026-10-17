@@ -40,8 +40,8 @@ const ENTRY_SCREENS: Record<string, StudentScreenStep> = {
   },
   '5': {
     target: 'entry-live-form',
-    title: '내 번호와 이름을 써요',
-    lead: '위 칸에는 내 번호, 아래 칸에는 내 이름을 쓰고 "제출하기"를 눌러요.',
+    title: '내 이름을 써요',
+    lead: '이름 칸에 내 이름을 쓰고 "제출하기"를 눌러요. 번호 칸이 있으면 내 번호도 써요.',
     points: ['친구 것까지 쓰지 않아요.', '잘못 썼다면 선생님께 말해요.'],
   },
   '6': {
@@ -212,17 +212,17 @@ const ClassroomEntry = () => {
   };
 
   // 현장 명단 입력: 이름·번호 제출 → 대기 화면
+  const showNumber = !!targetClass?.show_student_number;
   const handleLiveSubmit = async () => {
     const name = liveName.trim();
     // 숫자만 남기고 앞의 0은 뗀다 (01 → 1, 10 → 10)
     const num = liveNumber.replace(/\D/g, '').replace(/^0+/, '');
     if (!name) { setStepError('이름을 입력해주세요.'); return; }
-    if (!num) { setStepError('번호를 숫자로 입력해주세요. (예: 1, 12)'); return; }
     setStepLoading(true);
     setStepError('');
     try {
       const { data: cnt, error: sErr } = await supabase.rpc('live_roster_submit', {
-        p_entry_code: codes.join(''), p_name: name, p_number: num,
+        p_entry_code: codes.join(''), p_name: name, p_number: showNumber ? num : '',
       });
       if (sErr) {
         if (String(sErr.message).includes('ROSTER_CLOSED')) {
@@ -589,7 +589,7 @@ const ClassroomEntry = () => {
                     </div>
                     <div className="overflow-hidden">
                       <p className="font-black text-sm truncate">{s.full_name}</p>
-                      <p className="text-[10px] text-on-surface-variant font-bold">{s.student_number || '학번 없음'}</p>
+                      <p className="text-[10px] text-on-surface-variant font-bold">{showNumber ? (s.student_number || '학번 없음') : ''}</p>
                     </div>
                   </button>
                 ))}
@@ -677,10 +677,10 @@ const ClassroomEntry = () => {
               <p className="text-on-surface-variant font-bold">{targetClass?.subject} 수업</p>
             </div>
             <div data-tour="entry-live-form" className="space-y-3">
-              <p className="text-sm font-black text-on-surface">내 번호와 이름을 입력하세요</p>
-              <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="번호" value={liveNumber}
+              <p className="text-sm font-black text-on-surface">{showNumber ? '내 번호와 이름을 입력하세요' : '내 이름을 입력하세요'}</p>
+              {showNumber && <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} placeholder="번호 (선택)" value={liveNumber}
                 onChange={(e) => { setStepError(''); setLiveNumber(e.target.value.replace(/\D/g, '')); }}
-                className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />
+                className="w-full px-5 py-4 bg-surface-container rounded-2xl text-lg font-bold text-center focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all border border-transparent" />}
               <input type="text" maxLength={20} placeholder="이름" value={liveName}
                 onChange={(e) => { setStepError(''); setLiveName(e.target.value); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleLiveSubmit(); }}
@@ -689,7 +689,7 @@ const ClassroomEntry = () => {
             </div>
             <div className="flex gap-4">
               <button onClick={() => setStep(1)} className="flex-1 py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all">뒤로가기</button>
-              <button onClick={handleLiveSubmit} disabled={stepLoading || !liveName.trim() || !liveNumber.trim()}
+              <button onClick={handleLiveSubmit} disabled={stepLoading || !liveName.trim()}
                 className="flex-[2] btn-gradient py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50">
                 {stepLoading ? <Loader2 className="animate-spin" size={22} /> : (<><span>제출하기</span><ArrowRight size={22} /></>)}
               </button>
@@ -705,7 +705,7 @@ const ClassroomEntry = () => {
               </div>
               <h2 className="text-3xl font-black font-manrope">제출했어요!</h2>
               <p className="text-on-surface-variant font-medium text-sm">
-                {liveNumber}번 {liveName}님, 선생님이 명단을 확인할 때까지 잠시만 기다려 주세요.
+                {showNumber && liveNumber ? `${liveNumber}번 ` : ''}{liveName}님, 선생님이 명단을 확인할 때까지 잠시만 기다려 주세요.
               </p>
             </div>
             <div data-tour="entry-live-wait" className="bg-surface-container-low rounded-3xl py-6 space-y-1">

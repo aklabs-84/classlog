@@ -95,7 +95,7 @@ import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import ClassroomHelperRail from '../components/classroom/ClassroomHelperRail';
 import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
-import EntryModeSelect, { type EntryMode } from '../components/classroom/EntryModeSelect';
+import EntryModeSelect, { StudentNumberToggle, type EntryMode } from '../components/classroom/EntryModeSelect';
 import LiveRosterPanel from '../components/classroom/LiveRosterPanel';
 import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
@@ -190,6 +190,7 @@ const Classroom = () => {
     subject: '',
     class_type: 'subject',
     entry_mode: 'roster' as EntryMode,
+    show_student_number: false,
     student_guide_prompt: '',
     teacher_report_prompt: '',
     weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
@@ -907,6 +908,7 @@ const Classroom = () => {
           subject: newClassData.class_type === 'homeroom' ? '담임' : newClassData.subject,
           class_type: newClassData.class_type,
           entry_mode: newClassData.entry_mode,
+          show_student_number: !!newClassData.show_student_number,
           student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요. 의미없이 반복되는 문장이나 맥락상 전혀 이해 할 수 없는 아무 의미없는 내용을 작성하는 것도 지양해 주세요. 글의 일부에라도 같은 글자·자음·모음이 의미 없이 반복되는 부분이 있다면, 앞부분에 정상적인 내용이 있더라도 반드시 반려 처리해 주세요.',
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
@@ -935,6 +937,7 @@ const Classroom = () => {
         subject: '',
         class_type: 'subject',
         entry_mode: 'roster' as EntryMode,
+        show_student_number: false,
         student_guide_prompt: '',
         teacher_report_prompt: '',
         weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
@@ -999,6 +1002,7 @@ const Classroom = () => {
           weekly_plan: updateClassData.weekly_plan || [],
           shared_survey_form_id: updateClassData.shared_survey_form_id || null,
           entry_mode: updateClassData.entry_mode || 'roster',
+          show_student_number: !!updateClassData.show_student_number,
           auto_quiz_set_id: updateClassData.auto_quiz_set_id || null,
           // 현장 명단 모드로 새로 바꾸거나, 선생님이 "입장 방식 바꾸기"/"전체 취소"로 직접 다시 연 경우에만 수락 상태를 처음으로 되돌림
           // (일반 학급 수정 저장은 수업 중 학생 화면을 바꾸지 않도록 건드리지 않음)
@@ -1490,7 +1494,7 @@ const Classroom = () => {
         .insert({
           class_id: activeClassId,
           full_name: newStudentData.name,
-          student_number: newStudentData.number,
+          student_number: newStudentData.number.trim() || null,
           tag: '학생'
         });
 
@@ -2503,8 +2507,11 @@ const Classroom = () => {
     let valA = a[sortConfig.key];
     let valB = b[sortConfig.key];
     if (sortConfig.key === 'number') {
+      // 번호를 쓰지 않는 학급은 이름 가나다순, 번호가 같거나 없으면 이름순으로 정렬
+      if (!classInfo?.show_student_number) return a.name.localeCompare(b.name, 'ko');
       const numA = parseInt(valA) || 0;
       const numB = parseInt(valB) || 0;
+      if (numA === numB) return a.name.localeCompare(b.name, 'ko');
       return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
     }
     if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -3974,6 +3981,7 @@ const Classroom = () => {
                   <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'homeroom'})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${newClassData.class_type === 'homeroom' ? 'bg-white shadow-sm text-secondary border border-secondary/10' : 'text-neutral-500 hover:text-neutral-700'}`}>담임 반 (행특 기반)</button>
                 </div>
                 <EntryModeSelect value={newClassData.entry_mode} onChange={v => setNewClassData({...newClassData, entry_mode: v})} />
+                <StudentNumberToggle value={!!newClassData.show_student_number} onChange={v => setNewClassData({...newClassData, show_student_number: v})} />
                 
                 <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-500 space-y-3">
                   <details className="group [&_summary::-webkit-details-marker]:hidden [&_summary]:list-none">
@@ -4236,6 +4244,7 @@ const Classroom = () => {
                         </div>
                       )}
                       <EntryModeSelect value={(updateClassData.entry_mode || 'roster') as EntryMode} onChange={v => setUpdateClassData({...updateClassData, entry_mode: v})} />
+                      <StudentNumberToggle value={!!updateClassData.show_student_number} onChange={v => setUpdateClassData({...updateClassData, show_student_number: v})} />
 
                       {/* 학교 프로젝트 하위 반은 기간·시간·종료 설정을 프로젝트에서 관리하므로 숨김 */}
                       {!updateClassData.parent_class_id && (<>
@@ -5241,7 +5250,7 @@ const Classroom = () => {
               ) : (
                 <form onSubmit={handleAddStudent} className="space-y-4">
                   <input type="text" value={newStudentData.name} onChange={(e) => setNewStudentData({...newStudentData, name: e.target.value})} placeholder="이름" className="w-full px-6 py-4 bg-neutral-100 border-2 border-transparent focus:border-primary/20 rounded-2xl font-bold transition-all focus:bg-white" required />
-                  <input type="text" value={newStudentData.number} onChange={(e) => setNewStudentData({...newStudentData, number: e.target.value})} placeholder="번호" className="w-full px-6 py-4 bg-neutral-100 border-2 border-transparent focus:border-primary/20 rounded-2xl font-bold transition-all focus:bg-white" />
+                  {classInfo?.show_student_number && <input type="text" value={newStudentData.number} onChange={(e) => setNewStudentData({...newStudentData, number: e.target.value})} placeholder="번호 (선택)" className="w-full px-6 py-4 bg-neutral-100 border-2 border-transparent focus:border-primary/20 rounded-2xl font-bold transition-all focus:bg-white" />}
                   <button type="submit" className="w-full py-5 btn-gradient rounded-2xl font-black text-lg shadow-xl shadow-primary/20">학생 추가하기</button>
                 </form>
               )}
