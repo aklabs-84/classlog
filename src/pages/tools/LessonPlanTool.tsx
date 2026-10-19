@@ -6,15 +6,14 @@ import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 import type { LessonPlanConfig, LessonPlanSections } from '../../lib/gemini';
 import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan, generateMaterialDraftFromLessonPlanSession } from '../../lib/gemini';
-import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf } from '../../lib/lessonPlanExport';
+import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf, exportLessonPlanToHwpx, lessonPlanToPlainText } from '../../lib/lessonPlanExport';
 import { LessonPlanModal, LessonPlanSectionsEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
   Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save, RotateCcw,
-  Maximize2, Minimize2, Wand2,
+  Maximize2, Minimize2, Wand2, LayoutPanelTop, ChevronDown,
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
-import ViewerStylePicker from '../../components/common/ViewerStylePicker';
-import type { ViewerStyle } from '../../components/materialSkins';
+import { VIEWER_STYLES, type ViewerStyle } from '../../components/materialSkins';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
 
@@ -179,7 +178,7 @@ const MaterialPickerModal = ({
         </div>
 
         {step === 'material' && materials.length > 0 && (
-          <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
             <p className="text-xs font-bold text-on-surface-variant flex-1">{selectedIds.length}개 선택됨</p>
             <button
               onClick={handleConfirm}
@@ -209,6 +208,8 @@ const SavedPlanViewModal = ({
   onUpdated: () => void;
 }) => {
   const [copyDone, setCopyDone] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -296,6 +297,22 @@ const SavedPlanViewModal = ({
 
   // 저장된 계획서 그대로 수업할 수 있는 교안 초안을 만들어 수업 자료 에디터로 넘긴다.
   // 차시가 2개 이상이면 차시별로 각각 초안을 생성해 별도의 자료로 만든다.
+  // 저장된 계획서 내용을 그대로 슬라이드 도구의 "템플릿 선택 → 개요 승인" 흐름에 태운다 (여기서는 AI 비용 없음)
+  const handleCreateSlide = () => {
+    navigate('/teaching-tools', {
+      state: {
+        activeToolId: 'slide-deck',
+        draftSlide: {
+          noteId: '',
+          title: sections.basicInfo.unitTitle || '수업 슬라이드',
+          content: lessonPlanToPlainText(sections),
+          classId: plan.class_id ?? null,
+        },
+      },
+    });
+    onClose();
+  };
+
   const handleCreateMaterial = async () => {
     setCreatingMaterial(true);
     try {
@@ -350,7 +367,7 @@ const SavedPlanViewModal = ({
     <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4" onClick={editing ? undefined : onClose}>
       <div
         className={`bg-white shadow-2xl rounded-2xl w-full flex flex-col overflow-hidden transition-all ${
-          editing && isFullscreen
+          isFullscreen
             ? 'h-full sm:w-[98vw] sm:h-[96vh] max-w-[1600px]'
             : 'h-full sm:w-[94vw] sm:h-[92vh] max-w-4xl'
         }`}
@@ -362,15 +379,13 @@ const SavedPlanViewModal = ({
             <p className="font-black text-sm text-on-surface truncate">{sections?.basicInfo?.unitTitle || '수업 계획서'}</p>
             <p className="text-xs text-on-surface-variant mt-0.5">{PURPOSE_LABEL[plan.purpose]} · {formatDate(plan.created_at)}</p>
           </div>
-          {editing && (
-            <button
-              onClick={() => setIsFullscreen(v => !v)}
-              title={isFullscreen ? '작은 화면으로' : '전체 화면으로'}
-              className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
-            >
-              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          )}
+          <button
+            onClick={() => setIsFullscreen(v => !v)}
+            title={isFullscreen ? '작은 화면으로' : '전체 화면으로'}
+            className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           {!editing && (
             <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"><X size={16} /></button>
           )}
@@ -441,32 +456,72 @@ const SavedPlanViewModal = ({
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                title="삭제"
+                aria-label="삭제"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
               >
-                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               </button>
-              <div className="flex-1" />
               <button
                 onClick={() => setShowRegenerateInput(v => !v)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                title="다시 생성"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors whitespace-nowrap shrink-0"
               >
-                <RotateCcw size={14} /> 다시 생성
+                <RotateCcw size={14} /> <span className={isFullscreen ? '' : 'hidden'}>다시 생성</span>
               </button>
-              <button onClick={startEditing} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-                <Pencil size={14} /> 내용 수정
-              </button>
-              <button onClick={handleCopy} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-                <Copy size={14} /> {copyDone ? '복사됨' : '클립보드 복사'}
-              </button>
-              <button onClick={() => exportLessonPlanToPdf(sections)} className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
-                <FileDown size={14} /> PDF
-              </button>
-              <ViewerStylePicker value={materialViewerStyle} onChange={setMaterialViewerStyle} />
-              <AiCreditCost feature="material_from_lesson_plan" />
               <button
-                onClick={handleCreateMaterial}
+                onClick={startEditing}
+                title="내용 수정"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors whitespace-nowrap shrink-0"
+              >
+                <Pencil size={14} /> <span className={isFullscreen ? '' : 'hidden'}>내용 수정</span>
+              </button>
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setExportOpen(v => !v)}
+                  title="내보내기"
+                  aria-expanded={exportOpen}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors whitespace-nowrap"
+                >
+                  <FileDown size={14} /> <span className={isFullscreen ? '' : 'hidden'}>내보내기</span> <ChevronDown size={14} />
+                </button>
+                {exportOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+                    <div className="absolute bottom-full left-0 mb-2 z-20 w-44 bg-white rounded-2xl shadow-xl border border-surface-container py-1.5">
+                      <button
+                        onClick={() => { setExportOpen(false); exportLessonPlanToPdf(sections); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-on-surface-variant hover:bg-surface-container text-left whitespace-nowrap"
+                      >
+                        <FileDown size={14} /> PDF로 저장
+                      </button>
+                      <button
+                        onClick={() => { setExportOpen(false); exportLessonPlanToHwpx(sections).catch(() => window.alert('한글(hwpx) 파일 만들기에 실패했어요.')); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-on-surface-variant hover:bg-surface-container text-left whitespace-nowrap"
+                      >
+                        <FileDown size={14} /> 한글(hwpx)로 저장
+                      </button>
+                      <button
+                        onClick={() => { setExportOpen(false); handleCopy(); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-on-surface-variant hover:bg-surface-container text-left whitespace-nowrap"
+                      >
+                        <Copy size={14} /> {copyDone ? '복사됨' : '클립보드 복사'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex-1 min-w-0" />
+              <button
+                onClick={handleCreateSlide}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm text-primary border border-primary/30 hover:bg-primary/5 transition-colors whitespace-nowrap shrink-0"
+              >
+                <LayoutPanelTop size={14} /> 슬라이드로 만들기
+              </button>
+              <button
+                onClick={() => setShowMaterialPicker(true)}
                 disabled={creatingMaterial}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary/10 text-primary hover:bg-primary/15 disabled:opacity-60 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
               >
                 {creatingMaterial ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 수업 자료 만들기
               </button>
@@ -474,6 +529,42 @@ const SavedPlanViewModal = ({
           )}
         </div>
       </div>
+      {showMaterialPicker && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4" onClick={e => { e.stopPropagation(); setShowMaterialPicker(false); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3 shrink-0">
+              <p className="font-black text-base text-on-surface">수업 자료를 어떤 모양으로 만들까요?</p>
+              <p className="text-xs text-on-surface-variant mt-1">계획서를 바탕으로 학생이 보는 수업 자료를 만들어요. 만든 뒤에도 에디터에서 바꿀 수 있어요.</p>
+            </div>
+            <div className="px-6 pb-2 overflow-y-auto space-y-2">
+              {VIEWER_STYLES.map(v => (
+                <label
+                  key={v.id}
+                  className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-colors ${materialViewerStyle === v.id ? 'border-primary bg-primary/5' : 'border-surface-container hover:bg-surface-container-low'}`}
+                >
+                  <input type="radio" name="material-viewer-style" checked={materialViewerStyle === v.id} onChange={() => setMaterialViewerStyle(v.id)} className="mt-1 accent-primary" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-on-surface">{v.label} <span className="text-xs font-bold text-primary">· {v.grade}</span></span>
+                    <span className="block text-xs text-on-surface-variant mt-0.5">{v.desc}</span>
+                    <span className="block text-[11px] text-on-surface-variant/70 mt-0.5">글 양: {v.id === 'note' || v.id === 'challenge' ? '자세히' : '짧고 가볍게'}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 px-6 py-4 border-t border-surface-container shrink-0">
+              <button onClick={() => setShowMaterialPicker(false)} className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">취소</button>
+              <div className="flex-1" />
+              <AiCreditCost feature="material_from_lesson_plan" />
+              <button
+                onClick={() => { setShowMaterialPicker(false); handleCreateMaterial(); }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 transition-colors whitespace-nowrap"
+              >
+                <Wand2 size={14} /> 이 모양으로 만들기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

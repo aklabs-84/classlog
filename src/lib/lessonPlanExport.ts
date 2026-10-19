@@ -128,6 +128,11 @@ function htmlToPlainText(html: string): string {
   return (div.textContent || div.innerText || '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// 슬라이드 도구 등 다른 도구로 계획서 내용을 넘길 때 쓰는 글자 전용 변환
+export function lessonPlanToPlainText(plan: LessonPlanSections): string {
+  return htmlToPlainText(buildLessonPlanHtml(plan));
+}
+
 export async function copyLessonPlanToClipboard(plan: LessonPlanSections): Promise<void> {
   const html = buildLessonPlanHtml(plan);
   const htmlBlob = new Blob([html], { type: 'text/html' });
@@ -140,6 +145,22 @@ export async function copyLessonPlanToClipboard(plan: LessonPlanSections): Promi
 // 파일명으로 쓸 수 없는 문자(\/:*?"<>|)를 제거
 function sanitizeFileName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '').trim() || '수업계획서';
+}
+
+// 한글(hwpx) 파일로 저장 — PDF와 같은 HTML을 hwp-convert로 변환 (라이브러리는 눌렀을 때만 불러옴)
+export async function exportLessonPlanToHwpx(plan: LessonPlanSections): Promise<void> {
+  const title = plan.basicInfo.unitTitle || '수업계획서';
+  const { htmlToHwpx } = await import('hwp-convert');
+  const bytes = await htmlToHwpx(buildLessonPlanHtml(plan), { title, creator: 'ClassLog AI' });
+  const blob = new Blob([bytes as BlobPart], { type: 'application/hwp+zip' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${sanitizeFileName(title)}.hwpx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // jsPDF의 html2canvas 기반 렌더링이 표(차시별 내용) 포함 레이아웃에서 빈 페이지를 내는

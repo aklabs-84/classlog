@@ -48,7 +48,7 @@ export default function ImageBlockObject({
         style={{
           width: '100%', height: '100%',
           border: editable && isSelected ? '2px solid #3B82F6' : frame === 'polaroid' ? '1px solid #e5e7eb' : '1px solid transparent',
-          borderRadius: frameRadius, overflow: 'hidden', background: frame === 'polaroid' ? '#fff' : '#f2f2f2',
+          borderRadius: frameRadius, overflow: 'hidden', background: frame === 'polaroid' ? '#fff' : style.fit ? 'transparent' : '#f2f2f2',
           boxSizing: 'border-box', padding: framePadding,
           boxShadow: frame === 'polaroid' ? '0 6px 18px rgba(0,0,0,0.18)' : undefined,
           display: 'flex', flexDirection: 'column',
@@ -63,7 +63,7 @@ export default function ImageBlockObject({
         </div>
       ) : obj.src ? (
         <img src={obj.src} alt={obj.alt ?? ''} draggable={false}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+          style={{ width: '100%', height: '100%', objectFit: style.fit === 'contain' ? 'contain' : style.fit === 'fill' ? 'fill' : 'cover', display: 'block', pointerEvents: 'none' }} />
       ) : (
         <div
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#9CA3AF', cursor: editable ? 'pointer' : 'default' }}

@@ -1,5 +1,10 @@
 import type { SlideTemplate, DeckSlide, SlideDeck, SlideLayoutKind, SlideObject } from './types';
 import type { AiDraftSlide, SlideLayoutSpec } from '../../lib/gemini';
+import type { AklabsShowcase } from './aklabs/types';
+import { BRIGHT_SHOWCASE } from './aklabs/bright';
+import { MINT_SHOWCASE } from './aklabs/mint';
+import { CALM_SHOWCASE } from './aklabs/calm';
+import { SHARK_SHOWCASE } from './aklabs/shark';
 
 // 4개 템플릿 — 수업/학원 학습활동에서 실제로 쓰는 발표 목적별로 구성.
 // 색상/폰트뿐 아니라 오브젝트 구성 자체(코드블록, 이미지 프레임, 스텝 배지 등)가 서로 다르다.
@@ -560,7 +565,49 @@ const THEMED_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
   },
 };
 
-export const SLIDE_TEMPLATES: SlideTemplate[] = [...BASE_TEMPLATES, ...THEMED_TEMPLATES];
+// aklabs-slides 메인 템플릿 — 스킬의 실제 레이아웃 코드를 변환한 데이터(scripts/gen-aklabs-templates.mjs)
+const aklabsTemplate = (sc: AklabsShowcase, description: string): SlideTemplate => {
+  const byKey = (key: string) => (sc.slides.find(s => s.key === key) ?? sc.slides[0]).objects;
+  return {
+    id: `aklabs-${sc.id}`,
+    name: sc.label,
+    description,
+    bg: sc.bg,
+    textColor: sc.textColor,
+    accentColor: sc.accentColor,
+    swatch: sc.accentColor,
+    featured: true,
+    // 웹 편집기의 기본 4가지 구성: 표지 → 표지, 나머지 → 개념 설명
+    layouts: { title: byKey('cover'), textOnly: byKey('concept'), textImage1: byKey('concept'), textImagesMany: byKey('concept') },
+    showcase: sc.slides.map(s => ({ key: s.key, label: s.label, objects: s.objects })),
+  };
+};
+
+const AKLABS_TEMPLATES: SlideTemplate[] = [
+  aklabsTemplate(BRIGHT_SHOWCASE, '밝고 또렷한 수업 슬라이드 · 표지부터 마무리까지 14가지 구성'),
+  aklabsTemplate(MINT_SHOWCASE, '초록빛 수업형 · 큰 아이콘과 넉넉한 여백, 17가지 구성'),
+  aklabsTemplate(CALM_SHOWCASE, '차분한 발표형 · 글이 또렷한 정돈된 분위기, 15가지 구성'),
+  aklabsTemplate(SHARK_SHOWCASE, '친근한 캐릭터와 함께하는 수업형 · 15가지 구성'),
+];
+
+const AKLABS_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = Object.fromEntries(
+  [BRIGHT_SHOWCASE, MINT_SHOWCASE, CALM_SHOWCASE, SHARK_SHOWCASE].map(sc => {
+    const cover = sc.slides.find(s => s.key === 'cover')!.fills;
+    const concept = sc.slides.find(s => s.key === 'concept')!.fills;
+    return [`aklabs-${sc.id}`, { title: cover, textOnly: concept, textImage1: concept, textImagesMany: concept }];
+  })
+);
+
+export const SLIDE_TEMPLATES: SlideTemplate[] = [...BASE_TEMPLATES, ...THEMED_TEMPLATES, ...AKLABS_TEMPLATES];
+
+// 시작할 때 깔아줄 슬라이드들 — 메인(aklabs) 템플릿은 모든 구성을, 나머지는 기본 4가지를 보여준다.
+export const buildStarterSlides = (template: SlideTemplate, kinds: SlideLayoutKind[]): DeckSlide[] =>
+  template.showcase
+    ? template.showcase.map(s => ({
+        id: crypto.randomUUID(), bg: template.bg, textColor: template.textColor,
+        objects: s.objects.map(o => ({ ...o, id: crypto.randomUUID() })),
+      }))
+    : kinds.map(kind => instantiateSlide(template, kind));
 
 export const getTemplate = (id: string): SlideTemplate =>
   SLIDE_TEMPLATES.find(t => t.id === id) ?? SLIDE_TEMPLATES[0];
@@ -569,7 +616,7 @@ export const getTemplate = (id: string): SlideTemplate =>
 // layoutGroup 없는 기존 4개는 플랫 카드로, layoutGroup 있는 템플릿은 레이아웃 구조 하나에
 // 색상 변형(테마) 여러 개가 묶인 그룹으로 나눈다.
 export const getSlideTemplateGroups = () => {
-  const flatTemplates = SLIDE_TEMPLATES.filter(t => !t.layoutGroup);
+  const flatTemplates = SLIDE_TEMPLATES.filter(t => !t.layoutGroup && !t.featured);
   const groupKeys = Array.from(
     new Set(SLIDE_TEMPLATES.filter(t => t.layoutGroup).map(t => t.layoutGroup!))
   );
@@ -577,7 +624,8 @@ export const getSlideTemplateGroups = () => {
     key,
     variants: SLIDE_TEMPLATES.filter(t => t.layoutGroup === key),
   }));
-  return { flatTemplates, groups };
+  const featuredTemplates = SLIDE_TEMPLATES.filter(t => t.featured);
+  return { flatTemplates, groups, featuredTemplates };
 };
 
 // 템플릿의 레이아웃 원본(Omit<SlideObject,'id'>[])에 새 id를 부여해 실제 슬라이드로 인스턴스화
@@ -678,6 +726,7 @@ const THEMED_FILL_SLOTS_BY_ID: Record<string, Record<SlideLayoutKind, FillSlot[]
 export const LAYOUT_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
   ...BASE_FILL_SLOTS,
   ...THEMED_FILL_SLOTS_BY_ID,
+  ...AKLABS_FILL_SLOTS,
 };
 
 // 템플릿·레이아웃의 텍스트/이미지/코드 슬롯 스펙 — AI 프롬프트에 그대로 전달

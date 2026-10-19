@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquareP
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
-import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, getLayoutSlotSpec, buildDraftDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
+import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, buildStarterSlides, getLayoutSlotSpec, buildDraftDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
 import TemplateGallery from '../../components/slidedeck/TemplateGallery';
 import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
 import SlideSnippetLibrary from '../../components/slidedeck/SlideSnippetLibrary';
@@ -216,7 +216,7 @@ export default function SlideDeckEditor() {
     if (!user) return;
     if (!canCreateDeck()) return;
     const template = getTemplate(templateId);
-    const starterSlides = ALL_LAYOUT_KINDS.map(kind => instantiateSlide(template, kind));
+    const starterSlides = buildStarterSlides(template, ALL_LAYOUT_KINDS);
     const { data, error } = await supabase
       .from('slide_decks')
       .insert({ teacher_id: user.id, title: '제목 없는 슬라이드', slides: starterSlides })
@@ -1272,7 +1272,7 @@ export default function SlideDeckEditor() {
                 선택한 템플릿의 배경과 글자 색상이 이 슬라이드 전체({activeDeck.slides.length}장)에 적용됩니다.
                 오브젝트의 위치·크기·내용은 그대로 유지되고, 배경 이미지는 제거됩니다.
               </p>
-              <TemplateGallery onSelect={handleApplyTemplate} />
+              <TemplateGallery onSelect={handleApplyTemplate} hideFeatured />
             </div>
           </div>
         )}

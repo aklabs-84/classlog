@@ -26,7 +26,8 @@ export default function TextBlockObject({
   const startEditing = () => { setDraft(obj.text ?? ''); setEditing(true); };
 
   const style = obj.style ?? {};
-  const isBadge = !!style.background;
+  const exact = style.lineHeight != null;  // aklabs 템플릿: 여백 없이 정확한 위치에 글자 배치
+  const isBadge = !!style.background && !exact;
   const textStyle: React.CSSProperties = {
     fontSize: style.fontSize ?? 24,
     color: style.color ?? fallbackColor,
@@ -35,13 +36,16 @@ export default function TextBlockObject({
     fontFamily: style.fontFamily,
     background: style.background,
     borderRadius: style.borderRadius,
-    padding: isBadge ? '8px 20px' : 4,
+    padding: exact ? 0 : isBadge ? '8px 20px' : 4,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
-    lineHeight: 1.35,
+    lineHeight: style.lineHeight ?? 1.35,
+    letterSpacing: style.letterSpacing,
     opacity: style.opacity ?? 1,
     boxSizing: 'border-box',
-    ...(isBadge ? { display: 'table-cell', verticalAlign: 'middle' as const } : {}),
+    ...(exact
+      ? { display: 'flex', flexDirection: 'column' as const, justifyContent: style.valign === 'middle' ? 'center' : style.valign === 'bottom' ? 'flex-end' : 'flex-start' }
+      : isBadge ? { display: 'table-cell', verticalAlign: 'middle' as const } : {}),
   };
 
   return (

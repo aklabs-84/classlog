@@ -19,6 +19,11 @@ export interface SlideObjectStyle {
   frame?: ImageFrame;             // type: 'image' 프레임 스타일
   rotate?: number;                // deg — 콜라주/폴라로이드 연출용 미세 회전
   opacity?: number;               // 0~1, 기본 1 = 불투명. text/image/emoji 오브젝트 투명도
+  // aklabs 템플릿용 정밀 배치 옵션 (없으면 기존 동작 그대로)
+  lineHeight?: number;            // 줄 간격 배수 — 지정하면 글상자 안쪽 여백 없이 정확히 배치
+  valign?: 'top' | 'middle' | 'bottom';  // 글상자 안 세로 정렬(lineHeight와 함께 사용)
+  letterSpacing?: number;         // px
+  fit?: 'cover' | 'contain' | 'fill';    // type: 'image' 맞춤 방식(기본 cover)
 }
 
 export interface SlideObject {
@@ -87,4 +92,7 @@ export interface SlideTemplate {
   // 같은 layoutGroup을 가진 템플릿들은 오브젝트 배치가 동일하고 색상만 다르다 — 갤러리에서 색상 스와치 선택 UI로 보여줄 때 사용.
   layoutGroup?: string;
   themeName?: string;  // 이 템플릿의 색상 테마 이름(갤러리 스와치 라벨용)
+  // aklabs-slides 메인 템플릿 — 갤러리 맨 위에 따로 보여주고, 고르면 이 템플릿의 모든 구성을 한 번에 펼쳐 보여준다.
+  featured?: boolean;
+  showcase?: { key: string; label: string; objects: Omit<SlideObject, 'id'>[] }[];
 }
