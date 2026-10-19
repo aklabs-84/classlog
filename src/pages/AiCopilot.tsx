@@ -2337,10 +2337,30 @@ ${session.transcript_text}
                       </div>
                     )}
                     {isSlideDraft && (() => {
-                      const { flatTemplates, groups } = getSlideTemplateGroups();
+                      const { flatTemplates, groups, featuredTemplates } = getSlideTemplateGroups();
                       return (
                         <div className="mt-4 pt-3 border-t border-surface-container">
                           <p className="text-[11px] font-bold text-on-surface-variant mb-2.5">디자인을 골라주세요</p>
+                          {featuredTemplates.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-[11px] font-black text-primary mb-1.5">추천 디자인</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {featuredTemplates.map(t => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => handleGenerateSlideDeck(t.id, stripDraftPreamble(displayText), extractDraftTitle(displayText))}
+                                    className="flex items-center gap-2 px-3 py-2 bg-primary/10 text-on-surface rounded-xl text-xs font-black hover:bg-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                                  >
+                                    <span className="w-4 h-4 rounded-full shrink-0 border border-surface-container" style={{ background: t.swatch }} />
+                                    <span className="truncate">{t.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="text-[11px] text-on-surface-variant mt-1.5">표지와 설명 장 모양으로 만들어져요. 더 많은 구성은 슬라이드 도구에서 고를 수 있어요.</p>
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {flatTemplates.map(t => (
                               <button

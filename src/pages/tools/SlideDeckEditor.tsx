@@ -767,7 +767,12 @@ export default function SlideDeckEditor() {
       <div style={{ padding: '4px 2px', position: 'relative' }}>
         <LimitToast message={limitToastMessage} />
         <button
-          onClick={() => { setView('list'); setImportedMaterial(null); }}
+          onClick={() => {
+            // 수업 계획서에서 넘어온 경우: 계획서 화면으로 돌아간다
+            const planId = (location.state as { returnToPlanId?: string } | null)?.returnToPlanId;
+            if (planId) { navigate(location.pathname, { replace: true, state: { activeToolId: 'lesson-plan', openPlanId: planId } }); return; }
+            setView('list'); setImportedMaterial(null);
+          }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, marginBottom: 16 }}
         >
           <ArrowLeft size={16} /> 목록으로

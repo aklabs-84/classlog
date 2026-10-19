@@ -686,7 +686,14 @@ const TeachingTools = () => {
       <div className="flex items-center gap-3 flex-wrap">
         {activeTool && !(activeTool.id === 'material-editor' && materialEditorOpen) && (
           <button
-            onClick={() => setActiveTool(null)}
+            onClick={() => {
+              const planId = (location.state as { returnToPlanId?: string } | null)?.returnToPlanId;
+              // 수업 계획서에서 넘어온 경우: 열어 보던 계획서 모달로 돌아간다
+              if (planId) { navigate(location.pathname, { replace: true, state: { activeToolId: 'lesson-plan', openPlanId: planId } }); return; }
+              // 그 외: 도구를 열라는 state를 지워야 location.state 감지 effect가 도구를 다시 열지 않는다
+              navigate(location.pathname + location.search, { replace: true, state: null });
+              setActiveTool(null);
+            }}
             className="p-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface-variant hover:text-primary transition-all"
             title="수업 도구 목록으로"
           >

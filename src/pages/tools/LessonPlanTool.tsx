@@ -10,7 +10,7 @@ import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf, 
 import { LessonPlanModal, LessonPlanSectionsEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
   Plus, FileText, Loader2, X, ChevronRight, ArrowLeft, BookOpen, Library, Trash2, Copy, FileDown, Pencil, Save, RotateCcw,
-  Maximize2, Minimize2, Wand2, LayoutPanelTop, ChevronDown,
+  Maximize2, Minimize2, Wand2, ChevronDown,
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
 import { VIEWER_STYLES, type ViewerStyle } from '../../components/materialSkins';
@@ -210,6 +210,7 @@ const SavedPlanViewModal = ({
   const [copyDone, setCopyDone] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
+  const [showMakeChoice, setShowMakeChoice] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -302,6 +303,7 @@ const SavedPlanViewModal = ({
     navigate('/teaching-tools', {
       state: {
         activeToolId: 'slide-deck',
+        returnToPlanId: plan.id,
         draftSlide: {
           noteId: '',
           title: sections.basicInfo.unitTitle || '수업 슬라이드',
@@ -336,13 +338,14 @@ const SavedPlanViewModal = ({
           })
         );
         navigate('/teaching-tools', {
-          state: { activeToolId: 'material-editor', draftMaterials: drafts },
+          state: { activeToolId: 'material-editor', draftMaterials: drafts, returnToPlanId: plan.id },
         });
       } else {
         const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, classInfo, materialViewerStyle);
         navigate('/teaching-tools', {
           state: {
             activeToolId: 'material-editor',
+            returnToPlanId: plan.id,
             draftMaterial: {
               noteId: '',
               title: sections.basicInfo.unitTitle ? `${sections.basicInfo.unitTitle} 수업 교안` : '수업 교안',
@@ -513,13 +516,7 @@ const SavedPlanViewModal = ({
               </div>
               <div className="flex-1 min-w-0" />
               <button
-                onClick={handleCreateSlide}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm text-primary border border-primary/30 hover:bg-primary/5 transition-colors whitespace-nowrap shrink-0"
-              >
-                <LayoutPanelTop size={14} /> 슬라이드로 만들기
-              </button>
-              <button
-                onClick={() => setShowMaterialPicker(true)}
+                onClick={() => setShowMakeChoice(true)}
                 disabled={creatingMaterial}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
               >
@@ -529,6 +526,33 @@ const SavedPlanViewModal = ({
           )}
         </div>
       </div>
+      {showMakeChoice && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4" onClick={e => { e.stopPropagation(); setShowMakeChoice(false); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3">
+              <p className="font-black text-base text-on-surface">어떤 수업 자료를 만들까요?</p>
+              <p className="text-xs text-on-surface-variant mt-1">이 계획서를 바탕으로 만들어요. 필요하면 둘 다 차례로 만들 수 있어요.</p>
+            </div>
+            <div className="px-6 pb-5 space-y-2">
+              <button
+                onClick={() => { setShowMakeChoice(false); setShowMaterialPicker(true); }}
+                className="w-full text-left p-3 rounded-2xl border border-surface-container hover:bg-primary/5 hover:border-primary transition-colors"
+              >
+                <span className="block text-sm font-black text-on-surface">수업 자료 가이드</span>
+                <span className="block text-xs text-on-surface-variant mt-0.5">학생이 입장 코드로 열어 따라 하는 화면이에요. 모양(스타일)을 골라 만들어요.</span>
+              </button>
+              <button
+                onClick={() => { setShowMakeChoice(false); handleCreateSlide(); }}
+                className="w-full text-left p-3 rounded-2xl border border-surface-container hover:bg-primary/5 hover:border-primary transition-colors"
+              >
+                <span className="block text-sm font-black text-on-surface">슬라이드</span>
+                <span className="block text-xs text-on-surface-variant mt-0.5">앞에서 설명할 발표용 화면이에요. 디자인(템플릿)을 골라 만들어요.</span>
+              </button>
+              <button onClick={() => setShowMakeChoice(false)} className="w-full px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showMaterialPicker && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4" onClick={e => { e.stopPropagation(); setShowMaterialPicker(false); }}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -619,6 +643,16 @@ const LessonPlanTool = () => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classes, user]);
+
+  // 슬라이드/자료 화면에서 ← 로 돌아온 경우 — 열어 보던 계획서 모달을 다시 연다
+  const openPlanHandledRef = useRef(false);
+  useEffect(() => {
+    if (openPlanHandledRef.current || plans.length === 0) return;
+    const openId = (location.state as { openPlanId?: string } | null)?.openPlanId;
+    if (!openId) return;
+    const found = plans.find(p => p.id === openId);
+    if (found) { openPlanHandledRef.current = true; setViewingPlan(found); }
+  }, [plans, location.state]);
 
   const fetchPlans = () => {
     if (!user) return;
