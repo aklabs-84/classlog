@@ -33,6 +33,61 @@ function parseQuoteSections(content: string): { label: string; text: string }[] 
   return out;
 }
 
+type JourneyWeek = { week: number; topic: string | null; participantCount: number; obsCount: number; resultCount: number; images: string[]; samples: string[] };
+
+// 주차별 학습 여정 집계 (화면과 PDF 인쇄 영역이 같이 씀)
+function buildWeeklyJourney(weeklyPlan: any[], students: StudentWithData[], gallery: GalleryItem[]): JourneyWeek[] {
+  type WeekEntry = { week: number; topic: string | null; participants: Set<string>; obsCount: number; resultCount: number; images: string[]; samples: string[] };
+  const weekMap: Record<number, WeekEntry> = {};
+  const ensureWeek = (w: number) => {
+    if (!weekMap[w]) weekMap[w] = { week: w, topic: null, participants: new Set(), obsCount: 0, resultCount: 0, images: [], samples: [] };
+    return weekMap[w];
+  };
+  // 대표 문장: 학생 한 명당 1개, 너무 짧은 말은 빼고 주차마다 최대 3개
+  const studentNames = students.map(st => (st.full_name || '').replace(/\s+/g, '')).filter(n => n.length >= 2);
+  const sampleOwners: Record<number, Set<string>> = {};
+  const addSample = (wk: WeekEntry, studentId: string, text?: string | null) => {
+    const t = (text || '').replace(/\s+/g, ' ').trim();
+    const owners = (sampleOwners[wk.week] ||= new Set());
+    if (t.length < 6 || wk.samples.length >= 3 || owners.has(studentId) || wk.samples.includes(t)) return;
+    if (studentNames.some(n => t.includes(n))) return; // 학생 이름이 적힌 글은 대표 문장에서 제외
+    owners.add(studentId);
+    wk.samples.push(t.length > 120 ? `${t.slice(0, 120)}…` : t);
+  };
+  weeklyPlan.forEach((p: any) => {
+    const w = Number(p.week);
+    if (!w) return;
+    ensureWeek(w).topic = p.topic || null;
+  });
+  students.forEach(student => {
+    student.observations.forEach(o => {
+      if (!o.week_number) return;
+      const wk = ensureWeek(o.week_number);
+      wk.participants.add(student.id);
+      wk.obsCount += 1;
+      addSample(wk, student.id, o.content);
+    });
+    student.resultGroups.forEach(group => {
+      if (!group.week_number) return;
+      const wk = ensureWeek(group.week_number);
+      wk.participants.add(student.id);
+      wk.resultCount += 1;
+      const imgItem = group.items.find(r => r.image_urls && r.image_urls.length > 0);
+      (imgItem?.image_urls || []).forEach(u => { if (wk.images.length < 8 && !wk.images.includes(u)) wk.images.push(u); });
+      const textItem = group.items.find(r => r.text_content);
+      addSample(wk, student.id, textItem?.text_content);
+    });
+  });
+  gallery.forEach(g => {
+    if (!g.week_number || g.file_type !== 'image') return;
+    const wk = ensureWeek(g.week_number);
+    if (wk.images.length < 8 && !wk.images.includes(g.file_url)) wk.images.push(g.file_url);
+  });
+  return Object.values(weekMap)
+    .map(({ participants, ...wk }) => ({ ...wk, participantCount: participants.size }))
+    .sort((a, b) => a.week - b.week);
+}
+
 async function blobDownload(url: string, filename: string) {
   const res = await fetch(url);
   const blob = await res.blob();
@@ -292,7 +347,7 @@ const SchoolProjectShareView = () => {
     }
   };
 
-  const fetchClassData = async (classId: string) => {
+  const fetchClassData = async (classId: string, keepActive = false) => {
     setLoadingClass(classId);
     try {
       const cls = classList.find(c => c.id === classId);
@@ -313,7 +368,7 @@ const SchoolProjectShareView = () => {
       if (!payload || students.length === 0) {
         setClassStudents(prev => ({ ...prev, [classId]: [] }));
         setClassGallery(prev => ({ ...prev, [classId]: [] }));
-        setActiveClassId(classId);
+        if (!keepActive) setActiveClassId(classId);
         return;
       }
       const obsRes = { data: (payload as any).observations || [] };
@@ -384,7 +439,7 @@ const SchoolProjectShareView = () => {
       (evalRes.data || []).forEach((e: any) => { evalMap[e.student_id] = e; });
       setClassEvalMap(prev => ({ ...prev, [classId]: evalMap }));
 
-      setActiveClassId(classId);
+      if (!keepActive) setActiveClassId(classId);
     } finally {
       setLoadingClass(null);
     }
@@ -407,6 +462,19 @@ const SchoolProjectShareView = () => {
     } finally {
       setGalleryLoadingMore(null);
     }
+  };
+
+  // PDF 저장: 아직 안 펼친 학급 데이터까지 모두 불러온 뒤 인쇄
+  const [preparingPdf, setPreparingPdf] = useState(false);
+  const handlePrintPdf = async () => {
+    setPreparingPdf(true);
+    try {
+      await Promise.all(classList.filter(c => !classStudents[c.id]).map(c => fetchClassData(c.id, true)));
+      await new Promise(r => setTimeout(r, 400));
+    } finally {
+      setPreparingPdf(false);
+    }
+    window.print();
   };
 
   const handleToggleClass = (classId: string) => {
@@ -694,9 +762,9 @@ const SchoolProjectShareView = () => {
               {schoolGroups.length > 1 ? `학교 ${schoolGroups.length}곳 참여` : (schoolGroups[0]?.name || project?.school_name || '')}
             </p>
             <div className="flex items-center gap-2 shrink-0 print:hidden">
-              <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/25 hover:bg-white/10 transition-colors">
+              <button onClick={handlePrintPdf} disabled={preparingPdf} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/25 hover:bg-white/10 transition-colors">
                 <Download size={14} />
-                <span className="text-base font-bold text-white/90">PDF로 저장</span>
+                <span className="text-base font-bold text-white/90">{preparingPdf ? '준비 중…' : 'PDF로 저장'}</span>
               </button>
               <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/25 hover:bg-white/10 transition-colors">
                 <Sparkles size={14} />
@@ -986,7 +1054,7 @@ const SchoolProjectShareView = () => {
       )}
 
       {/* 학교별 목록 */}
-      <div id="class-list" className="scroll-mt-14 max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12">
+      <div id="class-list" className="print:hidden scroll-mt-14 max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12">
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <h2 className="text-2xl font-black text-slate-900">학급별 상세</h2>
           {schoolGroups.length > 1 && (
@@ -1098,45 +1166,7 @@ const SchoolProjectShareView = () => {
                       ...students.flatMap(s => s.resultGroups.map(g => g.week_number).filter(Boolean)),
                     ] as number[])).sort((a, b) => a - b);
 
-                    // 주차별 학습 여정 집계
-                    type WeekEntry = { week: number; topic: string | null; participants: Set<string>; obsCount: number; resultCount: number; images: string[]; sampleText: string | null };
-                    const weekMap: Record<number, WeekEntry> = {};
-                    const ensureWeek = (w: number) => {
-                      if (!weekMap[w]) weekMap[w] = { week: w, topic: null, participants: new Set(), obsCount: 0, resultCount: 0, images: [], sampleText: null };
-                      return weekMap[w];
-                    };
-                    (cls.weekly_plan || []).forEach((p: any) => {
-                      const w = Number(p.week);
-                      if (!w) return;
-                      ensureWeek(w).topic = p.topic || null;
-                    });
-                    students.forEach(student => {
-                      student.observations.forEach(o => {
-                        if (!o.week_number) return;
-                        const wk = ensureWeek(o.week_number);
-                        wk.participants.add(student.id);
-                        wk.obsCount += 1;
-                        if (!wk.sampleText && o.content) wk.sampleText = o.content.length > 120 ? `${o.content.slice(0, 120)}…` : o.content;
-                      });
-                      student.resultGroups.forEach(group => {
-                        if (!group.week_number) return;
-                        const wk = ensureWeek(group.week_number);
-                        wk.participants.add(student.id);
-                        wk.resultCount += 1;
-                        const imgItem = group.items.find(r => r.image_urls && r.image_urls.length > 0);
-                        (imgItem?.image_urls || []).forEach(u => { if (wk.images.length < 8 && !wk.images.includes(u)) wk.images.push(u); });
-                        const textItem = group.items.find(r => r.text_content);
-                        if (!wk.sampleText && textItem?.text_content) wk.sampleText = textItem.text_content.length > 120 ? `${textItem.text_content.slice(0, 120)}…` : textItem.text_content;
-                      });
-                    });
-                    gallery.forEach(g => {
-                      if (!g.week_number || g.file_type !== 'image') return;
-                      const wk = ensureWeek(g.week_number);
-                      if (wk.images.length < 8 && !wk.images.includes(g.file_url)) wk.images.push(g.file_url);
-                    });
-                    const weeklyJourney = Object.values(weekMap)
-                      .map(wk => ({ ...wk, participantCount: wk.participants.size }))
-                      .sort((a, b) => a.week - b.week);
+                    const weeklyJourney = buildWeeklyJourney(cls.weekly_plan || [], students, gallery);
 
                     const filteredStudents = weekFilter === 'all' ? students : students.map(s => ({
                       ...s,
@@ -1374,8 +1404,12 @@ const SchoolProjectShareView = () => {
                                           {wk.obsCount > 0 && <span>활동기록 {wk.obsCount}건</span>}
                                           {wk.resultCount > 0 && <span>결과물 {wk.resultCount}건</span>}
                                         </div>
-                                        {wk.sampleText && (
-                                          <p className="mt-3 text-[17px] text-slate-700 leading-relaxed line-clamp-2 pl-3 border-l-2" style={{ borderColor: '#e8412c' }}>“{wk.sampleText}”</p>
+                                        {wk.samples.length > 0 && (
+                                          <div className="mt-3 space-y-2">
+                                            {wk.samples.map((t, i) => (
+                                              <p key={i} className="text-[17px] text-slate-700 leading-relaxed line-clamp-2 pl-3 border-l-2" style={{ borderColor: '#e8412c' }}>“{t}”</p>
+                                            ))}
+                                          </div>
                                         )}
                                         {wk.images.length > 0 && (
                                           <div className="flex gap-1.5 mt-2 overflow-x-auto custom-scrollbar pb-1">
@@ -1735,6 +1769,41 @@ const SchoolProjectShareView = () => {
           );
         })}
       </div>
+
+      {/* 인쇄(PDF) 전용: 학급별 상세 (학생 이름 없이 학습 여정 중심) */}
+      <section className="hidden print:block max-w-5xl mx-auto px-6 pt-6">
+        <h2 className="text-2xl font-black text-slate-900 mb-3">학급별 상세</h2>
+        {classList.map((cls: any) => {
+          const st = classStudents[cls.id] || [];
+          const jr = cls.show_learning_journey ? buildWeeklyJourney(cls.weekly_plan || [], st, classGallery[cls.id] || []) : [];
+          const teachers = cls.teacher_name ? [cls.teacher_name] : [];
+          return (
+            <div key={cls.id} className="mb-6 pt-3 border-t-2 border-slate-900">
+              <div className="break-inside-avoid">
+                <p className="text-xl font-black text-slate-900">{cls.name}</p>
+                <p className="text-base text-slate-600">
+                  {[cls.schoolName, teachers.length > 0 ? `${teachers.join(', ')} 선생님` : ''].filter(Boolean).join(' · ')}
+                </p>
+                <p className="text-base font-bold text-slate-800 mt-1">
+                  학생 {st.length || cls.studentCount || 0}명 · 결과물 {cls.resultCount ?? 0}건 · 활동 기록 {cls.obsCount ?? 0}건
+                </p>
+              </div>
+              {jr.length === 0 ? (
+                <p className="text-base text-slate-500 mt-2">등록된 주차별 활동이 없어요.</p>
+              ) : jr.map(wk => (
+                <div key={wk.week} className="break-inside-avoid flex gap-3 py-2 border-b border-slate-200">
+                  <span className="shrink-0 w-14 text-base font-black" style={{ color: '#e8412c' }}>{wk.week}주차</span>
+                  <div className="min-w-0">
+                    <p className="text-base font-black text-slate-900">{wk.topic || `${wk.week}주차 활동`}</p>
+                    <p className="text-sm text-slate-600">참여 {wk.participantCount}명 · 결과물 {wk.resultCount}건{wk.obsCount > 0 ? ` · 활동기록 ${wk.obsCount}건` : ''}</p>
+                    {wk.samples.map((t, i) => <p key={i} className="text-sm text-slate-700 mt-1 pl-2 border-l-2" style={{ borderColor: '#e8412c' }}>“{t}”</p>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </section>
 
       {/* 클래스로그 홍보 CTA */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-10 print:hidden">
