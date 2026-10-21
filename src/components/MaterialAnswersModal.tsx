@@ -22,7 +22,7 @@ const isFilled = (v: string) => v.trim() !== '' && v !== '0';
 
 // "한눈에 보기"에서 입력칸마다 붙일 이름. 저장된 키는 "n번째 입력칸(f1, f2…)"뿐이라,
 // 자료를 화면 밖에서 한 번 그려 각 칸의 주변 글(표의 왼쪽 칸 · 같은 줄 문장)을 이름으로 뽑는다.
-interface FieldInfo { key: string; label: string; checkbox: boolean; group: string }
+interface FieldInfo { key: string; label: string; checkbox: boolean; group: string; row?: number }
 
 const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim();
 
@@ -34,11 +34,15 @@ const collectFields = (root: HTMLElement): FieldInfo[] => {
   nodes.forEach(n => { if (/^H[123]$/.test(n.tagName)) curGroup = clean(n.textContent); else groupOf.set(n, curGroup); });
   const els = nodes.filter(n => n.hasAttribute('data-fkey'));
   const perParent = new Map<Element, number>();
+  const rowIds = new Map<Element, number>();
   return els.map((el, i) => {
     const checkbox = (el as HTMLInputElement).type === 'checkbox';
     let label = '';
     const td = el.closest('td');
+    let row: number | undefined;
     if (td && td.parentElement) {
+      if (!rowIds.has(td.parentElement)) rowIds.set(td.parentElement, rowIds.size);
+      row = rowIds.get(td.parentElement);
       const cells = Array.from(td.parentElement.children);
       const idx = cells.indexOf(td);
       for (let c = idx - 1; c >= 0 && !label; c--) label = clean(cells[c].textContent);
@@ -55,8 +59,30 @@ const collectFields = (root: HTMLElement): FieldInfo[] => {
       }
     }
     if (label.length > 60) label = `${label.slice(0, 60)}…`;
-    return { key: `f${i + 1}`, label: label || `입력칸 ${i + 1}`, checkbox, group: groupOf.get(el) || '' };
+    return { key: `f${i + 1}`, label: label || `입력칸 ${i + 1}`, checkbox, group: groupOf.get(el) || '', row };
   });
+};
+
+// 학생이 표의 "＋ 더 쓰기"로 늘린 줄은 저장 키가 "f12+2.1"(원래 줄 첫 칸 순번+줄번호.칸번호)이다.
+// 자료 그림에는 없으니, 저장된 키를 보고 원래 줄 바로 뒤에 "이름 + 추가 n" 칸으로 끼워 넣는다.
+const withExtraFields = (base: FieldInfo[], keys: Set<string>): FieldInfo[] => {
+  const found = new Map<string, { b: string; n: number; c: number }>();
+  keys.forEach(k => {
+    const m = /^(f\d+)\+(\d+)\.(\d+)$/.exec(k);
+    if (m) found.set(k, { b: m[1], n: Number(m[2]), c: Number(m[3]) });
+  });
+  if (found.size === 0) return base;
+  const out = base.slice();
+  Array.from(found.entries())
+    .sort((a, b) => a[1].n - b[1].n || a[1].c - b[1].c)
+    .forEach(([key, { b, n, c }]) => {
+      const bf = base.find(f => f.key === b);
+      if (!bf) return;
+      let at = out.indexOf(bf);
+      while (at + 1 < out.length && (out[at + 1].row === bf.row && bf.row !== undefined || out[at + 1].key.startsWith(`${b}+`))) at++;
+      out.splice(at + 1, 0, { key, label: `${bf.label} ${n + 1}${c > 0 ? ` (${c + 1}번째 칸)` : ''}`, checkbox: false, group: bf.group, row: bf.row });
+    });
+  return out;
 };
 
 const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
@@ -70,13 +96,13 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const [selQ, setSelQ] = useState<string | null>(null);
   const [showEmpty, setShowEmpty] = useState(false);
   const [showCheck, setShowCheck] = useState(false);
-  const [fields, setFields] = useState<FieldInfo[]>([]);
+  const [baseFields, setBaseFields] = useState<FieldInfo[]>([]);
   const [live, setLive] = useState(false);
   const measureRef = useRef<HTMLDivElement>(null);
 
   // 화면 밖에 자료를 그려 입력칸 이름을 뽑는다(그려진 순서 = 저장 키 순번)
   useEffect(() => {
-    if (measureRef.current) setFields(collectFields(measureRef.current));
+    if (measureRef.current) setBaseFields(collectFields(measureRef.current));
   }, [material.content, mdComponents, loading]);
 
   // 학생들의 답만 다시 읽는다(최초 로딩 · 실시간 알림 · 주기 갱신이 함께 쓴다)
@@ -162,6 +188,12 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId, showOriginal, onClose]);
 
+  const extraKeys = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(byStudent).forEach(a => Object.entries(a.values).forEach(([k, v]) => { if (k.includes('+') && isFilled(v)) set.add(k); }));
+    return set;
+  }, [byStudent]);
+  const fields = useMemo(() => withExtraFields(baseFields, extraKeys), [baseFields, extraKeys]);
   const answeredCount = useMemo(() => students.filter(s => (byStudent[s.id]?.filled ?? 0) > 0).length, [students, byStudent]);
   const selected = selectedId ? students.find(s => s.id === selectedId) : null;
 

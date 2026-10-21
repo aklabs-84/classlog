@@ -28,6 +28,7 @@ import {
   MonitorPlay, Palette, Lightbulb, Scissors, Lock, Unlock, ClipboardPaste,
   HelpCircle, Slash, Sparkles, GripVertical, AlertTriangle,
 } from 'lucide-react';
+import { appToast } from '../lib/appDialog';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
 const SLASH_COMMANDS = [
@@ -900,6 +901,24 @@ const CustomHorizontalRule = HorizontalRuleExt.extend({
 // 커서가 그 문단을 벗어난 뒤 "---"만 단독으로 남아있으면 자동으로 구분선으로 바꿔 보정한다.
 const HR_ONLY_TEXT = new Set(['---', '___', '***', '—-']);
 
+// 목록·표 밖에서 Tab을 누르면 브라우저 기본 동작(다른 버튼으로 포커스 이동 → 화면이 튐)을 막는다.
+// 목록·표 안에서는 각자의 Tab 동작(들여쓰기·셀 이동)이 그대로 실행되도록 false를 돌려준다.
+const TabGuard = Extension.create({
+  name: 'tabGuard',
+  priority: 1,
+  addKeyboardShortcuts() {
+    const guard = () => {
+      const { $from } = this.editor.state.selection;
+      for (let d = $from.depth; d > 0; d--) {
+        const n = $from.node(d).type.name;
+        if (n === 'listItem' || n === 'taskItem' || n === 'tableCell' || n === 'tableHeader') return false;
+      }
+      return true;
+    };
+    return { Tab: guard, 'Shift-Tab': guard };
+  },
+});
+
 const AutoHorizontalRule = Extension.create({
   name: 'autoHorizontalRule',
   addProseMirrorPlugins() {
@@ -1725,6 +1744,7 @@ const RichEditor = ({
       CustomHorizontalRule,
       SlashCommandExtension,
       AutoHorizontalRule,
+      TabGuard,
       FillPlaceholderHighlight,
       Markdown.configure({
         html: true,
@@ -1791,7 +1811,7 @@ const RichEditor = ({
   });
 
   const handleImageFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드 가능합니다.'); return; }
+    if (!file.type.startsWith('image/')) { appToast('이미지 파일만 업로드 가능합니다.'); return; }
 
     // ① base64로 즉시 표시 (업로드 전 미리보기)
     const base64 = await fileToBase64(file);
@@ -1861,8 +1881,17 @@ const RichEditor = ({
   useEffect(() => {
     if (!editor) return;
     if (value !== lastMarkdownRef.current) {
+      // 내용을 통째로 다시 넣으면 커서·스크롤이 초기화되므로, 같은 글 편집 중이면 위치를 되돌린다
+      const { from, to } = editor.state.selection;
+      const hadFocus = editor.isFocused;
+      const scrollY = window.scrollY;
       editor.commands.setContent(value);
       lastMarkdownRef.current = value;
+      if (hadFocus) {
+        const max = editor.state.doc.content.size;
+        editor.commands.setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) });
+        window.scrollTo({ top: scrollY });
+      }
     }
   }, [value, editor]);
 
@@ -2312,7 +2341,7 @@ const RichEditor = ({
       <div
         style={{ minHeight }}
         className={`relative transition-colors cursor-text bg-white overflow-hidden ${contentRoundedClassName} ${isDragging ? 'bg-primary/5 ring-2 ring-primary ring-inset' : ''}`}
-        onClick={() => editor.commands.focus()}
+        onClick={() => { if (!editor.isFocused) editor.commands.focus(null, { scrollIntoView: false }); }}
         onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={async e => {

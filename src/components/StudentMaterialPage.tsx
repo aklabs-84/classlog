@@ -1,4 +1,4 @@
-import { createContext, createElement, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
+import { cloneElement, createContext, createElement, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -75,6 +75,9 @@ interface AnswerCtx {
   version: number; // 답변을 불러올 때마다 올라가 입력칸이 값을 다시 읽게 한다
   get: (key: string) => string;
   set: (key: string, value: string) => void;
+  // 표의 "[+]" 줄 추가용(저장되는 화면에서만 있음): 저장된 추가 줄 수 / 입력칸 번호 다시 매기기
+  extraCount?: (rowFirstKey: string) => number;
+  remap?: () => void;
 }
 const AnswerContext = createContext<AnswerCtx | null>(null);
 // GFM 체크박스(`- [ ]`)의 input은 위치 정보가 없어 가장 가까운 li의 줄 번호를 키로 빌려 쓴다
@@ -83,7 +86,7 @@ const LineContext = createContext<string>('');
 const FIELD_CLS = 'rounded-lg border-2 border-primary/25 bg-primary/5 px-3 py-2 text-lg leading-snug outline-none focus:border-primary focus:bg-white disabled:opacity-100 disabled:bg-surface-container-low disabled:border-surface-container disabled:text-on-surface';
 
 // blanks: 문장 속 입력칸일 때 쓰인 밑줄 개수 — 3개는 12rem, 하나 늘 때마다 1.2rem씩 길어지고 화면 너비(max-w-full)에서 멈춘다
-const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3 }: { fieldKey: string; inline?: boolean; rows?: number; blanks?: number }) => {
+const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3, extra }: { fieldKey: string; inline?: boolean; rows?: number; blanks?: number; extra?: boolean }) => {
   const ctx = useContext(AnswerContext)!;
   const [v, setV] = useState(() => ctx.get(fieldKey));
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -117,6 +120,7 @@ const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3 }: { fieldKey: stri
       ref={taRef}
       data-answer-field
       data-fkey={fieldKey}
+      data-fextra={extra ? '' : undefined}
       rows={rows}
       value={v}
       maxLength={2000}
@@ -146,6 +150,7 @@ const AnswerCheckbox = ({ fieldKey }: { fieldKey: string }) => {
 };
 
 const TOKEN_RE = /(\[ \]|_{3,})/;
+const PLUS_RE = /\s*\[\+\]\s*$/;
 
 // 문자열 자식 안의 "[ ]"·"___"를 입력칸으로 바꾼다(이스케이프된 \[ \] , \___ 도 마크다운 처리 후엔 일반 글자)
 const renderInteractive = (children: ReactNode, baseKey: string): ReactNode => {
@@ -196,6 +201,57 @@ const buildAnswerComponents = (base: any) => {
     isBlankCell(props.children)
       ? { ...props, children: <AnswerText fieldKey={`td${key}`} /> }
       : withTokens('td')(props, _ctx, key));
+  // 표 줄의 어떤 칸이 "…[+]"로 끝나면 그 줄 아래에 같은 모양의 입력 줄을 더 붙일 수 있다
+  const BaseTr = base?.tr ?? 'tr';
+  const BaseTd = base?.td ?? 'td';
+  const textOf = (children: ReactNode) => Children.toArray(children).filter(c => typeof c === 'string').join('');
+  const stripPlus = (children: ReactNode) =>
+    Children.toArray(children).map(c => (typeof c === 'string' ? c.replace(PLUS_RE, '') : c));
+  const PlusRow = ({ props, cells, plusIdx, rowKey, ctx }: { props: any; cells: any[]; plusIdx: number; rowKey: string; ctx: AnswerCtx }) => {
+    const firstBlank = cells.find(c => isBlankCell(c.props.children));
+    const firstKey = `td${posKey(firstBlank.props.node)}`;
+    const [added, setAdded] = useState(0);
+    useEffect(() => { setAdded(a => Math.max(a, ctx.extraCount?.(firstKey) ?? 0)); }, [ctx, firstKey]);
+    useLayoutEffect(() => { if (added > 0) ctx.remap?.(); }, [added]); // eslint-disable-line react-hooks/exhaustive-deps
+    const label = textOf(cells[plusIdx].props.children).replace(PLUS_RE, '').trim();
+    const shown = cells.map((c, i) => (i === plusIdx ? cloneElement(c, { children: stripPlus(c.props.children) }) : c));
+    return (
+      <>
+        <BaseTr {...props} data-frow={rowKey}>{shown}</BaseTr>
+        {Array.from({ length: added }, (_, k) => k + 1).map(n => (
+          <BaseTr key={n}>
+            {cells.map((c, i) => (
+              <BaseTd key={i}>
+                {isBlankCell(c.props.children)
+                  ? <AnswerText extra fieldKey={`tdx${rowKey}_${n}_${i}`} />
+                  : i === plusIdx ? `${label} ${n + 1}` : null}
+              </BaseTd>
+            ))}
+          </BaseTr>
+        ))}
+        {!ctx.readOnly && ctx.remap && (
+          <BaseTr>
+            <BaseTd colSpan={cells.length}>
+              <button type="button" onClick={() => setAdded(a => a + 1)}
+                className="text-sm font-bold text-primary border-2 border-dashed border-primary/40 rounded-lg px-3 py-1 hover:bg-primary/5">
+                ＋ {label || '줄'} 더 쓰기
+              </button>
+            </BaseTd>
+          </BaseTr>
+        )}
+      </>
+    );
+  };
+  const Tr = (props: any) => {
+    const ctx = useContext(AnswerContext);
+    const inNote = useContext(InTeacherNoteContext);
+    const rowKey = posKey(props.node);
+    if (!ctx || !rowKey || inNote) return createElement(BaseTr, props);
+    const cells = Children.toArray(props.children).filter(isValidElement) as any[];
+    const plusIdx = cells.findIndex(c => PLUS_RE.test(textOf(c.props.children)));
+    if (plusIdx < 0 || !cells.some(c => isBlankCell(c.props.children))) return createElement(BaseTr, props);
+    return <PlusRow props={props} cells={cells} plusIdx={plusIdx} rowKey={rowKey} ctx={ctx} />;
+  };
   const LiInner = (props: any) => {
     const ctx = useContext(AnswerContext);
     const inNote = useContext(InTeacherNoteContext);
@@ -222,7 +278,7 @@ const buildAnswerComponents = (base: any) => {
     const { node: _node, ...rest } = props;
     return <input {...rest} />;
   };
-  return { ...base, p: P, td: Td, li: Li, input: Input };
+  return { ...base, p: P, td: Td, tr: Tr, li: Li, input: Input };
 };
 
 // 에디터 미리보기용 — 학생 화면과 똑같이 입력칸을 보여주되 저장은 하지 않고, 화면을 닫으면 사라진다
@@ -353,6 +409,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   // 저장 키는 "문서에서 n번째 입력칸"(f1, f2…). 자료 중간에 줄이 추가/삭제돼도 답변이 밀리지 않도록
   // 화면에 그려진 입력칸을 DOM 순서로 세어 위치 키(줄:칸)→순번으로 바꾼다.
   const ordinalRef = useRef<Map<string, string>>(new Map());
+  const remapRef = useRef<() => void>(() => {});
   const pendingRef = useRef<Map<string, string>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [version, setVersion] = useState(0);
@@ -382,6 +439,19 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
       readOnly: !answers.save,
       version,
       get: (k) => valuesRef.current[ordinalRef.current.get(k) ?? k] ?? '',
+      remap: () => remapRef.current(),
+      // 저장된 값 중 이 줄(첫 칸 순번 기준)의 추가 줄 번호 가장 큰 것
+      extraCount: (rowFirstKey) => {
+        const base = ordinalRef.current.get(rowFirstKey);
+        if (!base) return 0;
+        const re = new RegExp(`^${base}\\+(\\d+)\\.`);
+        let max = 0;
+        Object.entries(valuesRef.current).forEach(([key, val]) => {
+          const m = re.exec(key);
+          if (m && val.trim()) max = Math.max(max, Number(m[1]));
+        });
+        return max;
+      },
       set: (k, v) => {
         const sk = ordinalRef.current.get(k) ?? k;
         valuesRef.current[sk] = v;
@@ -450,15 +520,34 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
   }, [content, skinComponents, skinned, skinInfo.startLabel]);
 
   // 본문이 그려진 뒤 입력칸을 문서 순서대로 세어 순번 키를 만들고, 입력칸들이 값을 다시 읽게 한다
-  useLayoutEffect(() => {
-    if (!answers) return;
+  // 표의 "[+]"로 늘린 줄(data-fextra)은 순번에서 빼고, "원래 줄의 첫 칸 순번+n.칸" (예: f12+2.1)으로 따로 저장해
+  // 줄을 늘려도 기존 답변 키(f1, f2…)가 밀리지 않는다.
+  const remap = useCallback(() => {
+    const root = articleRef.current;
+    if (!root) return;
     const next = new Map<string, string>();
-    articleRef.current?.querySelectorAll<HTMLElement>('[data-fkey]').forEach((el, i) => {
+    const els = Array.from(root.querySelectorAll<HTMLElement>('[data-fkey]'));
+    let i = 0;
+    els.forEach(el => {
       const k = el.getAttribute('data-fkey');
-      if (k) next.set(k, `f${i + 1}`);
+      if (k && !el.hasAttribute('data-fextra')) next.set(k, `f${++i}`);
+    });
+    els.forEach(el => {
+      const k = el.getAttribute('data-fkey');
+      if (!k || !el.hasAttribute('data-fextra')) return;
+      const m = /^tdx(.+)_(\d+)_(\d+)$/.exec(k);
+      const baseEl = m && root.querySelector(`tr[data-frow="${m[1]}"] [data-fkey]:not([data-fextra])`);
+      const base = baseEl && next.get(baseEl.getAttribute('data-fkey') || '');
+      next.set(k, m && base ? `${base}+${m[2]}.${m[3]}` : k);
     });
     ordinalRef.current = next;
     setVersion(v => v + 1);
+  }, []);
+  remapRef.current = remap;
+
+  useLayoutEffect(() => {
+    if (!answers) return;
+    remap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markdown, !!answers]);
 
