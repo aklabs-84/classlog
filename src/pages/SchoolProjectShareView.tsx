@@ -9,17 +9,29 @@ import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { BANNER_THEMES } from '../components/classroom/SchoolProjectModal';
 import {
-  School, Users, ChevronDown, ChevronUp, ExternalLink,
+  School, Users, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ExternalLink,
   FileText, Loader2, AlertCircle, Lock, Calendar,
   Images, Download, ZoomIn, X, BookOpen,
   AlignLeft, Link2, ImageIcon, File as FileIcon,
-  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, Quote, BarChart2,
+  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, BarChart2,
 } from 'lucide-react';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
   AttendanceDonutChart, MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
 } from '../components/share/ShareCharts';
+
+// "[오늘 배운 것] … [한 줄 느낌] …" 형태의 글을 이름표별로 나눈다. 이름표가 없으면 빈 배열.
+function parseQuoteSections(content: string): { label: string; text: string }[] {
+  const out: { label: string; text: string }[] = [];
+  const re = /\[([^\]]{1,20})\]\s*([^[]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    const text = m[2].trim();
+    if (text) out.push({ label: m[1].trim(), text });
+  }
+  return out;
+}
 
 async function blobDownload(url: string, filename: string) {
   const res = await fetch(url);
@@ -118,6 +130,8 @@ const SchoolProjectShareView = () => {
   const [highlightGallery, setHighlightGallery] = useState<Array<{ id: string; file_url: string; caption: string | null; class_id: string }>>([]);
   const [spotlightQuotes, setSpotlightQuotes] = useState<{ content: string; studentName: string; className: string }[]>([]);
   const [spotlightIndex, setSpotlightIndex] = useState(0);
+  const [spotlightPaused, setSpotlightPaused] = useState(false);
+  const [classQuoteMap, setClassQuoteMap] = useState<Record<string, string>>({});
   const [snapshotResult, setSnapshotResult] = useState<{ title: string | null; resultType: string; createdAt: string; studentName: string; className: string; url: string | null } | null>(null);
   const [openSchools, setOpenSchools] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -145,12 +159,12 @@ const SchoolProjectShareView = () => {
 
   useEffect(() => { setSpotlightIndex(0); }, [spotlightQuotes.length]);
   useEffect(() => {
-    if (reduceMotion || spotlightQuotes.length <= 1) return;
+    if (reduceMotion || spotlightPaused || spotlightQuotes.length <= 1) return;
     const timer = setInterval(() => {
       setSpotlightIndex((i) => (i + 1) % spotlightQuotes.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, [reduceMotion, spotlightQuotes.length]);
+  }, [reduceMotion, spotlightPaused, spotlightQuotes.length]);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -181,6 +195,11 @@ const SchoolProjectShareView = () => {
         show_attendance_summary: c.show_attendance_summary ?? true,
         shared_survey_form_id: c.shared_survey_form_id || null,
         studentCount: Number(c.student_count) || 0,
+        resultCount: Number(c.result_count) || 0,
+        obsCount: Number(c.obs_count) || 0,
+        galleryCount: Number(c.gallery_count) || 0,
+        lastActivity: c.last_activity || null,
+        weekResults: (c.week_results || {}) as Record<string, number>,
         schoolId: c.school_id || 'none',
         schoolName: c.school_name || proj.school_name || proj.name,
       })));
@@ -222,11 +241,22 @@ const SchoolProjectShareView = () => {
       });
       setHighlightGallery((ov as any).highlight_gallery || []);
 
+      // 학급별 대표 한 줄: [한 줄 느낌] 우선, 없으면 가장 짧은 항목
+      const cq: Record<string, string> = {};
+      ((ov as any).spotlight_obs || []).forEach((o: any) => {
+        if (!o.class_name || cq[o.class_name]) return;
+        const secs = parseQuoteSections((o.content || '').trim());
+        if (secs.length === 0) return;
+        const pick = secs.find(x => x.label.includes('한 줄') || x.label.includes('느낌')) ?? secs.reduce((m, x) => (x.text.length < m.text.length ? x : m), secs[0]);
+        cq[o.class_name] = pick.text;
+      });
+      setClassQuoteMap(cq);
+
       // 스포트라이트 인용구: 20~220자 관찰기록 중 학생별로 하나씩 골라 매번 랜덤 3개 선택
       const quoteByStudent = new Map<string, { content: string; studentName: string; className: string }[]>();
       ((ov as any).spotlight_obs || []).forEach((o: any) => {
         const text = (o.content || '').trim();
-        if (text.length < 20 || text.length > 220) return;
+        if (text.length < 20 || text.length > 600) return;
         const arr = quoteByStudent.get(o.student_id) ?? [];
         arr.push({ content: text, studentName: o.student_name, className: o.class_name || '' });
         quoteByStudent.set(o.student_id, arr);
@@ -431,6 +461,13 @@ const SchoolProjectShareView = () => {
   );
 
   const isClosed = project?.status === 'closed' || project?.status === 'archived';
+  const goToClass = (cls: any) => {
+    setOpenSchools(prev => new Set(prev).add(cls.schoolId));
+    if (activeClassId !== cls.id) handleToggleClass(cls.id);
+    [150, 700].forEach(ms => setTimeout(() => document.getElementById(`cls-${cls.id}`)?.scrollIntoView({ behavior: 'auto', block: 'start' }), ms));
+  };
+  const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+
   const schoolGroups = (() => {
     const m = new Map<string, { id: string; name: string; classes: any[] }>();
     classList.forEach((c: any) => {
@@ -444,6 +481,7 @@ const SchoolProjectShareView = () => {
 
   return (
     <div className="min-h-screen bg-slate-100">
+      <style>{`@media print{@page{size:A4;margin:12mm}body{background:#fff!important}body *{visibility:visible!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.break-inside-avoid{break-inside:avoid}}`}</style>
 
       {/* ── 이미지 라이트박스 ── */}
       {lightbox && (
@@ -655,10 +693,16 @@ const SchoolProjectShareView = () => {
             <p className="text-lg font-bold" style={{ color: '#ffb4a8' }}>
               {schoolGroups.length > 1 ? `학교 ${schoolGroups.length}곳 참여` : (schoolGroups[0]?.name || project?.school_name || '')}
             </p>
-            <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 border border-white/25 hover:bg-white/10 transition-colors">
-              <Sparkles size={14} />
-              <span className="text-base font-bold text-white/90">Powered by 클래스로그 AI</span>
-            </a>
+            <div className="flex items-center gap-2 shrink-0 print:hidden">
+              <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/25 hover:bg-white/10 transition-colors">
+                <Download size={14} />
+                <span className="text-base font-bold text-white/90">PDF로 저장</span>
+              </button>
+              <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/25 hover:bg-white/10 transition-colors">
+                <Sparkles size={14} />
+                <span className="text-base font-bold text-white/90">Powered by 클래스로그 AI</span>
+              </a>
+            </div>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black leading-[1.25] tracking-tight mb-3" style={{ color: '#fff' }}>{project?.name}</h1>
           <div className="flex items-center gap-4 text-lg flex-wrap text-slate-300">
@@ -700,99 +744,232 @@ const SchoolProjectShareView = () => {
       </div>
 
       {/* 스포트라이트 인용구 (자동 슬라이드 캐러셀) */}
+      {spotlightQuotes.length > 0 && (() => {
+        const cur = spotlightQuotes[spotlightIndex] ?? spotlightQuotes[0];
+        const sections = parseQuoteSections(cur.content);
+        const heroIdx = sections.length === 0 ? -1
+          : (() => {
+            const i = sections.findIndex(x => x.label.includes('한 줄') || x.label.includes('느낌'));
+            return i >= 0 ? i : sections.reduce((m, x, k) => (x.text.length < sections[m].text.length ? k : m), 0);
+          })();
+        const hero = heroIdx >= 0 ? sections[heroIdx] : null;
+        const rest = sections.filter((_, i) => i !== heroIdx).slice(0, 3);
+        const goTo = (n: number) => setSpotlightIndex((n + spotlightQuotes.length) % spotlightQuotes.length);
+        return (
+          <div
+            className="bg-white border-b border-slate-200 overflow-hidden print:hidden"
+            onMouseEnter={() => setSpotlightPaused(true)}
+            onMouseLeave={() => setSpotlightPaused(false)}
+            onFocus={() => setSpotlightPaused(true)}
+            onBlur={() => setSpotlightPaused(false)}
+          >
+            <div className="max-w-5xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={spotlightIndex}
+                  initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
+                  animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                >
+                  {hero ? (
+                    <>
+                      <p className="text-base font-bold mb-2" style={{ color: theme.from }}>{hero.label}</p>
+                      <blockquote className="text-2xl sm:text-4xl font-black text-slate-900 leading-snug tracking-tight">
+                        “{hero.text}”
+                      </blockquote>
+                      {rest.length > 0 && (
+                        <div className={`grid gap-x-8 gap-y-5 mt-7 pt-6 border-t border-slate-200 ${rest.length === 1 ? 'sm:grid-cols-1' : rest.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+                          {rest.map(x => (
+                            <div key={x.label}>
+                              <p className="text-base font-bold mb-1" style={{ color: theme.from }}>{x.label}</p>
+                              <p className="text-lg text-slate-800 leading-relaxed line-clamp-4">{x.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <blockquote className="text-xl sm:text-3xl font-bold text-slate-900 leading-snug tracking-tight">
+                      “{cur.content}”
+                    </blockquote>
+                  )}
+                  <p className="text-lg text-slate-600 mt-6">
+                    {cur.className} · <span className="font-bold text-slate-800">{cur.studentName}</span>
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+              {spotlightQuotes.length > 1 && (
+                <div className="flex items-center gap-3 mt-4 text-slate-600">
+                  <button onClick={() => goTo(spotlightIndex - 1)} aria-label="이전 글" className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors">
+                    <ChevronLeft size={22} />
+                  </button>
+                  <span className="text-base font-bold tabular-nums min-w-[4.5rem] text-center">{spotlightIndex + 1} / {spotlightQuotes.length}</span>
+                  <button onClick={() => goTo(spotlightIndex + 1)} aria-label="다음 글" className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                    <ChevronRight size={22} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 인쇄(PDF) 전용: 학생 대표 글 */}
       {spotlightQuotes.length > 0 && (
-        <div className="border-t border-b border-gray-100 overflow-hidden" style={{ background: `${theme.from}0a` }}>
-          <div className="max-w-4xl mx-auto px-6 py-8 sm:py-10">
-            <Quote size={26} className="mb-3" style={{ color: `${theme.from}66` }} />
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={spotlightIndex}
-                initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
-                animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
-                exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-              >
-                <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
-                  “{spotlightQuotes[spotlightIndex].content}”
-                </blockquote>
-                <p className="text-sm font-black uppercase tracking-widest text-gray-400">
-                  {spotlightQuotes[spotlightIndex].className} · {spotlightQuotes[spotlightIndex].studentName}
-                </p>
-              </motion.div>
-            </AnimatePresence>
-            {spotlightQuotes.length > 1 && (
-              <div className="flex items-center gap-1.5 mt-6">
-                {spotlightQuotes.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSpotlightIndex(i)}
-                    aria-label={`${i + 1}번째 인용구 보기`}
-                    className="h-1.5 rounded-full transition-all"
-                    style={{ width: i === spotlightIndex ? 24 : 6, background: i === spotlightIndex ? theme.from : `${theme.from}33` }}
-                  />
-                ))}
-              </div>
-            )}
+        <div className="hidden print:block max-w-5xl mx-auto px-6 py-4 border-b border-slate-200">
+          <p className="text-base font-bold mb-2" style={{ color: theme.from }}>학생 글 · 대표 {spotlightQuotes.length}편</p>
+          <div className="grid grid-cols-3 gap-6">
+            {spotlightQuotes.map((q, i) => {
+              const secs = parseQuoteSections(q.content);
+              const pick = secs.find(x => x.label.includes('한 줄') || x.label.includes('느낌')) ?? secs[0];
+              return (
+                <div key={i} className="break-inside-avoid">
+                  <p className="text-sm text-slate-600">{q.className} · {q.studentName}</p>
+                  <p className="text-base font-bold text-slate-900">“{pick ? pick.text : q.content}”</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
+      {/* 위치 이동 메뉴 */}
+      {classList.length > 0 && (
+        <nav className="sticky top-0 z-20 bg-white border-b border-slate-200 print:hidden" aria-label="보고서 구역 이동">
+          <div className="max-w-5xl mx-auto px-5 sm:px-6 flex gap-6 overflow-x-auto">
+            {[
+              { id: 'class-overview', label: '학급 한눈에' },
+              { id: 'week-matrix', label: '주차별 현황' },
+              { id: 'class-list', label: '학급별 상세' },
+            ].map(n => (
+              <button key={n.id} onClick={() => scrollToId(n.id)} className="py-3.5 text-base font-bold text-slate-600 hover:text-slate-900 whitespace-nowrap border-b-[3px] border-transparent hover:border-slate-300 transition-colors">
+                {n.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
+
+      {/* 학급 한눈에 */}
+      {classList.length > 0 && (
+        <section id="class-overview" className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 scroll-mt-14">
+          <h2 className="text-2xl font-black text-slate-900">학급 한눈에</h2>
+          <p className="text-lg text-slate-600 mb-5">학급을 누르면 아래 상세 내용으로 이동해요.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {classList.map((c: any) => {
+              const planLen = (c.weekly_plan || []).length;
+              const doneWeeks = Object.values(c.weekResults || {}).filter((n: any) => n > 0).length;
+              const pct = planLen > 0 ? Math.min(100, Math.round((doneWeeks / planLen) * 100)) : 0;
+              const quote = classQuoteMap[c.name];
+              const last = c.lastActivity ? new Date(c.lastActivity).toLocaleDateString('ko-KR') : null;
+              const schoolLabel = schoolGroups.length > 1 ? c.schoolName : '';
+              return (
+                <button key={c.id} onClick={() => goToClass(c)} className="text-left bg-white rounded-xl border border-slate-200 hover:border-slate-900 p-5 sm:p-6 transition-colors break-inside-avoid">
+                  <h3 className="text-xl font-black text-slate-900">{c.name}</h3>
+                  <p className="text-base text-slate-600">{[schoolLabel, c.teacher_name ? `${c.teacher_name} 선생님` : ''].filter(Boolean).join(' · ') || c.subject}</p>
+                  <div className="grid grid-cols-3 my-4 border-y border-slate-200">
+                    {[{ v: c.studentCount, l: '학생' }, { v: c.resultCount, l: '결과물' }, { v: c.obsCount, l: '활동 기록' }].map((m, i) => (
+                      <div key={m.l} className={`py-3 ${i > 0 ? 'pl-4 border-l border-slate-200' : ''}`}>
+                        <p className="text-2xl font-black tabular-nums text-slate-900 leading-tight">{m.v}</p>
+                        <p className="text-sm text-slate-600">{m.l}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {planLen > 0 && (
+                    <>
+                      <div className="h-2 rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#e8412c' }} /></div>
+                      <p className="text-sm text-slate-600 mt-1.5 mb-3">{doneWeeks}/{planLen}주차 활동{last ? ` · 최근 ${last}` : ''}</p>
+                    </>
+                  )}
+                  {planLen === 0 && last && <p className="text-sm text-slate-600 mb-3">최근 활동 {last}</p>}
+                  {quote && (
+                    <p className="text-base text-slate-800 leading-relaxed line-clamp-2"><span className="block text-sm font-bold" style={{ color: '#e8412c' }}>대표 한 줄</span>“{quote}”</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 주차별 현황 (학급 × 주차 결과물 수) */}
+      {(() => {
+        const maxWeek = Math.min(12, classList.reduce((m: number, c: any) => Math.max(m, (c.weekly_plan || []).length, ...Object.keys(c.weekResults || {}).map(Number)), 0));
+        if (maxWeek === 0) return null;
+        const weeks = Array.from({ length: maxWeek }, (_, i) => i + 1);
+        const peak = Math.max(1, ...classList.flatMap((c: any) => Object.values(c.weekResults || {}) as number[]));
+        const shade = (n: number) => n === 0 ? { bg: 'transparent', fg: '#94a3b8' } : n >= peak * 0.66 ? { bg: '#e8412c', fg: '#fff' } : n >= peak * 0.33 ? { bg: '#f9b9ae', fg: '#0e1a33' } : { bg: '#fde7e3', fg: '#0e1a33' };
+        return (
+          <section id="week-matrix" className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 scroll-mt-14">
+            <h2 className="text-2xl font-black text-slate-900">주차별 현황</h2>
+            <p className="text-lg text-slate-600 mb-5">칸의 숫자는 그 주에 학생들이 올린 파일 수예요. 진할수록 활동이 많았다는 뜻이에요. (학급별 상세의 ‘결과물 N건’은 모둠 제출을 1건으로 세어 숫자가 다를 수 있어요.)</p>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="text-left text-sm font-semibold text-slate-600 px-4 py-3">학급</th>
+                    {weeks.map(w => <th key={w} className="text-center text-sm font-semibold text-slate-600 px-2 py-3">{w}주차</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {classList.map((c: any) => (
+                    <tr key={c.id} className="border-t border-slate-200 break-inside-avoid">
+                      <td className="px-4 py-3.5 text-base font-bold text-slate-900">{c.name}{schoolGroups.length > 1 && <span className="block text-sm font-normal text-slate-600">{c.schoolName}</span>}</td>
+                      {weeks.map(w => {
+                        const n = (c.weekResults || {})[String(w)] || 0;
+                        const sh = shade(n);
+                        return <td key={w} className="text-center text-base tabular-nums px-2 py-3.5 font-bold" style={{ background: sh.bg, color: sh.fg, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>{n === 0 ? '–' : n}</td>;
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* 결과물 스냅샷 카드 */}
       {snapshotResult && (() => {
+        const typeLabel = TYPE_CONFIG[snapshotResult.resultType]?.label;
         const cardInner = (
           <>
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${theme.from}14` }}>
-              {TYPE_CONFIG[snapshotResult.resultType]?.icon ?? <FileText size={18} style={{ color: theme.from }} />}
-            </div>
             <div className="min-w-0 flex-1">
-              <p className="font-black text-gray-900 text-base truncate">{snapshotResult.title || '제목 없음'}</p>
-              <p className="text-sm text-gray-400 font-semibold truncate">
+              <p className="text-lg font-bold text-slate-900 truncate">{snapshotResult.title || '제목 없음'}</p>
+              <p className="text-base text-slate-600 truncate">
                 {snapshotResult.className} · {snapshotResult.studentName} · {new Date(snapshotResult.createdAt).toLocaleDateString('ko-KR')}
               </p>
             </div>
-            {TYPE_CONFIG[snapshotResult.resultType] && (
-              <span className={`shrink-0 flex items-center gap-1 text-[13px] font-black px-2.5 py-1 rounded-full border ${TYPE_CONFIG[snapshotResult.resultType].color}`}>
-                {TYPE_CONFIG[snapshotResult.resultType].icon}
-                {TYPE_CONFIG[snapshotResult.resultType].label}
-              </span>
-            )}
-            {snapshotResult.url && <ExternalLink size={14} className="text-gray-300 shrink-0" />}
+            {typeLabel && <span className="shrink-0 text-base font-bold" style={{ color: '#e8412c' }}>{typeLabel}{snapshotResult.url ? ' 열기 →' : ''}</span>}
           </>
         );
         return (
-          <div className="max-w-4xl mx-auto px-6 pt-6">
+          <section className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 break-inside-avoid">
+            <h2 className="text-2xl font-black text-slate-900">최근 올라온 결과물</h2>
+            <p className="text-lg text-slate-600 mb-4">가장 최근에 올라온 학생 결과물이에요.</p>
             {snapshotResult.url ? (
-              <a
-                href={snapshotResult.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-all"
-              >
+              <a href={snapshotResult.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 hover:border-slate-900 px-5 sm:px-6 py-4 transition-colors">
                 {cardInner}
               </a>
             ) : (
-              <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4">
-                {cardInner}
-              </div>
+              <div className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-5 sm:px-6 py-4">{cardInner}</div>
             )}
-          </div>
+          </section>
         );
       })()}
 
       {/* 하이라이트 갤러리 */}
       {highlightGallery.length > 0 && (
-        <div className="max-w-4xl mx-auto px-6 pt-8">
-          <div className="flex items-center gap-2 mb-3">
-            <ImageIcon size={16} className="text-violet-400" />
-            <h2 className="text-base font-black text-gray-700">수업 속 순간들</h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 break-inside-avoid">
+          <h2 className="text-2xl font-black text-slate-900">수업 속 순간들</h2>
+          <p className="text-lg text-slate-600 mb-4">사진을 누르면 크게 볼 수 있어요.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {highlightGallery.map((item, idx) => (
               <button
                 key={item.id}
                 onClick={() => setLightbox({ urls: highlightGallery.map(g => g.file_url), index: idx })}
-                className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-100"
+                className="group relative aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200"
               >
                 <img src={item.file_url} alt={item.caption || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -809,9 +986,9 @@ const SchoolProjectShareView = () => {
       )}
 
       {/* 학교별 목록 */}
-      <div id="class-list" className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12">
+      <div id="class-list" className="scroll-mt-14 max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12">
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-          <h2 className="text-2xl font-black text-slate-900">참여 학교</h2>
+          <h2 className="text-2xl font-black text-slate-900">학급별 상세</h2>
           {schoolGroups.length > 1 && (
             <button
               onClick={() => setOpenSchools(allSchoolsOpen ? new Set() : new Set(schoolGroups.map(g => g.id)))}
@@ -857,7 +1034,7 @@ const SchoolProjectShareView = () => {
           const totalResults = students.reduce((s, st) => s + st.resultGroups.length, 0);
 
           return (
-            <motion.div key={cls.id}
+            <motion.div key={cls.id} id={`cls-${cls.id}`} style={{ scrollMarginTop: 56 }}
               initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
               whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
@@ -1155,10 +1332,9 @@ const SchoolProjectShareView = () => {
                             ) : (
                               <div className="relative">
                                 <div className="flex items-center gap-1.5 mb-3">
-                                  <Sparkles size={13} className="text-violet-400" />
-                                  <h4 className="text-sm font-black text-gray-500 uppercase tracking-widest">학습 여정</h4>
+                                  <h4 className="text-lg font-black text-slate-900">학습 여정</h4>
                                 </div>
-                                <div className="absolute left-[23px] top-9 bottom-2 w-0.5 bg-gradient-to-b from-violet-200 via-violet-100 to-transparent" />
+                                <div className="absolute left-[23px] top-10 bottom-2 w-px bg-slate-200" />
                                 <div className="space-y-5">
                                   {weeklyJourney.map((wk, wi) => (
                                     <motion.div
@@ -1169,30 +1345,37 @@ const SchoolProjectShareView = () => {
                                       transition={{ duration: 0.45, delay: Math.min(wi, 4) * 0.05, ease: 'easeOut' }}
                                       className="relative flex gap-3"
                                     >
-                                      <div className="relative z-10 shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex flex-col items-center justify-center shadow-md">
-                                        <span className="text-[8px] font-bold opacity-80 leading-none">WEEK</span>
+                                      <div className="relative z-10 shrink-0 w-12 h-12 rounded-lg text-white flex flex-col items-center justify-center" style={{ background: '#0e1a33' }}>
+                                        <span className="text-[10px] font-bold opacity-80 leading-none">WEEK</span>
                                         <span className="text-base font-black leading-none">{wk.week}</span>
                                       </div>
-                                      <div className="flex-1 min-w-0 bg-gray-50 rounded-xl border border-gray-100 p-4">
+                                      <div className="flex-1 min-w-0 pb-5 border-b border-slate-200">
                                         <div className="flex items-start justify-between gap-2 flex-wrap">
                                           <div className="min-w-0">
-                                            <p className="text-[13px] font-black text-violet-500 uppercase tracking-widest mb-0.5">{wk.week}주차</p>
-                                            <h4 className="text-base font-black text-gray-900">{wk.topic || `${wk.week}주차 활동`}</h4>
+                                                                                        <h4 className="text-lg font-black text-slate-900">{wk.topic || `${wk.week}주차 활동`}</h4>
                                           </div>
-                                          <button
-                                            onClick={() => { setWeekFilter(wk.week); setActiveTab('results'); }}
-                                            className="shrink-0 flex items-center gap-1 text-[13px] font-black text-violet-600 hover:text-violet-800 transition-colors"
-                                          >
-                                            자세히 보기 <ArrowRight size={11} />
-                                          </button>
+                                          {wk.resultCount > 0 ? (
+                                            <button
+                                              onClick={() => {
+                                                setWeekFilter(wk.week);
+                                                setActiveTab('results');
+                                                setTimeout(() => document.getElementById(`results-${cls.id}`)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }), 80);
+                                              }}
+                                              className="shrink-0 flex items-center gap-1 text-base font-black hover:underline transition-colors" style={{ color: '#e8412c' }}
+                                            >
+                                              {wk.week}주차 결과물 {wk.resultCount}건 보기 <ArrowRight size={11} />
+                                            </button>
+                                          ) : (
+                                            <span className="shrink-0 text-base font-bold text-slate-400">아직 올라온 결과물이 없어요</span>
+                                          )}
                                         </div>
-                                        <div className="flex items-center gap-2.5 mt-2 flex-wrap text-[13px] font-bold text-gray-400">
+                                        <div className="flex items-center gap-2.5 mt-2 flex-wrap text-base font-bold text-slate-500">
                                           <span className="flex items-center gap-1"><Users size={10} /> 참여 {wk.participantCount}명</span>
-                                          {wk.obsCount > 0 && <span className="text-violet-500">📝 활동기록 {wk.obsCount}건</span>}
-                                          {wk.resultCount > 0 && <span className="text-emerald-500">📁 결과물 {wk.resultCount}건</span>}
+                                          {wk.obsCount > 0 && <span>활동기록 {wk.obsCount}건</span>}
+                                          {wk.resultCount > 0 && <span>결과물 {wk.resultCount}건</span>}
                                         </div>
                                         {wk.sampleText && (
-                                          <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-2 bg-white rounded-lg px-2.5 py-2 border border-gray-100">“{wk.sampleText}”</p>
+                                          <p className="mt-3 text-[17px] text-slate-700 leading-relaxed line-clamp-2 pl-3 border-l-2" style={{ borderColor: '#e8412c' }}>“{wk.sampleText}”</p>
                                         )}
                                         {wk.images.length > 0 && (
                                           <div className="flex gap-1.5 mt-2 overflow-x-auto custom-scrollbar pb-1">
@@ -1218,8 +1401,8 @@ const SchoolProjectShareView = () => {
                         )}
 
                         {/* 탭 바 + 다운로드 */}
-                        <div className="px-6 pt-4 pb-3 flex items-center gap-2 flex-wrap border-b border-gray-100">
-                          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                        <div id={`results-${cls.id}`} style={{ scrollMarginTop: 56 }} className="px-6 pt-4 flex items-center gap-2 flex-wrap border-b border-slate-200">
+                          <div className="flex items-center gap-5 flex-wrap">
                             {[
                               { key: 'results', label: '결과 확인', icon: FileText },
                               { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
@@ -1229,20 +1412,20 @@ const SchoolProjectShareView = () => {
                               <button
                                 key={key}
                                 onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech' | 'survey')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black transition-all ${activeTab === key ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                className={`flex items-center gap-1.5 pb-3 -mb-px border-b-2 text-base font-black transition-all ${activeTab === key ? 'text-slate-900 border-[#e8412c]' : 'text-slate-400 border-transparent hover:text-slate-700'}`}
                               >
-                                <Icon size={13} />{label}
+                                <Icon size={15} />{label}
                               </button>
                             ))}
                           </div>
-                          <div className="ml-auto flex items-center gap-1.5">
+                          <div className="ml-auto flex items-center gap-1.5 pb-2">
                             <button onClick={() => handleRefreshClass(cls.id)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-all" title="새로고침">
                               <RefreshCw size={13} />
                             </button>
                             <button onClick={downloadCSV} className="flex items-center gap-1.5 px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-black transition-all" title="CSV 다운로드">
                               <FileText size={13} /><span className="hidden sm:inline">CSV</span>
                             </button>
-                            <button onClick={downloadXLSX} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-sm font-black transition-all" title="XLSX 엑셀 다운로드">
+                            <button onClick={downloadXLSX} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 hover:opacity-90 disabled:opacity-40 text-white rounded-lg text-sm font-black transition-all" style={{ background: '#0e1a33' }} title="XLSX 엑셀 다운로드">
                               {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}<span className="hidden sm:inline">XLSX</span>
                             </button>
                           </div>
@@ -1259,14 +1442,14 @@ const SchoolProjectShareView = () => {
                                   { label: '활동 기록', value: totalObsF, unit: '건', icon: FileText },
                                   { label: '결과물', value: totalResultsF, unit: '건', icon: FolderOpen },
                                 ].map(({ label, value, unit, icon: Icon }) => (
-                                  <div key={label} className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
+                                  <div key={label} className="bg-white rounded-xl p-4 border border-slate-200">
                                     <div className="flex items-center gap-1.5 mb-1.5">
                                       <Icon size={12} className="text-gray-400" />
-                                      <p className="text-[13px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                                      <p className="text-base font-bold text-slate-600">{label}</p>
                                     </div>
                                     <div className="flex items-baseline gap-1">
-                                      <span className="text-xl font-black text-gray-900">{value}</span>
-                                      <span className="text-sm font-bold text-gray-400">{unit}</span>
+                                      <span className="text-2xl font-black text-slate-900">{value}</span>
+                                      <span className="text-base font-bold text-slate-500">{unit}</span>
                                     </div>
                                   </div>
                                 ))}
@@ -1274,18 +1457,18 @@ const SchoolProjectShareView = () => {
 
                               {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
                               {cls.show_attendance_summary && attendanceByClass[cls.id] && attendanceByClass[cls.id].total > 0 && (
-                                <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
-                                  <p className="text-[13px] font-black text-gray-400 uppercase tracking-widest mb-3">출석 요약</p>
+                                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                                  <p className="text-lg font-black text-slate-900 mb-3">출석 요약</p>
                                   <AttendanceDonutChart total={attendanceByClass[cls.id].total} byStatus={attendanceByClass[cls.id].byStatus} />
                                 </div>
                               )}
 
                               {allWeeks.length > 0 && (
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-black text-gray-500 mr-1">주차:</span>
-                                  <button onClick={() => setWeekFilter('all')} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === 'all' ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>전체</button>
+                                  <span className="text-base font-black text-slate-600 mr-1">주차:</span>
+                                  <button onClick={() => setWeekFilter('all')} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === 'all' ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>전체</button>
                                   {allWeeks.map(w => (
-                                    <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === w ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{w}주차</button>
+                                    <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === w ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>{w}주차</button>
                                   ))}
                                 </div>
                               )}
@@ -1298,16 +1481,16 @@ const SchoolProjectShareView = () => {
                                       key={student.id}
                                       onClick={() => hasData && setModalStudent(student)}
                                       disabled={!hasData}
-                                      className={`text-left bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-gray-100 hover:border-violet-200 hover:shadow-sm cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
+                                      className={`text-left bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-slate-200 hover:border-slate-900 cursor-pointer' : 'border-slate-200 opacity-50 cursor-default'}`}
                                     >
                                       <div className="w-8 h-8 rounded-full overflow-hidden mb-2.5 bg-gray-100">
                                         <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                                       </div>
                                       <p className="font-bold text-base truncate mb-1">{student.full_name}</p>
                                       <div className="flex flex-col gap-1">
-                                        {student.observations.length > 0 && <span className="text-[13px] font-bold text-violet-600">📝 활동기록 {student.observations.length}건</span>}
-                                        {student.resultGroups.length > 0 && <span className="text-[13px] font-bold text-emerald-600">📁 결과물 {student.resultGroups.length}건</span>}
-                                        {!hasData && <span className="text-[13px] text-gray-400">기록 없음</span>}
+                                        {student.observations.length > 0 && <span className="text-base font-bold text-slate-700">활동기록 {student.observations.length}건</span>}
+                                        {student.resultGroups.length > 0 && <span className="text-base font-bold text-slate-700">결과물 {student.resultGroups.length}건</span>}
+                                        {!hasData && <span className="text-base text-slate-400">기록 없음</span>}
                                       </div>
                                     </button>
                                   );
@@ -1329,15 +1512,15 @@ const SchoolProjectShareView = () => {
                               <div className="flex items-center gap-2 flex-wrap">
                                 {allWeeks.length > 0 && (
                                   <>
-                                    <span className="text-sm font-black text-gray-500 mr-1">주차:</span>
-                                    <button onClick={() => setWeekFilter('all')} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === 'all' ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>전체</button>
+                                    <span className="text-base font-black text-slate-600 mr-1">주차:</span>
+                                    <button onClick={() => setWeekFilter('all')} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === 'all' ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>전체</button>
                                     {allWeeks.map(w => (
-                                      <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === w ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{w}주차</button>
+                                      <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === w ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>{w}주차</button>
                                     ))}
                                   </>
                                 )}
                                 {galleryImgs.length > 0 && (
-                                  <button onClick={handleZipDownload} disabled={zipping} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-black transition-all shadow-sm">
+                                  <button onClick={handleZipDownload} disabled={zipping} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0e1a33] hover:opacity-90 disabled:opacity-50 text-white text-sm font-black transition-all shadow-sm">
                                     {zipping ? <><Loader2 size={13} className="animate-spin" /> ZIP 생성 중...</> : <><Download size={13} /> 전체 ZIP 다운로드 ({galleryImgs.length}장)</>}
                                   </button>
                                 )}
@@ -1368,7 +1551,7 @@ const SchoolProjectShareView = () => {
                                             <ZoomIn size={20} className="text-white" />
                                           </div>
                                           <button
-                                            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 hover:bg-violet-600 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all"
+                                            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 hover:bg-[#0e1a33] flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all"
                                             onClick={e => { e.stopPropagation(); blobDownload(item.file_url, item.file_name || 'image.webp'); }}
                                             title="개별 다운로드"
                                           >
@@ -1409,7 +1592,7 @@ const SchoolProjectShareView = () => {
                                   <button
                                     onClick={() => handleLoadMoreGallery(cls.id)}
                                     disabled={galleryLoadingMore === cls.id}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 hover:bg-violet-100 disabled:opacity-50 text-violet-600 text-sm font-black transition-all"
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-900 disabled:opacity-50 text-slate-900 text-sm font-black transition-all"
                                   >
                                     {galleryLoadingMore === cls.id ? <><Loader2 size={13} className="animate-spin" /> 불러오는 중...</> : '사진 더 보기'}
                                   </button>
@@ -1436,7 +1619,7 @@ const SchoolProjectShareView = () => {
                                     { label: '초안/미작성', value: draftCount + emptyCount, unit: '명', icon: FileText },
                                     { label: '평균 글자수', value: avgChars, unit: '자', icon: BookOpen },
                                   ].map(({ label, value, unit, icon: Icon }) => (
-                                    <div key={label} className="bg-gray-50 rounded-xl p-3.5 border border-gray-100">
+                                    <div key={label} className="bg-white rounded-xl p-4 border border-slate-200">
                                       <div className="flex items-center gap-1.5 mb-1.5">
                                         <Icon size={12} className="text-gray-400" />
                                         <p className="text-[13px] font-black uppercase tracking-widest text-gray-400">{label}</p>
@@ -1503,14 +1686,14 @@ const SchoolProjectShareView = () => {
                             const surveyResult = surveyDataByForm[cls.shared_survey_form_id];
                             return (
                               <div className="space-y-4">
-                                <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+                                <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
                                   <p className="font-black text-gray-900">{surveyResult.formTitle}</p>
                                   <p className="text-sm font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
                                 </div>
                                 {surveyResult.questions.map((q, i) => {
                                   const answers = surveyResult.answersByQuestion[q.id] || [];
                                   return (
-                                    <div key={q.id} className="bg-gray-50 rounded-2xl border border-gray-100 p-5">
+                                    <div key={q.id} className="bg-white rounded-xl border border-slate-200 p-5">
                                       <p className="font-black text-gray-900 text-base mb-3">{i + 1}. {q.text}</p>
                                       {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
                                       {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
@@ -1533,7 +1716,7 @@ const SchoolProjectShareView = () => {
                             <span>총 {students.length}명 · 기록 {students.reduce((s, st) => s + st.observations.length + st.resultGroups.length, 0)}건</span>
                           </div>
                           <a href={`/share/${cls.id}`} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-sm font-bold text-violet-500 hover:text-violet-700 transition-all">
+                            className="flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-slate-900 transition-all">
                             <ExternalLink size={12} /> 학급 상세 페이지 →
                           </a>
                         </div>
