@@ -172,7 +172,26 @@ async function handleClassSync(req: any, res: any) {
 
 // resource=submission
 // 바이브코딩 스튜디오 등 외부 앱에서 제출한 학생 결과물을 student_results에 기록한다.
-// body: { entry_code, student_id?, student_name?, title, result_type:'link'|'text', link_url?, text_content? }
+// body: { entry_code, student_id?, student_name?, title, result_type:'link'|'text'|'image'|'file',
+//         link_url?, text_content?, file_name?, file_data?(base64) }
+// image/file은 base64로 받아 Storage(student-attachments)에 올린다. Vercel 요청 본문 한도(약 4.5MB) 때문에 3MB까지만.
+const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+// 확장자 화이트리스트 — html/svg/실행 파일처럼 공개 주소에서 열면 위험한 형식은 받지 않는다.
+const IMAGE_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+const FILE_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', txt: 'text/plain', csv: 'text/csv', zip: 'application/zip',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  hwp: 'application/x-hwp', hwpx: 'application/hwp+zip',
+};
+function looksLikeImage(buf: Buffer, ext: string): boolean {
+  if (ext === 'png') return buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  if (ext === 'jpg' || ext === 'jpeg') return buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8;
+  if (ext === 'gif') return buf.length > 6 && buf.toString('ascii', 0, 3) === 'GIF';
+  if (ext === 'webp') return buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  return false;
+}
 async function handleSubmission(req: any, res: any) {
   if (!checkWebhookSecret(req, res)) return;
 
@@ -192,12 +211,14 @@ async function handleSubmission(req: any, res: any) {
   const result_type = body.result_type;
   const link_url = cap(body.link_url, 2000);
   const text_content = cap(body.text_content, 20000);
+  const file_name = cap(body.file_name, 200);
+  const file_data = typeof body.file_data === 'string' ? body.file_data : '';
 
   if (!entry_code || !title || !result_type) {
     return res.status(400).json({ error: 'entry_code, title, result_type은 필수입니다.' });
   }
-  if (result_type !== 'link' && result_type !== 'text') {
-    return res.status(400).json({ error: 'result_type must be "link" or "text"' });
+  if (!['link', 'text', 'image', 'file'].includes(result_type)) {
+    return res.status(400).json({ error: 'result_type must be "link", "text", "image" or "file"' });
   }
   // javascript: 같은 위험한 주소를 막는다. (선생님이 링크를 눌렀을 때 실행되는 것 방지)
   if (link_url && !/^https:\/\//i.test(link_url)) {
@@ -211,6 +232,29 @@ async function handleSubmission(req: any, res: any) {
   }
   if (!student_id && !student_name) {
     return res.status(400).json({ error: 'student_id 또는 student_name 중 하나는 필수입니다.' });
+  }
+
+  // 이미지·파일: 형식과 크기를 먼저 확인한다.
+  let uploadBuf: Buffer | null = null;
+  let uploadExt = '';
+  let uploadMime = '';
+  if (result_type === 'image' || result_type === 'file') {
+    if (!file_name || !file_data) {
+      return res.status(400).json({ error: `result_type=${result_type}일 때 file_name, file_data는 필수입니다.` });
+    }
+    uploadExt = (file_name.split('.').pop() || '').toLowerCase();
+    const table = result_type === 'image' ? IMAGE_TYPES : FILE_TYPES;
+    if (!table[uploadExt]) {
+      return res.status(400).json({ error: `지원하지 않는 파일 형식이에요. (${Object.keys(table).join(', ')})` });
+    }
+    uploadMime = table[uploadExt];
+    uploadBuf = Buffer.from(file_data.replace(/^data:[^,]*,/, ''), 'base64');
+    if (uploadBuf.length === 0 || uploadBuf.length > MAX_UPLOAD_BYTES) {
+      return res.status(413).json({ error: '파일은 3MB까지 올릴 수 있어요.' });
+    }
+    if (result_type === 'image' && !looksLikeImage(uploadBuf, uploadExt)) {
+      return res.status(400).json({ error: '이미지 파일이 아니에요.' });
+    }
   }
 
   const { data: klass } = await supabaseAdmin
@@ -261,6 +305,28 @@ async function handleSubmission(req: any, res: any) {
     return res.status(429).json({ error: '잠시 뒤에 다시 제출해 주세요. (1분에 5번까지 가능해요)' });
   }
 
+  // 이미지·파일은 Storage에 올리고 기록에 위치를 남긴다. (학생이 직접 올릴 때와 같은 형태)
+  let filePayload: Record<string, unknown> = {};
+  let uploadedPath = '';
+  if (uploadBuf) {
+    const rand = Math.random().toString(36).slice(2, 8);
+    uploadedPath = `results/${resolvedStudentId}/${result_type}-${Date.now()}-${rand}.${uploadExt}`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from('student-attachments')
+      .upload(uploadedPath, uploadBuf, { contentType: uploadMime });
+    if (upErr) {
+      console.error('[api/ai-service:submission] storage upload failed:', upErr.message);
+      return res.status(500).json({ error: 'Could not save file' });
+    }
+    filePayload = {
+      storage_path: uploadedPath,
+      display_name: file_name,
+      file_size: uploadBuf.length,
+      file_type: uploadMime,
+      ...(result_type === 'image' ? { storage_paths: [uploadedPath] } : {}),
+    };
+  }
+
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from('student_results')
     .insert({
@@ -271,12 +337,14 @@ async function handleSubmission(req: any, res: any) {
       link_url: link_url || null,
       text_content: text_content || null,
       status: 'submitted',
+      ...filePayload,
     })
     .select('id')
     .single();
 
   if (insertError || !inserted) {
     console.error('[api/ai-service:submission] failed to insert student_results:', insertError?.message);
+    if (uploadedPath) await supabaseAdmin.storage.from('student-attachments').remove([uploadedPath]);
     return res.status(500).json({ error: 'Could not save submission' });
   }
 
