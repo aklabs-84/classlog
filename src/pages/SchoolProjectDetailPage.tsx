@@ -44,6 +44,7 @@ import ClassRosterModal from '../components/classroom/ClassRosterModal';
 import SchoolNoticeTab from '../components/classroom/SchoolNoticeTab';
 import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
+import AdminEvaluationEditor from '../components/classroom/AdminEvaluationEditor';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
 import { appConfirm } from '../lib/appDialog';
 
@@ -87,6 +88,8 @@ interface EvalRow {
   setech_content: string | null;
   achievement_level: string | null;
   status: string | null;
+  admin_authored?: boolean | null;
+  class_id?: string | null;
 }
 
 const EVAL_STATUS_META: Record<string, { label: string; className: string }> = {
@@ -475,7 +478,7 @@ const SchoolProjectDetailPage = () => {
     try {
       const { data } = await supabase
         .from('student_evaluations')
-        .select('student_id, setech_content, achievement_level, status')
+        .select('student_id, class_id, setech_content, achievement_level, status, admin_authored')
         .in('student_id', studentIds);
       const map: Record<string, EvalRow> = {};
       (data || []).forEach((e: any) => { map[e.student_id] = e; });
@@ -1159,23 +1162,36 @@ const SchoolProjectDetailPage = () => {
                           <div key={st.id}>
                             <button
                               onClick={() => setExpandedEvalId(expanded ? null : st.id)}
-                              disabled={!ev?.setech_content}
-                              className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-surface-container-low/40 transition-all text-left disabled:cursor-default"
+                              className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-surface-container-low/40 transition-all text-left"
                             >
                               <span className="text-sm font-bold flex items-center gap-1.5">
-                                {ev?.setech_content ? (expanded ? <ChevronDown size={14} className="text-on-surface-variant/40" /> : <ChevronRight size={14} className="text-on-surface-variant/40" />) : <span className="w-3.5" />}
+                                {expanded ? <ChevronDown size={14} className="text-on-surface-variant/40" /> : <ChevronRight size={14} className="text-on-surface-variant/40" />}
                                 {st.full_name}
                               </span>
                               <span className="flex items-center gap-2">
+                                {ev?.admin_authored && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">관리자 작성</span>
+                                )}
                                 {ev?.achievement_level && (
                                   <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary">{ev.achievement_level}</span>
                                 )}
                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusMeta.className}`}>{statusMeta.label}</span>
                               </span>
                             </button>
-                            {expanded && ev?.setech_content && (
-                              <div className="px-4 pb-3 pl-9">
-                                <p className="text-xs text-on-surface-variant bg-surface-container-low/60 rounded-lg px-3 py-2 whitespace-pre-wrap">{ev.setech_content}</p>
+                            {expanded && (
+                              <div className="px-4 pb-3 pl-9 space-y-2">
+                                {!ev?.setech_content && (
+                                  <p className="text-[11px] font-bold text-on-surface-variant/60">아직 작성된 세특이 없어요. 담당 선생님이 못 쓴 경우 아래에서 대신 쓸 수 있어요.</p>
+                                )}
+                                <AdminEvaluationEditor
+                                  key={`${st.id}-${ev?.setech_content ?? ''}`}
+                                  studentId={st.id}
+                                  classId={c.id}
+                                  assignedTeacherId={c.assigned_teacher_id}
+                                  initialContent={ev?.setech_content || ''}
+                                  hasExisting={!!ev && ev.class_id === c.id}
+                                  onSaved={fetchEvaluations}
+                                />
                               </div>
                             )}
                           </div>

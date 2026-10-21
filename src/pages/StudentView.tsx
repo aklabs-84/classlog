@@ -1022,7 +1022,7 @@ const StudentView = () => {
                       {insightCopied ? <><CheckCircle2 size={13} /> 복사됨!</> : <><CheckCircle2 size={13} /> 나이스 붙여넣기용 복사</>}
                     </button>
                     <button
-                      onClick={() => navigate(`/ai-assistant`)}
+                      onClick={() => navigate(student?.class_id ? `/ai-assistant?classId=${student.class_id}` : `/ai-assistant`)}
                       className="text-[10px] font-black text-primary/40 hover:text-primary transition-colors underline underline-offset-4"
                     >
                       AI 초안 페이지에서 재생성 →
@@ -1035,7 +1035,7 @@ const StudentView = () => {
                     아직 생성된 초안이 없습니다.
                   </p>
                   <button
-                    onClick={() => navigate(`/ai-assistant`)}
+                    onClick={() => navigate(student?.class_id ? `/ai-assistant?classId=${student.class_id}` : `/ai-assistant`)}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black border border-primary/20 bg-white text-primary hover:bg-primary/5 transition-colors"
                   >
                     <Sparkles size={13} /> AI 초안 페이지에서 생성하기

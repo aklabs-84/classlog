@@ -95,12 +95,21 @@ const AIAssistant = () => {
     setLoading(true);
     try {
       const { data: rawClassesData } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
-      const classesData = rawClassesData ? filterMyTeachingClasses(rawClassesData, user?.id) : rawClassesData;
+      // 학교 프로젝트에서 배정받은 반도 함께 불러온다 (assigned_teacher_id 컬럼이 없으면 무시)
+      let assignedData: any[] = [];
+      try {
+        const { data: ad } = await supabase.from('classes').select('*').eq('assigned_teacher_id', user?.id);
+        assignedData = ad || [];
+      } catch { /* 무시 */ }
+      const merged = [...(rawClassesData || []), ...assignedData.filter(a => !(rawClassesData || []).some(c => c.id === a.id))];
+      const classesData = filterMyTeachingClasses(merged, user?.id);
       if (classesData) {
         setClasses(classesData);
         if (classesData.length > 0) {
-          setSelectedClassId(classesData[0].id);
-          fetchStudents(classesData[0].id);
+          const deepLinkId = searchParams.get('classId');
+          const first = classesData.find(c => c.id === deepLinkId) || classesData[0];
+          setSelectedClassId(first.id);
+          fetchStudents(first.id);
         }
       }
       // ai_drafts 테이블 미사용
