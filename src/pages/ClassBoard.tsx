@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
+import BoardDownloadButton from '../components/common/BoardDownloadButton';
 import { useTheme } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -312,6 +313,7 @@ const ClassBoard = () => {
         <span className="ml-auto text-[11px] text-on-surface-variant font-black hidden sm:block">
           {filtered.length}개 게시물
         </span>
+        <BoardDownloadButton posts={filtered} weekFilter={weekFilter} />
       </div>
 
       {/* ── 콘텐츠 ── */}

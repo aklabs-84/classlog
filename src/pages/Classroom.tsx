@@ -6,6 +6,7 @@ import { resolveEffectivePlan } from '../lib/effectiveWeeklyPlan';
 import { fetchOverrides, forkPlanMaterial, applyOriginUpdate, undoOriginUpdate, dismissOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../lib/planMaterialOverride';
 import SubmissionViewerModal, { getViewerKind } from '../components/classroom/SubmissionViewerModal';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
+import BoardDownloadButton from '../components/common/BoardDownloadButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -2929,6 +2930,16 @@ const Classroom = () => {
                         </button>
                       ))}
                     </div>
+                    <div className="ml-auto">
+                      <BoardDownloadButton
+                        weekFilter={boardWeekFilter}
+                        posts={boardPosts.filter(p => {
+                          if (boardTypeFilter !== 'all' && p._type !== boardTypeFilter) return false;
+                          if (boardWeekFilter !== 'all' && p.week_number !== boardWeekFilter) return false;
+                          return true;
+                        })}
+                      />
+                    </div>
                   </div>
 
                   {/* 보드 콘텐츠 */}
@@ -5713,7 +5724,7 @@ const Classroom = () => {
                                 onClick={() => handleApplyOrigin(item.material_id)}
                                 disabled={overrideBusy}
                                 title="내가 고친 내용을 버리고 원본 자료로 되돌려요 (직전 내용은 한 번 복구 가능)"
-                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-white text-on-surface-variant border border-outline-variant/30 text-[14px] font-bold hover:bg-surface-container transition-all disabled:opacity-50"
+                                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-white text-on-surface-variant border border-slate-200 dark:border-slate-700 text-[14px] font-bold hover:bg-surface-container transition-all disabled:opacity-50"
                               >
                                 <RotateCcw size={13} /> 원본으로 되돌리기
                               </button>
