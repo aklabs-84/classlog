@@ -35,7 +35,7 @@ interface Props {
   onSchoolClick?: (schoolId: string) => void;
   /** 지정하면 이 학교 하나만의 요약을 보여 준다 (설문은 학교 전용 우선, 없으면 공통) */
   schoolId?: string | null;
-  /** 학생이 제출한 활동 기록(반려 제외) 합계. 학교 단위 요약에서만 전달한다 */
+  /** 학생이 제출한 활동 기록(승인된 것만) 합계. 학교 단위 요약에서만 전달한다 */
   activityStats?: { total: number; students: number } | null;
 }
 

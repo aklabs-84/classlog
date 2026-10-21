@@ -10,6 +10,7 @@ import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, L
 import { safeHttpUrl, isUuid } from '../../lib/safeUrl';
 import { appToast } from '../../lib/appDialog';
 import { useFileDrop } from '../../hooks/useFileDrop';
+import { getAttachmentDownloadUrl } from '../MaterialAttachments';
 
 const MAX_FILE_MB = 20;
 // 올릴 수 있는 파일 종류 (html 샘플은 허용, 스크립트·css 같은 실행 파일은 막는다)
@@ -337,13 +338,31 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                 <ExternalLink size={11} className="shrink-0" /> <span className="truncate">{l.label || l.url}</span>
               </a>
             ))}
-            {m.files.map((f, i) => (
-              <a key={`f${i}`} href={safeHttpUrl(f.url)} target="_blank" rel="noopener noreferrer" download={f.name}
-                className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-2.5 py-1 rounded-lg transition-all max-w-full">
-                <FileText size={11} className="shrink-0" /> <span className="truncate">{f.name}</span>
-                <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
-              </a>
-            ))}
+            {m.files.map((f, i) => {
+              const path = f.path && f.path.startsWith('program-materials/') && !f.path.includes('..') ? f.path : null;
+              const chip = 'flex items-center gap-1 text-[11px] font-bold text-on-surface-variant px-2.5 py-1 transition-all min-w-0';
+              if (path && /\.html?$/i.test(f.name)) {
+                // HTML 파일: 이름을 누르면 새 탭에서 실제 화면으로 열고, 옆 버튼으로 내려받는다
+                return (
+                  <span key={`f${i}`} className="flex items-center max-w-full rounded-lg bg-surface-container overflow-hidden">
+                    <a href={`/attachment-view?path=${encodeURIComponent(path)}&name=${encodeURIComponent(f.name)}`} target="_blank" rel="noopener noreferrer" title="새 탭에서 화면으로 보기" className={`${chip} hover:bg-surface-container-high`}>
+                      <Eye size={11} className="shrink-0" /> <span className="truncate">{f.name}</span>
+                      <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
+                    </a>
+                    <a href={getAttachmentDownloadUrl(path, f.name)} title="다운로드" aria-label={`${f.name} 다운로드`} className="shrink-0 px-2 py-1 text-on-surface-variant hover:bg-surface-container-high border-l border-slate-200 dark:border-slate-700">
+                      <Download size={12} />
+                    </a>
+                  </span>
+                );
+              }
+              return (
+                <a key={`f${i}`} href={path ? getAttachmentDownloadUrl(path, f.name) : safeHttpUrl(f.url)} {...(path ? {} : { target: '_blank', rel: 'noopener noreferrer', download: f.name })}
+                  title="다운로드" className={`${chip} bg-surface-container hover:bg-surface-container-high rounded-lg max-w-full`}>
+                  <FileText size={11} className="shrink-0" /> <span className="truncate">{f.name}</span>
+                  <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
+                </a>
+              );
+            })}
           </div>
         )}
         {m.hub_apps.length > 0 && (

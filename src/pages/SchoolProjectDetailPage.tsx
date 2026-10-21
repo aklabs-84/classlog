@@ -453,7 +453,7 @@ const SchoolProjectDetailPage = () => {
     if (tab === 'results' && studentIds.length > 0) fetchResults();
   }, [tab, studentIds, fetchResults]);
 
-  // 결과 요약용: 학교 전체 학생이 낸 활동 기록(반려 제외) 합계
+  // 결과 요약용: 학교 전체 학생이 낸 활동 기록(승인된 것만, 결과 탭과 같은 기준) 합계
   useEffect(() => {
     if (tab !== 'summary' || studentIds.length === 0) return;
     let alive = true;
@@ -463,7 +463,7 @@ const SchoolProjectDetailPage = () => {
         .select('student_id')
         .in('student_id', studentIds)
         .eq('is_student_record', true)
-        .neq('status', 'rejected')
+        .eq('status', 'approved')
         .limit(10000);
       if (!alive) return;
       const rows = (data || []) as { student_id: string }[];
