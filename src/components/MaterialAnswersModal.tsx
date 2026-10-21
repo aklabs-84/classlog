@@ -92,8 +92,13 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const [byStudent, setByStudent] = useState<Record<string, StudentAnswers>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [tab, setTab] = useState<'q' | 'a' | 'map' | 'table'>('q');
+  const [tab, setTab] = useState<'step' | 'q' | 'a' | 'map' | 'table'>('step');
   const [selQ, setSelQ] = useState<string | null>(null);
+  const [selStep, setSelStep] = useState<string | null>(null);
+  const [stepSort, setStepSort] = useState<'no' | 'recent'>('no');
+  const [big, setBig] = useState(false);
+  const [fresh, setFresh] = useState<Record<string, number>>({}); // 방금 새로 쓴 학생(id → 시각)
+  const seenRef = useRef<Record<string, string> | null>(null);
   const [showEmpty, setShowEmpty] = useState(false);
   const [showCheck, setShowCheck] = useState(false);
   const [baseFields, setBaseFields] = useState<FieldInfo[]>([]);
@@ -197,6 +202,36 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const answeredCount = useMemo(() => students.filter(s => (byStudent[s.id]?.filled ?? 0) > 0).length, [students, byStudent]);
   const selected = selectedId ? students.find(s => s.id === selectedId) : null;
 
+  // 입력칸을 제목(단계)별로 묶는다. 학생이 늘린 추가 칸은 원래 칸과 같은 묶음에 들어간다.
+  const steps = useMemo(() => {
+    const out: { name: string; fields: FieldInfo[] }[] = [];
+    fields.forEach(f => {
+      const last = out[out.length - 1];
+      if (last && last.name === f.group) last.fields.push(f);
+      else out.push({ name: f.group, fields: [f] });
+    });
+    return out;
+  }, [fields]);
+
+  // 새로 들어온 답(학생의 마지막 입력 시각이 바뀐 경우)을 잠깐 "방금"으로 표시한다. 처음 불러온 답은 표시하지 않는다.
+  useEffect(() => {
+    if (loading) return;
+    const cur: Record<string, string> = {};
+    Object.entries(byStudent).forEach(([id, a]) => { cur[id] = a.updatedAt; });
+    const prev = seenRef.current;
+    seenRef.current = cur;
+    if (!prev) return;
+    const changed = Object.keys(cur).filter(id => cur[id] !== prev[id]);
+    if (changed.length === 0) return;
+    const now = Date.now();
+    setFresh(f => ({ ...f, ...Object.fromEntries(changed.map(id => [id, now])) }));
+    setTimeout(() => setFresh(f => {
+      const n = { ...f };
+      changed.forEach(id => { if (n[id] === now) delete n[id]; });
+      return n;
+    }), 8000);
+  }, [byStudent, loading]);
+
   // 학생이 보던 화면을 그대로(읽기 전용)
   if (selected && showOriginal) {
     return (
@@ -221,8 +256,65 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const goStudent = (sid: string) => { setSelectedId(sid); setTab('a'); };
   const mostFilled = students.reduce<StudentRow | undefined>((best, s) => (!best || (byStudent[s.id]?.filled ?? 0) > (byStudent[best.id]?.filled ?? 0) ? s : best), undefined);
   const currentS = selected ?? mostFilled;
-  const tabs = [['q', '문항별'], ['a', '학생별'], ['map', '한눈 지도'], ['table', '표']] as const;
+  const tabs = [['step', '단계별'], ['q', '문항별'], ['a', '학생별'], ['map', '한눈 지도'], ['table', '표']] as const;
   const empty = (msg: string) => <p className="text-base font-bold text-[#6f685c] py-16 text-center">{msg}</p>;
+
+  const currentStep = steps.find(s => s.name === selStep) ?? steps[0];
+  const stepFilled = (sid: string, st: { fields: FieldInfo[] }) => st.fields.filter(f => isFilled(valueOf(sid, f.key))).length;
+
+  const stepPane = () => {
+    if (!currentStep) return empty('이 자료에는 학생이 적는 입력칸이 없어요.');
+    const no = steps.indexOf(currentStep) + 1;
+    const wrote = students.filter(s => stepFilled(s.id, currentStep) > 0);
+    const waiting = students.filter(s => stepFilled(s.id, currentStep) === 0);
+    const list = stepSort === 'recent'
+      ? [...wrote].sort((a, b) => (byStudent[b.id]?.updatedAt ?? '').localeCompare(byStudent[a.id]?.updatedAt ?? ''))
+      : wrote;
+    return (
+      <div>
+        <p className="text-sm font-bold text-[#6f685c]">{no}단계</p>
+        <h2 className="font-serif text-[28px] leading-snug font-bold">{currentStep.name || '입력칸'}</h2>
+        <p className="text-[#6f685c] mt-1 mb-6"><b className="text-[#1d1b18] text-xl">{wrote.length}명</b> 입력 · {waiting.length}명 아직</p>
+        <div style={{ columnWidth: big ? 420 : 340, columnGap: 40 }}>
+          {list.map(s => {
+            // 추가로 늘린 칸은 그 학생이 쓴 것만 보여 준다(학생마다 개수가 달라도 같은 단계 안에서 이어진다)
+            const rows = currentStep.fields.filter(f => !f.key.includes('+') || isFilled(valueOf(s.id, f.key)));
+            const isNew = fresh[s.id] !== undefined;
+            return (
+              <div key={s.id} className={`break-inside-avoid border-t-2 border-[#1d1b18] pt-3 pb-4 mb-3 -mx-2 px-2 transition-colors duration-1000 ${isNew ? 'bg-[#e8e8fb]' : ''}`}>
+                <div className="flex items-baseline gap-3 mb-1">
+                  <button onClick={() => goStudent(s.id)} className={`font-bold hover:underline ${big ? 'text-[26px]' : 'text-[21px]'}`}>{s.full_name}</button>
+                  <span className="text-sm text-[#6f685c]">{stepFilled(s.id, currentStep)}/{rows.length}칸 작성</span>
+                  {isNew && <span className="text-xs font-bold text-white bg-[#3b3bd6] rounded-sm px-1.5 py-0.5">방금</span>}
+                </div>
+                {rows.map(f => {
+                  const v = valueOf(s.id, f.key);
+                  const ok = isFilled(v);
+                  const extra = f.key.includes('+');
+                  return (
+                    <div key={f.key} className={`py-1.5 ${extra ? 'border-l-[3px] border-[#3b3bd6] pl-3' : ''}`}>
+                      <button onClick={() => goQuestion(f.key)} className={`block text-left leading-snug text-[#6f685c] hover:text-[#3b3bd6] ${big ? 'text-[17px]' : 'text-sm'}`}>
+                        {extra && <b className="text-[#3b3bd6]">추가 </b>}{f.label}
+                      </button>
+                      {!ok ? <p className="text-[#b9b0a0] text-[15px]">{f.checkbox ? '체크 안 함' : '아직 안 썼어요'}</p>
+                        : f.checkbox ? <p className="text-[#1f7a4d] font-bold">✔ 체크했어요</p>
+                        : <p className={`whitespace-pre-wrap break-words leading-relaxed ${big ? 'text-2xl' : 'text-lg'}`}>{v}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+        {waiting.length > 0 && (
+          <div className="mt-6 border-t-2 border-[#1d1b18] pt-3 text-[#b4531b]">
+            <b>아직 안 쓴 학생 {waiting.length}명</b>
+            <p className="mt-1">{waiting.map(s => s.full_name).join(' · ')}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const questionPane = () => {
     if (!currentQ) return empty('이 자료에는 학생이 적는 입력칸이 없어요.');
@@ -353,6 +445,17 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   );
 
   const sidebar = () => {
+    if (tab === 'step') {
+      return (
+        <>
+          <p className="text-sm text-[#6f685c] px-7 pt-5 pb-1.5">단계 {steps.length}개</p>
+          {steps.map((st, i) => {
+            const n = students.filter(s => stepFilled(s.id, st) > 0).length;
+            return <Fragment key={`${i}-${st.name}`}>{listItem(currentStep === st, () => setSelStep(st.name), <><span className="text-sm text-[#6f685c] mr-1.5">{i + 1}</span>{st.name || '입력칸'}</>, `${n}/${students.length}명 입력`, (n / Math.max(students.length, 1)) * 100)}</Fragment>;
+          })}
+        </>
+      );
+    }
     if (tab === 'q') {
       let g = '\u0000';
       return fields.map((f, i) => (
@@ -373,7 +476,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     );
   };
 
-  const showSide = tab === 'q' || tab === 'a';
+  const showSide = tab === 'step' || tab === 'q' || tab === 'a';
   return createPortal(
     <div className="fixed inset-0 z-[10000] bg-[#f6f2ea] text-[#1d1b18] flex flex-col" style={{ fontFamily: "'Pretendard Variable', system-ui, sans-serif" }}>
       {/* 입력칸 이름을 뽑기 위해 화면 밖에서만 그리는 자료 (보이지 않음) */}
@@ -404,15 +507,30 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       ) : fields.length === 0 ? (
         empty('이 자료에는 학생이 적는 입력칸이 없어요.')
       ) : (
+        <>
+        {tab === 'step' && (
+          <div className="flex items-center gap-5 px-8 py-2.5 border-b border-[#ddd5c6] text-base text-[#6f685c] flex-wrap">
+            <span className="flex items-center gap-2">정렬
+              <span className="inline-flex border border-[#ddd5c6] rounded-md overflow-hidden">
+                {([['no', '번호순'], ['recent', '최근 입력순']] as const).map(([k, l]) => (
+                  <button key={k} onClick={() => setStepSort(k)} className={`px-3 py-1 ${stepSort === k ? 'bg-[#1d1b18] text-white' : 'hover:bg-[#efe9dc]'}`}>{l}</button>
+                ))}
+              </span>
+            </span>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" checked={big} onChange={e => setBig(e.target.checked)} className="accent-[#3b3bd6]" />크게 보기 <span className="text-sm">(칠판에 띄울 때)</span></label>
+          </div>
+        )}
         <div className={`flex-1 min-h-0 grid ${showSide ? 'grid-cols-[340px_1fr]' : 'grid-cols-1'}`}>
           {showSide && <aside className="border-r border-[#ddd5c6] overflow-y-auto py-3">{sidebar()}</aside>}
           <section className="overflow-y-auto min-h-0">
+            {tab === 'step' && <div className="px-12 py-9">{stepPane()}</div>}
             {tab === 'q' && <div className="px-14 py-9">{questionPane()}</div>}
             {tab === 'a' && <div className="px-14 py-9">{studentPane()}</div>}
             {tab === 'map' && mapPane()}
             {tab === 'table' && tablePane()}
           </section>
         </div>
+        </>
       )}
     </div>,
     document.body
