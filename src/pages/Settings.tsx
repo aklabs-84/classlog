@@ -35,6 +35,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { appToast } from '../lib/appDialog';
+import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 
 const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 
@@ -786,7 +787,7 @@ const Settings = () => {
 
       {/* Profile Header Card */}
       <div className="surface-card p-5 md:p-10 shadow-ambient flex items-center gap-5 md:gap-10 relative overflow-hidden">
-        <div className="relative group cursor-pointer" onClick={handleFileSelect}>
+        <div className="relative group cursor-pointer" onClick={handleFileSelect} {...plainDrop(files => handleFileChange(asChangeEvent(files)), { accept: 'image/*', disabled: !isEditing })}>
           <div className={`w-32 h-32 rounded-3xl overflow-hidden shadow-lg border-4 border-surface-container-high transition-transform ${isEditing ? 'hover:scale-105' : ''} bg-surface-container flex items-center justify-center relative`}>
             {loading ? (
               <div className="w-full h-full animate-pulse bg-surface-container-highest" />

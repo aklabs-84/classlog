@@ -669,7 +669,15 @@ const TeachingTools = () => {
         next.delete('tool');
       }
       return next;
-    }, { replace: true, state: location.state });
+    }, {
+      replace: true,
+      // activeToolId는 "이 도구를 열어라"는 일회성 신호라 한 번 읽었으면 지운다.
+      // 남겨 두면 다른 도구로 이동할 때 state 감지 effect가 이전 도구를 다시 열어 버린다.
+      state: (() => {
+        const { activeToolId: _consumed, ...rest } = (location.state ?? {}) as Record<string, unknown>;
+        return Object.keys(rest).length > 0 ? rest : null;
+      })(),
+    });
   }, [activeTool]);
 
   return (

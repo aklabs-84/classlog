@@ -791,3 +791,92 @@ export const buildDraftDeckSlides = (
     return { id: crypto.randomUUID(), bg: template.bg, textColor: template.textColor, objects };
   });
 };
+
+// ── 템플릿 구성 전체를 AI가 채우는 방식 (aklabs 메인 템플릿 전용) ─────────────────
+// showcase의 모든 슬라이드에서 "실제 내용 글 칸"을 자동으로 찾는다.
+// 제외: 장식 도형, 빈 글, 상표(AKLABS), 쪽 번호(01·02…). 샘플 문구는 AI에게 "이런 자리예요" 예시로 보여준다.
+export interface ShowcaseSlot { objectIndex: number; sample: string; maxChars: number }
+export interface ShowcaseSlideSpec { key: string; label: string; slots: ShowcaseSlot[] }
+
+const PAGE_NO_RE = /^\d{1,2}$/;
+
+export const getShowcaseSpecs = (template: SlideTemplate): ShowcaseSlideSpec[] =>
+  (template.showcase ?? []).map(s => ({
+    key: s.key,
+    label: s.label,
+    slots: s.objects.flatMap((o, objectIndex) => {
+      const text = (o.text ?? '').trim();
+      if (o.type !== 'text' || o.decorative || !text || text === 'AKLABS' || PAGE_NO_RE.test(text)) return [];
+      const fontSize = o.style?.fontSize ?? 16;
+      const lines = Math.max(1, Math.floor(o.height / (fontSize * (o.style?.lineHeight ?? 1.4))));
+      const perLine = Math.max(1, Math.floor(o.width / (fontSize * 0.95)));
+      return [{ objectIndex, sample: text, maxChars: Math.max(2, perLine * lines) }];
+    }),
+  }));
+
+// AI가 고른 슬라이드들(순서 그대로, 같은 구성 여러 번 가능)을 실제 슬라이드로 만든다.
+export const buildShowcaseDeckSlides = (
+  template: SlideTemplate,
+  picks: { key: string; texts: string[]; images?: number[]; code?: number[] }[],
+  media?: { imageUrls: string[]; codeBlocks: { lang: string; code: string }[] }
+): DeckSlide[] => {
+  const specs = getShowcaseSpecs(template);
+  const slides: DeckSlide[] = [];
+  const usedImg = new Set<number>();
+  const usedCode = new Set<number>();
+  // 템플릿 구성에는 내 그림·코드를 놓을 자리가 없으므로, 해당 슬라이드 뒤에 전용 슬라이드를 끼운다
+  const mediaSlides = (title: string, imgIdx: number[], codeIdx: number[]): DeckSlide[] => {
+    if (!media) return [];
+    const out: DeckSlide[] = [];
+    const titleObj = (): SlideObject => ({
+      id: crypto.randomUUID(), type: 'text', x: 80, y: 40, width: 1120, height: 80, zIndex: 1,
+      text: title.length > 40 ? `${title.slice(0, 40)}…` : title,
+      style: { fontSize: 36, bold: true, align: 'left', valign: 'middle', lineHeight: 1.3 },
+    });
+    const imgs = imgIdx.filter(i => media.imageUrls[i] && !usedImg.has(i));
+    for (let c = 0; c < imgs.length; c += 3) {
+      const chunk = imgs.slice(c, c + 3);
+      const gap = 24, w = (1120 - gap * (chunk.length - 1)) / chunk.length;
+      const objects: SlideObject[] = [titleObj(), ...chunk.map((i, k): SlideObject => {
+        usedImg.add(i);
+        return { id: crypto.randomUUID(), type: 'image', x: 80 + k * (w + gap), y: 140, width: w, height: 520, zIndex: 2, src: media.imageUrls[i], alt: '', style: { fit: 'contain' } };
+      })];
+      out.push({ id: crypto.randomUUID(), bg: template.bg, textColor: template.textColor, objects });
+    }
+    codeIdx.filter(i => media.codeBlocks[i] && !usedCode.has(i)).forEach(i => {
+      usedCode.add(i);
+      const b = media.codeBlocks[i];
+      out.push({ id: crypto.randomUUID(), bg: template.bg, textColor: template.textColor, objects: [titleObj(), {
+        id: crypto.randomUUID(), type: 'code', x: 80, y: 140, width: 1120, height: 520, zIndex: 2, text: b.code, codeLang: b.lang || undefined, style: { fontSize: 20 },
+      }] });
+    });
+    return out;
+  };
+  picks.forEach(pick => {
+    const showcaseIdx = (template.showcase ?? []).findIndex(s => s.key === pick.key);
+    if (showcaseIdx === -1) return;
+    const spec = specs[showcaseIdx];
+    if (pick.texts.length < spec.slots.length || pick.texts.slice(0, spec.slots.length).some(t => !String(t ?? '').trim())) return;
+    const objects: SlideObject[] = template.showcase![showcaseIdx].objects.map((o, idx) => {
+      const obj: SlideObject = { ...o, id: crypto.randomUUID() };
+      const slotPos = spec.slots.findIndex(f => f.objectIndex === idx);
+      if (slotPos !== -1) obj.text = String(pick.texts[slotPos]).trim();
+      return obj;
+    });
+    slides.push({ id: crypto.randomUUID(), bg: template.bg, textColor: template.textColor, objects });
+    slides.push(...mediaSlides(String(pick.texts[0] ?? '').trim() || '참고 자료', pick.images ?? [], pick.code ?? []));
+  });
+  // AI가 자리를 지정하지 않은 그림·코드는 맨 뒤에 모아 붙인다(누락 방지)
+  if (media) {
+    const restImg = media.imageUrls.map((_, i) => i).filter(i => !usedImg.has(i));
+    const restCode = media.codeBlocks.map((_, i) => i).filter(i => !usedCode.has(i));
+    slides.push(...mediaSlides('참고 자료', restImg, restCode));
+  }
+  // 쪽 번호(01·02…)를 실제 순서에 맞춰 다시 매긴다
+  slides.forEach((slide, i) => {
+    slide.objects.forEach(o => {
+      if (o.type === 'text' && !o.decorative && PAGE_NO_RE.test((o.text ?? '').trim())) o.text = String(i + 1).padStart(2, '0');
+    });
+  });
+  return slides;
+};

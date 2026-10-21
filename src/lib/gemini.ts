@@ -593,6 +593,7 @@ export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis'
 export const resultAutoGradeAI    = makeModelWrapper('flash', 'result_auto_grade', true);
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
 export const lessonRecapAI        = makeModelWrapper('flash', 'lesson_recap', true);
+export const formMapAI            = makeModelWrapper('lite', 'form_map', true);
 
 // 수업 자료 본문에서 "오늘 수업 키워드"(학생이 기억을 떠올리는 단서) 3~5개를 뽑는다.
 // 학생 기록이 서로 똑같아지지 않도록 완성된 문장·서술형이 아닌 짧은 명사구만 만든다.
@@ -1432,10 +1433,10 @@ const STUDENT_GUIDE_FORMAT = `[학생용 자기주도 실습 가이드 형식]
 - 안내 글은 블록으로 씁니다: "쉬운 설명·비유·배경"은 <div data-callout="info"> 블록, "주의·실수하기 쉬운 곳"은 data-callout="warning", "이렇게 되면 성공·꿀팁"은 data-callout="tip", "절대 놓치면 안 되는 핵심"은 data-callout="important" 블록으로 씁니다. 강사가 던지는 질문·핵심 한 문장은 "> " 인용문으로 씁니다. 💡 같은 이모지 한 줄 문단으로 쓰지 않습니다(블록이 아이콘을 자동으로 붙이므로 글 앞에 이모지를 또 쓰지 않습니다). 블록은 줄 맨 앞부터, 앞뒤에 빈 줄을 두고, 안에는 글만 씁니다(체크박스·입력 칸·표 금지). 한 STEP에 2개 이하, 한 블록은 2~3문장까지만 씁니다. 입력 영역 제목(예: 확인 결과)은 블록 없이 굵은 글씨 한 줄로 씁니다.
 - 덩어리를 나눠 씁니다: 안내 상자(인용문·강사용 쪽지), 체크박스 목록, 표, 코드 상자, 문단은 각각 한 덩어리로 두고 사이에 빈 줄을 한 줄씩 둡니다. 한 문단은 2~3문장까지만 쓰고, 서로 다른 내용(안내+준비물+표)을 한 덩어리에 섞지 않습니다. 표 바로 위 소제목 한 줄은 굵은 글씨 한 줄로만 씁니다.
 - 입력 칸을 빠뜨리지 않습니다: "써 보세요·적어 보세요·기록하세요·답해 보세요"처럼 학생이 직접 쓰게 하는 문장에는 반드시 입력 칸을 함께 둡니다. 한 줄 답은 목록 항목 끝에 ___ (예: - 코딩이란? → ___), 길게 쓰는 소감은 굵은 질문 줄, 빈 줄, 그 아래 "\\______"(역슬래시 1개+밑줄 6개)만 있는 줄(예: **오늘 느낀 점은?** 다음 빈 줄 다음 \\______). "> ___", 맨몸 "___", "\\___"는 가로줄·인용문으로 바뀌어 입력 칸이 안 생기니 쓰지 않습니다, 여러 개는 빈 칸이 있는 표, 확인은 - [ ] 체크박스입니다. 단, 표 안에서 "체크·고르기·해당하면 표시"를 시키는 칸(예: 두 결과를 비교해 어느 쪽에 해당하는지 표시)은 빈 칸이 아니라 칸마다 [ ] 를 넣습니다(예: | 타깃이 반영되었다 | [ ] | [ ] |). 표 칸에서는 "- [ ]"가 아니라 "[ ]"만 씁니다. 내용을 직접 써야 하는 칸만 빈 칸으로 둡니다. 화살표(→)나 콜론(:)만 남기고 끝내지 않습니다. 코드 상자 안의 ___ 는 입력 칸이 되지 않으니 쓰지 않습니다. 다 쓴 뒤 "써 보세요/적어 보세요" 문장마다 입력 칸이 있는지 확인합니다.
-
 - 입력 칸에는 예시를 붙입니다: 학생이 직접 쓰는 입력 칸(빈 칸·"\\______")마다 입력 칸 바로 위에 "예) 실제 학생 말투의 한 줄" 문단을 둡니다. 예시는 입력 칸을 좁히거나 채우면 안 되므로 표에 '예시' 열을 만들지 않고, 입력 칸 안에 미리 써 넣지도 않습니다. 여러 칸 표는 표 바로 위에 "예) 칸1: …, 칸2: …"를 한 줄로 씁니다. 체크·고르기 칸은 예시가 필요 없습니다. 한 문서의 예시는 같은 주제 하나로 이어 쓰고, 다 쓴 뒤 예시 없는 입력 칸이 없는지 확인합니다.
 - 학생이 더 쓸 수 있는 줄이 필요한 표(기타 화면·추가 기능 등)는 그 줄의 이름 칸 끝에 " [+]"를 붙입니다(예: | 기타 화면 [+] | |). 학생 화면에서 "＋ 더 쓰기" 버튼이 생겨 같은 모양의 입력 줄이 늘어납니다. 빈 입력 칸이 한 개 이상 있는 줄에만 쓰고, 표마다 최대 1~2줄에만 씁니다.
 - 학생이 그대로 복사해서 AI에 붙여 넣을 문장(프롬프트·지시문·덧붙일 말)은 한 줄 인라인 코드가 아니라 반드시 코드 블록(백틱 3개 \`\`\`로 앞뒤를 감쌈)으로 씁니다. 코드 블록은 앞뒤에 빈 줄을 두거나 목록 항목 안이면 들여쓰기를 맞춥니다. 복사하지 않는 짧은 용어만 인라인 코드를 씁니다.
+
 분량 기준 (학생이 겁먹지 않고, 그렇다고 이해에 모자라지도 않게 — 강사가 고른 보기 모양에 따라 "간단" 또는 "자세히" 중 하나를 따릅니다. 아래 [이번 자료의 분량 단계]에 적힌 쪽을 쓰고, 없으면 "간단"을 씁니다):
 - 간단 (A 게임 미션형, B 그림책형, 기본): 수업 1분당 약 50~70자. 10분짜리 STEP 본문 300~450자. 따라 하기 5줄 안팎. 쉬운 설명은 비유 한 줄. 쓰는 칸은 STEP당 입력 덩어리 1개, 칸 4개 이하. 체크리스트 2개 이하. 용어 사전은 새로 나온 말 4개 이하(없으면 생략). 시작 화면은 준비물 4개 이하, 학습 목표 2개.
 - 자세히 (C 노트형, D 챌린지형): 수업 1분당 약 80~110자. 10분짜리 STEP 본문 500~800자. 따라 하기 8줄 안팎. 쉬운 설명은 비유 + 이유 한두 문장. 쓰는 칸은 STEP당 입력 덩어리 2개 이하, 칸 8개 이하. 체크리스트 3개 이하. 용어 사전 6~8개. 시작 화면은 준비물 6개 이하, 학습 목표 3개.
@@ -2353,32 +2354,62 @@ export interface AiDraftSlide {
 // 슬라이드 구성 개요(계획) — 화면에서 선생님이 슬라이드별로 직접 확인·수정할 수 있는 구조화된 형태
 export interface SlideOutlinePlan {
   title: string;
-  slides: { subtitle: string; content: string[] }[];
+  // images/code: 원문 속 그림·코드 번호(등장 순서) 중 이 슬라이드에 속하는 것 — 없으면 생략
+  slides: { subtitle: string; content: string[]; images?: number[]; code?: number[] }[];
+  // 원문에 들어 있던 그림 주소·코드 (images/code 번호가 가리키는 대상)
+  media?: { imageUrls: string[]; codeBlocks: { lang: string; code: string }[] };
 }
+
+// 'fit' = 자료 분량·소제목에 맞춰 장수 결정(기본), 'summary' = 핵심만 5~8장으로 요약
+export type SlideOutlineMode = 'fit' | 'summary';
 
 // 자료 가져오기 → 템플릿 선택 후, 실제 슬라이드를 생성하기 전에 먼저 보여줄 구성 개요(계획)를 생성.
 // 승인되면 이 개요의 소제목 구조를 generateSlideDeckDraft의 approvedOutline으로 그대로 넘겨
 // 실제 생성 단계도 같은 슬라이드 구성을 따르게 한다.
-export async function generateSlideOutline(rawContent: string, classId?: string): Promise<SlideOutlinePlan> {
+export async function generateSlideOutline(
+  rawContent: string,
+  classId?: string,
+  mode: SlideOutlineMode = 'fit'
+): Promise<SlideOutlinePlan> {
   const sectionOutline = extractSectionOutline(rawContent);
   const sectionBlock = sectionOutline.length > 0
     ? `\n[원문 섹션 구조 — 이 순서를 그대로 슬라이드 구성 순서로 사용하세요]\n${sectionOutline.join('\n')}\n`
     : '';
 
+  // 그림·코드는 번호표로 바꿔서 보낸다 — AI가 어느 슬라이드에 속하는지만 번호로 알려 주게 함
+  const media = extractDraftMedia(rawContent);
+  const { replaced: noImg } = extractImagePlaceholders(rawContent);
+  const { replaced } = extractCodePlaceholders(noImg);
+  const hasMedia = media.imageUrls.length > 0 || media.codeBlocks.length > 0;
+
+  const textLen = replaced.replace(/\{\{(IMG|CODE):\d+\}\}/g, '').replace(/\s+/g, '').length;
+  const headingCount = sectionOutline.length;
+  const minSlides = Math.max(3, Math.round(textLen / 900), Math.min(headingCount, 40));
+
+  const countRule = mode === 'summary'
+    ? '- slides: 핵심만 추려서 5~8장 내외로 요약하세요. 원문이 길어도 가장 중요한 흐름만 남깁니다.'
+    : `- slides: 원문 분량과 구조에 맞춰 장수를 정하세요. 핵심 요약이 아니라 원문 흐름을 빠짐없이 따라가는 구성입니다.
+  - 원문에 소제목(#)이 있으면 소제목 하나당 슬라이드를 최소 한 장 만드세요. 한 소제목 안의 내용이 많아 요점이 4개를 넘으면 두 장 이상으로 나누세요.
+  - 소제목이 없는 긴 글은 글 800~1000자에 한 장 정도로 나누세요.
+  - 이 자료는 최소 ${minSlides}장 이상이 되도록 하세요. 장수에 상한은 없습니다.`;
+  const mediaRule = hasMedia
+    ? `\n- 원문에는 {{IMG:n}}(그림 ${media.imageUrls.length}개), {{CODE:n}}(코드 ${media.codeBlocks.length}개) 번호표가 들어 있습니다. 각 슬라이드 항목에 images(그림 번호 배열), code(코드 번호 배열)를 넣어, 원문에서 그 번호표가 놓인 위치와 가까운 슬라이드에 배정하세요. 같은 번호를 두 슬라이드에 넣지 마세요. 해당이 없으면 빈 배열로 두고, content 문장 안에는 번호표를 쓰지 마세요.`
+    : '';
+
   const prompt = `이 수업 자료를 발표용 슬라이드로 만들기 전에, 먼저 슬라이드 구성 개요(기획안)를 작성합니다.
 
 [원문]
-${rawContent}
+${replaced}
 ${sectionBlock}
 [작성 규칙]
 - title: 원문 내용을 대표하는 15자 내외의 슬라이드 전체 제목.
-- slides: 실제 발표에 쓸 슬라이드 개수만큼 배열로 나열(특별한 요청이 없으면 5~8장 내외가 적당합니다). 각 항목은 슬라이드 한 장에 대응합니다.
+${countRule}
   - subtitle: 그 슬라이드의 소제목.
-  - content: 그 슬라이드에 들어갈 핵심 문장이나 짧은 불릿을 2~4개 정도, 원문 내용을 요약한 문자열 배열.
+  - content: 그 슬라이드에 들어갈 핵심 문장이나 짧은 불릿을 2~4개 정도, 원문 내용을 요약한 문자열 배열.${mediaRule}
 - 원문에 없는 내용을 지어내지 마세요.
 
 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"title":"...","slides":[{"subtitle":"...","content":["...","..."]},...]}`;
+{"title":"...","slides":[{"subtitle":"...","content":["...","..."]${hasMedia ? ',"images":[0],"code":[]' : ''}},...]}`;
 
   const result = await slideDeckDraftAI.generateContent(
     prompt,
@@ -2386,17 +2417,30 @@ ${sectionBlock}
   );
   const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
   const parsed = JSON.parse(raw);
-  const slides = parseOutlineSlides(parsed.slides);
-  return { title: typeof parsed.title === 'string' ? parsed.title : '', slides };
+  const slides = parseOutlineSlides(parsed.slides, media.imageUrls.length, media.codeBlocks.length);
+  return { title: typeof parsed.title === 'string' ? parsed.title : '', slides, media: hasMedia ? media : undefined };
 }
 
 // AI JSON 응답의 slides 배열을 { subtitle, content } 형태로 안전하게 파싱 (generateSlideOutline/reviseSlideOutline* 공용)
-function parseOutlineSlides(rawSlides: any): SlideOutlinePlan['slides'] {
+function parseOutlineSlides(rawSlides: any, imageCount = 0, codeCount = 0): SlideOutlinePlan['slides'] {
+  // 번호는 실제 존재하는 것만, 한 번만 인정 (AI가 없는 번호를 쓰거나 중복 배정해도 걸러냄)
+  const usedImg = new Set<number>();
+  const usedCode = new Set<number>();
+  const pick = (v: any, max: number, used: Set<number>): number[] =>
+    Array.isArray(v)
+      ? v.filter((n: any) => Number.isInteger(n) && n >= 0 && n < max && !used.has(n)).map((n: number) => { used.add(n); return n; })
+      : [];
   return Array.isArray(rawSlides)
-    ? rawSlides.map((s: any) => ({
-        subtitle: typeof s?.subtitle === 'string' ? s.subtitle : '',
-        content: Array.isArray(s?.content) ? s.content.filter((c: any) => typeof c === 'string') : [],
-      }))
+    ? rawSlides.map((s: any) => {
+        const images = pick(s?.images, imageCount, usedImg);
+        const code = pick(s?.code, codeCount, usedCode);
+        return {
+          subtitle: typeof s?.subtitle === 'string' ? s.subtitle : '',
+          content: Array.isArray(s?.content) ? s.content.filter((c: any) => typeof c === 'string') : [],
+          ...(images.length ? { images } : {}),
+          ...(code.length ? { code } : {}),
+        };
+      })
     : [];
 }
 
@@ -2436,6 +2480,7 @@ ${instruction}
   const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
   const parsed = JSON.parse(raw);
   return {
+    ...slide,
     subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle : slide.subtitle,
     content: Array.isArray(parsed.content) ? parsed.content.filter((c: any) => typeof c === 'string') : slide.content,
   };
@@ -2479,7 +2524,12 @@ ${instruction}
   );
   const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
   const parsed = JSON.parse(raw);
-  const slides = parseOutlineSlides(parsed.slides);
+  // 그림·코드 배정은 다시 쓰지 않으므로 기존 것을 그대로 이어 붙임
+  const slides = parseOutlineSlides(parsed.slides).map((s, i) => ({
+    ...s,
+    ...(plan.slides[i]?.images?.length ? { images: plan.slides[i].images } : {}),
+    ...(plan.slides[i]?.code?.length ? { code: plan.slides[i].code } : {}),
+  }));
   // AI가 장 수를 어기면(드물지만) 안전하게 기존 구성 길이에 맞춰 보정
   if (slides.length !== plan.slides.length) {
     return {
@@ -2555,6 +2605,70 @@ ${replaced}`;
   return { slides, imageUrls, codeBlocks };
 }
 
+// 템플릿의 "모든 구성"을 원문으로 채운다. 내용에 맞지 않는 구성은 AI가 건너뛰고,
+// 필요하면 같은 구성(예: 개념 설명)을 여러 장 쓸 수 있다. 샘플 문구는 남기지 않는다.
+export interface ShowcaseSlideSpecInput {
+  key: string;
+  label: string;
+  slots: { sample: string; maxChars: number }[];
+}
+
+export async function generateShowcaseDeckDraft(
+  rawContent: string,
+  specs: ShowcaseSlideSpecInput[],
+  classId?: string,
+  approvedOutline?: SlideOutlinePlan
+): Promise<{ key: string; texts: string[]; images?: number[]; code?: number[] }[]> {
+  const { replaced: withoutImages } = extractImagePlaceholders(rawContent);
+  const { replaced } = extractCodePlaceholders(withoutImages);
+  const approvedHeadings = (approvedOutline?.slides ?? []).map(s => s.subtitle.trim()).filter(s => s.length > 0);
+  const sectionOutline = approvedHeadings.length > 0 ? approvedHeadings : extractSectionOutline(rawContent);
+
+  const specText = specs.map(spec =>
+    `- "${spec.key}" (${spec.label}): ` +
+    (spec.slots.map((s, i) => `texts[${i}]=샘플「${s.sample.replace(/\n/g, ' / ')}」(최대 ${s.maxChars}자)`).join(', '))
+  ).join('\n');
+  const sectionBlock = sectionOutline.length > 0 ? `\n[원문 섹션 구조]\n${sectionOutline.join('\n')}\n` : '';
+
+  const prompt = `이 수업 자료를 선택한 슬라이드 디자인의 구성에 맞춰 16:9 슬라이드로 재구성합니다.
+
+[사용 가능한 구성 — 디자인에 정해진 순서대로 나열]
+${specText}
+${sectionBlock}
+[규칙]
+- 위 구성을 순서대로 하나씩 검토하세요. 이 수업 내용에 맞는 구성은 채우고, 맞지 않거나 채울 내용이 원문에 없는 구성은 건너뛰세요(결과에 넣지 마세요).
+- 첫 슬라이드는 반드시 "cover", 마지막 슬라이드는 가능하면 마무리 구성(wrapup 등 마지막 구성)으로 하세요.
+- 내용이 많은 부분은 같은 구성을 여러 장 반복해서 써도 됩니다(예: 단원별로 "concept" 여러 장). 구성의 순서 흐름은 유지하세요.
+- 샘플 문구는 "이런 자리에 이런 종류의 글이 들어간다"는 예시일 뿐입니다. 샘플 내용을 그대로 쓰지 말고 원문 내용으로 바꿔 쓰세요. 단, "KEY POINT"·"Before"·"After"처럼 모든 수업에 공통으로 쓰는 고정 라벨 샘플이면 그대로 두세요. 시간(예: "6분")은 수업 흐름에 맞게 바꾸세요.
+- 각 슬라이드의 texts 개수는 그 구성의 texts 개수와 정확히 같아야 하고, 각 글은 최대 글자 수를 넘지 마세요. 빈 문자열은 허용되지 않습니다 — 채울 수 없으면 그 슬라이드를 건너뛰세요.
+- 글자 수 제한이 작은 칸(10자 이하)은 말을 중간에서 자르지 말고, 제한 안에서 끝나는 짧은 완결 표현(예: "알고리즘 짜기", "결과 확인")으로 쓰세요.
+- 원문에 없는 사실을 지어내지 마세요.
+- 원문에 {{IMG:n}}(그림) 또는 {{CODE:n}}(코드) 표시가 있으면, 그 내용이 들어간 슬라이드의 "images"/"code" 배열에 번호(n)를 넣으세요(해당 슬라이드 바로 뒤에 그림·코드 전용 슬라이드가 자동으로 붙습니다). 없으면 빈 배열로 두고, 같은 번호를 두 번 쓰지 마세요. 표시 자체를 texts 안에 쓰지 마세요.
+
+반드시 아래 JSON 배열 형식으로만 응답하세요 (설명 문구 없이 JSON만):
+[{"key":"cover","texts":["...","..."],"images":[],"code":[]}, ...]
+
+[원문]
+${replaced}`;
+
+  const MAX_ATTEMPTS = 2;
+  let picks: { key: string; texts: string[]; images?: number[]; code?: number[] }[] = [];
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const result = await slideDeckDraftAI.generateContent(prompt, classId ? { class_id: classId } : undefined);
+    const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    picks = JSON.parse(raw);
+    if (Array.isArray(picks) && picks.length > 0 && picks[0]?.key === 'cover') break;
+  }
+  return Array.isArray(picks) ? picks : [];
+}
+
+// 원문 속 그림 주소와 코드 블록 목록 — generateShowcaseDeckDraft 가 돌려준 images/code 번호가 가리키는 대상
+export function extractDraftMedia(rawContent: string): { imageUrls: string[]; codeBlocks: { lang: string; code: string }[] } {
+  const { replaced: withoutImages } = extractImagePlaceholders(rawContent);
+  const { blocks } = extractCodePlaceholders(withoutImages);
+  return { imageUrls: extractImageUrls(rawContent), codeBlocks: blocks };
+}
+
 // 레이아웃이 요구하는 texts 슬롯이 모두 실제 내용으로 채워졌는지 검사 (빈 슬롯 재시도 판단용)
 function draftSlidesAreComplete(slides: AiDraftSlide[], layoutSpecs: SlideLayoutSpec[]): boolean {
   return slides.every(slide => {
@@ -2563,4 +2677,94 @@ function draftSlidesAreComplete(slides: AiDraftSlide[], layoutSpecs: SlideLayout
     if (slide.texts.length < spec.textSlots.length) return false;
     return slide.texts.slice(0, spec.textSlots.length).every(t => t.trim().length > 0);
   });
+}
+
+// 슬라이드 기획서: 장마다 내용에 가장 어울리는 화면 배치와 템플릿 구성을 AI가 고른다.
+// 내용(제목/문장)은 바꾸지 않고, layout / composition(구성 key) / imageNote만 돌려받는다.
+export interface SlidePlanRecommendation {
+  layout: 'text' | 'img-left' | 'img-right' | 'screenshot';
+  compositionKey: string;
+  imageNote: string;
+}
+
+export async function recommendSlidePlanDesign(
+  slides: { title: string; points: string }[],
+  compositions: { key: string; label: string }[],
+  classId?: string
+): Promise<SlidePlanRecommendation[]> {
+  const slideList = slides.map((s, i) => `${i + 1}. 제목: ${s.title}\n   내용: ${s.points.split('\n').filter(Boolean).join(' / ')}`).join('\n');
+  const compList = compositions.map(c => `- ${c.key}: ${c.label}`).join('\n');
+  const prompt = `발표용 슬라이드 기획서에서 장마다 가장 어울리는 "화면 배치"와 "템플릿 구성"을 고릅니다.
+
+[슬라이드 목록]
+${slideList}
+
+[고를 수 있는 화면 배치]
+- text: 글만 (이미지 없음)
+- img-left: 왼쪽 그림 + 오른쪽 글
+- img-right: 왼쪽 글 + 오른쪽 그림
+- screenshot: 화면 캡처를 크게
+
+[고를 수 있는 템플릿 구성 (key: 이름)]
+${compList}
+
+[규칙]
+- 슬라이드 개수(${slides.length}개)와 순서 그대로, 장마다 하나씩 고르세요.
+- compositionKey는 위 목록에 있는 key 중에서만 고르세요. 첫 장은 표지/제목에 어울리는 구성, 마지막 장은 마무리에 어울리는 구성을 우선 고려하세요.
+- 개념 그림이 도움이 되면 img-left/img-right, 프로그램 화면을 보여줘야 하면 screenshot, 글이면 충분하면 text를 고르세요. 모든 장을 같은 배치로 하지 마세요.
+- 이미지가 있는 배치면 imageNote에 "그림에 담을 장면"을 한국어 한 문장으로 쓰세요. text면 빈 문자열.
+- 슬라이드의 제목과 내용은 바꾸지 마세요.
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{"slides":[{"layout":"text","compositionKey":"...","imageNote":""}]}`;
+
+  const result = await slideDeckDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  const arr: any[] = Array.isArray(parsed?.slides) ? parsed.slides : [];
+  const layouts = ['text', 'img-left', 'img-right', 'screenshot'];
+  const keys = new Set(compositions.map(c => c.key));
+  return slides.map((_, i) => {
+    const r = arr[i] ?? {};
+    const layout = layouts.includes(r.layout) ? r.layout : 'text';
+    return {
+      layout,
+      compositionKey: keys.has(r.compositionKey) ? r.compositionKey : '',
+      imageNote: layout !== 'text' && typeof r.imageNote === 'string' ? r.imageNote.trim() : '',
+    };
+  });
+}
+
+// 학교 서식의 칸 이름표를 계획서 항목과 짝지어 추천한다.
+// AI에는 "칸 이름표"와 "계획서 항목 이름"만 보낸다. 계획서 본문·학생·강사 정보는 보내지 않는다.
+export async function suggestFormMapping(
+  slots: { id: string; label: string }[],
+  items: { id: string; label: string }[],
+): Promise<Record<string, string>> {
+  const itemIds = new Set(items.map(i => i.id));
+  const prompt = `학교 수업 서식의 칸 이름표를, 수업 계획서 항목과 짝지어 주세요.
+
+[계획서 항목] (id: 이름)
+${items.map(i => `${i.id}: ${i.label}`).join('\n')}
+
+[서식 칸 이름표] (번호: 이름)
+${slots.map((s, i) => `${i}: ${s.label}`).join('\n')}
+
+규칙:
+- 각 이름표 뜻에 가장 맞는 항목 id 하나를 고르세요. 확실하지 않거나 맞는 항목이 없으면 null.
+- 서명, 확인란, 날짜 도장, 개인정보(주민번호·계좌·연락처) 칸은 반드시 null.
+- 반드시 JSON 객체로만 답하세요. 키는 이름표 번호(문자열), 값은 항목 id 또는 null.
+예: {"0":"title","1":null}`;
+  const result = await formMapAI.generateContent(prompt);
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  slots.forEach((s, i) => {
+    const v = parsed[String(i)];
+    if (typeof v === 'string' && itemIds.has(v)) out[s.id] = v;
+  });
+  return out;
 }

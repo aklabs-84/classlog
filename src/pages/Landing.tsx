@@ -34,6 +34,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import TeacherConfirmModal from '../components/TeacherConfirmModal';
 import { useAuth, isAnonymousUser } from '../lib/auth';
 import { parseVideoUrl } from '../lib/gallery';
 import { stories } from '../data/stories';
@@ -352,6 +353,8 @@ const Landing = () => {
 
   // 구글 무료 가입
   const [googleLoading, setGoogleLoading] = useState(false);
+  // 학생이 습관적으로 눌러 가입되는 것을 막기 위한 확인 창
+  const [showTeacherConfirm, setShowTeacherConfirm] = useState(false);
   const handleGoogleSignup = async () => {
     setGoogleLoading(true);
     // 리다이렉트 후에는 URL의 ?ref= 값이 사라지므로, 로그인 완료 후 자동 적용될 수 있도록 미리 저장
@@ -447,6 +450,12 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-white text-writer-obsidian font-pretendard">
+      <TeacherConfirmModal
+        open={showTeacherConfirm}
+        onClose={() => setShowTeacherConfirm(false)}
+        onStudent={() => { setShowTeacherConfirm(false); navigate('/classroom-entry'); }}
+        onTeacher={() => { setShowTeacherConfirm(false); handleGoogleSignup(); }}
+      />
       {/* ── 얼리버드 신청 팝업 ── */}
       <AnimatePresence>
         {showEarlybirdPopup && (
@@ -660,7 +669,7 @@ const Landing = () => {
                   </button>
                 ) : (
                   <button
-                    onClick={handleGoogleSignup}
+                    onClick={() => setShowTeacherConfirm(true)}
                     disabled={googleLoading}
                     className={`${btnAccent} px-8 py-4 text-base`}
                   >
@@ -1039,7 +1048,7 @@ const Landing = () => {
               <p className="text-sm text-white/60">어떤 과목·기관이든 클래스로그 AI는 선생님 편입니다. 무료로 먼저 체험해 보세요.</p>
             </div>
             <button
-              onClick={isLoggedIn ? () => navigate('/dashboard') : handleGoogleSignup}
+              onClick={isLoggedIn ? () => navigate('/dashboard') : () => setShowTeacherConfirm(true)}
               disabled={googleLoading}
               className={`${btnAccent} shrink-0 px-6 py-3 text-sm`}
             >

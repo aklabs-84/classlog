@@ -62,6 +62,8 @@ import LimitToast, { useLimitToast, ActionToast, useActionToast } from '../../co
 import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
 import type { LessonPRD } from '../../lib/gemini';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import { appConfirm, appToast } from '../../lib/appDialog';
+import { plainDrop } from '../../hooks/useFileDrop';
 
 // 목차는 마크다운을 파싱하지 않고 헤딩 텍스트를 그대로 출력하므로, 저장 시 이스케이프된
 // 특수문자(\[, \] 등)와 강조 마크(**bold**, `code`)를 사람이 읽는 순수 텍스트로 되돌린다.
@@ -95,6 +97,7 @@ interface AiVersion {
 
 interface Material {
   id: string;
+  source_lesson_plan_id?: string | null;
   class_id: string | null;
   week_number: number;
   title: string;
@@ -169,7 +172,7 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, week_number, created_at, attachments, cover_image_url, cover_source')
+      .select('id, title, content, is_published, week_number, created_at, attachments, cover_image_url, cover_source, source_lesson_plan_id')
       .eq('class_id', cls.id)
       .order('week_number', { ascending: true });
     if (error) console.error('[ImportModal] class_materials fetch error:', error);
@@ -184,7 +187,7 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, week_number, created_at, attachments, cover_image_url, cover_source')
+      .select('id, title, content, is_published, week_number, created_at, attachments, cover_image_url, cover_source, source_lesson_plan_id')
       .is('class_id', null)
       .eq('teacher_id', userId)
       .order('created_at', { ascending: false });
@@ -194,8 +197,8 @@ const ImportFromClassModal = ({
     setStep('material');
   };
 
-  const handleSelectMaterial = (material: Material) => {
-    if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
+  const handleSelectMaterial = async (material: Material) => {
+    if (!await appConfirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
     onImport(material.title, material.content ?? '', material.week_number ?? 1, material.id, isLibrary, material.attachments ?? [], { url: material.cover_image_url ?? null, source: material.cover_source === 'upload' ? 'upload' : 'template' });
     onClose();
   };
@@ -351,7 +354,7 @@ const LinkToClassModal = ({
       if (idx === next.length) next.push({ week: idx + 1, topic: '', url: '', requires_result: true, requires_activity: true });
       const cur = next[idx];
       if (cur.material_id && cur.material_id !== material.id &&
-        !confirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
+        !await appConfirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
         setSaving(false);
         return;
       }
@@ -1132,14 +1135,15 @@ const CoverPickerModal = ({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-black text-xs transition-colors border disabled:opacity-50 ${
+              {...plainDrop(files => onUpload(files[0]), { accept: 'image/*', disabled: uploading })}
+              className={`data-[over=true]:ring-2 data-[over=true]:ring-primary flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-black text-xs transition-colors border disabled:opacity-50 ${
                 coverSource === 'upload'
                   ? 'bg-primary text-white border-primary'
                   : 'bg-surface-container text-on-surface-variant border-surface-container hover:bg-surface-container-low'
               }`}
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-              {uploading ? '업로드 중...' : '이미지 업로드'}
+              {uploading ? '업로드 중...' : '이미지 업로드 · 끌어다 놓기'}
             </button>
           </div>
           <input
@@ -1427,11 +1431,11 @@ const MaterialEditor = () => {
   const attachInputRef = useRef<HTMLInputElement>(null);
 
   // 수업 첨부파일 업로드 — 클래스에 연결할 때 같은 파일을 그대로 가리키므로 다시 올릴 필요가 없다
-  const handleUploadAttachments = async (files: FileList | null) => {
+  const handleUploadAttachments = async (files: FileList | File[] | null) => {
     if (!user || !files || files.length === 0) return;
     const picked = Array.from(files);
     if (picked.some(f => f.size > 50 * 1024 * 1024)) {
-      alert('파일 크기는 50MB 이하여야 합니다.');
+      appToast('파일 크기는 50MB 이하여야 합니다.');
       return;
     }
     setAttachUploading(true);
@@ -1445,7 +1449,7 @@ const MaterialEditor = () => {
         added.push({ name: file.name, path, size: file.size });
       }
     } catch (err: any) {
-      alert(isStorageQuotaError(err)
+      appToast(isStorageQuotaError(err)
         ? '저장 용량을 초과했어요. 안 쓰는 파일을 정리하거나 플랜을 확인해주세요.'
         : `첨부파일 업로드 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
     } finally {
@@ -1485,6 +1489,20 @@ const MaterialEditor = () => {
   // 학습 계획서 → "수업 자료 만들기"로 넘어온 자료인지. 이 경우 내용이 이미 AI가 한 번 정리해서 만든 것이라
   // "AI로 정리 → 학습 가이드" 모드는 기본으로 숨긴다(직접 쓴 자료는 그대로 노출).
   const [fromLessonPlan, setFromLessonPlan] = useState(false);
+  // 수업 계획서에서 "가이드 만든 뒤 슬라이드도"로 넘어온 경우 — 슬라이드를 이어서 만들 재료
+  const [thenSlide, setThenSlide] = useState<{ title: string; content: string; classId: string | null } | null>(null);
+  const [returnToPlanId, setReturnToPlanId] = useState<string | null>(null);
+  // 이 자료가 계획서에서 만들어졌는데 그 계획서로 만든 슬라이드가 아직 없으면 [슬라이드 만들기]를 계속 보여준다
+  const [needsSlideForPlanId, setNeedsSlideForPlanId] = useState<string | null>(null);
+  useEffect(() => {
+    const planId = editingMaterial?.source_lesson_plan_id ?? null;
+    if (!planId) { setNeedsSlideForPlanId(null); return; }
+    let cancelled = false;
+    supabase.from('slide_decks').select('id', { count: 'exact', head: true }).eq('source_lesson_plan_id', planId)
+      .then(({ count, error }) => { if (!cancelled) setNeedsSlideForPlanId(!error && (count ?? 0) === 0 ? planId : null); });
+    return () => { cancelled = true; };
+  }, [editingMaterial?.id, editingMaterial?.source_lesson_plan_id]);
+  const [justCreatedIds, setJustCreatedIds] = useState<string[]>([]);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   // 목록 화면에서 자료별로 "원본" 또는 AI 정리 버전 중 어떤 걸 보고 있는지 (null = 원본)
   const [selectedVersionId, setSelectedVersionId] = useState<Record<string, string | null>>({});
@@ -1637,7 +1655,7 @@ const MaterialEditor = () => {
         .insert({ teacher_id: user!.id, class_id: libraryMode ? null : selectedClass?.id ?? null, name })
         .select()
         .single();
-      if (error) { alert(`폴더 생성 중 오류가 발생했습니다.\n${error.message}`); return; }
+      if (error) { appToast(`폴더 생성 중 오류가 발생했습니다.\n${error.message}`); return; }
       if (data) setFolders(prev => [...prev, data as MaterialFolder]);
       setNewFolderName('');
       setNewFolderOpen(false);
@@ -1650,7 +1668,7 @@ const MaterialEditor = () => {
     const name = renamingFolderName.trim();
     if (!name) { setRenamingFolderId(null); return; }
     const { error } = await supabase.from('material_folders').update({ name }).eq('id', folderId);
-    if (error) { alert(`폴더 이름 변경 중 오류가 발생했습니다.\n${error.message}`); return; }
+    if (error) { appToast(`폴더 이름 변경 중 오류가 발생했습니다.\n${error.message}`); return; }
     setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name } : f));
     setRenamingFolderId(null);
   };
@@ -1658,7 +1676,7 @@ const MaterialEditor = () => {
   const handleDeleteFolder = async (folderId: string) => {
     setDeleteFolderConfirmId(null);
     const { error } = await supabase.from('material_folders').delete().eq('id', folderId);
-    if (error) { alert(`폴더 삭제 중 오류가 발생했습니다.\n${error.message}`); return; }
+    if (error) { appToast(`폴더 삭제 중 오류가 발생했습니다.\n${error.message}`); return; }
     setFolders(prev => prev.filter(f => f.id !== folderId));
     setMaterials(prev => prev.map(m => m.folder_id === folderId ? { ...m, folder_id: null } : m));
     if (activeFolderId === folderId) setActiveFolderId('all');
@@ -1667,7 +1685,7 @@ const MaterialEditor = () => {
   const handleMoveToFolder = async (material: Material, folderId: string | null) => {
     setMoveMenuFor(null);
     const { error } = await supabase.from('class_materials').update({ folder_id: folderId }).eq('id', material.id);
-    if (error) { alert(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return; }
+    if (error) { appToast(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return; }
     setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, folder_id: folderId } : m));
     const folderName = folderId ? folders.find(f => f.id === folderId)?.name ?? '폴더' : '미분류';
     showActionToast(`"${folderName}"(으)로 이동했습니다.`);
@@ -1700,6 +1718,9 @@ const MaterialEditor = () => {
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
     setFromLessonPlan(!!draft.fromLessonPlan);
+    const st = location.state as { returnToPlanId?: string; draftMaterial?: { thenSlide?: { title: string; content: string; classId: string | null } } } | null;
+    setThenSlide(st?.draftMaterial?.thenSlide ?? null);
+    setReturnToPlanId(st?.returnToPlanId ?? null);
     if (draft.expansionGuide && draft.expansionGuide.length > 0) {
       setExpansionGuide(draft.expansionGuide);
       setShowExpansionGuide(true);
@@ -1710,7 +1731,9 @@ const MaterialEditor = () => {
   // 수업계획서가 2차시 이상이면 차시별 자료 초안이 배열로 넘어온다 — 각각 검토 없이 바로 저장하고 목록으로 돌아간다.
   useEffect(() => {
     if (draftMaterialsHandledRef.current) return;
-    const drafts = (location.state as { draftMaterials?: Array<{ title: string; content: string; classId?: string | null; expansionGuide?: string[]; viewerStyle?: string }> } | null)?.draftMaterials;
+    const multiState = location.state as { draftMaterials?: Array<{ title: string; content: string; classId?: string | null; expansionGuide?: string[]; viewerStyle?: string }>; returnToPlanId?: string; thenSlide?: { title: string; content: string; classId: string | null } } | null;
+    const drafts = multiState?.draftMaterials;
+    const planId = multiState?.returnToPlanId;
     if (!drafts || drafts.length === 0) return;
     draftMaterialsHandledRef.current = true;
     (async () => {
@@ -1733,17 +1756,25 @@ const MaterialEditor = () => {
         is_published: false,
         ai_versions: [],
         viewer_style: normalizeViewerStyle(draft.viewerStyle),
+        source_lesson_plan_id: planId ?? null,
       }));
-      const { data: inserted, error } = await supabase.from('class_materials').insert(rows).select('id, title, content');
+      const { data: inserted, error } = await supabase.from('class_materials').insert(rows).select('*');
       if (error) {
-        alert(`수업 자료 생성 중 오류가 발생했습니다.\n${error.message}`);
+        appToast(`수업 자료 생성 중 오류가 발생했습니다.\n${error.message}`);
         return;
       }
       (inserted ?? []).forEach(row => syncMaterialEmbedding(row.id, row.title, row.content));
       setLibraryMode(true);
       setSelectedClass(null);
+      setThenSlide(multiState?.thenSlide ?? null);
+      setReturnToPlanId(planId ?? null);
       await fetchLibraryMaterials();
-      alert(`${drafts.length}개 차시의 수업 자료가 각각 생성되었습니다.`);
+      // 방금 만든 첫 차시 자료의 편집 화면을 바로 연다 (나머지 차시는 목록에서 찾을 수 있다)
+      if (inserted && inserted.length > 0) {
+        const sorted = [...inserted].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+        setJustCreatedIds(sorted.map(r => r.id));
+        handleEdit(drafts.length > 0 ? (inserted.find(r => r.title === (drafts[0].title.trim() || '수업 교안')) ?? sorted[0]) as Material : sorted[0] as Material);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1843,14 +1874,14 @@ const MaterialEditor = () => {
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
     if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      appToast('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
       throw new Error('파일 크기 초과');
     }
     setUploading(true);
     try {
       const compressed = await compressToWebP(file);
       if (compressed.size > 20 * 1024 * 1024) {
-        alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
+        appToast('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
         throw new Error('파일 크기 초과');
       }
       const path = `materials/${user.id}/${Date.now()}.webp`;
@@ -1867,7 +1898,7 @@ const MaterialEditor = () => {
   const handleUploadCoverImage = async (file: File) => {
     if (!user) return;
     if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      appToast('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
       return;
     }
     setCoverUploading(true);
@@ -1881,7 +1912,7 @@ const MaterialEditor = () => {
       setCoverSource('upload');
     } catch (err: any) {
       console.error('[MaterialEditor] cover upload error:', err);
-      alert(`표지 이미지 업로드 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+      appToast(`표지 이미지 업로드 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
     } finally {
       setCoverUploading(false);
     }
@@ -1906,6 +1937,7 @@ const MaterialEditor = () => {
       const insertPayload = {
         ...payload,
         folder_id: activeFolderId && activeFolderId !== 'all' ? activeFolderId : null,
+        source_lesson_plan_id: returnToPlanId ?? null,
       };
       const { data, error } = await supabase.from('class_materials').insert(insertPayload).select().single();
       if (error) throw error;
@@ -1920,13 +1952,13 @@ const MaterialEditor = () => {
   };
 
   const handleSave = async () => {
-    if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
-    if (!title.trim()) { alert('제목을 입력해주세요.'); return; }
+    if (!libraryMode && !selectedClass) { appToast('클래스를 선택해주세요.'); return; }
+    if (!title.trim()) { appToast('제목을 입력해주세요.'); return; }
     // 내 수업용 수정본은 학생 답이 원본에 저장되므로 원본의 입력칸(순서·종류)은 그대로 둬야 한다(맨 뒤에 더하는 것만 허용)
     if (editingMaterial?.plan_origin_id && (content ?? '').trim() !== (editingMaterial.content ?? '').trim()) {
       const { data: orig } = await supabase.from('class_materials').select('content').eq('id', editingMaterial.plan_origin_id).maybeSingle();
       if (orig && !keepsOriginalFields(orig.content ?? '', content ?? '')) {
-        alert('원본에 있던 입력칸(빈 칸, [ ], ___)이 지워지거나 순서가 바뀌었어요.\n\n학생 답은 원본에 함께 저장돼서, 원본의 입력칸은 그대로 두어야 해요. 새 입력칸은 글 맨 뒤에만 더할 수 있어요.\n\n입력칸을 마음대로 바꾸고 싶다면 내 자료함에 새 자료를 따로 만들어 쓰세요.');
+        appToast('원본에 있던 입력칸(빈 칸, [ ], ___)이 지워지거나 순서가 바뀌었어요.\n\n학생 답은 원본에 함께 저장돼서, 원본의 입력칸은 그대로 두어야 해요. 새 입력칸은 글 맨 뒤에만 더할 수 있어요.\n\n입력칸을 마음대로 바꾸고 싶다면 내 자료함에 새 자료를 따로 만들어 쓰세요.');
         return;
       }
     }
@@ -1936,7 +1968,7 @@ const MaterialEditor = () => {
         .from('student_material_answers')
         .select('id', { count: 'exact', head: true })
         .eq('material_id', editingMaterial.plan_origin_id ?? editingMaterial.id);
-      if ((count ?? 0) > 0 && !window.confirm('이 자료에는 학생들이 이미 쓴 답이 있어요.\n입력칸(빈 칸, [ ], ___)을 추가하거나 지우면 학생 답이 엉뚱한 칸에 보일 수 있어요.\n\n그래도 저장할까요?')) return;
+      if ((count ?? 0) > 0 && !await appConfirm('이 자료에는 학생들이 이미 쓴 답이 있어요.\n입력칸(빈 칸, [ ], ___)을 추가하거나 지우면 학생 답이 엉뚱한 칸에 보일 수 있어요.\n\n그래도 저장할까요?')) return;
     }
     setSaving(true);
     try {
@@ -1970,7 +2002,7 @@ const MaterialEditor = () => {
       resetForm();
     } catch (err: any) {
       console.error('[MaterialEditor] save error:', err);
-      alert(`저장 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+      appToast(`저장 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
     }
     finally { setSaving(false); }
   };
@@ -2036,7 +2068,7 @@ const MaterialEditor = () => {
       autosaveTimerRef.current = null;
       const ok = await doAutoSave();
       if (!ok) {
-        alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.\\n(내용은 아직 화면에 남아 있습니다)');
+        appToast('저장에 실패했습니다. 잠시 후 다시 시도해주세요.\\n(내용은 아직 화면에 남아 있습니다)');
         return;
       }
     }
@@ -2075,7 +2107,7 @@ const MaterialEditor = () => {
 
   // ── 삭제 ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    if (!confirm('이 수업 자료를 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 수업 자료를 삭제하시겠습니까?')) return;
     const { error } = await supabase.from('class_materials').delete().eq('id', id);
     if (error) { showActionToast('삭제하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
     if (libraryMode) await fetchLibraryMaterials(); else await fetchMaterials(selectedClass.id);
@@ -2084,7 +2116,7 @@ const MaterialEditor = () => {
 
   // ── 복사 ──────────────────────────────────────────────────────────────────
   const handleCopy = async (material: Material) => {
-    if (!confirm(`"${material.title}"을(를) 복사하시겠습니까?`)) return;
+    if (!await appConfirm(`"${material.title}"을(를) 복사하시겠습니까?`)) return;
     if (!checkIsBasicOrAbove(profile)) {
       const { count } = await supabase
         .from('class_materials')
@@ -2122,7 +2154,7 @@ const MaterialEditor = () => {
 
   // ── AI 정리 히스토리 개별 삭제 (편집 화면) ────────────────────────────────
   const handleDeleteAiVersion = async (v: AiVersion) => {
-    if (!confirm(`"${v.label}" 버전을 삭제하시겠습니까?`)) return;
+    if (!await appConfirm(`"${v.label}" 버전을 삭제하시겠습니까?`)) return;
     const next = aiVersions.filter(x => x.id !== v.id);
     setAiVersions(next);
     if (editingMaterial?.id) {
@@ -2136,7 +2168,7 @@ const MaterialEditor = () => {
 
   // ── AI 정리 히스토리 개별 삭제 (목록 화면) ────────────────────────────────
   const handleDeleteMaterialVersion = async (material: Material, v: AiVersion) => {
-    if (!confirm(`"${v.label}" 버전을 삭제하시겠습니까?`)) return;
+    if (!await appConfirm(`"${v.label}" 버전을 삭제하시겠습니까?`)) return;
     const nextVersions = (material.ai_versions ?? []).filter(x => x.id !== v.id);
     const { error } = await supabase
       .from('class_materials')
@@ -2962,6 +2994,29 @@ const MaterialEditor = () => {
                   <Lightbulb size={15} /> 확장 가이드
                 </button>
               )}
+              {/* 계획서에서 "가이드 만든 뒤 슬라이드도"를 고른 경우 — 가이드를 다듬은 뒤 같은 계획서로 슬라이드 만들기 */}
+              {justCreatedIds.length > 1 && editingMaterial && justCreatedIds.includes(editingMaterial.id) && (
+                <span className="px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-800 text-[13px] font-semibold whitespace-nowrap" title="나머지 차시 자료는 목록에서 찾을 수 있어요">
+                  방금 만든 {justCreatedIds.length}개 중 하나 · 나머지는 목록에 있어요
+                </span>
+              )}
+              {(thenSlide || needsSlideForPlanId) && (
+                <button
+                  onClick={() => navigate('/teaching-tools', {
+                    state: {
+                      activeToolId: 'slide-deck',
+                      returnToPlanId: (returnToPlanId ?? needsSlideForPlanId) ?? undefined,
+                      draftSlide: thenSlide
+                        ? { noteId: '', title: thenSlide.title, content: thenSlide.content, classId: thenSlide.classId }
+                        : { noteId: '', title: title || '수업 슬라이드', content, classId: editingMaterial?.class_id ?? selectedClass?.id ?? null },
+                    },
+                  })}
+                  title="가이드를 다 다듬었다면, 같은 계획서로 슬라이드를 이어서 만들어요"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white hover:opacity-90 font-semibold text-[14px] transition-colors whitespace-nowrap"
+                >
+                  <Presentation size={15} /> {thenSlide ? '이어서 슬라이드 만들기' : '슬라이드 만들기'}
+                </button>
+              )}
               {/* 편집 중인 내용을 바로 발표 모드로 */}
               <button
                 onClick={() => {
@@ -3138,7 +3193,7 @@ const MaterialEditor = () => {
           )}
 
           {/* 수업 첨부파일 — 클래스에 연결하면 그대로 따라가고, 수업 화면(학생 포함)에서 내려받을 수 있다 */}
-          <div className="flex flex-wrap items-center gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
+          <div {...plainDrop(files => handleUploadAttachments(files), { multiple: true, disabled: attachUploading })} className="data-[over=true]:bg-primary/10 flex flex-wrap items-center gap-1.5 px-5 py-2.5 border-b border-surface-container bg-surface-container-low/50">
             <input
               ref={attachInputRef}
               type="file"
@@ -3152,7 +3207,7 @@ const MaterialEditor = () => {
               disabled={attachUploading}
               className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary/30 font-bold text-[11px] transition-colors disabled:opacity-50"
             >
-              <Paperclip size={12} /> {attachUploading ? '올리는 중...' : '수업 첨부파일 추가'}
+              <Paperclip size={12} /> {attachUploading ? '올리는 중...' : '수업 첨부파일 추가 · 끌어다 놓기'}
             </button>
             {attachments.length === 0 && !attachUploading && (
               <span className="text-[11px] font-bold text-on-surface-variant/60">여기에 올린 파일은 클래스에 연결해도 다시 올릴 필요가 없어요</span>
@@ -3255,8 +3310,8 @@ const MaterialEditor = () => {
                 <button
                   key={tpl.style}
                   type="button"
-                  onClick={() => {
-                    if (content.trim() !== '' && !confirm('지금 쓴 글이 사라지고 틀로 바뀌어요. 계속할까요?')) return;
+                  onClick={async () => {
+                    if (content.trim() !== '' && !await appConfirm('지금 쓴 글이 사라지고 틀로 바뀌어요. 계속할까요?')) return;
                     setContent(tpl.build(title));
                     setViewerStyle(tpl.style);
                   }}

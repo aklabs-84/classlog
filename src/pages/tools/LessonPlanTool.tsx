@@ -6,6 +6,8 @@ import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 import type { LessonPlanConfig, LessonPlanSections } from '../../lib/gemini';
 import { generateLessonPlanSections, generateMaterialDraftFromLessonPlan, generateMaterialDraftFromLessonPlanSession } from '../../lib/gemini';
+import CourseFormExportModal from '../../components/CourseFormExportModal';
+import { buildLessonPlanCourseForm, buildLessonPlanInstructorCard, buildLessonPlanOperationForm } from '../../lib/hwpxFormExport';
 import { buildLessonPlanHtml, copyLessonPlanToClipboard, exportLessonPlanToPdf, exportLessonPlanToHwpx, lessonPlanToPlainText } from '../../lib/lessonPlanExport';
 import { LessonPlanModal, LessonPlanSectionsEditor, type LessonPlanSourceMaterial } from '../../components/LessonPlanModal';
 import {
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
 import { VIEWER_STYLES, type ViewerStyle } from '../../components/materialSkins';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 const PURPOSE_LABEL: Record<string, string> = { formal: '정식 지도안', summary: '간단 요약', parent: '학부모 안내' };
 
@@ -209,8 +212,12 @@ const SavedPlanViewModal = ({
 }) => {
   const [copyDone, setCopyDone] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showCourseForm, setShowCourseForm] = useState(false);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [showMakeChoice, setShowMakeChoice] = useState(false);
+  const [slideAfterGuide, setSlideAfterGuide] = useState(false); // 가이드를 만든 뒤 슬라이드도 이어서 만들 예정
+  const [linkedResults, setLinkedResults] = useState<{ materials: Array<{ id: string; title: string }>; decks: Array<{ id: string; title: string }> } | null>(null);
+  const [checkingLinked, setCheckingLinked] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -261,7 +268,7 @@ const SavedPlanViewModal = ({
       setRegenerateInstruction('');
       onUpdated();
     } catch (err: any) {
-      window.alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : '재생성 중 오류가 발생했습니다.');
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : '재생성 중 오류가 발생했습니다.');
     } finally {
       setRegenerating(false);
     }
@@ -275,7 +282,7 @@ const SavedPlanViewModal = ({
       setEditing(false);
       onUpdated();
     } catch {
-      window.alert('저장 중 오류가 발생했습니다.');
+      appToast('저장 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);
     }
@@ -288,7 +295,7 @@ const SavedPlanViewModal = ({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('이 계획서를 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 계획서를 삭제하시겠습니까?')) return;
     setDeleting(true);
     await supabase.from('lesson_plans').delete().eq('id', plan.id);
     setDeleting(false);
@@ -315,6 +322,23 @@ const SavedPlanViewModal = ({
     onClose();
   };
 
+  // [수업 자료 만들기] — 이 계획서로 이미 만든 결과가 있으면 먼저 보여주고, 없으면 바로 종류 선택으로
+  const handleOpenMake = async () => {
+    setCheckingLinked(true);
+    try {
+      const [m, d] = await Promise.all([
+        supabase.from('class_materials').select('id, title').eq('source_lesson_plan_id', plan.id).order('created_at', { ascending: true }),
+        supabase.from('slide_decks').select('id, title').eq('source_lesson_plan_id', plan.id).order('created_at', { ascending: true }),
+      ]);
+      const materials = m.data ?? [];
+      const decks = d.data ?? [];
+      if (materials.length + decks.length > 0) setLinkedResults({ materials, decks });
+      else setShowMakeChoice(true);
+    } finally {
+      setCheckingLinked(false);
+    }
+  };
+
   const handleCreateMaterial = async () => {
     setCreatingMaterial(true);
     try {
@@ -338,7 +362,12 @@ const SavedPlanViewModal = ({
           })
         );
         navigate('/teaching-tools', {
-          state: { activeToolId: 'material-editor', draftMaterials: drafts, returnToPlanId: plan.id },
+          state: {
+            activeToolId: 'material-editor',
+            draftMaterials: drafts,
+            returnToPlanId: plan.id,
+            thenSlide: slideAfterGuide ? { title: sections.basicInfo.unitTitle || '수업 슬라이드', content: lessonPlanToPlainText(sections), classId: plan.class_id ?? null } : undefined,
+          },
         });
       } else {
         const { content, expansionSuggestions } = await generateMaterialDraftFromLessonPlan(sections, classInfo, materialViewerStyle);
@@ -353,6 +382,7 @@ const SavedPlanViewModal = ({
               classId: plan.class_id ?? null,
               expansionGuide: expansionSuggestions,
               fromLessonPlan: true,
+              thenSlide: slideAfterGuide ? { title: sections.basicInfo.unitTitle || '수업 슬라이드', content: lessonPlanToPlainText(sections), classId: plan.class_id ?? null } : undefined,
               viewerStyle: materialViewerStyle,
             },
           },
@@ -360,7 +390,7 @@ const SavedPlanViewModal = ({
       }
       onClose();
     } catch {
-      window.alert('수업 자료 초안 생성 중 오류가 발생했습니다.');
+      appToast('수업 자료 초안 생성 중 오류가 발생했습니다.');
     } finally {
       setCreatingMaterial(false);
     }
@@ -491,7 +521,7 @@ const SavedPlanViewModal = ({
                 {exportOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
-                    <div className="absolute bottom-full left-0 mb-2 z-20 w-44 bg-white rounded-2xl shadow-xl border border-surface-container py-1.5">
+                    <div className="absolute bottom-full left-0 mb-2 z-20 w-52 bg-white rounded-2xl shadow-xl border border-surface-container py-1.5">
                       <button
                         onClick={() => { setExportOpen(false); exportLessonPlanToPdf(sections); }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-on-surface-variant hover:bg-surface-container text-left whitespace-nowrap"
@@ -499,10 +529,16 @@ const SavedPlanViewModal = ({
                         <FileDown size={14} /> PDF로 저장
                       </button>
                       <button
-                        onClick={() => { setExportOpen(false); exportLessonPlanToHwpx(sections).catch(() => window.alert('한글(hwpx) 파일 만들기에 실패했어요.')); }}
+                        onClick={() => { setExportOpen(false); exportLessonPlanToHwpx(sections).catch(() => appToast('한글(hwpx) 파일 만들기에 실패했어요.')); }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-on-surface-variant hover:bg-surface-container text-left whitespace-nowrap"
                       >
                         <FileDown size={14} /> 한글(hwpx)로 저장
+                      </button>
+                      <button
+                        onClick={() => { setExportOpen(false); setShowCourseForm(true); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-on-surface-variant hover:bg-surface-container text-left whitespace-nowrap"
+                      >
+                        <FileDown size={14} /> 학교 서식으로 저장
                       </button>
                       <button
                         onClick={() => { setExportOpen(false); handleCopy(); }}
@@ -516,16 +552,70 @@ const SavedPlanViewModal = ({
               </div>
               <div className="flex-1 min-w-0" />
               <button
-                onClick={() => setShowMakeChoice(true)}
-                disabled={creatingMaterial}
+                onClick={handleOpenMake}
+                disabled={creatingMaterial || checkingLinked}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
               >
-                {creatingMaterial ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 수업 자료 만들기
+                {creatingMaterial || checkingLinked ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 수업 자료 만들기
               </button>
             </>
           )}
         </div>
       </div>
+      {linkedResults && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4" onClick={e => { e.stopPropagation(); setLinkedResults(null); }}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3 shrink-0">
+              <p className="font-black text-base text-on-surface">이 계획서로 만든 결과가 있어요</p>
+              <p className="text-xs text-on-surface-variant mt-1">
+                수업 자료 가이드 {linkedResults.materials.length}개 · 슬라이드 {linkedResults.decks.length}개. 이어서 고칠지, 새로 만들지 골라 주세요.
+              </p>
+            </div>
+            <div className="px-6 pb-3 space-y-2 overflow-y-auto">
+              {linkedResults.materials.map(m => (
+                <div key={m.id} className="flex items-center gap-2 p-3 rounded-2xl border border-surface-container">
+                  <span className="shrink-0 text-xs font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary">가이드</span>
+                  <span className="flex-1 min-w-0 text-sm font-bold text-on-surface truncate">{m.title || '(제목 없음)'}</span>
+                  <button
+                    onClick={() => { navigate('/teaching-tools', { state: { activeToolId: 'material-editor', openMaterialId: m.id, returnToPlanId: plan.id } }); onClose(); }}
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-black hover:opacity-90 whitespace-nowrap"
+                  >수정하기</button>
+                </div>
+              ))}
+              {linkedResults.decks.map(d => (
+                <div key={d.id} className="flex items-center gap-2 p-3 rounded-2xl border border-surface-container">
+                  <span className="shrink-0 text-xs font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">슬라이드</span>
+                  <span className="flex-1 min-w-0 text-sm font-bold text-on-surface truncate">{d.title || '(제목 없음)'}</span>
+                  <button
+                    onClick={() => { navigate('/teaching-tools', { state: { activeToolId: 'slide-deck', openSlideId: d.id, returnToPlanId: plan.id } }); onClose(); }}
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-black hover:opacity-90 whitespace-nowrap"
+                  >수정하기</button>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 pb-5 pt-2 flex gap-2 shrink-0">
+              <button onClick={() => setLinkedResults(null)} className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">닫기</button>
+              {linkedResults.decks.length === 0 && (
+                <button
+                  onClick={() => { setLinkedResults(null); handleCreateSlide(); }}
+                  className="px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 transition-colors whitespace-nowrap"
+                >슬라이드 만들기</button>
+              )}
+              <button
+                onClick={() => { setLinkedResults(null); setShowMakeChoice(true); }}
+                className="flex-1 px-4 py-2 rounded-xl font-black text-sm border border-primary text-primary hover:bg-primary/5 transition-colors whitespace-nowrap"
+              >새로 만들기</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCourseForm && (
+        <CourseFormExportModal
+          plan={sections}
+          onClose={() => setShowCourseForm(false)}
+          onBuild={(kind, extras) => kind === 'detail' ? buildLessonPlanInstructorCard(sections, extras) : kind === 'operation' ? buildLessonPlanOperationForm(sections, extras) : buildLessonPlanCourseForm(sections, extras)}
+        />
+      )}
       {showMakeChoice && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4" onClick={e => { e.stopPropagation(); setShowMakeChoice(false); }}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -535,11 +625,18 @@ const SavedPlanViewModal = ({
             </div>
             <div className="px-6 pb-5 space-y-2">
               <button
-                onClick={() => { setShowMakeChoice(false); setShowMaterialPicker(true); }}
+                onClick={() => { setShowMakeChoice(false); setSlideAfterGuide(false); setShowMaterialPicker(true); }}
                 className="w-full text-left p-3 rounded-2xl border border-surface-container hover:bg-primary/5 hover:border-primary transition-colors"
               >
                 <span className="block text-sm font-black text-on-surface">수업 자료 가이드</span>
                 <span className="block text-xs text-on-surface-variant mt-0.5">학생이 입장 코드로 열어 따라 하는 화면이에요. 모양(스타일)을 골라 만들어요.</span>
+              </button>
+              <button
+                onClick={() => { setShowMakeChoice(false); setSlideAfterGuide(true); setShowMaterialPicker(true); }}
+                className="w-full text-left p-3 rounded-2xl border border-surface-container hover:bg-primary/5 hover:border-primary transition-colors"
+              >
+                <span className="block text-sm font-black text-on-surface">가이드 만든 뒤 슬라이드도</span>
+                <span className="block text-xs text-on-surface-variant mt-0.5">가이드를 먼저 만들고 다듬은 다음, 같은 계획서로 슬라이드를 이어서 만들어요.</span>
               </button>
               <button
                 onClick={() => { setShowMakeChoice(false); handleCreateSlide(); }}

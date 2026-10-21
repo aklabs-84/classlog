@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { X, ImageIcon, Loader2 } from 'lucide-react';
 import type { SlideObject } from '../types';
 import { uploadSlideImage } from '../utils/imageUpload';
+import { plainDrop } from '../../../hooks/useFileDrop';
 
 interface Props {
   obj: SlideObject;
@@ -66,11 +67,13 @@ export default function ImageBlockObject({
           style={{ width: '100%', height: '100%', objectFit: style.fit === 'contain' ? 'contain' : style.fit === 'fill' ? 'fill' : 'cover', display: 'block', pointerEvents: 'none' }} />
       ) : (
         <div
+          className="data-[over=true]:bg-primary/10 data-[over=true]:outline data-[over=true]:outline-2 data-[over=true]:outline-dashed data-[over=true]:outline-primary"
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#9CA3AF', cursor: editable ? 'pointer' : 'default' }}
           onClick={editable ? () => fileRef.current?.click() : undefined}
+          {...plainDrop(files => handleFile(files[0]), { accept: 'image/*', disabled: !editable })}
         >
           <ImageIcon size={32} />
-          {editable && <span style={{ fontSize: 13 }}>클릭하여 이미지 추가</span>}
+          {editable && <span style={{ fontSize: 13 }}>클릭하거나 끌어다 놓아 이미지 추가</span>}
         </div>
       )}
       </div>

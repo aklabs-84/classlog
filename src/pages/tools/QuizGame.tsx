@@ -22,6 +22,7 @@ import { uploadQuizAudio } from '../../components/quiz/audioUpload';
 import { getResultMedia } from '../../components/quiz/resultMedia';
 import AiCreditCost from '../../components/common/AiCreditCost';
 import { appConfirm } from '../../lib/appDialog';
+import { plainDrop, asChangeEvent } from '../../hooks/useFileDrop';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -2224,12 +2225,13 @@ const MediaFields = ({ value, onChange, youtubeHint }: { value: MediaValue; onCh
           <button
             onClick={() => audioInputRef.current?.click()}
             disabled={audioUploading}
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-surface-container-high text-on-surface-variant hover:border-primary/40 transition-all text-sm font-bold disabled:opacity-50"
+            {...plainDrop(files => handleAudioSelect(asChangeEvent(files)), { accept: '.mp3,.m4a,.aac,.wav,audio/*', disabled: audioUploading })}
+            className="data-[over=true]:border-primary data-[over=true]:bg-primary/5 w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-surface-container-high text-on-surface-variant hover:border-primary/40 transition-all text-sm font-bold disabled:opacity-50"
           >
             {audioUploading ? (
               <><RefreshCw size={16} className="animate-spin" /> 업로드 중...</>
             ) : (
-              <><Volume2 size={16} /> 오디오 업로드</>
+              <><Volume2 size={16} /> 오디오 업로드 · 끌어다 놓기</>
             )}
           </button>
         )}
@@ -2417,12 +2419,13 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-surface-container-high text-on-surface-variant hover:border-primary/40 transition-all text-sm font-bold disabled:opacity-50"
+                {...plainDrop(files => handleImageSelect(asChangeEvent(files)), { accept: 'image/*', disabled: uploading })}
+                className="data-[over=true]:border-primary data-[over=true]:bg-primary/5 w-full flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed border-surface-container-high text-on-surface-variant hover:border-primary/40 transition-all text-sm font-bold disabled:opacity-50"
               >
                 {uploading ? (
                   <><RefreshCw size={16} className="animate-spin" /> 업로드 중...</>
                 ) : (
-                  <><ImageIcon size={16} /> 이미지 업로드</>
+                  <><ImageIcon size={16} /> 이미지 업로드 · 끌어다 놓기</>
                 )}
               </button>
             )}

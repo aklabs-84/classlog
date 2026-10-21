@@ -87,6 +87,7 @@ const BodyPortal = ({ children }: { children: React.ReactNode }) => createPortal
 const SlideModeView = lazy(() => import('../components/SlideModeView'));
 import type { ActivityLink } from '../components/ActivityLinksButton';
 import type { MaterialAttachment } from '../components/MaterialAttachments';
+import { plainDrop } from '../hooks/useFileDrop';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
@@ -3286,10 +3287,10 @@ const Classroom = () => {
                               {editingFileName && !privateMatForm.file && (
                                 <p className="text-[14px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
                               )}
-                              <label className={`flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed rounded-2xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-violet-200 hover:border-violet-400'}`}>
+                              <label {...plainDrop(files => setPrivateMatForm(prev => ({ ...prev, file: files[0] })))} className={`flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed rounded-2xl cursor-pointer transition-all data-[over=true]:border-primary data-[over=true]:bg-primary/5 ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-violet-200 hover:border-violet-400'}`}>
                                 <Upload size={20} className={overLimit ? 'text-red-400' : 'text-violet-400'} />
                                 <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
-                                  {privateMatForm.file ? privateMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 (PDF, PPT, HWP 등)')}
+                                  {privateMatForm.file ? privateMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 또는 끌어다 놓기 (PDF, PPT, HWP 등)')}
                                 </span>
                                 {sizeMB && (
                                   <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
@@ -6115,10 +6116,10 @@ const Classroom = () => {
                                   {editingFileName && !generalMatForm.file && (
                                     <p className="text-[14px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
                                   )}
-                                  <label className={`flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed rounded-xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-slate-200 dark:border-slate-700 hover:border-primary/40'}`}>
+                                  <label {...plainDrop(files => setGeneralMatForm(prev => ({ ...prev, file: files[0] })))} className={`flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed rounded-xl cursor-pointer transition-all data-[over=true]:border-primary data-[over=true]:bg-primary/5 ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-slate-200 dark:border-slate-700 hover:border-primary/40'}`}>
                                     <Upload size={18} className={overLimit ? 'text-red-400' : 'text-primary/60'} />
                                     <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>
-                                      {generalMatForm.file ? generalMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 (PDF, PPT, HWP 등)')}
+                                      {generalMatForm.file ? generalMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 또는 끌어다 놓기 (PDF, PPT, HWP 등)')}
                                     </span>
                                     {sizeMB && (
                                       <span className={`text-[14px] font-bold ${overLimit ? 'text-red-500' : 'text-on-surface-variant'}`}>

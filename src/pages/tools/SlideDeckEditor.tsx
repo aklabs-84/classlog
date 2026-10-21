@@ -4,15 +4,17 @@ import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquareP
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
-import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, buildStarterSlides, getLayoutSlotSpec, buildDraftDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
+import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, buildStarterSlides, getLayoutSlotSpec, buildDraftDeckSlides, getShowcaseSpecs, buildShowcaseDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
 import TemplateGallery from '../../components/slidedeck/TemplateGallery';
+import SlidePlanner from '../../components/slidedeck/SlidePlanner';
 import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
 import SlideSnippetLibrary from '../../components/slidedeck/SlideSnippetLibrary';
 import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
+import OutlineModePicker from '../../components/slidedeck/OutlineModePicker';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../../components/slidedeck/ImportMaterialModal';
-import { generateSlideDeckDraft, generateSlideOutline, reviseSlideOutlineSlide, reviseSlideOutlinePlan, embedText, type SlideOutlinePlan } from '../../lib/gemini';
+import { generateSlideDeckDraft, generateShowcaseDeckDraft, extractDraftMedia, generateSlideOutline, type SlideOutlineMode, reviseSlideOutlineSlide, reviseSlideOutlinePlan, embedText, type SlideOutlinePlan } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
 import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
@@ -20,8 +22,10 @@ import { parsePptxFile } from '../../components/slidedeck/utils/importPptx';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 import AiCreditCost from '../../components/common/AiCreditCost';
 import { SLIDE_AI_ENABLED } from '../../lib/featureFlags';
+import { appConfirm, appToast } from '../../lib/appDialog';
+import { plainDrop } from '../../hooks/useFileDrop';
 
-type View = 'list' | 'template' | 'planning' | 'editor';
+type View = 'list' | 'template' | 'planning' | 'planner' | 'editor';
 
 const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
 
@@ -92,6 +96,13 @@ export default function SlideDeckEditor() {
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
   const [planOutline, setPlanOutline] = useState<SlideOutlinePlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  // 템플릿 선택 화면 맨 위 두 갈래 — 'app'(앱에서 바로 만들기) / 'planner'(기획서로 받아서 다른 AI에서 만들기)
+  const [entryMode, setEntryMode] = useState<'app' | 'planner'>('app');
+  const [plannerTemplateId, setPlannerTemplateId] = useState<string | null>(null);
+  const [plannerKey, setPlannerKey] = useState(0);
+  // 구성안 만드는 방식 — 'fit'(자료에 맞춰 장수 결정, 기본) / 'summary'(핵심만 5~8장)
+  const [outlineMode, setOutlineMode] = useState<SlideOutlineMode>('fit');
+  const [plannerOutline, setPlannerOutline] = useState<SlideOutlinePlan | null>(null);
   const dragSlideIndexRef = useRef<number | null>(null);
   const [dragOverSlideIndex, setDragOverSlideIndex] = useState<number | null>(null);
   // 계획(개요) 화면 — 슬라이드별/전체 "AI로 수정" 요청
@@ -242,14 +253,36 @@ export default function SlideDeckEditor() {
     setView('planning');
     try {
       const sourceContent = resolveSourceContent(importedMaterial);
-      const outline = await generateSlideOutline(sourceContent, importedMaterial.class_id ?? undefined);
+      const outline = await generateSlideOutline(sourceContent, importedMaterial.class_id ?? undefined, outlineMode);
       setPlanOutline(outline);
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드 구성 개요를 만드는 중 오류가 발생했습니다.'));
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드 구성 개요를 만드는 중 오류가 발생했습니다.'));
       setView('template');
       setPendingTemplateId(null);
     } finally {
       setPlanLoading(false);
+    }
+  };
+
+  // ── 슬라이드 기획서 — 템플릿을 고르면 (자료가 있으면) 개요를 만들어 기획서 화면으로 이동 ──
+  const handlePickTemplateForPlanner = async (templateId: string) => {
+    setPlannerTemplateId(templateId);
+    if (!importedMaterial) {
+      setPlannerOutline({ title: '', slides: Array.from({ length: 5 }, (_, i) => ({ subtitle: `슬라이드 ${i + 1}`, content: [] })) });
+      setView('planner');
+      return;
+    }
+    setPlanLoading(true);
+    setAiGenerating(true);
+    try {
+      const outline = await generateSlideOutline(resolveSourceContent(importedMaterial), importedMaterial.class_id ?? undefined, outlineMode);
+      setPlannerOutline(outline);
+      setView('planner');
+    } catch (err: any) {
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드 구성 개요를 만드는 중 오류가 발생했습니다.'));
+    } finally {
+      setPlanLoading(false);
+      setAiGenerating(false);
     }
   };
 
@@ -318,7 +351,7 @@ export default function SlideDeckEditor() {
       setOpenReviseIndex(null);
       setSlideRevisePrompt('');
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
     } finally {
       setRevisingSlideIndex(null);
     }
@@ -340,7 +373,7 @@ export default function SlideDeckEditor() {
       setShowGlobalRevise(false);
       setGlobalRevisePrompt('');
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '전체 슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '전체 슬라이드를 다시 쓰는 중 오류가 발생했습니다.'));
     } finally {
       setRevisingAllSlides(false);
     }
@@ -353,18 +386,35 @@ export default function SlideDeckEditor() {
     setAiGenerating(true);
     try {
       const template = getTemplate(templateId);
-      const layoutSpecs = ALL_LAYOUT_KINDS.map(kind => getLayoutSlotSpec(template, kind));
       const sourceContent = resolveSourceContent(importedMaterial);
-      const { slides: aiSlides, imageUrls, codeBlocks } = await generateSlideDeckDraft(
-        sourceContent,
-        layoutSpecs,
-        importedMaterial.class_id ?? undefined,
-        approvedOutline
-      );
-      const draftSlides = buildDraftDeckSlides(template, aiSlides, imageUrls, codeBlocks);
+      let draftSlides: DeckSlide[] = [];
+      if (template.showcase) {
+        // 메인 템플릿: 템플릿 구성 전체를 AI가 채우고 맞지 않는 구성은 건너뜀
+        const picks = await generateShowcaseDeckDraft(
+          sourceContent, getShowcaseSpecs(template), importedMaterial.class_id ?? undefined, approvedOutline
+        );
+        draftSlides = buildShowcaseDeckSlides(template, picks, extractDraftMedia(sourceContent));
+      }
+      if (draftSlides.length < 2) {
+        const layoutSpecs = ALL_LAYOUT_KINDS.map(kind => getLayoutSlotSpec(template, kind));
+        const { slides: aiSlides, imageUrls, codeBlocks } = await generateSlideDeckDraft(
+          sourceContent,
+          layoutSpecs,
+          importedMaterial.class_id ?? undefined,
+          approvedOutline
+        );
+        draftSlides = buildDraftDeckSlides(template, aiSlides, imageUrls, codeBlocks);
+      }
       const { data, error } = await supabase
         .from('slide_decks')
-        .insert({ teacher_id: user.id, title: importedMaterial.title || '제목 없는 슬라이드', slides: draftSlides })
+        .insert({
+          teacher_id: user.id,
+          title: importedMaterial.title || '제목 없는 슬라이드',
+          slides: draftSlides,
+          source_lesson_plan_id: importedMaterial.id === 'idea-draft'
+            ? ((location.state as { returnToPlanId?: string } | null)?.returnToPlanId ?? null)
+            : null,
+        })
         .select()
         .single();
       if (error || !data) return;
@@ -383,7 +433,7 @@ export default function SlideDeckEditor() {
           .then(({ error: linkError }) => { if (linkError) console.error('[SlideDeckEditor] linked_slide_id 기록 오류:', linkError); });
       }
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
     } finally {
       setAiGenerating(false);
       setImportedMaterial(null);
@@ -396,7 +446,7 @@ export default function SlideDeckEditor() {
   const handleImportPptxFile = async (file: File) => {
     if (!user) return;
     if (!canCreateDeck()) return;
-    const proceed = confirm(
+    const proceed = await appConfirm(
       '파워포인트 파일을 불러오면 텍스트와 이미지 위주로 우리 도구 형식으로 변환됩니다.\n' +
       '텍스트/이미지에 걸린 하이퍼링크와 웹 동영상(유튜브 등) 링크는 가능한 가져오지만, 표·차트·스마트아트·애니메이션·' +
       '내장된 동영상 파일 자체(재생은 지원하지 않아 정지 이미지만 가져옴) 등은 지원되지 않아 일부 내용이 생략될 수 있습니다.\n' +
@@ -408,7 +458,7 @@ export default function SlideDeckEditor() {
     try {
       const { slides, skippedOther, skippedImages, skippedVectorImages } = await parsePptxFile(file);
       if (slides.length === 0) {
-        alert('슬라이드를 찾을 수 없습니다. 올바른 pptx 파일인지 확인해주세요.');
+        appToast('슬라이드를 찾을 수 없습니다. 올바른 pptx 파일인지 확인해주세요.');
         return;
       }
       const title = file.name.replace(/\.pptx$/i, '') || '제목 없는 슬라이드';
@@ -417,7 +467,7 @@ export default function SlideDeckEditor() {
         .insert({ teacher_id: user.id, title, slides })
         .select()
         .single();
-      if (error || !data) { alert('슬라이드를 저장하는 중 오류가 발생했습니다.'); return; }
+      if (error || !data) { appToast('슬라이드를 저장하는 중 오류가 발생했습니다.'); return; }
       syncSlideDeckEmbedding((data as SlideDeck).id, (data as SlideDeck).title, (data as SlideDeck).slides);
       setActiveDeck(data as SlideDeck);
       resetHistory();
@@ -430,9 +480,9 @@ export default function SlideDeckEditor() {
       if (skippedImages > 0) notes.push(`가져오지 못한 이미지 ${skippedImages}개(외부 링크 이미지 등 접근 실패 포함)`);
       if (skippedVectorImages > 0) notes.push(`지원되지 않는 이미지 형식(EMF/WMF/TIFF) ${skippedVectorImages}개`);
       const skippedLine = notes.length > 0 ? ` ${notes.join(', ')}는 생략되었습니다.` : '';
-      alert(`가져오기를 완료했습니다.${skippedLine} 이미지 위치, 글꼴, 레이아웃이 원본과 다를 수 있으니 슬라이드를 확인하고 필요한 부분을 수정해주세요.`);
+      appToast(`가져오기를 완료했습니다.${skippedLine} 이미지 위치, 글꼴, 레이아웃이 원본과 다를 수 있으니 슬라이드를 확인하고 필요한 부분을 수정해주세요.`);
     } catch {
-      alert('pptx 파일을 읽는 중 오류가 발생했습니다. 올바른 파워포인트 파일인지 확인해주세요.');
+      appToast('pptx 파일을 읽는 중 오류가 발생했습니다. 올바른 파워포인트 파일인지 확인해주세요.');
     } finally {
       setImportingPptx(false);
     }
@@ -449,7 +499,7 @@ export default function SlideDeckEditor() {
   };
 
   const handleDeleteDeck = async (id: string) => {
-    if (!confirm('이 슬라이드를 삭제할까요? 되돌릴 수 없습니다.')) return;
+    if (!await appConfirm('이 슬라이드를 삭제할까요? 되돌릴 수 없습니다.')) return;
     await supabase.from('slide_decks').delete().eq('id', id);
     loadDecks();
   };
@@ -653,7 +703,7 @@ export default function SlideDeckEditor() {
     try {
       await exportDeckToPptx(activeDeck);
     } catch {
-      alert('PPT 파일을 만드는 중 오류가 발생했습니다.');
+      appToast('PPT 파일을 만드는 중 오류가 발생했습니다.');
     } finally {
       setExporting(null);
     }
@@ -665,7 +715,7 @@ export default function SlideDeckEditor() {
     try {
       await exportDeckToPdf(activeDeck);
     } catch {
-      alert('PDF 파일을 만드는 중 오류가 발생했습니다.');
+      appToast('PDF 파일을 만드는 중 오류가 발생했습니다.');
     } finally {
       setExporting(null);
     }
@@ -700,6 +750,8 @@ export default function SlideDeckEditor() {
             <button
               onClick={() => pptxFileRef.current?.click()}
               disabled={importingPptx}
+              className="data-[over=true]:ring-2 data-[over=true]:ring-primary"
+              {...plainDrop(files => handleImportPptxFile(files[0]), { accept: '.pptx', disabled: importingPptx })}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', cursor: importingPptx ? 'default' : 'pointer', fontSize: 14, fontWeight: 600, opacity: importingPptx ? 0.6 : 1 }}
             >
               {importingPptx ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />} PPT 불러오기
@@ -777,14 +829,76 @@ export default function SlideDeckEditor() {
         >
           <ArrowLeft size={16} /> 목록으로
         </button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, marginBottom: 18, maxWidth: 720 }}>
+          {([
+            { key: 'app', title: '앱에서 바로 만들기', desc: '템플릿을 고르면 이 앱에서 슬라이드를 만들고 편집해요.' },
+            { key: 'planner', title: '기획서로 받아서 다른 AI에서 만들기', desc: '장마다 내용·배치·그림 스타일을 고르고, 복사해서 Gemini·NotebookLM 등에 붙여넣어요. (AI 크레딧 사용 없음)' },
+          ] as const).map(o => (
+            <button key={o.key} onClick={() => setEntryMode(o.key)}
+              style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 12, padding: '12px 14px', lineHeight: 1.5,
+                border: entryMode === o.key ? '2px solid #3B82F6' : '1px solid #e5e7eb', background: entryMode === o.key ? '#EFF6FF' : '#fff', color: '#111827' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{o.title}</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>{o.desc}</div>
+            </button>
+          ))}
+        </div>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>템플릿을 선택하세요</h2>
-        {importedMaterial && (
+        {importedMaterial && entryMode === 'planner' && (
+          <p style={{ fontSize: 13, color: '#3B82F6', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={14} /> '{importedMaterial.title}' 자료의 구성안을 바탕으로 기획서를 만듭니다
+            <AiCreditCost feature="slidedeck_ai_draft" note="(구성안 생성)" />
+          </p>
+        )}
+        {importedMaterial && entryMode === 'app' && (
           <p style={{ fontSize: 13, color: '#3B82F6', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sparkles size={14} /> '{importedMaterial.title}' 자료로 AI 초안을 만듭니다
             <AiCreditCost feature="slidedeck_ai_draft" note="(개요 생성)" />
           </p>
         )}
-        <TemplateGallery onSelect={importedMaterial ? handlePickTemplateForMaterial : handleCreateFromTemplate} />
+        {importedMaterial && (
+          <OutlineModePicker value={outlineMode} onChange={setOutlineMode} />
+        )}
+        <TemplateGallery onSelect={entryMode === 'planner' ? handlePickTemplateForPlanner : importedMaterial ? handlePickTemplateForMaterial : handleCreateFromTemplate} />
+        {aiGenerating && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 9995, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            <Loader2 className="animate-spin" size={32} color="#3B82F6" />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>슬라이드 구성안을 만들고 있어요...</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (view === 'planner' && plannerOutline && plannerTemplateId) {
+    return (
+      <div style={{ padding: '4px 2px', position: 'relative' }}>
+        <SlidePlanner key={plannerKey} template={getTemplate(plannerTemplateId)} outline={plannerOutline} onBack={() => { setView('template'); setPlannerOutline(null); }} onImport={() => setShowImportModal(true)} outlineMode={outlineMode} onOutlineModeChange={setOutlineMode} />
+        {showImportModal && (
+          <ImportMaterialModal
+            userId={user?.id ?? ''}
+            onSelect={async material => {
+              setShowImportModal(false);
+              setImportedMaterial(material);
+              setAiGenerating(true);
+              try {
+                const outline = await generateSlideOutline(resolveSourceContent(material), material.class_id ?? undefined, outlineMode);
+                setPlannerOutline(outline);
+                setPlannerKey(k => k + 1);
+              } catch (err: any) {
+                appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || '구성안을 만드는 중 오류가 발생했습니다.'));
+              } finally {
+                setAiGenerating(false);
+              }
+            }}
+            onClose={() => setShowImportModal(false)}
+          />
+        )}
+        {aiGenerating && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 9995, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            <Loader2 className="animate-spin" size={32} color="#3B82F6" />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>슬라이드 구성안을 만들고 있어요...</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -1094,6 +1208,8 @@ export default function SlideDeckEditor() {
           <button
             onClick={() => bgFileRef.current?.click()}
             disabled={bgUploading}
+            className="data-[over=true]:ring-2 data-[over=true]:ring-primary"
+            {...plainDrop(files => handleBgImageFile(files[0]), { accept: 'image/*', disabled: bgUploading })}
             style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: bgUploading ? 'default' : 'pointer', fontSize: 13 }}
           >
             {bgUploading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <ImagePlus size={14} />}

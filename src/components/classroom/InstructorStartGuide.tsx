@@ -11,6 +11,7 @@ import {
   ClipboardList, X, Loader2, Upload, Download, Check, Clock, AlertTriangle, ChevronRight, BookOpen, FileText, ExternalLink,
 } from 'lucide-react';
 import GuideOutdatedNotice from '../GuideOutdatedNotice';
+import { useFileDrop } from '../../hooks/useFileDrop';
 
 interface Props {
   /** 이 반이 속한 프로젝트(또는 학교) id — 최상위 프로젝트는 서버에서 찾아 온다 */
@@ -241,7 +242,12 @@ function SubmitForm({ projectId, req, sub, onDone }: { projectId: string; req: D
     try { await fn(); onDone(); } catch { setErr('제출에 실패했어요. 잠시 후 다시 시도해 주세요.'); } finally { setBusy(false); }
   };
 
+  // 훅은 조건문 밖에서 불러야 해서, 아래 'file' 분기의 pick을 ref로 연결한다
+  const pickRef = useRef<((f: File) => void) | undefined>(undefined);
+  const { over, dropProps } = useFileDrop(files => pickRef.current?.(files[0]), { accept: DOC_ACCEPT, disabled: busy });
+
   if (req.kind === 'file') {
+    pickRef.current = (f: File) => pick(f);
     const pick = (f: File) => {
       const v = validateDocFile(f);
       if (v) { setErr(v); return; }
@@ -253,9 +259,9 @@ function SubmitForm({ projectId, req, sub, onDone }: { projectId: string; req: D
     return (
       <div className="space-y-2">
         {sub?.file_name && <p className="text-xs flex items-center gap-1"><FileText size={13} /> 낸 파일: <b className="truncate">{sub.file_name}</b></p>}
-        <label className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-bold cursor-pointer">
+        <label {...dropProps} className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-bold cursor-pointer ${over ? 'ring-4 ring-primary/30' : ''}`}>
           {busy ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-          {sub ? '다시 올리기' : '파일 올리기'}
+          {over ? '여기에 놓으세요' : sub ? '다시 올리기' : '파일 올리기 · 끌어다 놓기'}
           <input type="file" accept={DOC_ACCEPT} className="hidden" disabled={busy}
             onChange={e => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} />
         </label>

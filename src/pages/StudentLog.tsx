@@ -81,6 +81,7 @@ import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMa
 import { appConfirm, appToast } from '../lib/appDialog';
 import { getAiApps, type AiApp } from '../lib/aiApps';
 import { useStudentLive } from '../hooks/useStudentLive';
+import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 
 // 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
 const STUDENT_SCREENS: Record<string, StudentScreenStep> = {
@@ -4472,7 +4473,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     </label>
                     <div
                       onClick={() => resultImageInputRef.current?.click()}
-                      className="border-2 border-dashed border-emerald-200 rounded-2xl p-6 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
+                      {...plainDrop(files => handleImageFileSelect(asChangeEvent(files)), { accept: 'image/*', multiple: true })}
+                      className="data-[over=true]:border-primary data-[over=true]:bg-primary/5 border-2 border-dashed border-emerald-200 rounded-2xl p-6 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
                     >
                       {imagePreviews.length > 0 ? (
                         <div>
@@ -4509,7 +4511,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     </label>
                     <div
                       onClick={() => resultFileInputRef.current?.click()}
-                      className="border-2 border-dashed border-amber-200 rounded-2xl p-6 cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-all group"
+                      {...plainDrop(files => handleUploadFileSelect(asChangeEvent(files)))}
+                      className="data-[over=true]:border-primary data-[over=true]:bg-primary/5 border-2 border-dashed border-amber-200 rounded-2xl p-6 cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-all group"
                     >
                       {(() => {
                         const existingFile = editingGroupResults.find((r: any) => r.result_type === 'file');

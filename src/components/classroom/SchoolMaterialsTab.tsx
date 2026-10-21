@@ -9,6 +9,7 @@ import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, L
 
 import { safeHttpUrl, isUuid } from '../../lib/safeUrl';
 import { appToast } from '../../lib/appDialog';
+import { useFileDrop } from '../../hooks/useFileDrop';
 
 const MAX_FILE_MB = 20;
 // 올릴 수 있는 파일 종류 (html 샘플은 허용, 스크립트·css 같은 실행 파일은 막는다)
@@ -182,7 +183,9 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
     return supabase.storage.from('student-attachments').getPublicUrl(path).data.publicUrl;
   };
 
-  const handlePickFiles = async (list: FileList | null) => {
+  const fileDrop = useFileDrop(files => handlePickFiles(files), { multiple: true, disabled: uploadingFile });
+
+  const handlePickFiles = async (list: FileList | File[] | null) => {
     if (!list || !user) return;
     setFileError('');
     const picked = Array.from(list);
@@ -509,9 +512,9 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
                       <button onClick={() => removeFile(f)} className="p-1 rounded text-on-surface-variant/50 hover:text-red-500 shrink-0"><X size={13} /></button>
                     </div>
                   ))}
-                  <label className={`flex items-center justify-center gap-1.5 py-3 rounded-xl border-2 border-dashed text-xs font-bold cursor-pointer transition-all ${uploadingFile ? 'opacity-60 pointer-events-none' : 'border-surface-container-high hover:border-primary/40 text-on-surface-variant/70 hover:text-primary'}`}>
+                  <label {...fileDrop.dropProps} className={`flex items-center justify-center gap-1.5 py-3 rounded-xl border-2 border-dashed text-xs font-bold cursor-pointer transition-all ${uploadingFile ? 'opacity-60 pointer-events-none' : fileDrop.over ? 'border-primary bg-primary/5 text-primary' : 'border-surface-container-high hover:border-primary/40 text-on-surface-variant/70 hover:text-primary'}`}>
                     {uploadingFile ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                    {uploadingFile ? '올리는 중...' : `파일 선택 (파일당 ${MAX_FILE_MB}MB 이하)`}
+                    {uploadingFile ? '올리는 중...' : fileDrop.over ? '여기에 놓으세요' : `파일 선택 또는 끌어다 놓기 (파일당 ${MAX_FILE_MB}MB 이하)`}
                     <input type="file" multiple className="hidden" onChange={e => { handlePickFiles(e.target.files); e.target.value = ''; }} />
                   </label>
                   {fileError && (

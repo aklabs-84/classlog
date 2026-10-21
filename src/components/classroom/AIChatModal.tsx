@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { chatWithClassData, fileToGenerativePart, extractTextFromFiles } from '../../lib/gemini';
 import CodeBlock from '../CodeBlock';
 import AiCreditCost from '../common/AiCreditCost';
+import { plainDrop, asChangeEvent } from '../../hooks/useFileDrop';
 
 function normalizeMarkdown(text: string) {
   // AI가 표/문단 바로 뒤에 빈 줄 없이 제목(#)을 이어붙이면 헤딩으로 인식되지 않는 문제 보정
@@ -331,7 +332,7 @@ const AIChatModal = ({ isOpen, onClose, className, classId, students, focusStude
 
         {/* Input Area */}
         <div className="p-8 border-t border-surface-container-high bg-neutral-100/50 backdrop-blur-md shrink-0">
-          <form onSubmit={handleSend} className="relative group">
+          <form onSubmit={handleSend} {...plainDrop(files => handleFileChange(asChangeEvent(files)), { accept: 'image/*,.pdf,.xlsx,.xls,.txt', multiple: true })} className="relative group rounded-[2rem] data-[over=true]:ring-4 data-[over=true]:ring-primary/30">
             <input 
               type="file" 
               ref={fileInputRef} 

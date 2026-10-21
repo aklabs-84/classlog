@@ -10,6 +10,7 @@ import {
   Check, Clock, AlertTriangle, Radio, Download,
 } from 'lucide-react';
 import { appConfirm } from '../../lib/appDialog';
+import { useFileDrop } from '../../hooks/useFileDrop';
 
 interface Props {
   projectId: string;
@@ -471,11 +472,12 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
 function FilePick({ name, busy, accept, onPick, onClear }: {
   name: string | null; busy: boolean; accept: string; onPick: (f: File) => void; onClear: () => void;
 }) {
+  const { over, dropProps } = useFileDrop(files => onPick(files[0]), { accept, disabled: busy });
   return (
     <div className="mt-1 flex items-center gap-2">
-      <label className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-outline-variant text-sm font-bold cursor-pointer">
+      <label {...dropProps} className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl border text-sm font-bold cursor-pointer ${over ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant'}`}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
-        {name ? '다른 파일' : '파일 선택'}
+        {over ? '여기에 놓으세요' : name ? '다른 파일 · 끌어다 놓기' : '파일 선택 · 끌어다 놓기'}
         <input type="file" accept={accept} className="hidden" disabled={busy}
           onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ''; }} />
       </label>

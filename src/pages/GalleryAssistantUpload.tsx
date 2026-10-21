@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Camera, CheckCircle2, Loader2, AlertCircle, Link2, UserCheck } from 'lucide-react';
 import { checkUploadLink, uploadViaLink, submitVideoLink, type LinkInfo } from '../lib/galleryAssistant';
+import { plainDrop } from '../hooks/useFileDrop';
 
 const NAME_KEY = 'gallery_assistant_name';
 const readName = () => { try { return localStorage.getItem(NAME_KEY) ?? ''; } catch { return ''; } };
@@ -29,7 +30,7 @@ const GalleryAssistantUpload = () => {
     });
   }, [token]);
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     const trimmed = isTeacher ? (info?.teacher_name ?? '주강사') : name.trim();
     if (!trimmed) { setFailures(['이름을 먼저 적어 주세요.']); return; }
@@ -162,10 +163,11 @@ const GalleryAssistantUpload = () => {
             type="button"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-4 text-base font-bold disabled:opacity-60"
+            {...plainDrop(files => handleFiles(files), { accept: 'image/*,.heic,.heif', multiple: true, disabled: busy })}
+            className="data-[over=true]:ring-4 data-[over=true]:ring-primary/40 w-full flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl py-4 text-base font-bold disabled:opacity-60"
           >
             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-            {busy ? `올리는 중 ${progress.done}/${progress.total}` : '사진 고르기 (여러 장 가능)'}
+            {busy ? `올리는 중 ${progress.done}/${progress.total}` : '사진 고르기 또는 끌어다 놓기 (여러 장 가능)'}
           </button>
           <p className="text-xs text-gray-400">화면을 닫지 말고 끝날 때까지 기다려 주세요.</p>
           </>

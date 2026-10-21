@@ -11,11 +11,11 @@ import { creditPriceOf } from '../lib/aiCredits';
 import { useAuth, isFreeCreditPlan, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit, getClassLimit, getStudentLimit, getAiUsageStatus, getBetaDaysLeft, countActiveClasses } from '../lib/auth';
 import CopilotIntro from '../components/copilot/CopilotIntro';
 import { isDemoTeacher } from '../lib/demo';
-import { chatWithCopilot, type CopilotModeId as CopilotEngineMode, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
+import { chatWithCopilot, type CopilotModeId as CopilotEngineMode, embedText, generateSeatukDraft, generateSeatukDraftBatch, generateSlideDeckDraft, generateShowcaseDeckDraft, extractDraftMedia, generateCoverPromptSuggestions, quizGeneratorAI, surveyGeneratorAI, transcriptionAI } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 import CodeBlock from '../components/CodeBlock';
 import type { DeckSlide, SlideLayoutKind } from '../components/slidedeck/types';
-import { getTemplate, getLayoutSlotSpec, buildDraftDeckSlides, getSlideTemplateGroups } from '../components/slidedeck/templates';
+import { getTemplate, getLayoutSlotSpec, buildDraftDeckSlides, getShowcaseSpecs, buildShowcaseDeckSlides, getSlideTemplateGroups } from '../components/slidedeck/templates';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../components/slidedeck/ImportMaterialModal';
 import { tools as TEACHING_TOOLS } from './TeachingTools';
 import { PLANS, FEATURE_ROWS } from './Pricing';
@@ -1270,9 +1270,16 @@ const AiCopilotChat = () => {
     setLoading(true);
 
     try {
-      const layoutSpecs = ALL_LAYOUT_KINDS.map(kind => getLayoutSlotSpec(template, kind));
-      const { slides: aiSlides, imageUrls, codeBlocks } = await generateSlideDeckDraft(draftContent, layoutSpecs, selectedClassId || undefined);
-      const draftSlides = buildDraftDeckSlides(template, aiSlides, imageUrls, codeBlocks);
+      let draftSlides: DeckSlide[] = [];
+      if (template.showcase) {
+        const picks = await generateShowcaseDeckDraft(draftContent, getShowcaseSpecs(template), selectedClassId || undefined);
+        draftSlides = buildShowcaseDeckSlides(template, picks, extractDraftMedia(draftContent));
+      }
+      if (draftSlides.length < 2) {
+        const layoutSpecs = ALL_LAYOUT_KINDS.map(kind => getLayoutSlotSpec(template, kind));
+        const { slides: aiSlides, imageUrls, codeBlocks } = await generateSlideDeckDraft(draftContent, layoutSpecs, selectedClassId || undefined);
+        draftSlides = buildDraftDeckSlides(template, aiSlides, imageUrls, codeBlocks);
+      }
 
       const { data: newDeck, error } = await supabase
         .from('slide_decks')
