@@ -35,6 +35,8 @@ interface Props {
   onSchoolClick?: (schoolId: string) => void;
   /** 지정하면 이 학교 하나만의 요약을 보여 준다 (설문은 학교 전용 우선, 없으면 공통) */
   schoolId?: string | null;
+  /** 학생이 제출한 활동 기록(반려 제외) 합계. 학교 단위 요약에서만 전달한다 */
+  activityStats?: { total: number; students: number } | null;
 }
 
 function fmtDate(v: string | null): string {
@@ -52,7 +54,7 @@ function fmtPct(v: number | null): string {
   return v === null ? '-' : `${v}%`;
 }
 
-export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick, schoolId = null }: Props) {
+export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick, schoolId = null, activityStats = null }: Props) {
   const [stats, setStats] = useState<ProjectSummaryStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyPairSummary[] | null>(null);
   const [courseStats, setCourseStats] = useState<ProjectCourseStats | null>(null);
@@ -122,6 +124,13 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
         [{ value: '총 제출 건수' }, { value: resultTotal }],
         [{ value: '제출 참여자 수' }, { value: resultStudentTotal }],
         [{ value: '참여율' }, { value: formatRate(participationRate) }],
+        ...(activityStats ? [
+          [null, null] as (XCell | null)[],
+          [{ value: '활동 기록 제출 현황', style: 'header', span: 2 }, null] as (XCell | null)[],
+          [{ value: '총 제출 건수' }, { value: activityStats.total }] as (XCell | null)[],
+          [{ value: '제출 참여자 수' }, { value: activityStats.students }] as (XCell | null)[],
+          [{ value: '참여율' }, { value: formatRate(totals.studentCount > 0 ? (activityStats.students / totals.studentCount) * 100 : 0) }] as (XCell | null)[],
+        ] : []),
       ];
 
       const schoolSheetRows: (XCell | null)[][] = [
@@ -255,6 +264,18 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
           <div><div className="text-[11px] text-on-surface-variant/60">출석률</div><div className="font-bold tabular-nums text-primary">{formatRate(attendanceRateValue)}</div></div>
         </div>
       </div>
+
+      {/* 활동 기록 제출 현황 */}
+      {activityStats && (
+        <div className="surface-card border border-surface-container-high p-4">
+          <h3 className="text-sm font-black mb-3">활동 기록 제출 현황</h3>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div><div className="text-[11px] text-on-surface-variant/60">총 제출 건수</div><div className="font-bold tabular-nums">{activityStats.total}건</div></div>
+            <div><div className="text-[11px] text-on-surface-variant/60">제출 참여자</div><div className="font-bold tabular-nums">{activityStats.students}명</div></div>
+            <div><div className="text-[11px] text-on-surface-variant/60">참여율</div><div className="font-bold tabular-nums text-primary">{formatRate(totals.studentCount > 0 ? (activityStats.students / totals.studentCount) * 100 : 0)}</div></div>
+          </div>
+        </div>
+      )}
 
       {/* 결과물 제출 현황 */}
       <div className="surface-card border border-surface-container-high p-4">

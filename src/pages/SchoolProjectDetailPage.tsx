@@ -123,7 +123,7 @@ const TABS = [
   { key: 'notice', label: '공지 만들기' },
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
-  { key: 'records', label: '기록' },
+  { key: 'records', label: '세특' },
   { key: 'daily', label: '일자별' },
   { key: 'materials', label: '수업 자료' },
   { key: 'quiz', label: '퀴즈 보내기' },
@@ -142,7 +142,7 @@ const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: stri
   { key: 'notice', label: '공지 만들기', subs: [{ key: 'notice', label: '공지 만들기' }] },
   { key: 'log', label: '수업 기록', subs: [
     { key: 'attendance', label: '출결' }, { key: 'daily', label: '일자별' },
-    { key: 'results', label: '결과' }, { key: 'records', label: '기록' },
+    { key: 'results', label: '결과' }, { key: 'records', label: '세특' },
   ] },
   { key: 'mat', label: '수업 자료', subs: [
     { key: 'materials', label: '자료' }, { key: 'quiz', label: '퀴즈 보내기' }, { key: 'board', label: '보드 보내기' },
@@ -184,6 +184,7 @@ const SchoolProjectDetailPage = () => {
   const [attDate, setAttDate] = useState(todayStr());
   const [attRecords, setAttRecords] = useState<Record<string, string>>({});
   const [actSubmitted, setActSubmitted] = useState<Record<string, boolean>>({});
+  const [activityStats, setActivityStats] = useState<{ total: number; students: number } | null>(null);
   const [attLoading, setAttLoading] = useState(false);
   const [sessions, setSessions] = useState<Record<string, ClassSession>>({});
   const [notifyOn, setNotifyOn] = useState(true);
@@ -448,6 +449,25 @@ const SchoolProjectDetailPage = () => {
   useEffect(() => {
     if (tab === 'results' && studentIds.length > 0) fetchResults();
   }, [tab, studentIds, fetchResults]);
+
+  // 결과 요약용: 학교 전체 학생이 낸 활동 기록(반려 제외) 합계
+  useEffect(() => {
+    if (tab !== 'summary' || studentIds.length === 0) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from('observations')
+        .select('student_id')
+        .in('student_id', studentIds)
+        .eq('is_student_record', true)
+        .neq('status', 'rejected')
+        .limit(10000);
+      if (!alive) return;
+      const rows = (data || []) as { student_id: string }[];
+      setActivityStats({ total: rows.length, students: new Set(rows.map(r => r.student_id)).size });
+    })();
+    return () => { alive = false; };
+  }, [tab, studentIds]);
 
   const fetchEvaluations = useCallback(async () => {
     if (studentIds.length === 0) { setEvalRecords({}); return; }
@@ -768,6 +788,7 @@ const SchoolProjectDetailPage = () => {
           schoolId={schoolId}
           program={{ name: school?.name || program?.name || '', school_name: school?.school_name ?? null, start_date: school?.start_date ?? null, end_date: school?.end_date ?? null }}
           totals={{ schoolCount: 1, teacherCount: totals.teacherCount, studentCount: totals.studentCount }}
+          activityStats={activityStats}
         />
       )}
 
@@ -1028,19 +1049,21 @@ const SchoolProjectDetailPage = () => {
                         const obs = obsRecords.filter(o => o.student_id === st.id);
                         const results = resultRecords.filter(r => r.student_id === st.id);
                         const expanded = expandedStudentId === st.id;
+                        const submitted = obs.length > 0 || results.length > 0;
                         return (
-                          <div key={st.id}>
+                          <div key={st.id} className={submitted ? 'bg-violet-50/70 dark:bg-violet-950/20 border-l-4 border-violet-500' : 'border-l-4 border-transparent'}>
                             <button
                               onClick={() => setExpandedStudentId(expanded ? null : st.id)}
-                              className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-surface-container-low/40 transition-all text-left"
+                              className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-violet-100/50 transition-all text-left"
                             >
-                              <span className="text-sm font-bold flex items-center gap-1.5">
+                              <span className={`text-sm flex items-center gap-1.5 ${submitted ? 'font-black text-violet-900 dark:text-violet-200' : 'font-bold text-on-surface-variant/60'}`}>
                                 {expanded ? <ChevronDown size={14} className="text-on-surface-variant/40" /> : <ChevronRight size={14} className="text-on-surface-variant/40" />}
                                 {st.full_name}
+                                {submitted && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-600 text-white whitespace-nowrap">제출함</span>}
                               </span>
                               <span className="flex items-center gap-3 text-xs text-on-surface-variant">
-                                <span className="flex items-center gap-1"><FileText size={12} />활동기록 {obs.length}</span>
-                                <span className="flex items-center gap-1"><BookOpen size={12} />결과물 {results.length}</span>
+                                <span className={`flex items-center gap-1 ${obs.length > 0 ? 'font-black text-violet-700' : 'opacity-50'}`}><FileText size={12} />활동기록 {obs.length}</span>
+                                <span className={`flex items-center gap-1 ${results.length > 0 ? 'font-black text-violet-700' : 'opacity-50'}`}><BookOpen size={12} />결과물 {results.length}</span>
                               </span>
                             </button>
                             {expanded && (
@@ -1058,7 +1081,7 @@ const SchoolProjectDetailPage = () => {
                                               <span className="text-xs font-bold">{o.activity_name || '활동'}</span>
                                               <span className="text-[10px] text-on-surface-variant/50">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                                             </div>
-                                            {o.content && <p className="text-xs text-on-surface-variant mt-1 line-clamp-2 whitespace-pre-wrap">{o.content}</p>}
+                                            {o.content && <p className="text-xs text-on-surface-variant mt-1 whitespace-pre-wrap break-words">{o.content}</p>}
                                           </div>
                                         ))}
                                       </div>
@@ -1077,7 +1100,7 @@ const SchoolProjectDetailPage = () => {
                                                 </span>
                                                 <span className="text-[10px] text-on-surface-variant/50 shrink-0">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                                               </div>
-                                              {r.text_content && <p className="text-xs text-on-surface-variant mt-1 line-clamp-2 whitespace-pre-wrap">{r.text_content}</p>}
+                                              {r.text_content && <p className="text-xs text-on-surface-variant mt-1 whitespace-pre-wrap break-words">{r.text_content}</p>}
                                               {url && (
                                                 <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-primary mt-1 hover:underline">
                                                   <ExternalLink size={10} /> 결과 보기
