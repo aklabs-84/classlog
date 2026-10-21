@@ -395,9 +395,9 @@ export default function Whiteboard() {
       <div style={{ height: 52, background: '#1e1e1e', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', flexShrink: 0, zIndex: 100 }}>
         <button
           onClick={handleStudentExit}
-          style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
+          style={{ background: '#2a2a2a', border: '1px solid #444', borderRadius: 8, padding: '6px 14px 6px 10px', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600 }}
         >
-          <ArrowLeft size={16} /> {(fromWbJoin || isAnonymousUser(user)) ? '수업 나가기' : '뒤로'}
+          <ArrowLeft size={14} /> {(fromWbJoin || isAnonymousUser(user)) ? '수업 나가기' : '뒤로'}
         </button>
         <div style={{ width: 1, height: 20, background: '#333' }} />
         {editingTitle ? (

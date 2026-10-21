@@ -186,12 +186,12 @@ export default function SchoolNoticeTab({ projectId, schoolId, schoolName, start
 
   if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
-  const inputCls = 'w-full rounded-xl border border-outline-variant/50 bg-surface px-3 py-2 text-sm focus:outline-none focus:border-primary';
+  const inputCls = 'w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-surface px-3 py-2 text-sm focus:outline-none focus:border-primary';
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       {/* 학교 안내 수첩 */}
-      <section className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-4 space-y-3">
+      <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest p-4 space-y-3">
         <div>
           <h3 className="font-bold text-on-surface">학교 안내 수첩</h3>
           <p className="text-xs text-on-surface-variant mt-0.5">여기에 적은 내용이 공지 문구에 자동으로 들어가요.</p>
@@ -239,7 +239,7 @@ export default function SchoolNoticeTab({ projectId, schoolId, schoolName, start
       </section>
 
       {/* 공지 만들기 */}
-      <section className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-4 space-y-3">
+      <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest p-4 space-y-3">
         <div>
           <h3 className="font-bold text-on-surface">공지 문구</h3>
           <p className="text-xs text-on-surface-variant mt-0.5">
@@ -249,7 +249,7 @@ export default function SchoolNoticeTab({ projectId, schoolId, schoolName, start
         <div className="flex gap-1.5 flex-wrap">
           {(Object.keys(MSG_LABEL) as MsgKey[]).map(k => (
             <button key={k} onClick={() => setActive(k)}
-              className={`px-3 py-1.5 rounded-full text-sm font-semibold border ${active === k ? 'bg-primary text-on-primary border-primary' : 'border-outline-variant/50 text-on-surface-variant'}`}>
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold border ${active === k ? 'bg-primary text-on-primary border-primary' : 'border-slate-300 dark:border-slate-600 text-on-surface-variant'}`}>
               {MSG_LABEL[k]}{info.messages[k] ? ' ✓' : ''}
             </button>
           ))}
@@ -274,7 +274,7 @@ export default function SchoolNoticeTab({ projectId, schoolId, schoolName, start
             <Save size={14} /> 최종 문구 저장
           </button>
           <button onClick={regenerate} disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant/60 text-on-surface-variant px-4 py-2 text-sm font-semibold">
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-on-surface-variant px-4 py-2 text-sm font-semibold">
             <RotateCcw size={14} /> 새로 만들기
           </button>
         </div>

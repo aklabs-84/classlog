@@ -825,9 +825,9 @@ export default function SlideDeckEditor() {
             if (planId) { navigate(location.pathname, { replace: true, state: { activeToolId: 'lesson-plan', openPlanId: planId } }); return; }
             setView('list'); setImportedMaterial(null);
           }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, marginBottom: 16 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 16px 8px 12px', cursor: 'pointer', color: '#1f2937', fontSize: 15, fontWeight: 600, marginBottom: 16 }}
         >
-          <ArrowLeft size={16} /> 목록으로
+          <ArrowLeft size={14} /> 목록으로
         </button>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, marginBottom: 18, maxWidth: 720 }}>
           {([

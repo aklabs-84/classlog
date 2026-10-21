@@ -86,7 +86,7 @@ const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad
 
   return (
     <div>
-      <div className="relative rounded-xl border-2 border-dashed border-outline-variant bg-white">
+      <div className="relative rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 bg-white">
         <canvas
           ref={canvasRef}
           onPointerDown={down}

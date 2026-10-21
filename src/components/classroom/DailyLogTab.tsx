@@ -77,16 +77,16 @@ export default function DailyLogTab({ classes }: Props) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs font-black text-on-surface-variant">반
-          <select value={classId} onChange={e => setClassId(e.target.value)} className="block mt-1 rounded-xl border border-outline-variant px-3 py-2 text-sm bg-surface-container-lowest text-on-surface font-semibold">
+          <select value={classId} onChange={e => setClassId(e.target.value)} className="block mt-1 rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-surface-container-lowest text-on-surface font-semibold">
             <option value="all">전체 반</option>
             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
         <label className="text-xs font-black text-on-surface-variant">시작일
-          <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className="block mt-1 rounded-xl border border-outline-variant px-3 py-2 text-sm bg-surface-container-lowest text-on-surface" />
+          <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className="block mt-1 rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-surface-container-lowest text-on-surface" />
         </label>
         <label className="text-xs font-black text-on-surface-variant">종료일
-          <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} className="block mt-1 rounded-xl border border-outline-variant px-3 py-2 text-sm bg-surface-container-lowest text-on-surface" />
+          <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} className="block mt-1 rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-surface-container-lowest text-on-surface" />
         </label>
       </div>
       <p className="text-xs text-on-surface-variant">읽기 전용이에요. 출석, 학생 결과물, 승인된 학생 기록, 퀴즈 진행을 날짜별로 모아 보여 줘요. 기본은 최근 30일이에요.</p>

@@ -40,13 +40,13 @@ export default function RealNameNotice() {
           <div>
             <label className="text-sm font-black block mb-1">실명 <span className="text-red-500">*</span></label>
             <input value={rn} onChange={e => setRealName(e.target.value)} maxLength={30} placeholder="예: 홍길동"
-              className="w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest" />
+              className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest" />
             <p className="text-[11px] text-on-surface-variant mt-1">구글에 적힌 이름이 들어 있어요. 실명이 맞는지 꼭 확인해 주세요.</p>
           </div>
           <div>
             <label className="text-sm font-black block mb-1">별명 (선택)</label>
             <input value={nn} onChange={e => setNickname(e.target.value)} maxLength={20} placeholder="비워 두면 실명이 보여요"
-              className="w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest" />
+              className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest" />
             <p className="text-[11px] text-on-surface-variant mt-1">왼쪽 메뉴와 커뮤니티에서 이 이름으로 보여요. 나중에 설정에서 바꿀 수 있어요.</p>
           </div>
           {err && <p className="text-xs font-bold text-red-600">{err}</p>}

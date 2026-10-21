@@ -183,6 +183,7 @@ const SchoolProjectDetailPage = () => {
 
   const [attDate, setAttDate] = useState(todayStr());
   const [attRecords, setAttRecords] = useState<Record<string, string>>({});
+  const [actSubmitted, setActSubmitted] = useState<Record<string, boolean>>({});
   const [attLoading, setAttLoading] = useState(false);
   const [sessions, setSessions] = useState<Record<string, ClassSession>>({});
   const [notifyOn, setNotifyOn] = useState(true);
@@ -347,6 +348,22 @@ const SchoolProjectDetailPage = () => {
       const map: Record<string, string> = {};
       (data || []).forEach((r: any) => { map[r.student_id] = r.status; });
       setAttRecords(map);
+      // 같은 날 학생이 낸 활동 기록(승인 대기·완료, 반려 제외)
+      const stuIds = classes.flatMap(c => c.students.map(st => st.id));
+      const subm: Record<string, boolean> = {};
+      if (stuIds.length) {
+        const { data: obs } = await supabase
+          .from('observations')
+          .select('student_id')
+          .in('student_id', stuIds)
+          .eq('is_student_record', true)
+          .neq('status', 'rejected')
+          .gte('created_at', `${attDate}T00:00:00+09:00`)
+          .lte('created_at', `${attDate}T23:59:59+09:00`)
+          .limit(3000);
+        (obs || []).forEach((r: any) => { subm[r.student_id] = true; });
+      }
+      setActSubmitted(subm);
     } finally {
       setAttLoading(false);
     }
@@ -954,7 +971,7 @@ const SchoolProjectDetailPage = () => {
                       })()}
                     </span>
                     <span className="text-xs text-on-surface-variant/60">
-                      학생 {c.students.length}명 중 {c.students.filter(st => attRecords[st.id]).length}명 기록됨
+                      학생 {c.students.length}명 · 출결 {c.students.filter(st => attRecords[st.id]).length}명 · 활동 기록 {c.students.filter(st => actSubmitted[st.id]).length}명 제출
                     </span>
                   </div>
                   {c.students.length === 0 ? (
@@ -967,11 +984,14 @@ const SchoolProjectDetailPage = () => {
                         return (
                           <div key={st.id} className="flex items-center justify-between px-4 py-2.5">
                             <span className="text-sm font-bold">{st.full_name}</span>
-                            {meta ? (
-                              <span className={`text-xs font-black px-2.5 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
-                            ) : (
-                              <span className="text-xs font-bold text-on-surface-variant/40 px-2.5 py-1">미기록</span>
-                            )}
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              {actSubmitted[st.id] && <span className="text-xs font-black px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 whitespace-nowrap">활동 기록 제출</span>}
+                              {meta ? (
+                                <span className={`text-xs font-black px-2.5 py-1 rounded-full whitespace-nowrap ${meta.className}`}>{meta.label}</span>
+                              ) : (
+                                <span className="text-xs font-bold text-on-surface-variant/40 px-2.5 py-1 whitespace-nowrap">출결 미기록</span>
+                              )}
+                            </span>
                           </div>
                         );
                       })}

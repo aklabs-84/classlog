@@ -88,9 +88,9 @@ export default function ClassRosterModal({ classId, className, students, onClose
           {students.length === 0 ? (
             <p className="text-sm text-on-surface-variant">아직 없어요.</p>
           ) : (
-            <ul className="max-h-52 overflow-y-auto rounded-xl border border-outline-variant/30 p-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1">
+            <ul className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 p-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1">
               {students.map((st, i) => (
-                <li key={st.id} className="flex items-center justify-between gap-1 pl-2 pr-0.5 py-0.5 text-sm rounded-lg bg-surface-container-lowest border border-outline-variant/20 min-w-0">
+                <li key={st.id} className="flex items-center justify-between gap-1 pl-2 pr-0.5 py-0.5 text-sm rounded-lg bg-surface-container-lowest border border-slate-200 dark:border-slate-700 min-w-0">
                   <span className="truncate min-w-0"><span className="text-[11px] font-bold text-on-surface-variant mr-1">{i + 1}</span>{st.full_name}</span>
                   <button onClick={() => removeStudent(st)} disabled={removing === st.id} aria-label={`${st.full_name} 삭제`}
                     className="p-1.5 shrink-0 rounded-lg text-red-400 hover:bg-red-50 disabled:opacity-40">
@@ -107,7 +107,7 @@ export default function ClassRosterModal({ classId, className, students, onClose
           <textarea
             value={text} onChange={e => setText(e.target.value)} rows={6}
             placeholder={'1번 홍길동\n2번 김민지\n3 이서준\n박지우'}
-            className="w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest"
           />
           <p className="text-[11px] text-on-surface-variant mt-1">엑셀에서 번호·이름 두 칸을 복사해 붙여넣어도 돼요. 번호는 없어도 됩니다.</p>
         </div>

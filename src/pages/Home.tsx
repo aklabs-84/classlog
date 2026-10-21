@@ -2,7 +2,7 @@ import { readCornerOn, writeCornerOn } from '../components/home/FloatingMate';
 import PixelMate, { deriveMate, type MascotKey } from '../components/home/PixelMate';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, School, PenLine, LayoutGrid, Plus, X, ArrowRight, ChevronLeft, ChevronRight, Check, Wrench } from 'lucide-react';
+import { BarChart3, School, PenLine, FileText, LayoutGrid, Plus, X, ArrowRight, ChevronLeft, ChevronRight, Check, Wrench } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
@@ -25,11 +25,20 @@ const TOOL_OPTIONS: { id: string; label: string }[] = [
 ];
 const MAX_CUSTOM = 8;
 
+// 수업 준비 한 길: 아이디어 → 계획서 → 슬라이드 → 학생 가이드
+const FLOW_STEPS = [
+  { label: '아이디어 기록', to: '/ideas' },
+  { label: '수업 계획서', to: '/teaching-tools?tool=lesson-plan' },
+  { label: '슬라이드', to: '/teaching-tools?tool=slide-deck' },
+  { label: '학생 가이드', to: '/teaching-tools?tool=material-editor' },
+];
+
 type Recent = { key: string; kind: '수업 자료' | '슬라이드' | '클래스'; title: string; sub: string; at: string; dot?: boolean; go: () => void };
 
 const FIXED = [
   { label: '클래스 대시보드', sub: '진행 현황', icon: BarChart3, to: '/classes' },
   { label: '클래스룸', sub: '수업 화면', icon: School, to: '/classroom' },
+  { label: '수업 계획서', sub: '주제로 계획서 만들기', icon: FileText, to: '/teaching-tools?tool=lesson-plan' },
   { label: '수업 자료 에디터', sub: '새 자료 쓰기', icon: PenLine, to: '/teaching-tools?tool=material-editor' },
   { label: '수업 도구', sub: '설문 · 화이트보드 등', icon: LayoutGrid, to: '/teaching-tools' },
 ];
@@ -183,10 +192,10 @@ export default function Home() {
     setTimeout(() => setToast(''), 2800);
   };
 
-  const available = useMemo(() => TOOL_OPTIONS.filter(t => !custom.includes(t.id)), [custom]);
+  const available = useMemo(() => TOOL_OPTIONS.filter(t => t.id !== 'lesson-plan' && !custom.includes(t.id)), [custom]);
   const showChecklist = !!steps && prefsLoaded && !hidden && !allDone;
 
-  const tile = 'home-rise group relative overflow-hidden flex items-center gap-3.5 text-left bg-surface-container-lowest border border-outline-variant/60 border-slate-200 dark:border-slate-700 rounded-2xl p-4 transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_20px_-12px_rgba(139,92,246,0.55)]';
+  const tile = 'home-rise group relative overflow-hidden flex items-center gap-3.5 text-left bg-surface-container-lowest border border-slate-300 dark:border-slate-600 border-slate-200 dark:border-slate-700 rounded-2xl p-4 transition-all duration-200 hover:border-primary hover:-translate-y-0.5 hover:shadow-[0_8px_20px_-12px_rgba(139,92,246,0.55)]';
   const icBox = 'w-11 h-11 rounded-xl bg-primary-container text-primary grid place-items-center shrink-0 transition-all duration-200 group-hover:bg-primary group-hover:text-white group-hover:scale-105';
 
   return (
@@ -236,6 +245,20 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <nav aria-label="수업 준비 한 길" className="home-rise -mt-6 mb-10 flex flex-wrap items-center gap-x-2 gap-y-2 text-[15px]">
+        <span className="font-bold text-on-surface-variant mr-1">수업 준비 한 길</span>
+        {FLOW_STEPS.map((st, i) => (
+          <span key={st.label} className="flex items-center gap-2">
+            <button onClick={() => navigate(st.to, { state: { fromHome: true } })}
+              className="flex items-center gap-1.5 bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-full pl-2 pr-3.5 py-1.5 text-on-surface hover:border-primary hover:text-primary transition-colors">
+              <span className="w-5 h-5 grid place-items-center rounded-full bg-primary-container text-primary text-[13px] font-bold">{i + 1}</span>
+              {st.label}
+            </button>
+            {i < FLOW_STEPS.length - 1 && <ArrowRight size={16} className="text-on-surface-variant" />}
+          </span>
+        ))}
+      </nav>
 
       <div className="grid lg:grid-cols-[1fr_330px] gap-10 lg:gap-12">
         {/* 내 바로가기 */}

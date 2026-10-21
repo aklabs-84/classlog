@@ -9,11 +9,9 @@ import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUr
 import Pagination from '../components/Pagination';
 import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import {
-  GraduationCap,
   RefreshCw,
   Users,
   FileText,
-  FolderOpen,
   ChevronDown,
   ChevronUp,
   AlertCircle,
@@ -35,9 +33,7 @@ import {
   ImageIcon,
   File as FileIcon,
   Sparkles,
-  Quote,
   BarChart2,
-  MousePointerClick,
 } from 'lucide-react';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
@@ -45,6 +41,18 @@ import {
   AttendanceDonutChart, MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
 } from '../components/share/ShareCharts';
 import { appToast } from '../lib/appDialog';
+
+// "[한 줄 느낌] ..." 형태의 학생 글을 항목별로 나눔 (학교 프로젝트 공유 화면과 같은 규칙)
+function parseQuoteSections(content: string): { label: string; text: string }[] {
+  const out: { label: string; text: string }[] = [];
+  const re = /\[([^\]]{1,20})\]\s*([^[]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    const text = m[2].trim();
+    if (text) out.push({ label: m[1].trim(), text });
+  }
+  return out;
+}
 
 const CountUpNumber = ({ value }: { value: number }) => {
   const [display, setDisplay] = useState(0);
@@ -57,24 +65,6 @@ const CountUpNumber = ({ value }: { value: number }) => {
     return controls.stop;
   }, [value]);
   return <>{display}</>;
-};
-
-const RingStat = ({ percent, size = 48, stroke = 5, color = '#7c3aed' }: { percent: number; size?: number; stroke?: number; color?: string }) => {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
-      <motion.circle
-        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
-        strokeDasharray={c}
-        initial={{ strokeDashoffset: c }}
-        animate={{ strokeDashoffset: c - (percent / 100) * c }}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        transition={{ duration: 1, ease: 'easeOut' }}
-      />
-    </svg>
-  );
 };
 
 const RESULT_TYPE_BADGE: Record<string, { icon: ReactNode; color: string; label: string }> = {
@@ -840,181 +830,123 @@ const ShareClassView = () => {
     <div className="min-h-screen bg-gray-50 font-sans print:hidden">
       {/* 헤더 */}
       <div className="print:hidden">
-        {/* 히어로 배너 */}
-        <div className="relative overflow-hidden bg-white">
+        {/* 헤더 (학교 프로젝트 공유 화면과 같은 남색 보고서형) */}
+        <div style={{ background: '#0e1a33' }} className="text-white">
           <motion.div
-            className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-8"
+            className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 sm:pt-14 pb-10"
             initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
           >
-            <div className="flex items-start justify-between gap-3 mb-8">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
-                  <GraduationCap size={22} className="text-violet-600" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-sm sm:text-base font-black text-gray-500 truncate">
-                      {classInfo?.name}
-                      {classInfo?.subject ? ` · ${classInfo.subject}` : ''}
-                    </h1>
-                    <span className="shrink-0 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-violet-50 text-violet-600 rounded-full border border-violet-100">
-                      선생님 공유 보기
-                    </span>
-                  </div>
-                  {lastUpdated && (
-                    <p className="text-[11px] text-gray-400 font-semibold mt-1">
-                      {lastUpdated.toLocaleString('ko-KR')} 기준
-                    </p>
-                  )}
-                </div>
-              </div>
-              <a
-                href="/"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 transition-all border border-gray-200 hover:border-violet-200 hover:bg-violet-50"
-              >
-                <Sparkles size={12} className="text-violet-600" />
-                <span className="text-[11px] font-black text-gray-600">Powered by 클래스로그 AI</span>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <p className="text-lg font-bold" style={{ color: '#ffb4a8' }}>선생님 공유 보기</p>
+              <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/25 hover:bg-white/10 transition-colors shrink-0">
+                <Sparkles size={14} />
+                <span className="text-base font-bold text-white/90">Powered by 클래스로그 AI</span>
               </a>
             </div>
-
-            {/* 리드 통계 */}
-            <div className="flex items-baseline gap-2 mb-6">
-              <span className="text-6xl sm:text-7xl font-black tracking-tight tabular-nums text-gray-900">
-                <CountUpNumber value={studentData.length} />
-              </span>
-              <span className="text-base sm:text-lg font-bold text-gray-400">명의 학생이 참여 중</span>
+            <h1 className="text-4xl sm:text-5xl font-black leading-[1.25] tracking-tight mb-3" style={{ color: '#fff' }}>
+              {classInfo?.name}{classInfo?.subject ? ` · ${classInfo.subject}` : ''}
+            </h1>
+            <div className="flex items-center gap-4 text-lg flex-wrap text-slate-300">
+              <span>{studentData.length}명의 학생이 참여 중</span>
+              {lastUpdated && <span className="text-base">{lastUpdated.toLocaleString('ko-KR')} 기준</span>}
             </div>
+            {(() => {
+              const participationRate = studentData.length > 0 ? Math.round((activeCount / studentData.length) * 100) : 0;
+              const goTo = (key: typeof activeTab) => {
+                setActiveTab(key);
+                document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+              };
+              const stats = [
+                { key: 'results' as const, label: '학생', value: studentData.length, unit: '명' },
+                { key: 'results' as const, label: `활동 참여 (${activeCount}/${studentData.length}명)`, value: participationRate, unit: '%' },
+                { key: 'results' as const, label: '결과 확인', value: totalResults, unit: '건' },
+                { key: 'gallery' as const, label: '갤러리', value: galleryItems.length, unit: '장' },
+                { key: 'setech' as const, label: '학생 기록', value: setechDoneCount, unit: '건' },
+                ...(surveyResult ? [{ key: 'survey' as const, label: '설문 결과', value: surveyResult.responseCount, unit: '명' }] : []),
+              ];
+              return (
+                <div className={`grid grid-cols-2 ${stats.length === 6 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} mt-8 border-t border-white/20`}>
+                  {stats.map(({ key, label, value, unit }) => (
+                    <button key={label} onClick={() => goTo(key)} className="text-left pt-5 pb-2 pr-2 hover:opacity-80 transition-opacity">
+                      <span className={`block text-4xl font-black tabular-nums leading-tight ${value > 0 ? 'text-white' : 'text-slate-500'}`}>
+                        <CountUpNumber value={value} /><span className="text-lg font-bold ml-0.5">{unit}</span>
+                      </span>
+                      <span className="text-base text-slate-300">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </motion.div>
         </div>
 
-        {/* 통합 통계 대시보드 카드 */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-2 bg-white">
-          {(() => {
-            const participationRate = studentData.length > 0 ? Math.round((activeCount / studentData.length) * 100) : 0;
-            const navCards = [
-              { key: 'results' as const, label: '결과물', value: totalResults, unit: '건', icon: FolderOpen, color: 'blue' as const },
-              { key: 'gallery' as const, label: '갤러리', value: galleryItems.length, unit: '장', icon: Images, color: 'emerald' as const },
-              { key: 'setech' as const, label: '학생 기록', value: setechDoneCount, unit: '건', icon: BookOpen, color: 'amber' as const },
-              ...(surveyResult ? [{ key: 'survey' as const, label: '설문 결과', value: surveyResult.responseCount, unit: '명', icon: BarChart2, color: 'pink' as const }] : []),
-            ];
-            const maxNavValue = Math.max(1, ...navCards.map((c) => c.value));
-            const colorMap = {
-              blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100', bar: 'bg-blue-400' },
-              emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100', bar: 'bg-emerald-400' },
-              amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100', bar: 'bg-amber-400' },
-              pink: { tint: 'bg-pink-50', ink: 'text-pink-600', border: 'border-pink-100', bar: 'bg-pink-400' },
-            };
-            const goTo = (key: typeof activeTab) => {
-              setActiveTab(key);
-              document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-            };
-            return (
-              <>
-                <p className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-3">
-                  <MousePointerClick size={13} className="text-gray-300" />
-                  카드를 클릭하면 자세한 내용을 볼 수 있어요
-                </p>
-                <div className={`grid grid-cols-2 gap-3 ${navCards.length === 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
-                {/* 참여율 카드 (링 차트) */}
-                <motion.button
-                  onClick={() => goTo('results')}
-                  initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                  whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-40px' }}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
-                  whileHover={reduceMotion ? undefined : { y: -4 }}
-                  className="text-left rounded-2xl border border-violet-100 bg-violet-50 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <RingStat percent={participationRate} color="#7c3aed" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-violet-600 mb-0.5">활동 참여</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl font-black text-gray-900"><CountUpNumber value={participationRate} /></span>
-                      <span className="text-xs font-bold text-gray-400">%</span>
-                    </div>
-                    <p className="text-[10px] font-bold text-gray-400">{activeCount}/{studentData.length}명</p>
-                  </div>
-                </motion.button>
-
-                {navCards.map(({ key, label, value, unit, icon: Icon, color }, i) => {
-                  const c = colorMap[color];
-                  const filled = value > 0;
-                  const barPct = Math.round((value / maxNavValue) * 100);
-                  return (
-                    <motion.button
-                      key={label}
-                      onClick={() => goTo(key)}
-                      initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                      viewport={{ once: true, margin: '-40px' }}
-                      transition={{ duration: 0.4, delay: (i + 1) * 0.06, ease: 'easeOut' }}
-                      whileHover={reduceMotion ? undefined : { y: -4 }}
-                      className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${c.tint} ${c.border} shadow-sm hover:shadow-md` : 'bg-white border-gray-100'}`}
-                    >
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-gray-50'}`}>
-                        <Icon size={15} className={filled ? c.ink : 'text-gray-300'} />
-                      </div>
-                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? c.ink : 'text-gray-400'}`}>{label}</p>
-                      <div className="flex items-baseline gap-1 mb-2">
-                        <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
-                        <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-black/5 overflow-hidden">
-                        <motion.div
-                          className={`h-full rounded-full ${filled ? c.bar : 'bg-transparent'}`}
-                          initial={{ width: 0 }}
-                          whileInView={{ width: `${barPct}%` }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.6, delay: (i + 1) * 0.06, ease: 'easeOut' }}
-                        />
-                      </div>
-                    </motion.button>
-                  );
-                })}
-                </div>
-              </>
-            );
-          })()}
-        </div>
-
         {/* 스포트라이트 인용구 (자동 슬라이드 캐러셀) */}
-        {spotlightQuotes.length > 0 && (
-          <div className="border-t border-b border-gray-100 bg-violet-50/40 overflow-hidden">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-              <Quote size={26} className="text-violet-300 mb-3" />
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={spotlightIndex}
-                  initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
-                  animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
-                  exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
-                >
-                  <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
-                    “{spotlightQuotes[spotlightIndex].content}”
-                  </blockquote>
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-400">
-                    {classInfo?.name} · {spotlightQuotes[spotlightIndex].student.full_name}
-                  </p>
-                </motion.div>
-              </AnimatePresence>
-              {spotlightQuotes.length > 1 && (
-                <div className="flex items-center gap-1.5 mt-6">
-                  {spotlightQuotes.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSpotlightIndex(i)}
-                      aria-label={`${i + 1}번째 인용구 보기`}
-                      className={`h-1.5 rounded-full transition-all ${i === spotlightIndex ? 'w-6 bg-violet-500' : 'w-1.5 bg-violet-200 hover:bg-violet-300'}`}
-                    />
-                  ))}
-                </div>
-              )}
+        {spotlightQuotes.length > 0 && (() => {
+          const cur = spotlightQuotes[spotlightIndex] ?? spotlightQuotes[0];
+          const sections = parseQuoteSections(cur.content);
+          const heroIdx = sections.length === 0 ? -1
+            : (() => {
+              const i = sections.findIndex(x => x.label.includes('한 줄') || x.label.includes('느낌'));
+              return i >= 0 ? i : sections.reduce((m, x, k) => (x.text.length < sections[m].text.length ? k : m), 0);
+            })();
+          const hero = heroIdx >= 0 ? sections[heroIdx] : null;
+          const rest = sections.filter((_, i) => i !== heroIdx).slice(0, 3);
+          const goToQuote = (n: number) => setSpotlightIndex((n + spotlightQuotes.length) % spotlightQuotes.length);
+          return (
+            <div className="bg-white border-b border-slate-200 overflow-hidden">
+              <div className="max-w-5xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={spotlightIndex}
+                    initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
+                    animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                  >
+                    {hero ? (
+                      <>
+                        <p className="text-base font-bold mb-2 text-violet-600">{hero.label}</p>
+                        <blockquote className="text-2xl sm:text-4xl font-black text-slate-900 leading-snug tracking-tight">
+                          “{hero.text}”
+                        </blockquote>
+                        {rest.length > 0 && (
+                          <div className={`grid gap-x-8 gap-y-5 mt-7 pt-6 border-t border-slate-200 ${rest.length === 1 ? 'sm:grid-cols-1' : rest.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+                            {rest.map(x => (
+                              <div key={x.label}>
+                                <p className="text-base font-bold mb-1 text-violet-600">{x.label}</p>
+                                <p className="text-lg text-slate-800 leading-relaxed line-clamp-4">{x.text}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <blockquote className="text-xl sm:text-3xl font-bold text-slate-900 leading-snug tracking-tight">
+                        “{cur.content}”
+                      </blockquote>
+                    )}
+                    <p className="text-lg text-slate-600 mt-6">
+                      {classInfo?.name} · <span className="font-bold text-slate-800">{cur.student.full_name}</span>
+                    </p>
+                  </motion.div>
+                </AnimatePresence>
+                {spotlightQuotes.length > 1 && (
+                  <div className="flex items-center gap-3 mt-4 text-slate-600">
+                    <button onClick={() => goToQuote(spotlightIndex - 1)} aria-label="이전 글" className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors">
+                      <ChevronLeft size={22} />
+                    </button>
+                    <span className="text-base font-bold tabular-nums min-w-[4.5rem] text-center">{spotlightIndex + 1} / {spotlightQuotes.length}</span>
+                    <button onClick={() => goToQuote(spotlightIndex + 1)} aria-label="다음 글" className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                      <ChevronRight size={22} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* 탭 바 + 다운로드 */}
         <div className="bg-white border-b border-gray-100 sticky top-0 z-10">

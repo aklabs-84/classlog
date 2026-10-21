@@ -211,7 +211,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
       {msg && <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] bg-on-surface text-surface px-4 py-2 rounded-full text-sm font-bold shadow-lg">{msg}</div>}
 
       {schoolId && (
-        <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-4 sm:p-5">
+        <section className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
           <h3 className="font-black text-base mb-1">이 학교는 어떤 서류를 받을까요?</h3>
           <p className="text-xs text-on-surface-variant mb-3">언제든 바꿀 수 있어요. 이미 낸 기록은 지워지지 않습니다.</p>
           <div className="grid sm:grid-cols-2 gap-2">
@@ -220,9 +220,9 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
               ['custom', '이 학교만 따로 지정', '이 학교 강사에게는 아래에서 정한 서류만 받아요. (공통 서류는 적용되지 않아요)'],
             ] as const).map(([k, t, d]) => (
               <button key={k} disabled={modeBusy} onClick={() => changeMode(k)}
-                className={`text-left rounded-2xl border-2 p-3 transition-all ${mode === k ? 'border-primary bg-primary/5' : 'border-outline-variant/40'}`}>
+                className={`text-left rounded-2xl border-2 p-3 transition-all ${mode === k ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700'}`}>
                 <span className="flex items-center gap-1.5 text-sm font-black">
-                  <span className={`w-4 h-4 rounded-full border-2 ${mode === k ? 'border-primary bg-primary' : 'border-outline-variant'}`} /> {t}
+                  <span className={`w-4 h-4 rounded-full border-2 ${mode === k ? 'border-primary bg-primary' : 'border-slate-300 dark:border-slate-600'}`} /> {t}
                 </span>
                 <span className="block text-xs text-on-surface-variant mt-1">{d}</span>
               </button>
@@ -232,7 +232,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
       )}
 
       {/* ── 필요한 서류 ── */}
-      <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-4 sm:p-5">
+      <section className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <h3 className="font-black text-base">{schoolId ? (mode === 'custom' ? '이 학교에서 받을 서류' : '적용 중인 서류 (사업 공통)') : '필요한 서류 (사업 공통)'}</h3>
@@ -258,7 +258,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
           commonReqs.length === 0 ? (
             <p className="text-sm text-on-surface-variant py-6 text-center">사업 공통 서류가 아직 없어요.</p>
           ) : (
-            <ul className="divide-y divide-outline-variant/20">
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
               {commonReqs.map((r, i) => (
                 <li key={r.id} className="py-2.5 flex items-center gap-2 text-sm">
                   <span className="w-6 text-center text-xs font-black text-on-surface-variant">{i + 1}</span>
@@ -278,7 +278,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
             )}
           </div>
         ) : (
-          <ul className="divide-y divide-outline-variant/20">
+          <ul className="divide-y divide-slate-200 dark:divide-slate-700">
             {myReqs.map((r, i) => {
               const Icon = KIND_ICON[r.kind];
               return (
@@ -310,7 +310,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
       </section>
 
       {/* ── 제출 현황 (실시간) ── */}
-      <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-4 sm:p-5">
+      <section className="bg-surface-container-lowest rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <div className="flex items-center gap-2">
             <h3 className="font-black text-base">제출 현황</h3>
@@ -339,7 +339,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
               </thead>
               <tbody>
                 {visibleInstructors.map(inst => (
-                  <tr key={inst.id} className="border-t border-outline-variant/20">
+                  <tr key={inst.id} className="border-t border-slate-200 dark:border-slate-700">
                     <td className="py-2 px-1 font-bold sticky left-0 bg-surface-container-lowest whitespace-nowrap">{inst.name} 선생님</td>
                     {reqs.map(r => {
                       if (!applies(inst.id, r)) return <td key={r.id} className="py-1.5 px-1 text-center text-on-surface-variant/30" title="이 강사에게는 해당 없음">·</td>;
@@ -380,7 +380,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
             <label className="block">
               <span className="text-xs font-bold">서류 이름</span>
               <input value={edit.title} maxLength={100} onChange={e => setEdit({ ...edit, title: e.target.value })}
-                placeholder="예: 통장 사본" className="mt-1 w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest" />
+                placeholder="예: 통장 사본" className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest" />
             </label>
 
             <div>
@@ -391,7 +391,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
                   const on = edit.kind === k;
                   return (
                     <button key={k} type="button" onClick={() => setEdit({ ...edit, kind: k })}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-bold text-left ${on ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant'}`}>
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-bold text-left ${on ? 'border-primary bg-primary/10 text-primary' : 'border-slate-300 dark:border-slate-600'}`}>
                       <Icon size={15} /> {DOC_KIND_LABEL[k]}
                     </button>
                   );
@@ -410,7 +410,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
                 <span className="text-xs font-bold">{edit.kind === 'consent' ? '동의문' : '서약 내용'}</span>
                 <textarea value={edit.consent_text} rows={4} onChange={e => setEdit({ ...edit, consent_text: e.target.value })}
                   placeholder="강사에게 그대로 보여 줄 문구를 적어 주세요."
-                  className="mt-1 w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest" />
+                  className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest" />
               </label>
             )}
 
@@ -426,7 +426,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
             <label className="block">
               <span className="text-xs font-bold">안내 문구 <span className="font-normal text-on-surface-variant">(선택: 발급 방법, 마감 등)</span></span>
               <textarea value={edit.description} rows={2} onChange={e => setEdit({ ...edit, description: e.target.value })}
-                className="mt-1 w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest" />
+                className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest" />
             </label>
 
             {edit.kind !== 'contract_sign' && (
@@ -444,7 +444,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
             </label>
 
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setEdit(null)} disabled={saving} className="flex-1 py-3 rounded-xl border border-outline-variant font-bold text-sm">취소</button>
+              <button onClick={() => setEdit(null)} disabled={saving} className="flex-1 py-3 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-sm">취소</button>
               <button onClick={save} disabled={saving || !!uploading} className="flex-1 py-3 rounded-xl bg-primary text-on-primary font-bold text-sm disabled:opacity-50 inline-flex items-center justify-center gap-1">
                 {saving && <Loader2 size={14} className="animate-spin" />} 저장
               </button>
@@ -475,7 +475,7 @@ function FilePick({ name, busy, accept, onPick, onClear }: {
   const { over, dropProps } = useFileDrop(files => onPick(files[0]), { accept, disabled: busy });
   return (
     <div className="mt-1 flex items-center gap-2">
-      <label {...dropProps} className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl border text-sm font-bold cursor-pointer ${over ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant'}`}>
+      <label {...dropProps} className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl border text-sm font-bold cursor-pointer ${over ? 'border-primary bg-primary/5 text-primary' : 'border-slate-300 dark:border-slate-600'}`}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
         {over ? '여기에 놓으세요' : name ? '다른 파일 · 끌어다 놓기' : '파일 선택 · 끌어다 놓기'}
         <input type="file" accept={accept} className="hidden" disabled={busy}
@@ -525,17 +525,17 @@ function SubmissionDetail({ req, sub, name, onClose, onChanged, flash }: {
 
         <div className="space-y-2 text-sm">
           {sub.file_path && (
-            <button onClick={() => open(sub.file_path)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-outline-variant font-bold text-left">
+            <button onClick={() => open(sub.file_path)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-left">
               <Download size={15} /> <span className="truncate">{sub.file_name || '제출 파일 열기'}</span>
             </button>
           )}
           {sub.signed_pdf_path && (
-            <button onClick={() => open(sub.signed_pdf_path)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-outline-variant font-bold text-left">
+            <button onClick={() => open(sub.signed_pdf_path)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-left">
               <FileSignature size={15} /> 서명된 계약서 열기
             </button>
           )}
           {sub.signature_path && (
-            <button onClick={() => open(sub.signature_path)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-outline-variant font-bold text-left">
+            <button onClick={() => open(sub.signature_path)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-left">
               <PenLine size={15} /> 서명 이미지 열기
             </button>
           )}
@@ -545,7 +545,7 @@ function SubmissionDetail({ req, sub, name, onClose, onChanged, flash }: {
         </div>
 
         <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="다시 내 달라고 할 때 이유를 적어 주세요"
-          className="w-full rounded-xl border border-outline-variant px-3 py-2 text-sm bg-surface-container-lowest" />
+          className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-surface-container-lowest" />
         <div className="flex gap-2">
           <button disabled={busy} onClick={() => review('rejected')} className="flex-1 py-2.5 rounded-xl border border-red-300 text-red-600 font-bold text-sm">다시 내 주세요</button>
           <button disabled={busy} onClick={() => review('approved')} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white font-bold text-sm">확인 완료</button>

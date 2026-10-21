@@ -82,7 +82,7 @@ export default function SendQuizTab({ schools, teacherNames }: Props) {
       </div>
 
       {quizzes.length === 0 ? (
-        <div className="rounded-2xl border border-outline-variant/40 p-6 text-center space-y-2">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-6 text-center space-y-2">
           <FileQuestion className="mx-auto text-on-surface-variant" size={28} />
           <p className="text-sm font-bold">보낼 퀴즈가 아직 없어요.</p>
           <p className="text-xs text-on-surface-variant">수업 도구의 퀴즈에서 먼저 퀴즈를 만들어 주세요.</p>
@@ -93,7 +93,7 @@ export default function SendQuizTab({ schools, teacherNames }: Props) {
           <div>
             <p className="text-xs font-black text-on-surface-variant mb-1.5">1. 보낼 퀴즈 고르기</p>
             <select value={quizId} onChange={e => { setQuizId(e.target.value); setMsg(null); }}
-              className="w-full max-w-md rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest">
+              className="w-full max-w-md rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest">
               <option value="">퀴즈를 선택하세요</option>
               {quizzes.map(q => <option key={q.id} value={q.id}>{q.title} ({q.count}문제{q.date ? ` · ${q.date} 생성` : ''})</option>)}
             </select>
@@ -106,7 +106,7 @@ export default function SendQuizTab({ schools, teacherNames }: Props) {
             ) : (
               <div className="space-y-3">
                 {bySchool.map(({ school, rows }) => (
-                  <div key={school.id} className="rounded-2xl border border-outline-variant/40 overflow-hidden">
+                  <div key={school.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <label className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-low cursor-pointer text-sm font-black">
                       <input type="checkbox" checked={rows.every(r => picked.has(r.id))} onChange={() => toggleSchool(rows)} />
                       {school.name} 전체 <span className="text-xs font-bold text-on-surface-variant">({rows.length}개 반)</span>

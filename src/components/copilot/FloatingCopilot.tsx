@@ -186,10 +186,10 @@ const FloatingCopilot = () => {
 
   const panel = open && (
     <div
-      className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-[400px] z-[9996] bg-surface-container-lowest border border-outline-variant/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+      className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-[400px] z-[9996] bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
       style={{ height: 'min(640px, 80dvh)' }}
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20 bg-primary/5">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-primary/5">
         <div className="flex items-center gap-2 min-w-0">
           <Bot size={18} className="text-primary shrink-0" />
           <div className="min-w-0">
@@ -224,7 +224,7 @@ const FloatingCopilot = () => {
                 <div className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm font-bold whitespace-pre-wrap break-words ${m.role === 'user' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface'}`}>
                   {m.text}
                   {m.action && (
-                    <div className="mt-3 rounded-xl bg-surface-container-lowest text-on-surface border border-outline-variant/30 p-3 space-y-2">
+                    <div className="mt-3 rounded-xl bg-surface-container-lowest text-on-surface border border-slate-200 dark:border-slate-700 p-3 space-y-2">
                       <p className="text-xs font-black text-primary">{ACTION_TITLE[m.action.marker]}</p>
                       <dl className="space-y-1">
                         {renderPayload(m.action).map(([k, v]) => (
@@ -268,7 +268,7 @@ const FloatingCopilot = () => {
       </div>
 
       {!blocked && ctx && (
-        <div className="p-3 border-t border-outline-variant/20 flex items-end gap-2">
+        <div className="p-3 border-t border-slate-200 dark:border-slate-700 flex items-end gap-2">
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}

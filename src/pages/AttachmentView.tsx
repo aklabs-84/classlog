@@ -9,7 +9,7 @@ export default function AttachmentView() {
   const [params] = useSearchParams();
   const path = params.get('path') ?? '';
   const name = params.get('name') || '첨부파일';
-  const valid = path.startsWith('material-attachments/') && !path.includes('..');
+  const valid = (path.startsWith('material-attachments/') || path.startsWith('program-materials/')) && !path.includes('..');
   const [html, setHtml] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 

@@ -141,7 +141,7 @@ function GuideModal({ projectId, reqs, subMap, onClose, onSaved }: {
                 const expanded = openId === r.id;
                 const locked = s?.status === 'approved';
                 return (
-                  <li key={r.id} className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest">
+                  <li key={r.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest">
                     <button className="w-full flex items-center gap-2 p-3 text-left" onClick={() => setOpenId(expanded ? null : r.id)}>
                       <span className="flex-1 min-w-0">
                         <span className="block text-sm font-bold">{r.title}{!r.required && <span className="ml-1 text-[11px] font-normal text-on-surface-variant">(선택)</span>}</span>
@@ -153,7 +153,7 @@ function GuideModal({ projectId, reqs, subMap, onClose, onSaved }: {
                       </span>
                     </button>
                     {expanded && (
-                      <div className="px-3 pb-3 space-y-3 border-t border-outline-variant/20 pt-3">
+                      <div className="px-3 pb-3 space-y-3 border-t border-slate-200 dark:border-slate-700 pt-3">
                         {r.description && <p className="text-xs text-on-surface-variant whitespace-pre-wrap">{r.description}</p>}
                         {s?.status === 'rejected' && s.review_note && (
                           <p className="text-xs font-bold text-red-600 bg-red-50 rounded-lg px-2.5 py-2">다시 내 주세요: {s.review_note}</p>
@@ -183,7 +183,7 @@ function GuideModal({ projectId, reqs, subMap, onClose, onSaved }: {
 
 const GUIDE_BOOKS = [
   { key: 'essential', title: '기본편', desc: '처음엔 이것만 보세요', file: '/guide/instructor-essential.pdf', tone: 'bg-primary/5 border-primary/20' },
-  { key: 'detail', title: '상세편', desc: '막힐 때 찾아보세요', file: '/guide/instructor-detail.pdf', tone: 'bg-surface-container border-outline-variant/40' },
+  { key: 'detail', title: '상세편', desc: '막힐 때 찾아보세요', file: '/guide/instructor-detail.pdf', tone: 'bg-surface-container border-slate-200 dark:border-slate-700' },
 ] as const;
 
 /** 클래스룸 사용 가이드(PDF 2권) — 앱 안에서 바로 펼쳐 본다 */
@@ -205,7 +205,7 @@ function GuideBooks() {
       {book && createPortal(
         <div className="fixed inset-0 z-[210] bg-black/60 flex items-center justify-center p-0 sm:p-4" onClick={() => setBook(null)}>
           <div className="bg-surface w-full h-full sm:max-w-5xl sm:h-[92vh] sm:rounded-3xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-outline-variant/30">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
               <h3 className="font-black text-base">{book.key === 'essential' ? '📘' : '📗'} 강사 가이드 · {book.title}</h3>
               <div className="flex items-center gap-3">
                 <a href={book.file} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-primary underline">
@@ -295,7 +295,7 @@ function SubmitForm({ projectId, req, sub, onDone }: { projectId: string; req: D
   return (
     <div className="space-y-3">
       {req.kind === 'contract_sign' && req.contract_path && (
-        <button onClick={() => openDocFile(req.contract_path!)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant text-sm font-bold">
+        <button onClick={() => openDocFile(req.contract_path!)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-bold">
           <FileText size={15} /> 계약서 읽어 보기 ({req.contract_name})
         </button>
       )}
@@ -309,7 +309,7 @@ function SubmitForm({ projectId, req, sub, onDone }: { projectId: string; req: D
       {needSign && (
         <>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="이름 (서명하는 분)" maxLength={30}
-            className="w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm bg-surface-container-lowest" />
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-3 py-2.5 text-sm bg-surface-container-lowest" />
           <SignaturePad ref={padRef} onChange={setHasInk} />
         </>
       )}

@@ -1280,8 +1280,8 @@ export default function SurveyTool() {
   if (view === 'builder') return (
     <div style={{ padding: 24, height: '100%', overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
-          <ArrowLeft size={16} /> 목록
+        <button onClick={() => setView('list')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 16px 8px 12px', cursor: 'pointer', color: '#1f2937', fontSize: 15, fontWeight: 600 }}>
+          <ArrowLeft size={14} /> 목록
         </button>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
@@ -1414,9 +1414,9 @@ export default function SurveyTool() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-3" style={{ marginBottom: 20 }}>
         <div className="flex items-center gap-3 sm:flex-1" style={{ minWidth: 0 }}>
           <button onClick={() => { setView('list'); channelRef.current?.unsubscribe(); }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, flexShrink: 0 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 16px 8px 12px', cursor: 'pointer', color: '#1f2937', fontSize: 15, fontWeight: 600, flexShrink: 0 }}
           >
-            <ArrowLeft size={16} /> 목록
+            <ArrowLeft size={14} /> 목록
           </button>
           <h2 className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 18, fontWeight: 'bold', color: '#111' }}>{selectedForm?.title}</h2>
         </div>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { supabase } from '../../lib/supabase';
 import { safeHttpUrl } from '../../lib/safeUrl';
-import { BookOpen, ChevronDown, ExternalLink, FileText, Loader2, Sparkles } from 'lucide-react';
+import { BookOpen, ChevronDown, Download, ExternalLink, Eye, FileText, Loader2, Sparkles } from 'lucide-react';
+import { getAttachmentDownloadUrl } from '../MaterialAttachments';
 
 interface Item {
   id: string;
@@ -12,11 +13,23 @@ interface Item {
   school_id: string | null;
   class_id: string | null;
   links: { label: string; url: string }[];
-  files: { name: string; url: string; size: number }[];
+  files: { name: string; url: string; size: number; path?: string }[];
   hub_apps: { id: string; name: string; url: string }[];
 }
 
-const formatSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
+const isHtmlFile = (name: string) => /\.html?$/i.test(name);
+
+// 저장소 안 경로: 저장돼 있으면 그대로, 없으면 공개 주소에서 뽑는다 (program-materials/ 아래 파일만 인정)
+const storagePathOf = (f: { url: string; path?: string }): string | null => {
+  let p = f.path;
+  if (!p) {
+    const m = (f.url || '').match(/\/student-attachments\/([^?#]+)/);
+    if (m) { try { p = decodeURIComponent(m[1]); } catch { p = undefined; } }
+  }
+  return p && p.startsWith('program-materials/') && !p.includes('..') ? p : null;
+};
+
+const formatSize =(b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`);
 
 // 담당 선생님 반 페이지: 프로젝트 관리자가 공개한 수업 자료(공통 + 우리 학교 전용)를 읽기 전용으로 보여준다
 export default function ProjectMaterialsForTeacher({ schoolId, classId }: { schoolId: string; classId?: string }) {
@@ -76,12 +89,29 @@ export default function ProjectMaterialsForTeacher({ schoolId, classId }: { scho
                       <ExternalLink size={12} className="shrink-0" /> <span className="truncate">{l.label || l.url}</span>
                     </a>
                   ))}
-                  {m.files.map((f, i) => (
-                    <a key={`f${i}`} href={safeHttpUrl(f.url)} target="_blank" rel="noopener noreferrer" download={f.name} className="flex items-center gap-1 text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg max-w-full">
-                      <FileText size={12} className="shrink-0" /> <span className="truncate">{f.name}</span>
-                      <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
-                    </a>
-                  ))}
+                  {m.files.map((f, i) => {
+                    const path = storagePathOf(f);
+                    if (isHtmlFile(f.name) && path) {
+                      // HTML 파일: 이름을 누르면 새 탭에서 실제 화면으로 열고, 옆 버튼으로 내려받는다
+                      return (
+                        <span key={`f${i}`} className="flex items-center max-w-full rounded-lg bg-surface-container overflow-hidden">
+                          <a href={`/attachment-view?path=${encodeURIComponent(path)}&name=${encodeURIComponent(f.name)}`} target="_blank" rel="noopener noreferrer" title="새 탭에서 화면으로 보기" className="flex items-center gap-1 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high px-3 py-1.5 min-w-0">
+                            <Eye size={12} className="shrink-0" /> <span className="truncate">{f.name}</span>
+                            <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
+                          </a>
+                          <a href={getAttachmentDownloadUrl(path, f.name)} title="다운로드" aria-label={`${f.name} 다운로드`} className="shrink-0 px-2.5 py-1.5 text-on-surface-variant hover:bg-surface-container-high border-l border-slate-200 dark:border-slate-700">
+                            <Download size={13} />
+                          </a>
+                        </span>
+                      );
+                    }
+                    return (
+                      <a key={`f${i}`} href={safeHttpUrl(f.url)} target="_blank" rel="noopener noreferrer" download={f.name} className="flex items-center gap-1 text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg max-w-full">
+                        <FileText size={12} className="shrink-0" /> <span className="truncate">{f.name}</span>
+                        <span className="text-on-surface-variant/50 shrink-0">{formatSize(f.size)}</span>
+                      </a>
+                    );
+                  })}
                 </div>
               )}
               {hasMemo && (

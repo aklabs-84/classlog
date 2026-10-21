@@ -860,14 +860,14 @@ const SubjectDashboard = ({
                                 if (selectedStatsWeek !== null) {
                                   const ws = getApprovalStatusForWeek(s.id, selectedStatsWeek);
                                   if (ws === 'none') return <span className="text-on-surface-variant/50 text-[14px] font-bold">—</span>;
-                                  if (ws === 'pending') return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-surface-container-lowest text-primary border-primary/60">승인 대기</span>;
-                                  if (ws === 'rejected') return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-red-50 text-red-600 border-red-200">반려됨</span>;
-                                  return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-primary-container text-primary border-primary/30">승인 완료</span>;
+                                  if (ws === 'pending') return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border whitespace-nowrap bg-surface-container-lowest text-primary border-primary/60">승인 대기</span>;
+                                  if (ws === 'rejected') return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border whitespace-nowrap bg-red-50 text-red-600 border-red-200">반려됨</span>;
+                                  return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border whitespace-nowrap bg-primary-container text-primary border-primary/30">승인 완료</span>;
                                 }
                                 if (s.status === '미작성') return <span className="text-on-surface-variant/50 text-[14px] font-bold">—</span>;
-                                if (s.pending_obs_ids?.length > 0) return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-surface-container-lowest text-primary border-primary/60">승인 대기</span>;
-                                if (s.has_rejected) return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-red-50 text-red-600 border-red-200">반려됨</span>;
-                                return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border bg-primary-container text-primary border-primary/30">승인 완료</span>;
+                                if (s.pending_obs_ids?.length > 0) return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border whitespace-nowrap bg-surface-container-lowest text-primary border-primary/60">승인 대기</span>;
+                                if (s.has_rejected) return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border whitespace-nowrap bg-red-50 text-red-600 border-red-200">반려됨</span>;
+                                return <span className="px-3 py-1 rounded-lg text-[14px] font-bold border whitespace-nowrap bg-primary-container text-primary border-primary/30">승인 완료</span>;
                               })()}
                             </td>
                           )}
