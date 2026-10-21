@@ -63,6 +63,7 @@ const SLASH_COMMANDS = [
   { icon: '☑', title: '학생 입력 · 체크 항목', description: '학생이 눌러 체크하는 [ ] 항목', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent('[ ] ').run() },
   { icon: '＿', title: '학생 입력 · 밑줄 빈칸', description: '"답: ______" 학생이 한 줄 입력하는 빈칸', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent('답: ______ ').run() },
   { icon: '▭', title: '학생 입력 · 넓은 칸', description: '화면 너비의 큰 칸에 학생이 길게 입력해요', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'paragraph', content: [{ type: 'text', text: '______' }] }).run() },
+  { icon: '＋', title: '학생 입력 · 더 쓰기 칸', description: '"답: ______ [+]" 학생이 버튼을 눌러 같은 칸을 더 늘려 써요', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent('답: ______ [+]').run() },
 ] as const;
 
 type SlashItem = { icon: string; title: string; description: string; command: (p: any) => void };

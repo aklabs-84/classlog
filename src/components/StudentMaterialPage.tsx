@@ -105,6 +105,7 @@ const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3, extra }: { fieldKe
         type="text"
         data-answer-field
         data-fkey={fieldKey}
+        data-fextra={extra ? '' : undefined}
         value={v}
         maxLength={2000}
         disabled={ctx.readOnly}
@@ -153,20 +154,21 @@ const TOKEN_RE = /(\[ \]|_{3,})/;
 const PLUS_RE = /\s*\[\+\]\s*$/;
 
 // 문자열 자식 안의 "[ ]"·"___"를 입력칸으로 바꾼다(이스케이프된 \[ \] , \___ 도 마크다운 처리 후엔 일반 글자)
-const renderInteractive = (children: ReactNode, baseKey: string): ReactNode => {
+const renderInteractive = (children: ReactNode, baseKey: string, extra = false): ReactNode => {
   let idx = 0;
   const arr = Children.toArray(children);
   // 밑줄만 한 줄에 홀로 있으면(예: 인용문 속 소감 칸) 문장 속 작은 칸이 아니라 화면 너비의 넓은 칸으로 만든다
   if (arr.length === 1 && typeof arr[0] === 'string' && /^\s*_{3,}\s*$/.test(arr[0])) {
-    return <AnswerText fieldKey={`${baseKey}:0`} rows={2} />;
+    return <AnswerText fieldKey={`${baseKey}:0`} rows={2} extra={extra} />;
   }
   return arr.map((c, i) => {
     if (typeof c !== 'string' || !TOKEN_RE.test(c)) return c;
     return (
       <Fragment key={`t${i}`}>
         {c.split(TOKEN_RE).map((part, j) => {
-          if (part === '[ ]') return <AnswerCheckbox key={j} fieldKey={`${baseKey}:${idx++}`} />;
-          if (/^_{3,}$/.test(part)) return <AnswerText key={j} inline blanks={part.length} fieldKey={`${baseKey}:${idx++}`} />;
+          // 늘린 줄(extra)에는 글 입력칸만 만든다(체크칸은 번호만 올리고 건너뜀)
+          if (part === '[ ]') { const k = `${baseKey}:${idx++}`; return extra ? null : <AnswerCheckbox key={j} fieldKey={k} />; }
+          if (/^_{3,}$/.test(part)) return <AnswerText key={j} inline blanks={part.length} extra={extra} fieldKey={`${baseKey}:${idx++}`} />;
           return part;
         })}
       </Fragment>
@@ -196,7 +198,46 @@ const buildAnswerComponents = (base: any) => {
   const withTokens = (tag: string) => (props: any, _ctx: AnswerCtx, key: string) =>
     ({ ...props, children: renderInteractive(props.children, `${tag}${key}`) });
 
-  const P = wrap('p', withTokens('p'));
+  const PlainP = wrap('p', withTokens('p'));
+  const BaseP = base?.p ?? 'p';
+  const endsWithPlus = (children: ReactNode) => {
+    const arr = Children.toArray(children);
+    const last = arr[arr.length - 1];
+    return typeof last === 'string' && PLUS_RE.test(last);
+  };
+  // 문단이 "…[+]"로 끝나면(예: 답: ______ [+]) 같은 모양의 입력 줄을 아래에 더 붙일 수 있다
+  const PlusPara = ({ props, rowKey, ctx }: { props: any; rowKey: string; ctx: AnswerCtx }) => {
+    const [added, setAdded] = useState(0);
+    const firstKey = `p${rowKey}:0`;
+    useEffect(() => { setAdded(a => Math.max(a, ctx.extraCount?.(firstKey) ?? 0)); }, [ctx, firstKey]);
+    useLayoutEffect(() => { if (added > 0) ctx.remap?.(); }, [added]); // eslint-disable-line react-hooks/exhaustive-deps
+    const stripped = stripPlus(props.children);
+    return (
+      <>
+        <div data-frow={rowKey}>
+          {createElement(BaseP, { ...props, children: renderInteractive(stripped, `p${rowKey}`) })}
+        </div>
+        {Array.from({ length: added }, (_, k) => k + 1).map(n => (
+          <Fragment key={n}>
+            {createElement(BaseP, { ...props, children: renderInteractive(stripped, `pdx${rowKey}_${n}`, true) })}
+          </Fragment>
+        ))}
+        {!ctx.readOnly && ctx.remap && (
+          <button type="button" onClick={() => setAdded(a => a + 1)}
+            className="block w-full text-center text-sm font-bold text-primary border-2 border-dashed border-primary/40 rounded-lg px-3 py-2 my-2 hover:bg-primary/5">
+            ＋ 더 쓰기
+          </button>
+        )}
+      </>
+    );
+  };
+  const P = (props: any) => {
+    const ctx = useContext(AnswerContext);
+    const inNote = useContext(InTeacherNoteContext);
+    const rowKey = posKey(props.node);
+    if (ctx && rowKey && !inNote && endsWithPlus(props.children)) return <PlusPara props={props} rowKey={rowKey} ctx={ctx} />;
+    return <PlainP {...props} />;
+  };
   const Td = wrap('td', (props, _ctx, key) =>
     isBlankCell(props.children)
       ? { ...props, children: <AnswerText fieldKey={`td${key}`} /> }
@@ -208,13 +249,26 @@ const buildAnswerComponents = (base: any) => {
   const stripPlus = (children: ReactNode) =>
     Children.toArray(children).map(c => (typeof c === 'string' ? c.replace(PLUS_RE, '') : c));
   const PlusRow = ({ props, cells, plusIdx, rowKey, ctx }: { props: any; cells: any[]; plusIdx: number; rowKey: string; ctx: AnswerCtx }) => {
-    const firstBlank = cells.find(c => isBlankCell(c.props.children));
-    const firstKey = `td${posKey(firstBlank.props.node)}`;
+    const label = textOf(cells[plusIdx].props.children).replace(PLUS_RE, '').trim();
+    // "[+]"만 적은(이름이 없는) 경우, 그 왼쪽의 첫 빈 칸은 "번호 칸": 윗줄 번호 + 1로 자동 채우고 입력칸으로 만들지 않는다
+    const numIdx = label ? -1 : cells.findIndex((c, i) => i < plusIdx && isBlankCell(c.props.children));
+    // 입력칸이 되는 칸 = 번호 칸이 아닌 빈 칸 + (이름 없는 "[+]" 칸 자신)
+    const isInputCell = (c: any, i: number) => i !== numIdx && (i === plusIdx ? !label : isBlankCell(c.props.children));
+    const firstKey = `td${posKey(cells[cells.findIndex(isInputCell)].props.node)}`;
     const [added, setAdded] = useState(0);
+    const [startNum, setStartNum] = useState<number | null>(null);
     useEffect(() => { setAdded(a => Math.max(a, ctx.extraCount?.(firstKey) ?? 0)); }, [ctx, firstKey]);
     useLayoutEffect(() => { if (added > 0) ctx.remap?.(); }, [added]); // eslint-disable-line react-hooks/exhaustive-deps
-    const label = textOf(cells[plusIdx].props.children).replace(PLUS_RE, '').trim();
-    const shown = cells.map((c, i) => (i === plusIdx ? cloneElement(c, { children: stripPlus(c.props.children) }) : c));
+    useLayoutEffect(() => {
+      if (numIdx < 0) return;
+      const prev = document.querySelector(`tr[data-frow="${rowKey}"]`)?.previousElementSibling;
+      const m = /(\d+)\s*$/.exec((prev?.children[numIdx]?.textContent ?? '').trim());
+      setStartNum(m ? Number(m[1]) + 1 : 1);
+    }, [numIdx, rowKey]);
+    const shown = cells.map((c, i) => {
+      if (i === numIdx) return cloneElement(c, { children: <span className="font-semibold">{startNum ?? ''}</span> });
+      return i === plusIdx ? cloneElement(c, { children: stripPlus(c.props.children) }) : c;
+    });
     return (
       <>
         <BaseTr {...props} data-frow={rowKey}>{shown}</BaseTr>
@@ -222,9 +276,11 @@ const buildAnswerComponents = (base: any) => {
           <BaseTr key={n}>
             {cells.map((c, i) => (
               <BaseTd key={i}>
-                {isBlankCell(c.props.children)
-                  ? <AnswerText extra fieldKey={`tdx${rowKey}_${n}_${i}`} />
-                  : i === plusIdx ? `${label} ${n + 1}` : null}
+                {i === numIdx
+                  ? <span className="font-semibold">{(startNum ?? 1) + n}</span>
+                  : isInputCell(c, i)
+                    ? <AnswerText extra fieldKey={`tdx${rowKey}_${n}_${i}`} />
+                    : i === plusIdx ? `${label} ${n + 1}` : null}
               </BaseTd>
             ))}
           </BaseTr>
@@ -233,7 +289,7 @@ const buildAnswerComponents = (base: any) => {
           <BaseTr>
             <BaseTd colSpan={cells.length}>
               <button type="button" onClick={() => setAdded(a => a + 1)}
-                className="text-sm font-bold text-primary border-2 border-dashed border-primary/40 rounded-lg px-3 py-1 hover:bg-primary/5">
+                className="block w-full text-center text-sm font-bold text-primary border-2 border-dashed border-primary/40 rounded-lg px-3 py-2 hover:bg-primary/5">
                 ＋ {label || '줄'} 더 쓰기
               </button>
             </BaseTd>
@@ -249,7 +305,9 @@ const buildAnswerComponents = (base: any) => {
     if (!ctx || !rowKey || inNote) return createElement(BaseTr, props);
     const cells = Children.toArray(props.children).filter(isValidElement) as any[];
     const plusIdx = cells.findIndex(c => PLUS_RE.test(textOf(c.props.children)));
-    if (plusIdx < 0 || !cells.some(c => isBlankCell(c.props.children))) return createElement(BaseTr, props);
+    if (plusIdx < 0) return createElement(BaseTr, props);
+    const named = !!textOf(cells[plusIdx].props.children).replace(PLUS_RE, '').trim();
+    if (named && !cells.some(c => isBlankCell(c.props.children))) return createElement(BaseTr, props);
     return <PlusRow props={props} cells={cells} plusIdx={plusIdx} rowKey={rowKey} ctx={ctx} />;
   };
   const LiInner = (props: any) => {
@@ -535,8 +593,8 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
     els.forEach(el => {
       const k = el.getAttribute('data-fkey');
       if (!k || !el.hasAttribute('data-fextra')) return;
-      const m = /^tdx(.+)_(\d+)_(\d+)$/.exec(k);
-      const baseEl = m && root.querySelector(`tr[data-frow="${m[1]}"] [data-fkey]:not([data-fextra])`);
+      const m = /^tdx(.+)_(\d+)_(\d+)$/.exec(k) ?? /^pdx(.+)_(\d+):(\d+)$/.exec(k);
+      const baseEl = m && root.querySelector(`[data-frow="${m[1]}"] [data-fkey]:not([data-fextra])`);
       const base = baseEl && next.get(baseEl.getAttribute('data-fkey') || '');
       next.set(k, m && base ? `${base}+${m[2]}.${m[3]}` : k);
     });
