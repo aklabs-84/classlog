@@ -34,6 +34,7 @@ import {
   GraduationCap,
   MessageCircle,
 } from 'lucide-react';
+import { appToast } from '../lib/appDialog';
 
 const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 
@@ -294,7 +295,7 @@ const Settings = () => {
     if (!file || !user) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('이미지 파일만 업로드 가능합니다.');
+      appToast('이미지 파일만 업로드 가능합니다.');
       return;
     }
 
@@ -324,7 +325,7 @@ const Settings = () => {
       setEditForm(prev => ({ ...prev, avatar_url: publicUrl }));
       
     } catch (error: any) {
-      alert('이미지 업로드 중 오류가 발생했습니다: ' + error.message);
+      appToast('이미지 업로드 중 오류가 발생했습니다: ' + error.message);
     } finally {
       setIsUploading(false);
     }
@@ -332,7 +333,7 @@ const Settings = () => {
 
   const handleSave = async () => {
     const nameErr = validateRealName(editForm.full_name) || validateNickname(editForm.nickname);
-    if (nameErr) { alert(nameErr); return; }
+    if (nameErr) { appToast(nameErr); return; }
     setIsSaving(true);
     try {
       const { error } = await supabase
@@ -352,9 +353,9 @@ const Settings = () => {
       
       await refreshProfile();
       setIsEditing(false);
-      alert('프로필이 성공적으로 업데이트되었습니다.');
+      appToast('프로필이 성공적으로 업데이트되었습니다.');
     } catch (error: any) {
-      alert('저장 중 오류가 발생했습니다: ' + error.message);
+      appToast('저장 중 오류가 발생했습니다: ' + error.message);
     } finally {
       setIsSaving(false);
     }

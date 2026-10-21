@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { motion } from 'framer-motion';
 import { X, BookOpen, Lightbulb, Check } from 'lucide-react';
+import { appToast } from '../../lib/appDialog';
 
 interface FormConfig {
   self_eval: boolean;
@@ -74,7 +75,7 @@ const UnitCreateModal = ({ classId, teacherId, onClose, onCreated, editUnit }: P
 
   const handleSave = async () => {
     if (!title.trim()) {
-      alert('단원 제목을 입력하세요.');
+      appToast('단원 제목을 입력하세요.');
       return;
     }
     setSaving(true);
@@ -102,7 +103,7 @@ const UnitCreateModal = ({ classId, teacherId, onClose, onCreated, editUnit }: P
       onCreated();
       onClose();
     } catch (err: any) {
-      alert('저장 중 오류: ' + err.message);
+      appToast('저장 중 오류: ' + err.message);
     } finally {
       setSaving(false);
     }

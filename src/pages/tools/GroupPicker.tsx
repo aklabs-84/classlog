@@ -12,6 +12,7 @@ import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
 import { regenerateClassGroups } from '../../lib/groupRegenerate';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 interface Student {
   id: string;
@@ -371,7 +372,7 @@ const GroupPicker = () => {
 
   const handleApplyToClass = async () => {
     if (!loadedClassId || groups.length === 0) return;
-    if (!confirm(`"${loadedClassName}" 클래스의 조 편성을 현재 결과로 교체할까요? (같은 이름의 조는 유지되고, 이전 제출 기록은 그대로 보존됩니다)`)) return;
+    if (!await appConfirm(`"${loadedClassName}" 클래스의 조 편성을 현재 결과로 교체할까요? (같은 이름의 조는 유지되고, 이전 제출 기록은 그대로 보존됩니다)`)) return;
 
     setApplyLoading(true);
 
@@ -1060,7 +1061,7 @@ const SavedGroupPicker = ({ userId }: { userId: string }) => {
       : savedGroups;
 
     if (pool.length === 0) {
-      alert('모든 조가 이미 뽑혔습니다. 초기화 후 다시 시도하세요.');
+      appToast('모든 조가 이미 뽑혔습니다. 초기화 후 다시 시도하세요.');
       return;
     }
 

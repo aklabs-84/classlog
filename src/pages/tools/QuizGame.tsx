@@ -21,6 +21,7 @@ import { YouTubeEmbed, parseYouTubeId } from '../../components/quiz/YouTubeEmbed
 import { uploadQuizAudio } from '../../components/quiz/audioUpload';
 import { getResultMedia } from '../../components/quiz/resultMedia';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import { appConfirm } from '../../lib/appDialog';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -546,7 +547,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
 
   // 퀴즈 세트 삭제
   const handleDeleteQuizSet = async (id: string, title: string) => {
-    if (!window.confirm(`"${title}" 퀴즈 세트를 삭제할까요?\n포함된 모든 문제도 함께 삭제됩니다.`)) return;
+    if (!await appConfirm(`"${title}" 퀴즈 세트를 삭제할까요?\n포함된 모든 문제도 함께 삭제됩니다.`)) return;
     await supabase.from('quiz_questions').delete().eq('quiz_set_id', id);
     await supabase.from('quiz_sets').delete().eq('id', id);
     setQuizSets(prev => prev.filter(qs => qs.id !== id));

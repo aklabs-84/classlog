@@ -29,6 +29,7 @@ import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
 import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS, generateSeatukDraft } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 import AiCreditCost from '../components/common/AiCreditCost';
+import { appToast } from '../lib/appDialog';
 
 
 type HistoryEntry = { label: string; content: string; createdAt: string };
@@ -323,7 +324,7 @@ ${obsText}
         .map(s => ({ id: s.id, full_name: s.full_name }));
 
       if (studentList.length === 0) {
-        alert('생성할 학생을 1명 이상 선택해주세요.');
+        appToast('생성할 학생을 1명 이상 선택해주세요.');
         setIsGenerating(false);
         return;
       }
@@ -358,7 +359,7 @@ ${obsText}
       // 관찰기록 있는 학생만
       const targetStudents = studentList.filter(s => obsByStudent[s.id].length > 0);
       if (targetStudents.length === 0) {
-        alert('관찰 기록이 있는 학생이 없습니다.');
+        appToast('관찰 기록이 있는 학생이 없습니다.');
         setIsGenerating(false);
         return;
       }
@@ -422,7 +423,7 @@ ${obsText}
     } catch (err: any) {
       console.error(err);
       aiGenStore.error();
-      alert(err?.message || 'AI 초안 생성 중 오류가 발생했습니다.');
+      appToast(err?.message || 'AI 초안 생성 중 오류가 발생했습니다.');
     } finally {
       setIsGenerating(false);
       setGeneratingName('');
@@ -464,7 +465,7 @@ ${obsText}
     } catch (err: any) {
       console.error(err);
       aiGenStore.endRefine(true);
-      alert(err?.message || 'AI 다듬기 중 오류가 발생했습니다.');
+      appToast(err?.message || 'AI 다듬기 중 오류가 발생했습니다.');
     } finally {
       setIsGenerating(false);
     }
@@ -565,7 +566,7 @@ ${obsText}
       const reset = [...draftResults];
       reset[index] = { ...draft, isSharing: false };
       setDraftResults(reset);
-      alert('공유 링크 생성 중 오류가 발생했습니다.');
+      appToast('공유 링크 생성 중 오류가 발생했습니다.');
     }
   };
 

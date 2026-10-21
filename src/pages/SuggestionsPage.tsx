@@ -7,6 +7,7 @@ import {
   MessageSquare, CheckCircle2, Filter, ArrowLeft, Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { appConfirm } from '../lib/appDialog';
 
 type Suggestion = {
   id: string;
@@ -103,7 +104,7 @@ const SuggestionsPage = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('이 질문·건의 내용을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.')) return;
+    if (!await appConfirm('이 질문·건의 내용을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.')) return;
     setDeletingId(id);
     const { error } = await supabase
       .from('student_suggestions')

@@ -1,4 +1,5 @@
 import { useEffect, lazy, Suspense } from 'react';
+import { AppDialogHost } from './lib/appDialog';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, isAnonymousUser } from './lib/auth';
 import { supabase } from './lib/supabase';
@@ -204,7 +205,7 @@ const IdleWarningModal = () => {
         <div className="space-y-2">
           <h2 className="text-xl font-black text-gray-900 font-manrope">자리를 비우셨나요?</h2>
           <p className="text-sm text-gray-500 leading-relaxed">
-            30분간 활동이 없어<br />
+            6시간 동안 활동이 없어<br />
             보안을 위해 자동 로그아웃됩니다.
           </p>
         </div>
@@ -246,6 +247,7 @@ function App() {
         </div>
 
         <BrowserRouter>
+          <AppDialogHost />
           <FloatingClassAlarm />
           <DemoTourOverlay />
           <DemoSpotlightTour />

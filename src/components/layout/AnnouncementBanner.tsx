@@ -53,7 +53,7 @@ const AnnouncementBanner = () => {
           transition={{ duration: 0.25 }}
           className="overflow-hidden"
         >
-          <div className="bg-amber-500 text-white px-4 md:px-8">
+          <div className="bg-blue-600 text-white px-4 md:px-8">
             {/* 헤더 행 */}
             <div className="flex items-center gap-3 py-2.5">
               <Bell size={14} className="shrink-0" />
@@ -87,7 +87,7 @@ const AnnouncementBanner = () => {
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  <div className="pb-3 pt-1 text-sm text-amber-100 leading-relaxed whitespace-pre-wrap border-t border-white/20 pt-2">
+                  <div className="pb-3 pt-1 text-sm text-blue-100 leading-relaxed whitespace-pre-wrap border-t border-white/20 pt-2">
                     {ann.content}
                   </div>
                 </motion.div>

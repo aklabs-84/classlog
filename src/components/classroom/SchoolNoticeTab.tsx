@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Loader2, Save, Copy, Check, RotateCcw } from 'lucide-react';
+import { appConfirm } from '../../lib/appDialog';
 
 type MsgKey = 'docs' | 'before' | 'after';
 interface SavedMsg { text: string; base: string }
@@ -164,7 +165,7 @@ export default function SchoolNoticeTab({ projectId, schoolId, schoolName, start
     persist({ ...info, messages: { ...info.messages, [active]: { text: draft[active], base: generated[active] } } }, '최종 문구를 저장했어요.');
 
   const regenerate = async () => {
-    if ((edited || dirty) && !confirm('직접 고친 문구가 사라지고 수첩 내용으로 새로 만들어져요. 계속할까요?')) return;
+    if ((edited || dirty) && !await appConfirm('직접 고친 문구가 사라지고 수첩 내용으로 새로 만들어져요. 계속할까요?')) return;
     const nextMsgs = { ...info.messages };
     delete nextMsgs[active];
     await persist({ ...info, messages: nextMsgs }, '새 문구로 다시 만들었어요.');

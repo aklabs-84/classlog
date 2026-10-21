@@ -45,6 +45,7 @@ import SchoolNoticeTab from '../components/classroom/SchoolNoticeTab';
 import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyTab';
+import { appConfirm } from '../lib/appDialog';
 
 interface TeachingClass {
   id: string;
@@ -529,7 +530,7 @@ const SchoolProjectDetailPage = () => {
     if (target?.assigned_teacher_id && target.assigned_teacher_id !== teacherId) {
       const oldName = target.teacherName ? `${target.teacherName} 선생님` : '기존 강사';
       const newName = newTeacherName ? `${newTeacherName} 선생님` : '선택한 강사';
-      if (!confirm(`'${target.name}' 반에는 이미 ${oldName}이 배정되어 있습니다.\n${newName}으로 교체하면 ${oldName}은 이 반에서 빠집니다.\n\n그래도 교체하시겠습니까?`)) return;
+      if (!await appConfirm(`'${target.name}' 반에는 이미 ${oldName}이 배정되어 있습니다.\n${newName}으로 교체하면 ${oldName}은 이 반에서 빠집니다.\n\n그래도 교체하시겠습니까?`)) return;
     }
     const { error } = await supabase.rpc('assign_teacher_to_subclass', {
       p_class_id: classId,
@@ -543,7 +544,7 @@ const SchoolProjectDetailPage = () => {
 
   const handleRemoveTeacher = async (c: TeachingClass) => {
     if (!c.assigned_teacher_id) return;
-    if (!confirm(`'${c.name}' 반의 담당 강사(${c.teacherName || '선생님'})를 배정 해제할까요?`)) return;
+    if (!await appConfirm(`'${c.name}' 반의 담당 강사(${c.teacherName || '선생님'})를 배정 해제할까요?`)) return;
     await supabase.rpc('remove_teacher_from_subclass', { p_class_id: c.id, p_teacher_id: c.assigned_teacher_id });
     fetchData();
   };

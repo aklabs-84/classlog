@@ -5,8 +5,8 @@ import type { User, Session, RealtimeChannel } from '@supabase/supabase-js';
 import { useIdleTimeout } from '../hooks/useIdleTimeout';
 import { FREE_MONTHLY_CREDITS, creditPriceOf } from './aiCredits';
 
-const IDLE_MS = 29 * 60 * 1000;   // 29분 무활동 → 경고
-const WARNING_MS = 60 * 1000;      // 1분 카운트다운 → 자동 로그아웃
+const IDLE_MS = (6 * 60 - 1) * 60 * 1000;   // 5시간 59분 무활동 → 경고 (수업 중 끊김 방지로 30분 → 6시간)
+const WARNING_MS = 60 * 1000;                // 1분 카운트다운 → 자동 로그아웃 (합계 6시간)
 
 interface ReferralNotice {
   type: 'success' | 'error';

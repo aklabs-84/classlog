@@ -8,6 +8,7 @@ import AiServiceLinkPicker from '../AiServiceLinkPicker';
 import { BookOpen, ChevronDown, Download, ExternalLink, Eye, EyeOff, FileText, Link2, Loader2, Paperclip, Pencil, Plus, Sparkles, Trash2, X, AlertTriangle } from 'lucide-react';
 
 import { safeHttpUrl, isUuid } from '../../lib/safeUrl';
+import { appToast } from '../../lib/appDialog';
 
 const MAX_FILE_MB = 20;
 // 올릴 수 있는 파일 종류 (html 샘플은 허용, 스크립트·css 같은 실행 파일은 막는다)
@@ -167,12 +168,12 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
     if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      appToast('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
       throw new Error('파일 크기 초과');
     }
     const compressed = await compressToWebP(file);
     if (compressed.size > MAX_FILE_MB * 1024 * 1024) {
-      alert(`변환 후에도 ${MAX_FILE_MB}MB를 초과합니다. 더 작은 이미지를 사용해주세요.`);
+      appToast(`변환 후에도 ${MAX_FILE_MB}MB를 초과합니다. 더 작은 이미지를 사용해주세요.`);
       throw new Error('파일 크기 초과');
     }
     const path = `program-materials/${user.id}/${Date.now()}.webp`;
@@ -248,7 +249,7 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
             school_id: schoolId,
             admin_id: user.id,
           });
-      if (error) { alert('저장에 실패했습니다: ' + error.message); return; }
+      if (error) { appToast('저장에 실패했습니다: ' + error.message); return; }
       if (removedPaths.length > 0) await supabase.storage.from('student-attachments').remove(removedPaths);
       setNewPaths([]); setRemovedPaths([]);
       setModalOpen(false);
@@ -260,14 +261,14 @@ export default function SchoolMaterialsTab({ projectId, schoolId, schoolName = '
 
   const handleTogglePublish = async (m: Material) => {
     const { error } = await supabase.from('program_materials').update({ is_published: !m.is_published }).eq('id', m.id);
-    if (error) { alert('공개 설정을 바꾸지 못했습니다: ' + error.message); return; }
+    if (error) { appToast('공개 설정을 바꾸지 못했습니다: ' + error.message); return; }
     setMaterials(prev => prev.map(x => x.id === m.id ? { ...x, is_published: !x.is_published } : x));
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const { error } = await supabase.from('program_materials').delete().eq('id', deleteTarget.id);
-    if (error) { alert('삭제하지 못했습니다: ' + error.message); return; }
+    if (error) { appToast('삭제하지 못했습니다: ' + error.message); return; }
     if (deleteTarget.files.length > 0) {
       // 다른 관리자가 올린 파일은 권한상 지워지지 않을 수 있다(자료 자체는 이미 삭제됨)
       await supabase.storage.from('student-attachments').remove(deleteTarget.files.map(f => f.path));

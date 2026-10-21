@@ -36,6 +36,7 @@ import {
 import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 interface SubjectDashboardProps {
   classInfo: any;
@@ -132,7 +133,7 @@ const SubjectDashboard = ({
   };
 
   const handleDashboardDeleteGroup = async (groupId: string) => {
-    if (!confirm('이 결과물을 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 결과물을 삭제하시겠습니까?')) return;
     setResultProcessingGroupId(groupId);
     try {
       const groupItems = resultDetailItems.filter((r: any) => (r.submission_group || r.id) === groupId);
@@ -147,7 +148,7 @@ const SubjectDashboard = ({
         await supabase.from('student_results').delete().eq('id', groupId);
       }
       setResultDetailItems(prev => prev.filter((r: any) => (r.submission_group || r.id) !== groupId));
-    } catch { alert('삭제 중 오류가 발생했습니다.'); }
+    } catch { appToast('삭제 중 오류가 발생했습니다.'); }
     finally { setResultProcessingGroupId(null); }
   };
 
@@ -178,7 +179,7 @@ const SubjectDashboard = ({
       }
       setResultRejectModal(null);
       setResultRejectFeedback('');
-    } catch { alert('처리 중 오류가 발생했습니다.'); }
+    } catch { appToast('처리 중 오류가 발생했습니다.'); }
     finally { setResultProcessingGroupId(null); }
   };
   const [pinPopupId, setPinPopupId] = useState<string | null>(null);

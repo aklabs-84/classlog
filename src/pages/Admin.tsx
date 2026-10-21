@@ -12,6 +12,7 @@ import {
   Shuffle, DollarSign, Cpu, Layers, X, ChevronRight, Activity,
   ArrowUpDown, LogIn, ChevronUp, ChevronDown, Calculator, Sparkles,
 } from 'lucide-react';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -253,6 +254,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
 // ── AI Feature Labels ──────────────────────────────────────────────────────────
 
 const FEATURE_LABELS: Record<string, string> = {
+  form_map:               '서식 칸 짝짓기',
   seatuk_draft:           '세특 초안',
   seatuk_refine:          '세특 다듬기',
   seatuk_compress:        '세특 압축',
@@ -282,7 +284,7 @@ const FEATURE_LABELS: Record<string, string> = {
 // ── CSV Helper ─────────────────────────────────────────────────────────────────
 
 const downloadCSV = (data: any[], filename: string) => {
-  if (!data.length) { alert('내보낼 데이터가 없습니다.'); return; }
+  if (!data.length) { appToast('내보낼 데이터가 없습니다.'); return; }
   const headers = Object.keys(data[0]);
   const rows = data.map(row =>
     headers.map(h => {
@@ -984,12 +986,12 @@ const Admin = () => {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(`삭제 실패: ${data.error}`);
+        appToast(`삭제 실패: ${data.error}`);
         return;
       }
       setUsers(prev => prev.filter(u => u.id !== userId));
     } catch {
-      alert('삭제 중 오류가 발생했습니다.');
+      appToast('삭제 중 오류가 발생했습니다.');
     } finally {
       setUserDeleting(null);
       setUserDeleteConfirm(null);
@@ -1129,7 +1131,7 @@ const Admin = () => {
           await inviteAndLinkApplication(id, app.name, app.email);
           setInstructorApplications(prev => prev.filter(a => a.id !== id));
         } catch (e: any) {
-          alert(`자동 계정 생성에 실패했습니다: ${e.message}\n지원서는 "승인" 상태로 남기고, 목록 아래에서 이메일을 다시 확인해 수동으로 연결해주세요.`);
+          appToast(`자동 계정 생성에 실패했습니다: ${e.message}\n지원서는 "승인" 상태로 남기고, 목록 아래에서 이메일을 다시 확인해 수동으로 연결해주세요.`);
           await supabase
             .from('instructor_applications')
             .update({ status: 'approved', reviewed_at: new Date().toISOString() })
@@ -1184,7 +1186,7 @@ const Admin = () => {
       await inviteAndLinkApplication(appId, app.name, email);
       setInstructorApplications(prev => prev.filter(a => a.id !== appId));
     } catch (e: any) {
-      alert(`계정 생성 실패: ${e.message}`);
+      appToast(`계정 생성 실패: ${e.message}`);
     } finally {
       setLinkBusyId(null);
     }
@@ -1489,7 +1491,7 @@ const Admin = () => {
   };
 
   const deleteRequest = async (id: string) => {
-    if (!window.confirm('이 신청 내역을 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 신청 내역을 삭제하시겠습니까?')) return;
     const { error } = await supabase.from('access_requests').delete().eq('id', id);
     if (!error) setRequests(prev => prev.filter(r => r.id !== id));
   };
@@ -1563,9 +1565,9 @@ const Admin = () => {
       p_plan: plan,
     });
     if (error) {
-      alert(`플랜 변경 실패: ${error.message}`);
+      appToast(`플랜 변경 실패: ${error.message}`);
     } else if (data?.error) {
-      alert(`플랜 변경 실패: ${data.error}`);
+      appToast(`플랜 변경 실패: ${data.error}`);
     } else {
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan, is_admin: plan === 'admin' } : u));
     }
@@ -1577,7 +1579,7 @@ const Admin = () => {
     setDeleting(true);
     const { data, error } = await supabase.from(deleteTarget.table).delete().eq('id', deleteTarget.id).select('id');
     if (error || !data || data.length === 0) {
-      alert(`삭제 실패: ${error?.message || '삭제 권한이 없거나 이미 삭제된 항목입니다.'}`);
+      appToast(`삭제 실패: ${error?.message || '삭제 권한이 없거나 이미 삭제된 항목입니다.'}`);
       setDeleting(false);
       return;
     }
@@ -1621,7 +1623,7 @@ const Admin = () => {
         }).catch(() => {});
       });
     } else {
-      alert('공지사항 저장 실패. announcements 테이블이 생성되어 있는지 확인해주세요.');
+      appToast('공지사항 저장 실패. announcements 테이블이 생성되어 있는지 확인해주세요.');
     }
     setAnnSaving(false);
   };
@@ -1631,7 +1633,7 @@ const Admin = () => {
     const { error } = await supabase.from('announcements').update({ is_active: next }).eq('id', id);
     if (error) {
       setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, is_active: !next } : a));
-      alert('상태 변경 실패');
+      appToast('상태 변경 실패');
     }
   };
 
@@ -2908,7 +2910,7 @@ const Admin = () => {
                                   await inviteAndLinkApplication(app.id, app.name, app.email!);
                                   setInstructorApplications(prev => prev.filter(a => a.id !== app.id));
                                 } catch (e: any) {
-                                  alert(`계정 생성 실패: ${e.message}`);
+                                  appToast(`계정 생성 실패: ${e.message}`);
                                 } finally {
                                   setLinkBusyId(null);
                                 }
@@ -4090,7 +4092,7 @@ function VideoGuidesTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('삭제하시겠습니까?')) return;
+    if (!await appConfirm('삭제하시겠습니까?')) return;
     await supabase.from('video_guides').delete().eq('id', id);
     setVideos(prev => prev.filter(v => v.id !== id));
   };

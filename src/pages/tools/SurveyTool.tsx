@@ -15,6 +15,7 @@ import { surveyAnalysisAI } from '../../lib/gemini';
 import LimitToast, { useLimitToast } from '../../components/ui/LimitToast';
 import AiCreditCost from '../../components/common/AiCreditCost';
 import { SURVEY_TEMPLATES, type SurveyTemplate } from './surveyTemplates';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
@@ -772,7 +773,7 @@ export default function SurveyTool() {
       );
       if (qError) {
         await supabase.from('survey_forms').delete().eq('id', data.id);
-        alert('공통 설문을 만드는 중 오류가 발생했습니다.');
+        appToast('공통 설문을 만드는 중 오류가 발생했습니다.');
         return;
       }
     }
@@ -903,7 +904,7 @@ export default function SurveyTool() {
     const { data: responses } = await supabase
       .from('survey_responses').select('id, respondent_name, submitted_at')
       .eq('form_id', selectedForm.id).order('submitted_at');
-    if (!responses || responses.length === 0) { alert('아직 응답이 없습니다.'); return; }
+    if (!responses || responses.length === 0) { appToast('아직 응답이 없습니다.'); return; }
 
     const headers = ['응답자', '제출시간', ...questions.map((q, i) => `Q${i + 1}: ${q.text}`)];
     const rows = responses.map(resp => {
@@ -941,7 +942,7 @@ export default function SurveyTool() {
 
   // ── 설문 삭제 ─────────────────────────────────────────────────────────────
   const handleDeleteForm = async (formId: string) => {
-    if (!confirm('이 설문을 삭제할까요?')) return;
+    if (!await appConfirm('이 설문을 삭제할까요?')) return;
     await supabase.from('survey_forms').delete().eq('id', formId);
     setSurveyForms(prev => prev.filter(f => f.id !== formId));
   };
@@ -970,7 +971,7 @@ export default function SurveyTool() {
       is_anonymous: copyingForm.is_anonymous,
       redirect_url: copyingForm.redirect_url,
     }).select().single();
-    if (error || !newForm) { setIsCopying(false); alert('복사 중 오류가 발생했습니다.'); return; }
+    if (error || !newForm) { setIsCopying(false); appToast('복사 중 오류가 발생했습니다.'); return; }
 
     const { data: srcQuestions } = await supabase.from('survey_questions')
       .select('*').eq('form_id', copyingForm.id).order('order_index');
@@ -992,13 +993,13 @@ export default function SurveyTool() {
     setIsCopying(false);
     setCopyingForm(null);
     setCopyTargetClassId('');
-    alert(`"${newForm.title}" 설문이 복사되었습니다.`);
+    appToast(`"${newForm.title}" 설문이 복사되었습니다.`);
   };
 
   // ── 결과 초기화 ───────────────────────────────────────────────────────────
   const handleResetResults = async () => {
     if (!selectedForm) return;
-    if (!confirm(`"${selectedForm.title}" 설문의 모든 응답을 초기화할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    if (!await appConfirm(`"${selectedForm.title}" 설문의 모든 응답을 초기화할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
 
     const { error: answersError } = await supabase
       .from('survey_answers').delete().eq('form_id', selectedForm.id);
@@ -1006,7 +1007,7 @@ export default function SurveyTool() {
       .from('survey_responses').delete().eq('form_id', selectedForm.id);
 
     if (answersError || responsesError) {
-      alert('초기화 중 오류가 발생했습니다. Supabase에 DELETE 정책이 설정되어 있는지 확인하세요.');
+      appToast('초기화 중 오류가 발생했습니다. Supabase에 DELETE 정책이 설정되어 있는지 확인하세요.');
       return;
     }
 

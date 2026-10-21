@@ -22,6 +22,7 @@ import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
 import { WeeklyTrendChart, type WeeklyTrendPoint } from '../components/share/ShareCharts';
 import AiCreditCost from '../components/common/AiCreditCost';
+import { appConfirm } from '../lib/appDialog';
 
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const NOTE_MD_COMPONENTS: any = {
@@ -457,7 +458,7 @@ const StudentView = () => {
   };
 
   const handleDeleteGroup = async (groupId: string) => {
-    if (!confirm('이 결과물을 삭제하시겠습니까?\n복구할 수 없습니다.')) return;
+    if (!await appConfirm('이 결과물을 삭제하시겠습니까?\n복구할 수 없습니다.')) return;
     setProcessingGroupId(groupId);
     try {
       const groupItems = results.filter((r: any) => (r.submission_group || r.id) === groupId);
@@ -712,7 +713,7 @@ const StudentView = () => {
   };
 
   const handleDelete = async (obsId: string) => {
-    if (!confirm('이 기록을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.')) return;
+    if (!await appConfirm('이 기록을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.')) return;
     setDeletingId(obsId);
     try {
       const { error } = await supabase.from('observations').delete().eq('id', obsId);

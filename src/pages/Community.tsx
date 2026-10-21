@@ -12,6 +12,7 @@ import {
   MessageSquare, Bug, Megaphone, Lightbulb, BookOpen, MessageCircle,
   Send, Loader2, Plus, X, Trash2, Clock, ArrowLeft, Users, ChevronDown,
 } from 'lucide-react';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -200,7 +201,7 @@ const Community = () => {
   };
 
   const handleDeletePost = async (id: string) => {
-    if (!confirm('이 글을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.')) return;
+    if (!await appConfirm('이 글을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.')) return;
     setDeletingId(id);
     const { error } = await supabase.from('community_posts').delete().eq('id', id);
     if (!error) {
@@ -522,14 +523,14 @@ const WritePostModal = ({ isOpen, onClose, onCreated }: {
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
     if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      appToast('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
       throw new Error('파일 크기 초과');
     }
     setUploading(true);
     try {
       const compressed = await compressToWebP(file);
       if (compressed.size > 20 * 1024 * 1024) {
-        alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
+        appToast('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
         throw new Error('파일 크기 초과');
       }
       const path = `community/${user.id}/${Date.now()}.webp`;

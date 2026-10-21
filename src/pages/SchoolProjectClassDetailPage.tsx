@@ -17,6 +17,7 @@ import {
   Link2,
   Trash2,
 } from 'lucide-react';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 interface StudentRow {
   id: string;
@@ -167,7 +168,7 @@ const SchoolProjectClassDetailPage = () => {
     if (!classId) return;
     const dates = Array.from(new Set(classDates.filter(d => d))).sort();
     if (schoolRange.start && schoolRange.end && dates.some(d => d < schoolRange.start! || d > schoolRange.end!)) {
-      alert('학교 전체 기간 밖의 날짜가 있어요. 학교 기간 안에서 골라 주세요.');
+      appToast('학교 전체 기간 밖의 날짜가 있어요. 학교 기간 안에서 골라 주세요.');
       return;
     }
     setDatesSaving(true);
@@ -177,10 +178,10 @@ const SchoolProjectClassDetailPage = () => {
         .eq('id', classId);
       if (error) throw error;
       setClassDates(dates);
-      alert(dates.length > 0 ? '우리 반 수업일이 저장되었습니다.' : '수업일을 비웠어요. 학교 전체 기간을 따릅니다.');
+      appToast(dates.length > 0 ? '우리 반 수업일이 저장되었습니다.' : '수업일을 비웠어요. 학교 전체 기간을 따릅니다.');
     } catch (err) {
       console.error('handleSaveDates error:', err);
-      alert('저장 중 오류가 발생했습니다.');
+      appToast('저장 중 오류가 발생했습니다.');
     } finally {
       setDatesSaving(false);
     }
@@ -189,7 +190,7 @@ const SchoolProjectClassDetailPage = () => {
   const handleSaveTime = async () => {
     if (!classId) return;
     if (timeForm.start && timeForm.end && timeForm.end <= timeForm.start) {
-      alert('종료 시각은 시작 시각보다 늦어야 해요.');
+      appToast('종료 시각은 시작 시각보다 늦어야 해요.');
       return;
     }
     setTimeSaving(true);
@@ -201,17 +202,17 @@ const SchoolProjectClassDetailPage = () => {
         break_times: timeForm.breaks.filter(t => t).sort(),
       }).eq('id', classId);
       if (error) throw error;
-      alert('수업 시간이 저장되었습니다.');
+      appToast('수업 시간이 저장되었습니다.');
     } catch (err) {
       console.error('handleSaveTime error:', err);
-      alert('저장 중 오류가 발생했습니다.');
+      appToast('저장 중 오류가 발생했습니다.');
     } finally {
       setTimeSaving(false);
     }
   };
 
   const handleAutoFill = () => {
-    if (!timeForm.start) { alert('먼저 시작 시각을 골라 주세요.'); return; }
+    if (!timeForm.start) { appToast('먼저 시작 시각을 골라 주세요.'); return; }
     const lv = SCHOOL_LEVEL_PRESETS[levelIdx];
     const r = buildDaySchedule(timeForm.start, periodCount, lv.periodMinutes, lv.breakMinutes);
     if (!r) return;
@@ -236,21 +237,21 @@ const SchoolProjectClassDetailPage = () => {
       await fetchData();
     } catch (err) {
       console.error('handleAddGeneralMat error:', err);
-      alert('자료 등록 중 오류가 발생했습니다.');
+      appToast('자료 등록 중 오류가 발생했습니다.');
     } finally {
       setGeneralMatSaving(false);
     }
   };
 
   const handleDeleteGeneralMat = async (id: string) => {
-    if (!confirm('이 자료를 삭제할까요?')) return;
+    if (!await appConfirm('이 자료를 삭제할까요?')) return;
     try {
       const { error } = await supabase.from('class_general_materials').delete().eq('id', id);
       if (error) throw error;
       setGeneralMaterials(prev => prev.filter(m => m.id !== id));
     } catch (err) {
       console.error('handleDeleteGeneralMat error:', err);
-      alert('삭제 중 오류가 발생했습니다.');
+      appToast('삭제 중 오류가 발생했습니다.');
     }
   };
 

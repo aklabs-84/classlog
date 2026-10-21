@@ -15,6 +15,7 @@ import ClassLinkModal from '../../components/whiteboard/ui/ClassLinkModal';
 import html2canvas from 'html2canvas';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadBoardImage } from '../../components/whiteboard/utils/imageUtils';
+import { appToast } from '../../lib/appDialog';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -377,7 +378,7 @@ export default function Whiteboard() {
     if (!boardId) return;
     await supabase.from('whiteboards').update({ is_public: true }).eq('id', boardId);
     await navigator.clipboard.writeText(window.location.href);
-    alert('링크가 복사되었습니다.\n이 보드는 이제 링크를 아는 누구나 접근하여 함께 편집할 수 있습니다.');
+    appToast('링크가 복사되었습니다.\n이 보드는 이제 링크를 아는 누구나 접근하여 함께 편집할 수 있습니다.');
   };
 
   if (loading && !showTemplateSelector) {

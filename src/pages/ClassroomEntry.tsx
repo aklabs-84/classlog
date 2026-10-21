@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound, UserPlus, Users, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { rpcWithRetry, hardReload, CONNECTION_ERROR_MSG } from '../lib/entryHelpers';
 import AvatarPicker from '../components/AvatarPicker';
 import StudentScreenTour, { type StudentScreenStep } from '../components/student/StudentScreenTour';
 
@@ -89,6 +90,8 @@ const ClassroomEntry = () => {
   const [pinConfirmDigits, setPinConfirmDigits] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
+  // 연결·서버 문제로 보이는 오류가 났을 때 "새로고침하고 다시 하기" 안내를 보여준다
+  const [showRefreshHelp, setShowRefreshHelp] = useState(false);
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const pinConfirmRefs = useRef<(HTMLInputElement | null)[]>([]);
   const studentTokenRef = useRef<string | null>(null); // 서버가 PIN 통과 후 발급하는 통과 표
@@ -125,26 +128,43 @@ const ClassroomEntry = () => {
     }
   }, [searchParams]);
 
-  const handleCodeChange = (index: number, value: string) => {
-    if (value.length > 1) value = value[0];
+  const putCodeChar = (index: number, ch: string) => {
     const newCodes = [...codes];
-    newCodes[index] = value.toUpperCase();
+    newCodes[index] = ch;
     setCodes(newCodes);
+    if (ch && index < 5) inputRefs.current[index + 1]?.focus();
+  };
 
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+  const handleCodeChange = (index: number, value: string) => {
+    if (value === '') { putCodeChar(index, ''); return; }
+    // 영문·숫자만 받는다. 한글 등이 들어오면 한/영 전환 안내 (모바일 등 아래 키 보정이 안 되는 경우)
+    const ch = value.slice(-1).toUpperCase();
+    if (!/^[A-Z0-9]$/.test(ch)) {
+      setError('영어(대문자)·숫자만 입력할 수 있어요. 한/영 키를 눌러 영어로 바꿔 주세요.');
+      return;
     }
+    setError('');
+    putCodeChar(index, ch);
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !codes[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
+      return;
+    }
+    // 한글 입력 모드에서도 "누른 키 그대로" 영문·숫자로 넣는다 (A키 → ㅁ 이 아니라 A)
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const m = /^Key([A-Z])$/.exec(e.code) || /^Digit(\d)$/.exec(e.code);
+    if (m) {
+      e.preventDefault();
+      setError('');
+      putCodeChar(index, m[1]);
     }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').trim().toUpperCase().replace(/\s/g, '');
+    const pasted = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (pasted.length === 0) return;
     const newCodes = [...codes];
     for (let i = 0; i < 6; i++) {
@@ -262,17 +282,44 @@ const ClassroomEntry = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  const hardReloadEntry = (code: string) =>
+    hardReload(/^[A-Z0-9]{6}$/.test(code) ? `/classroom-entry?code=${code}` : '/classroom-entry');
+
+  const refreshHelp = showRefreshHelp && (
+    <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 space-y-2 text-left" role="status">
+      <p className="text-sm font-bold text-amber-800">
+        같은 입력인데도 계속 안 되면, 연결이나 옛 화면 때문일 수 있어요.
+      </p>
+      <button
+        type="button"
+        onClick={() => hardReloadEntry(codes.join(''))}
+        className="w-full py-3 rounded-xl bg-amber-500 text-white font-black text-sm active:scale-95 transition-all"
+      >
+        새로고침하고 다시 하기
+      </button>
+      <p className="text-xs text-amber-700">컴퓨터는 Ctrl+Shift+R 키로도 같아요.</p>
+    </div>
+  );
+
   const handleEntry = async (forcedCode?: string) => {
     const fullCode = forcedCode || codes.join('');
     if (fullCode.length < 6) return;
 
     setLoading(true);
     setError('');
+    setShowRefreshHelp(false);
     try {
-      const { data: classRows, error: classError } = await supabase.rpc('class_entry_lookup', { p_code: fullCode });
+      const { data: classRows, error: classError } = await rpcWithRetry(() => supabase.rpc('class_entry_lookup', { p_code: fullCode }));
+      if (classError) {
+        // 없는 코드는 오류가 아니라 빈 결과로 오므로, 여기 온 것은 연결·서버 문제
+        console.warn('[입장] class_entry_lookup 실패', classError.code, classError.message);
+        setError(CONNECTION_ERROR_MSG);
+        setShowRefreshHelp(true);
+        return;
+      }
       const data = Array.isArray(classRows) ? classRows[0] : classRows;
 
-      if (classError || !data) {
+      if (!data) {
         setError('유효하지 않은 입장 코드입니다. 다시 확인해 주세요.');
         return;
       }
@@ -432,7 +479,22 @@ const ClassroomEntry = () => {
       });
       setPinLoading(false);
       if (error || !newToken) {
-        setPinError('PIN 저장에 실패했습니다. 선생님께 문의하세요.');
+        // 서버는 "PIN이 비어 있을 때만" 저장한다. 이미 저장됐는데 응답만 놓쳤거나(느린 연결·두 번 누름),
+        // 화면이 오래된 명단을 보고 있었다면 "저장 실패"가 반복되므로, 서버의 최신 상태를 다시 확인한다.
+        console.warn('[입장] student_set_pin 실패', error?.code, error?.message);
+        const { data: fresh } = await supabase.rpc('student_list_class', { p_entry_code: codes.join('') });
+        const me = (fresh as any[] | null)?.find((x: any) => x.id === selectedStudent!.id);
+        if (me?.has_pin) {
+          setSelectedStudent({ ...selectedStudent!, has_pin: true } as any);
+          setHasPinSet(true);
+          setPinDigits(['', '', '', '']);
+          setPinConfirmDigits(['', '', '', '']);
+          setPinError('이미 PIN이 만들어져 있어요. 방금 만든 PIN 4자리를 한 번만 입력해 주세요.');
+          setTimeout(() => pinRefs.current[0]?.focus(), 50);
+        } else {
+          setPinError('PIN을 저장하지 못했어요. 연결이 불안정할 수 있어요.');
+          setShowRefreshHelp(true);
+        }
         return;
       }
       studentTokenRef.current = newToken as string;
@@ -442,11 +504,19 @@ const ClassroomEntry = () => {
 
     // PIN 확인 — 서버에서 검증 (PIN 값을 클라이언트로 가져오지 않음)
     setPinLoading(true);
-    const { data: verifyRows } = await supabase.rpc('student_verify_pin', {
+    const { data: verifyRows, error: verifyError } = await rpcWithRetry(() => supabase.rpc('student_verify_pin', {
       p_student_id: selectedStudent!.id,
       p_pin: pin,
-    });
+    }));
     setPinLoading(false);
+    if (verifyError) {
+      console.warn('[입장] student_verify_pin 실패', verifyError.code, verifyError.message);
+      setPinError(CONNECTION_ERROR_MSG);
+      setShowRefreshHelp(true);
+      setPinDigits(['', '', '', '']);
+      setTimeout(() => pinRefs.current[0]?.focus(), 50);
+      return;
+    }
     const verified = Array.isArray(verifyRows) ? verifyRows[0] : verifyRows;
 
     if (!verified?.ok) {
@@ -521,6 +591,7 @@ const ClassroomEntry = () => {
                 ))}
               </div>
               {error && <p className="text-error text-sm font-bold animate-shake">{error}</p>}
+              {refreshHelp}
             </div>
 
             <button 
@@ -802,6 +873,7 @@ const ClassroomEntry = () => {
             {pinError && !isPinLocked && (
               <p className="text-error text-sm font-black">{pinError}</p>
             )}
+            {refreshHelp}
 
             <div className="flex gap-4 pt-2">
               <button

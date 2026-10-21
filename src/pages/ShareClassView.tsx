@@ -44,6 +44,7 @@ import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
   AttendanceDonutChart, MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
 } from '../components/share/ShareCharts';
+import { appToast } from '../lib/appDialog';
 
 const CountUpNumber = ({ value }: { value: number }) => {
   const [display, setDisplay] = useState(0);
@@ -693,7 +694,7 @@ const ShareClassView = () => {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('XLSX 다운로드 오류:', err);
-      alert('엑셀 파일 생성 중 오류가 발생했습니다.');
+      appToast('엑셀 파일 생성 중 오류가 발생했습니다.');
     } finally {
       setDownloading(false);
     }

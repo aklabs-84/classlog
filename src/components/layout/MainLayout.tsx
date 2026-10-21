@@ -8,6 +8,7 @@ import WaitlistBanner from './WaitlistBanner';
 import RealNameNotice from './RealNameNotice';
 import StoryBanner from './StoryBanner';
 import FloatingTimer from '../FloatingTimer';
+import FloatingLessonMemo from '../FloatingLessonMemo';
 import FloatingAIProgress from '../FloatingAIProgress';
 import ScrollToTopButton from './ScrollToTopButton';
 import CopilotReturnBadge from '../CopilotReturnBadge';
@@ -38,6 +39,7 @@ const MainLayout = () => {
         </main>
       </div>
       <FloatingTimer />
+      <FloatingLessonMemo />
       <FloatingAIProgress />
       <ScrollToTopButton />
       <CopilotReturnBadge />

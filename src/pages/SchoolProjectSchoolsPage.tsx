@@ -44,6 +44,7 @@ import {
 import ClassPeriodInput from '../components/common/ClassPeriodInput';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
 import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 interface ImportableMaterial {
   id: string;
@@ -359,9 +360,9 @@ const SchoolProjectSchoolsPage = () => {
   const isCustomSchool = (sc: SchoolRow) => !!(sc.rootClassId && customFlags[sc.rootClassId]);
   const currentPlanBaseline = planForTarget(planTarget);
 
-  const handleChangePlanTarget = (next: string) => {
+  const handleChangePlanTarget = async (next: string) => {
     if (next === planTarget) return;
-    if (!samePlan(weeklyPlan, currentPlanBaseline) && !window.confirm('저장하지 않은 변경 내용이 있습니다. 버리고 이동할까요?')) return;
+    if (!samePlan(weeklyPlan, currentPlanBaseline) && !await appConfirm('저장하지 않은 변경 내용이 있습니다. 버리고 이동할까요?')) return;
     setPlanTarget(next);
     setPlanMaterialDropdownIdx(null);
     setWeeklyPlan(planForTarget(next));
@@ -446,7 +447,7 @@ const SchoolProjectSchoolsPage = () => {
   // 개별 수정된 반을 공통 계획으로 되돌리기
   const handleResetClassPlan = async (classId: string) => {
     const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === classId)?.name || '이 반';
-    if (!window.confirm(`'${clsName}'의 개별 수정을 지우고 공통 계획으로 되돌릴까요?`)) return;
+    if (!await appConfirm(`'${clsName}'의 개별 수정을 지우고 공통 계획으로 되돌릴까요?`)) return;
     const { error } = await supabase.from('classes').update({ weekly_plan: commonPlan, weekly_plan_custom: false }).eq('id', classId);
     if (error) {
       setPlanToast({ msg: '되돌리는 중 오류가 발생했습니다.', type: 'error' });
@@ -460,7 +461,7 @@ const SchoolProjectSchoolsPage = () => {
 
   // 학교 단위로 개별 고정된 학교를 공통 계획으로 되돌리기
   const handleResetSchoolPlan = async (sc: SchoolRow) => {
-    if (!window.confirm(`'${sc.name}' 전체 반을 공통 계획으로 되돌릴까요? 이 학교 반들의 개별 내용이 모두 공통 계획으로 바뀝니다.`)) return;
+    if (!await appConfirm(`'${sc.name}' 전체 반을 공통 계획으로 되돌릴까요? 이 학교 반들의 개별 내용이 모두 공통 계획으로 바뀝니다.`)) return;
     const ids = [...(sc.rootClassId ? [sc.rootClassId] : []), ...sc.classes.map(c => c.id)];
     const { error } = await supabase.from('classes').update({ weekly_plan: commonPlan, weekly_plan_custom: false }).in('id', ids);
     if (error) {
@@ -504,7 +505,7 @@ const SchoolProjectSchoolsPage = () => {
     const msg = week === 'all'
       ? (sc ? `${scopeLabel}의 주차별 계획을 모두 삭제할까요?` : `공통 계획의 주차를 모두 삭제할까요? 개별로 고정된 반·학교는 그대로 남습니다.`)
       : (sc ? `${scopeLabel}에서 ${week}주차를 삭제할까요?` : `공통 계획에서 ${week}주차를 삭제할까요? 개별로 고정된 반·학교는 그대로 남습니다.`);
-    if (!window.confirm(msg)) return;
+    if (!await appConfirm(msg)) return;
     const base = planStatus.basePlan;
     const nextPlan = week === 'all' ? [] : base.filter(p => p.week !== week).map((p, i) => ({ ...p, week: i + 1 }));
     setPlanSaving(true);
@@ -937,7 +938,7 @@ const SchoolProjectSchoolsPage = () => {
   };
 
   const handleDeleteCourse = async (course: CourseRow) => {
-    if (!confirm(`'${course.name}' 과목을 삭제하시겠습니까? 소속된 반은 삭제되지 않고 "과목 없음"으로 돌아갑니다.`)) return;
+    if (!await appConfirm(`'${course.name}' 과목을 삭제하시겠습니까? 소속된 반은 삭제되지 않고 "과목 없음"으로 돌아갑니다.`)) return;
     setCourseError('');
     const { error } = await supabase.from('school_project_courses').delete().eq('id', course.id);
     if (error) { setCourseError('과목을 삭제하지 못했습니다. 다시 시도해주세요.'); return; }
@@ -958,7 +959,7 @@ const SchoolProjectSchoolsPage = () => {
     if (target?.assigned_teacher_id && target.assigned_teacher_id !== teacherId) {
       const oldName = target.teacherName ? `${target.teacherName} 선생님` : '기존 강사';
       const newName = newTeacherName ? `${newTeacherName} 선생님` : '선택한 강사';
-      if (!confirm(`'${target.name}' 반에는 이미 ${oldName}이 배정되어 있습니다.\n${newName}으로 교체하면 ${oldName}은 이 반에서 빠집니다.\n\n같은 수업을 여러 선생님이 하려면 반을 따로 추가해 같은 과목으로 묶어 주세요.\n\n그래도 교체하시겠습니까?`)) return;
+      if (!await appConfirm(`'${target.name}' 반에는 이미 ${oldName}이 배정되어 있습니다.\n${newName}으로 교체하면 ${oldName}은 이 반에서 빠집니다.\n\n같은 수업을 여러 선생님이 하려면 반을 따로 추가해 같은 과목으로 묶어 주세요.\n\n그래도 교체하시겠습니까?`)) return;
     }
     const { error } = await supabase.rpc('assign_teacher_to_subclass', {
       p_class_id: classId,
@@ -997,9 +998,9 @@ const SchoolProjectSchoolsPage = () => {
     try {
       const { data } = await supabase.rpc('approve_teacher_join_request', { p_request_id: requestId });
       if (data?.error) {
-        alert(data.error === 'ALREADY_ASSIGNED' ? '이미 다른 선생님이 배정된 반입니다.' : '승인에 실패했습니다.');
+        appToast(data.error === 'ALREADY_ASSIGNED' ? '이미 다른 선생님이 배정된 반입니다.' : '승인에 실패했습니다.');
       } else {
-        alert('승인했습니다. 선생님이 해당 반의 담당으로 배정되었고, 선생님 대시보드에 반이 나타납니다.');
+        appToast('승인했습니다. 선생님이 해당 반의 담당으로 배정되었고, 선생님 대시보드에 반이 나타납니다.');
       }
       fetchJoinRequests();
       fetchData();
@@ -1019,7 +1020,7 @@ const SchoolProjectSchoolsPage = () => {
   };
 
   const handleDeleteClass = async (classId: string) => {
-    if (!confirm('이 반을 삭제하시겠습니까? 소속 학생과 출결 기록도 함께 삭제됩니다.')) return;
+    if (!await appConfirm('이 반을 삭제하시겠습니까? 소속 학생과 출결 기록도 함께 삭제됩니다.')) return;
     await supabase.from('classes').delete().eq('id', classId);
     fetchData();
   };

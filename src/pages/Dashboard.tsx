@@ -39,6 +39,7 @@ import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import QuickReviewPanel from '../components/classroom/QuickReviewPanel';
 import WelcomeGuideModal, { type WelcomeGuideVideo } from '../components/WelcomeGuideModal';
 import GuideOutdatedNotice from '../components/GuideOutdatedNotice';
+import { appToast } from '../lib/appDialog';
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -304,7 +305,7 @@ const Dashboard = () => {
         .select(`id, name, school_name, share_token, classes!school_project_id(id, name, assigned_teacher_id, parent_class_id)`)
         .eq('entry_code', joinCode.trim().toUpperCase())
         .single();
-      if (!data) { alert('코드를 다시 확인해주세요.'); return; }
+      if (!data) { appToast('코드를 다시 확인해주세요.'); return; }
       // 사업 코드면 그 아래 학교들의 반도 함께 보여준다 (학교 이름을 반 옆에 표시)
       const { data: childSchools } = await supabase
         .from('school_projects')
@@ -343,7 +344,7 @@ const Dashboard = () => {
           setJoinDone(false);
         }, 1800);
       } else {
-        alert('신청에 실패했습니다. 다시 시도해주세요.');
+        appToast('신청에 실패했습니다. 다시 시도해주세요.');
       }
     } finally {
       setJoiningClassId(null);
@@ -405,7 +406,7 @@ const Dashboard = () => {
     await supabase.from('school_projects').delete().eq('id', deletingProjectId);
 
     if (keptSubs.length > 0) {
-      alert(
+      appToast(
         `프로젝트를 삭제했습니다.\n비어 있던 반 ${emptySubs.length}개는 함께 삭제했고, ` +
         `학생·출석·결과물이 있는 반 ${keptSubs.length}개는 자료 보호를 위해 남겨 두었습니다.\n` +
         `(남은 반: ${keptSubs.map((c: any) => c.name).join(', ')})`
@@ -648,7 +649,7 @@ const Dashboard = () => {
   const handleAcceptInvitation = async (inv: any) => {
     const subject = subjectInputs[inv.id]?.trim();
     if (!subject) {
-      alert('담당 과목명을 입력해주세요.');
+      appToast('담당 과목명을 입력해주세요.');
       return;
     }
     setInviteActionLoading(inv.id);
@@ -679,7 +680,7 @@ const Dashboard = () => {
       setPendingInvitations(prev => prev.filter(i => i.id !== inv.id));
       fetchDashboardData();
     } catch (err: any) {
-      alert('수락 중 오류가 발생했습니다: ' + err.message);
+      appToast('수락 중 오류가 발생했습니다: ' + err.message);
     } finally {
       setInviteActionLoading(null);
     }

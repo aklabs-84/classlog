@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Users, CheckCircle2, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Row { id: string; full_name: string; student_number: string; created_at: string }
 
@@ -33,7 +34,7 @@ const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
   }, [classId]);
 
   const handleAccept = async () => {
-    if (rows.length > 0 && !window.confirm(`${rows.length}명의 명단을 확정하고 학생 화면을 이름 선택 화면으로 넘길까요?`)) return;
+    if (rows.length > 0 && !await appConfirm(`${rows.length}명의 명단을 확정하고 학생 화면을 이름 선택 화면으로 넘길까요?`)) return;
     setAccepting(true);
     setError('');
     const { error: e } = await supabase.rpc('live_roster_accept', { p_class_id: classId });
@@ -50,7 +51,7 @@ const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
   // 입력된 명단을 전부 지우고 처음부터 다시 받는다 (학생은 새로고침 후 다시 입력)
   const handleResetAll = async () => {
     if (rows.length === 0) return;
-    if (!window.confirm(`입력된 ${rows.length}명을 모두 지우고 처음부터 다시 받을까요?\n학생들은 화면을 새로고침해서 다시 입력해야 해요.`)) return;
+    if (!await appConfirm(`입력된 ${rows.length}명을 모두 지우고 처음부터 다시 받을까요?\n학생들은 화면을 새로고침해서 다시 입력해야 해요.`)) return;
     setResetting(true);
     setError('');
     const results = await Promise.all(rows.map(r => supabase.rpc('live_roster_remove', { p_class_id: classId, p_request_id: r.id })));

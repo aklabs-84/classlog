@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { collectClassResultPaths, removeStoragePaths } from '../lib/storageCleanup';
 import { useNavigate } from 'react-router-dom';
+import { appConfirm } from '../lib/appDialog';
 
 const ArchivePage = () => {
   const { user } = useAuth();
@@ -77,7 +78,7 @@ const ArchivePage = () => {
   };
 
   const handlePermanentDelete = async (id: string, name: string) => {
-    if (!confirm(`"${name}" 학급을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 관련 데이터가 사라집니다.`)) return;
+    if (!await appConfirm(`"${name}" 학급을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 관련 데이터가 사라집니다.`)) return;
     
     try {
       const filePaths = await collectClassResultPaths(id);

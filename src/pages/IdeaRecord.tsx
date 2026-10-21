@@ -16,6 +16,7 @@ import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
 import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
 import AiCreditCost from '../components/common/AiCreditCost';
 import { SLIDE_AI_ENABLED } from '../lib/featureFlags';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 const GUIDE_SEEN_KEY = 'idea_record_guide_seen';
 
@@ -318,12 +319,12 @@ export default function IdeaRecord() {
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
     if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      appToast('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
       throw new Error('파일 크기 초과');
     }
     const compressed = await compressToWebP(file);
     if (compressed.size > 20 * 1024 * 1024) {
-      alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
+      appToast('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
       throw new Error('파일 크기 초과');
     }
     const path = `notes/${user.id}/${Date.now()}.webp`;
@@ -749,7 +750,7 @@ export default function IdeaRecord() {
       setLinkError(null);
       setActiveTab('list');
     } catch (err: any) {
-      alert('저장 중 오류가 발생했습니다: ' + err.message);
+      appToast('저장 중 오류가 발생했습니다: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -794,7 +795,7 @@ export default function IdeaRecord() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('이 아이디어를 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 아이디어를 삭제하시겠습니까?')) return;
     setDeletingId(id);
     try {
       const { error } = await supabase.from('teacher_notes').delete().eq('id', id);
@@ -975,7 +976,7 @@ export default function IdeaRecord() {
         },
       });
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED'
+      appToast(err?.message === 'AI_LIMIT_EXCEEDED'
         ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.'
         : '수업 계획안 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -1058,7 +1059,7 @@ export default function IdeaRecord() {
     setPreviewItem(null);
     if (item.source_type === 'note') {
       const target = notes.find(n => n.id === item.id);
-      if (!target) { alert('해당 아이디어 기록을 찾을 수 없습니다. 목록을 새로고침해주세요.'); return; }
+      if (!target) { appToast('해당 아이디어 기록을 찾을 수 없습니다. 목록을 새로고침해주세요.'); return; }
       setViewingNote(target);
       return;
     }

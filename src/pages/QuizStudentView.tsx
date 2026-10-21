@@ -6,6 +6,7 @@ import {
   Clock, Wifi, WifiOff, ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { rpcWithRetry, hardReload, CONNECTION_ERROR_MSG } from '../lib/entryHelpers';
 import { getServerTimeOffsetMs } from '../lib/serverTime';
 import ConfettiEffect from '../components/quiz/ConfettiEffect';
 import { YouTubeEmbed } from '../components/quiz/YouTubeEmbed';
@@ -84,6 +85,7 @@ const QuizStudentView = () => {
   const [pinInput, setPinInput] = useState(pin ?? '');
   const [nameInput, setNameInput] = useState(autoJoinName);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showRefreshHelp, setShowRefreshHelp] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 게임 데이터
@@ -123,8 +125,17 @@ const QuizStudentView = () => {
     if (p.length !== 6) { setErrorMsg('6자리 PIN을 입력하세요'); return; }
     setLoading(true);
     setErrorMsg('');
-    const { data, error } = await supabase.rpc('quiz_session_by_pin', { p_pin: p });
-    if (error || !data) {
+    setShowRefreshHelp(false);
+    const { data, error } = await rpcWithRetry(() => supabase.rpc('quiz_session_by_pin', { p_pin: p }));
+    if (error) {
+      // 없는 PIN은 error 없이 빈 결과로 오므로, error 는 연결·서버 문제
+      console.warn('[quiz-pin] 연결 오류', error);
+      setErrorMsg(CONNECTION_ERROR_MSG);
+      setShowRefreshHelp(true);
+      setLoading(false);
+      return;
+    }
+    if (!data) {
       setErrorMsg('유효하지 않은 PIN이거나 종료된 퀴즈입니다');
       setLoading(false);
       return;
@@ -443,6 +454,19 @@ const QuizStudentView = () => {
                 />
                 {errorMsg && (
                   <p className="text-red-300 text-xs font-bold text-center">{errorMsg}</p>
+                )}
+                {showRefreshHelp && (
+                  <div className="rounded-2xl bg-amber-50 px-4 py-3 space-y-2 text-left" role="status">
+                    <p className="text-sm font-bold text-amber-800">같은 입력인데도 계속 안 되면, 연결이나 옛 화면 때문일 수 있어요.</p>
+                    <button
+                      type="button"
+                      onClick={() => hardReload(/^\d{6}$/.test(pinInput.trim()) ? `/quiz/${pinInput.trim()}` : '/quiz')}
+                      className="w-full py-3 rounded-xl bg-amber-500 text-white font-black text-sm active:scale-95 transition-all"
+                    >
+                      새로고침하고 다시 하기
+                    </button>
+                    <p className="text-xs text-amber-700">컴퓨터는 Ctrl+Shift+R 키로도 같아요.</p>
+                  </div>
                 )}
                 <button
                   onClick={handleVerifyPin}

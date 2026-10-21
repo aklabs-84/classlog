@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Star, CheckCircle, ArrowRight, ChevronLeft, Send, GripVertical } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { rpcWithRetry, hardReload, CONNECTION_ERROR_MSG } from '../../lib/entryHelpers';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
@@ -266,6 +267,7 @@ export default function SurveyStudent() {
   const [pinInput, setPinInput] = useState(pin ?? '');
   const [nameInput, setNameInput] = useState(autoJoinName);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showRefreshHelp, setShowRefreshHelp] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState<SurveyForm | null>(null);
@@ -287,9 +289,18 @@ export default function SurveyStudent() {
 
   const loadFormByPin = async (p: string): Promise<boolean> => {
     setLoading(true);
-    const { data: bundle, error } = await supabase.rpc('survey_by_pin', { p_pin: p.trim() });
+    setShowRefreshHelp(false);
+    const { data: bundle, error } = await rpcWithRetry(() => supabase.rpc('survey_by_pin', { p_pin: p.trim() }));
+    if (error) {
+      // 없는 PIN은 error 없이 빈 결과로 오므로, error 는 연결·서버 문제
+      console.warn('[survey-pin] 연결 오류', error);
+      setErrorMsg(CONNECTION_ERROR_MSG);
+      setShowRefreshHelp(true);
+      setLoading(false);
+      return false;
+    }
     const data = (bundle as any)?.form;
-    if (error || !data) { setErrorMsg('설문을 찾을 수 없어요. PIN을 다시 확인해주세요.'); setLoading(false); return false; }
+    if (!data) { setErrorMsg('설문을 찾을 수 없어요. PIN을 다시 확인해주세요.'); setLoading(false); return false; }
     if (data.status !== 'open') { setErrorMsg('이 설문은 현재 진행 중이 아닙니다.'); setLoading(false); return false; }
     setForm(data);
     const qs = (bundle as any).questions as any[];
@@ -407,6 +418,16 @@ export default function SurveyStudent() {
           style={{ width: '100%', textAlign: 'center', fontSize: 28, fontWeight: 'bold', letterSpacing: 8, padding: '14px', border: '2px solid #E5E7EB', borderRadius: 12, outline: 'none', color: '#111', fontFamily: 'monospace', boxSizing: 'border-box' }}
         />
         {errorMsg && <p style={{ fontSize: 13, color: '#EF4444', marginTop: 8 }}>{errorMsg}</p>}
+        {showRefreshHelp && (
+          <div style={{ marginTop: 10, padding: '12px 14px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, textAlign: 'left' }} role="status">
+            <p style={{ fontSize: 13, fontWeight: 'bold', color: '#92400E', margin: '0 0 8px' }}>같은 입력인데도 계속 안 되면, 연결이나 옛 화면 때문일 수 있어요.</p>
+            <button type="button"
+              onClick={() => hardReload(/^\d{6}$/.test(pinInput.trim()) ? `/survey/${pinInput.trim()}` : (pin ? `/survey/${pin}` : '/survey'))}
+              style={{ width: '100%', padding: '12px', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}
+            >새로고침하고 다시 하기</button>
+            <p style={{ fontSize: 12, color: '#B45309', margin: '8px 0 0' }}>컴퓨터는 Ctrl+Shift+R 키로도 같아요.</p>
+          </div>
+        )}
         <button onClick={handlePinSubmit} disabled={pinInput.length < 6}
           style={{ marginTop: 16, width: '100%', padding: '14px', background: pinInput.length === 6 ? '#3B82F6' : '#E5E7EB', color: pinInput.length === 6 ? '#fff' : '#9CA3AF', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 'bold', cursor: pinInput.length === 6 ? 'pointer' : 'default' }}
         >

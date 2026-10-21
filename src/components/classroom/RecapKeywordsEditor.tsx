@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Loader2, Sparkles, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { generateLessonRecap } from '../../lib/gemini';
+import { appConfirm } from '../../lib/appDialog';
 
 // 주차별 "오늘 수업 키워드" 편집기 — 학생 기록 화면에 "오늘 뭘 했지?" 힌트로 보여요.
 // 연결된 에디터 자료가 있으면 AI가 3~5개 초안을 만들고, 교사가 고치고 저장합니다.
@@ -20,7 +21,7 @@ export default function RecapKeywordsEditor({ recap = [], materialId, topic, cla
 
   const generate = async () => {
     if (!materialId) return;
-    if (recap.length > 0 && !window.confirm('이미 만들어 둔 키워드가 있어요.\nAI가 새로 만든 키워드로 바꿀까요?')) return;
+    if (recap.length > 0 && !await appConfirm('이미 만들어 둔 키워드가 있어요.\nAI가 새로 만든 키워드로 바꿀까요?')) return;
     setBusy(true);
     setError('');
     try {

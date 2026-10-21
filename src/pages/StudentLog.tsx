@@ -78,6 +78,7 @@ import RichEditor from '../components/RichEditor';
 import { type ActivityLink } from '../components/ActivityLinksButton';
 import { type MaterialAttachment } from '../components/MaterialAttachments';
 import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMaterialPage';
+import { appConfirm, appToast } from '../lib/appDialog';
 import { getAiApps, type AiApp } from '../lib/aiApps';
 import { useStudentLive } from '../hooks/useStudentLive';
 
@@ -625,7 +626,7 @@ const StudentLog = () => {
   useEffect(() => {
     const sessionData = sessionStorage.getItem('student_session');
     if (!sessionData) {
-      alert('입장 정보가 유효하지 않습니다. 다시 수업에 입장해 주세요.');
+      appToast('입장 정보가 유효하지 않습니다. 다시 수업에 입장해 주세요.');
       navigate('/classroom-entry');
       return;
     }
@@ -636,14 +637,14 @@ const StudentLog = () => {
       if (!parsed?.student_id || !parsed?.class_id) throw new Error('invalid');
     } catch {
       sessionStorage.removeItem('student_session');
-      alert('세션 정보가 손상되었습니다. 다시 입장해 주세요.');
+      appToast('세션 정보가 손상되었습니다. 다시 입장해 주세요.');
       navigate('/classroom-entry');
       return;
     }
     // 보안 업데이트 이후 입장 기록만 유효 — PIN 통과 표가 없으면 다시 입장
     if (!parsed.token) {
       sessionStorage.removeItem('student_session');
-      alert('보안 업데이트로 PIN을 한 번 더 입력해야 해요. 다시 입장해 주세요.');
+      appToast('보안 업데이트로 PIN을 한 번 더 입력해야 해요. 다시 입장해 주세요.');
       navigate('/classroom-entry');
       return;
     }
@@ -698,7 +699,7 @@ const StudentLog = () => {
         }
       } catch {
         sessionStorage.removeItem('student_session');
-        alert('세션이 유효하지 않습니다. 다시 입장해 주세요.');
+        appToast('세션이 유효하지 않습니다. 다시 입장해 주세요.');
         navigate('/classroom-entry');
       }
     })();
@@ -1301,7 +1302,7 @@ const StudentLog = () => {
   };
 
   const handleDeleteLog = async (logId: string) => {
-    if (!confirm('이 기록을 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 기록을 삭제하시겠습니까?')) return;
     setDeletingLogId(logId);
     try {
       const { data: deleted, error } = await supabase.rpc('student_delete_observation', { p_token: session.token, p_id: logId });
@@ -1334,12 +1335,12 @@ const StudentLog = () => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     if (files.length > MAX_RESULT_IMAGES) {
-      alert(`이미지는 최대 ${MAX_RESULT_IMAGES}장까지 선택할 수 있습니다.`);
+      appToast(`이미지는 최대 ${MAX_RESULT_IMAGES}장까지 선택할 수 있습니다.`);
       e.target.value = '';
       return;
     }
     const oversized = files.find(f => f.size > 50 * 1024 * 1024);
-    if (oversized) { alert('파일 크기는 각각 50MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    if (oversized) { appToast('파일 크기는 각각 50MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
     setResultImageFiles(files);
     Promise.all(files.map(file => new Promise<string>((resolve) => {
       const reader = new FileReader();
@@ -1351,7 +1352,7 @@ const StudentLog = () => {
   const handleUploadFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) { alert('파일 크기는 50MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    if (file.size > 50 * 1024 * 1024) { appToast('파일 크기는 50MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
     setResultFileUpload(file);
   };
 
@@ -1676,7 +1677,7 @@ const StudentLog = () => {
     const confirmMsg = groupRows.length > 1
       ? `이 결과 제출(${groupRows.length}개 항목)을 모두 삭제하시겠습니까?`
       : '이 결과물을 삭제하시겠습니까?';
-    if (!confirm(confirmMsg)) return;
+    if (!await appConfirm(confirmMsg)) return;
     try {
       const storagePaths = Array.from(new Set(groupRows.flatMap(r => [r.storage_path, ...(r.storage_paths || [])].filter(Boolean))));
       if (storagePaths.length > 0) {
@@ -1879,7 +1880,7 @@ const StudentLog = () => {
   };
 
   const handleDeleteSuggestion = async (id: string) => {
-    if (!confirm('이 내용을 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 내용을 삭제하시겠습니까?')) return;
     setDeletingSuggestionId(id);
     try {
       const { error } = await supabase.rpc('student_suggestion_delete', { p_token: session?.token, p_id: id });

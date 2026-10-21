@@ -30,6 +30,7 @@ import {
   BookOpen,
   Sparkles,
 } from 'lucide-react';
+import { appToast } from '../lib/appDialog';
 
 async function blobDownload(url: string, filename: string) {
   const res = await fetch(url);
@@ -638,7 +639,7 @@ const SchoolShareView = () => {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('XLSX 다운로드 오류:', err);
-      alert('엑셀 파일 생성 중 오류가 발생했습니다.');
+      appToast('엑셀 파일 생성 중 오류가 발생했습니다.');
     } finally {
       setDownloading(false);
     }

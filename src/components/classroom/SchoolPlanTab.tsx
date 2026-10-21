@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/auth';
 import ImportableMaterialPicker, { type ImportableMaterial } from './ImportableMaterialPicker';
 import { applyOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../../lib/planMaterialOverride';
 import { BookOpen, Check, Loader2, Plus, RotateCcw, Save, X, AlertTriangle, ExternalLink, ListOrdered, ChevronDown } from 'lucide-react';
+import { appConfirm } from '../../lib/appDialog';
 
 interface WeeklyPlanItem {
   week: number;
@@ -105,9 +106,9 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
     return new Set(eff).size > 1;
   }, [classRows, commonPlan]);
 
-  const switchTarget = (next: string) => {
+  const switchTarget = async (next: string) => {
     if (next === target) return;
-    if (JSON.stringify(plan) !== baseline && !confirm('저장하지 않은 수정이 있습니다. 버리고 다른 대상으로 옮길까요?')) return;
+    if (JSON.stringify(plan) !== baseline && !await appConfirm('저장하지 않은 수정이 있습니다. 버리고 다른 대상으로 옮길까요?')) return;
     const row = classRows.find(r => r.id === next);
     const shown = next === 'all' ? allPlan : (row?.custom ? row.plan : commonPlan);
     setTarget(next);
@@ -155,7 +156,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
   useEffect(() => { loadCopies(); }, [loadCopies]);
 
   const handleReplaceWithOrigin = async (copy: PlanMaterialRow, className: string) => {
-    if (!confirm(`'${className}'의 복사본을 원본 내용으로 교체할까요?\n지금 복사본 내용은 1단계 백업되어, 자료 에디터의 "되돌리기"로 복구할 수 있습니다.`)) return;
+    if (!await appConfirm(`'${className}'의 복사본을 원본 내용으로 교체할까요?\n지금 복사본 내용은 1단계 백업되어, 자료 에디터의 "되돌리기"로 복구할 수 있습니다.`)) return;
     setReplacingId(copy.id);
     try {
       await applyOriginUpdate(copy);
@@ -190,7 +191,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       const cleanedJson = JSON.stringify(cleaned);
       const overwritten = classRows.filter(r => r.id !== baseId && r.custom && JSON.stringify(r.plan) !== cleanedJson);
       if (isAll && overwritten.length > 0 &&
-        !confirm(`이 학교의 ${overwritten.length}개 반은 따로 고정된 주차별 계획이 있습니다. 저장하면 그 계획이 지금 계획으로 덮어씌워집니다. 계속할까요?`)) {
+        !await appConfirm(`이 학교의 ${overwritten.length}개 반은 따로 고정된 주차별 계획이 있습니다. 저장하면 그 계획이 지금 계획으로 덮어씌워집니다. 계속할까요?`)) {
         return;
       }
       // 계획에 연결한 자료는 다른 강사·학생도 봐야 하므로 이때 공개로 전환
@@ -231,7 +232,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
     const msg = commonPlan.length === 0
       ? `공통 주차별 계획이 비어 있습니다. 되돌리면 ${targetName}의 계획도 빈 상태가 됩니다. 그래도 되돌릴까요?`
       : `${targetName}을(를) 공통 주차별 계획으로 되돌릴까요? 따로 만든 계획은 사라집니다.`;
-    if (!confirm(msg)) return;
+    if (!await appConfirm(msg)) return;
     setSaving(true);
     try {
       const ids = isAll ? schoolClassIds : [target];

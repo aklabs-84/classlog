@@ -11,6 +11,7 @@ import {
   Sun, Moon, X as XIcon, ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2,
   SkipForward,
 } from 'lucide-react';
+import { appToast } from '../lib/appDialog';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 
@@ -226,7 +227,7 @@ const SlideModeView = ({
       await exportMarpSlidesToPdf(material.content, material.title, coverImageUrl);
     } catch (err) {
       console.error(err);
-      alert('슬라이드 PDF 생성 중 오류가 발생했습니다.');
+      appToast('슬라이드 PDF 생성 중 오류가 발생했습니다.');
     } finally {
       setExporting(false);
     }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { X, Loader2, Users, Trash2 } from 'lucide-react';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Props {
   classId: string;
@@ -40,7 +41,7 @@ export default function ClassRosterModal({ classId, className, students, onClose
   const [removing, setRemoving] = useState<string | null>(null);
 
   const removeStudent = async (st: { id: string; full_name: string }) => {
-    if (!window.confirm(`'${st.full_name}' 학생을 명단에서 지울까요?\n이 학생의 출결·기록·제출물도 함께 사라지고 되돌릴 수 없어요.`)) return;
+    if (!await appConfirm(`'${st.full_name}' 학생을 명단에서 지울까요?\n이 학생의 출결·기록·제출물도 함께 사라지고 되돌릴 수 없어요.`)) return;
     setRemoving(st.id); setErr('');
     const { data, error } = await supabase.rpc('manager_delete_student', { p_student: st.id });
     setRemoving(null);
@@ -56,7 +57,7 @@ export default function ClassRosterModal({ classId, className, students, onClose
     const seen = new Set<string>();
     const dups = new Set<string>();
     rows.forEach(r => { if (existing.has(r.name) || seen.has(r.name)) dups.add(r.name); seen.add(r.name); });
-    if (dups.size > 0 && !window.confirm(`같은 이름이 있어요: ${[...dups].join(', ')}\n그래도 등록할까요?`)) return;
+    if (dups.size > 0 && !await appConfirm(`같은 이름이 있어요: ${[...dups].join(', ')}\n그래도 등록할까요?`)) return;
     setBusy(true); setErr('');
     const { data, error } = await supabase.rpc('manager_add_students', {
       p_class: classId,

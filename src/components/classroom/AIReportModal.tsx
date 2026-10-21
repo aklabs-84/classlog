@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { generateDetailedReport } from '../../lib/gemini';
 import { useAuth, isFreeCreditPlan } from '../../lib/auth';
 import { creditPriceOf } from '../../lib/aiCredits';
+import { appToast } from '../../lib/appDialog';
 
 interface AIReportModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ const AIReportModal = ({ isOpen, onClose, className, classId, students }: AIRepo
 
   const handleCopy = () => {
     navigator.clipboard.writeText(report);
-    alert('보고서 내용이 클립보드에 복사되었습니다.');
+    appToast('보고서 내용이 클립보드에 복사되었습니다.');
   };
 
   if (!isOpen) return null;

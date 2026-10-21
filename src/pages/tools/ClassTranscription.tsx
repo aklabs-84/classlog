@@ -13,6 +13,7 @@ import {
   GraduationCap, Target, Pause, Play,
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -518,7 +519,7 @@ const ClassTranscription = () => {
   }, [pastSessions, location, navigate]);
 
   const deleteSession = async (id: string) => {
-    if (!window.confirm('이 전사 기록을 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 전사 기록을 삭제하시겠습니까?')) return;
     const { error } = await supabase
       .from('class_transcriptions')
       .delete()
@@ -954,7 +955,7 @@ ${transcriptText}
 
     const student = findStudent(obs.name);
     if (!student) {
-      alert(`'${obs.name}' 학생을 명단에서 찾을 수 없습니다.\nAI가 반환한 이름과 등록된 이름이 다를 수 있습니다.`);
+      appToast(`'${obs.name}' 학생을 명단에서 찾을 수 없습니다.\nAI가 반환한 이름과 등록된 이름이 다를 수 있습니다.`);
       return;
     }
 
@@ -981,7 +982,7 @@ ${transcriptText}
       } : prev);
     } catch (err) {
       console.error(err);
-      alert('저장 중 오류가 발생했습니다.');
+      appToast('저장 중 오류가 발생했습니다.');
     }
   };
 

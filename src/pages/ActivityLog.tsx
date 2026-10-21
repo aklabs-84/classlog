@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 const ActivityLog = () => {
   const { user } = useAuth();
@@ -116,7 +117,7 @@ const ActivityLog = () => {
 
   const handleSave = async (goBack: boolean = false) => {
     if (selectedStudents.length === 0 || !activityTitle || !content) {
-      alert('학생을 선택하고 활동 명칭 및 내용을 입력해 주세요.');
+      appToast('학생을 선택하고 활동 명칭 및 내용을 입력해 주세요.');
       return;
     }
     setIsSaving(true);
@@ -146,7 +147,7 @@ const ActivityLog = () => {
 
       if (goBack) navigate('/dashboard');
     } catch (error: any) {
-      alert('저장 중 오류가 발생했습니다: ' + error.message);
+      appToast('저장 중 오류가 발생했습니다: ' + error.message);
     } finally {
       setIsSaving(false);
     }
@@ -183,7 +184,7 @@ const ActivityLog = () => {
   };
 
   const handleDelete = async (obsId: string) => {
-    if (!confirm('이 교사 메모를 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 교사 메모를 삭제하시겠습니까?')) return;
     setDeletingObsId(obsId);
     try {
       const { error } = await supabase.from('observations').delete().eq('id', obsId);

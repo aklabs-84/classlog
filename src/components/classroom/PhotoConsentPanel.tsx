@@ -6,6 +6,7 @@ import {
   buildConsentLink, createOrRotateConsentKey, fetchConsents, getConsentKey, setConsentKeyActive, withdrawConsent,
   type ConsentKey, type ConsentRow,
 } from '../../lib/photoConsent';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Student { id: string; full_name: string }
 
@@ -87,7 +88,7 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
           </button>
           <button disabled={busy} onClick={() => run(async () => { await setConsentKeyActive(key.id, !key.is_active); setKey({ ...key, is_active: !key.is_active }); })}
             className="inline-flex items-center gap-1 border border-gray-300 text-gray-700 text-sm rounded-lg px-3 py-2"><Power className="w-4 h-4" /> {key.is_active ? '끄기' : '켜기'}</button>
-          <button disabled={busy} onClick={() => { if (window.confirm('새 링크를 만들면 지금 링크는 바로 못 쓰게 됩니다. 계속할까요?')) run(async () => setKey(await createOrRotateConsentKey(userId, classId))); }}
+          <button disabled={busy} onClick={async () => { if (await appConfirm('새 링크를 만들면 지금 링크는 바로 못 쓰게 됩니다. 계속할까요?')) run(async () => setKey(await createOrRotateConsentKey(userId, classId))); }}
             className="inline-flex items-center gap-1 border border-gray-300 text-gray-700 text-sm rounded-lg px-3 py-2"><RefreshCw className="w-4 h-4" /> 새 링크</button>
         </div>
       )}

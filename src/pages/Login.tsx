@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2, KeyRound, Gift } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import TeacherConfirmModal from '../components/TeacherConfirmModal';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,6 +15,8 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  // 학생이 습관적으로 눌러 가입되는 것을 막기 위한 확인 창
+  const [showTeacherConfirm, setShowTeacherConfirm] = useState(false);
   const [showReferralInput, setShowReferralInput] = useState(false);
   const [referralCode, setReferralCode] = useState('');
 
@@ -90,6 +93,12 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 md:p-8 relative overflow-hidden selection:bg-primary/20 selection:text-primary">
+      <TeacherConfirmModal
+        open={showTeacherConfirm}
+        onClose={() => setShowTeacherConfirm(false)}
+        onStudent={() => { setShowTeacherConfirm(false); navigate('/classroom-entry'); }}
+        onTeacher={() => { setShowTeacherConfirm(false); handleGoogleAuth(); }}
+      />
       <div className="absolute top-[-10%] right-[-10%] w-[800px] h-[800px] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-secondary/10 rounded-full blur-[100px] animate-pulse delay-700" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-accent/5 rounded-full blur-[150px] pointer-events-none" />
@@ -152,7 +161,7 @@ const Login = () => {
 
         <button
           type="button"
-          onClick={handleGoogleAuth}
+          onClick={() => setShowTeacherConfirm(true)}
           disabled={googleLoading}
           className="w-full py-5 rounded-2xl bg-white hover:bg-surface-container/60 border-2 border-on-surface/10 text-on-surface font-black text-base flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50 shadow-soft mb-6"
         >

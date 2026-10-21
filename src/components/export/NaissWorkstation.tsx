@@ -13,6 +13,7 @@ import {
   ListChecks, Scissors,
 } from 'lucide-react';
 import AiCreditCost from '../common/AiCreditCost';
+import { appToast } from '../../lib/appDialog';
 
 interface ExportColumn {
   key: string;
@@ -319,7 +320,7 @@ const NaissWorkstation = ({ classes }: Props) => {
 
   const generateAI = async (row: StudentRow) => {
     if (!row.observations.length && !row.teacher_obs.length && !row.unit_submissions.length) {
-      alert('활동 기록 또는 단원 마무리 제출 내용이 없는 학생입니다.');
+      appToast('활동 기록 또는 단원 마무리 제출 내용이 없는 학생입니다.');
       return;
     }
     setGeneratingId(row.id);
@@ -352,7 +353,7 @@ const NaissWorkstation = ({ classes }: Props) => {
       const result = await seatukDraftAI.generateContent(prompt, { class_id: selectedClassId });
       const content = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: content, status: 'draft' });
-    } catch (err: any) { alert(err?.message || 'AI 생성 중 오류가 발생했습니다.'); }
+    } catch (err: any) { appToast(err?.message || 'AI 생성 중 오류가 발생했습니다.'); }
     finally { setGeneratingId(null); }
   };
 
@@ -384,7 +385,7 @@ ${obsText}`;
         [row.id]: { level: json.level as '상' | '중' | '하', score: Number(json.score), reason: String(json.reason) },
       }));
     } catch (err: any) {
-      alert(err?.message || '성취도 추천 중 오류가 발생했습니다.');
+      appToast(err?.message || '성취도 추천 중 오류가 발생했습니다.');
     } finally {
       setSuggestingAchievementId(null);
     }
@@ -403,7 +404,7 @@ ${row.setech_content}`;
       const result = await seatukCompressAI.generateContent(prompt, { class_id: selectedClassId });
       const compressed = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: compressed, isDirty: true });
-    } catch (err: any) { alert(err?.message || 'AI 압축 중 오류가 발생했습니다.'); }
+    } catch (err: any) { appToast(err?.message || 'AI 압축 중 오류가 발생했습니다.'); }
     finally { setCompressingId(null); }
   };
 
@@ -442,7 +443,7 @@ ${row.setech_content}`;
 
   const bulkAICompress = async () => {
     const targets = rows.filter(r => selectedIds.has(r.id) && r.setech_content.length > 500);
-    if (!targets.length) { alert('선택된 학생 중 500자 초과 내용이 없습니다.'); return; }
+    if (!targets.length) { appToast('선택된 학생 중 500자 초과 내용이 없습니다.'); return; }
     setBulkCompressing(true);
     for (let i = 0; i < targets.length; i++) {
       setBulkCompressProgress({ current: i + 1, total: targets.length });
@@ -461,7 +462,7 @@ ${row.setech_content}`;
 
   const bulkMarkFinal = async () => {
     const targets = rows.filter(r => selectedIds.has(r.id) && r.setech_content);
-    if (!targets.length) { alert('선택된 학생 중 세특 내용이 있는 학생이 없습니다.'); return; }
+    if (!targets.length) { appToast('선택된 학생 중 세특 내용이 있는 학생이 없습니다.'); return; }
     // 낙관적 UI 업데이트
     setRows(prev => prev.map(r =>
       selectedIds.has(r.id) && r.setech_content ? { ...r, status: 'final', isDirty: false } : r
@@ -519,8 +520,8 @@ ${row.setech_content}`;
         }
       }
       setRows(newRows);
-      if (updated > 0) alert(`${updated}명의 AI 초안을 불러왔습니다.`);
-      else alert('불러올 새 AI 초안이 없습니다.\nAI 초안 페이지에서 먼저 생성해주세요.');
+      if (updated > 0) appToast(`${updated}명의 AI 초안을 불러왔습니다.`);
+      else appToast('불러올 새 AI 초안이 없습니다.\nAI 초안 페이지에서 먼저 생성해주세요.');
     } finally {
       setIsImportingDrafts(false);
     }

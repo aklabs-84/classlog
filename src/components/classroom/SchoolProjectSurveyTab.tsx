@@ -11,6 +11,7 @@ import {
   ShortTextChart, OpinionScaleChart, RankingChart, QuestionEditor,
   type QuestionType, type SurveyQuestion, type SurveyAnswer,
 } from '../../pages/tools/SurveyTool';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface SurveyFormRow {
@@ -153,7 +154,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
     setRenamingId(null);
     if (!title || title === form.title) return;
     const { error } = await supabase.from('survey_forms').update({ title }).eq('id', form.id);
-    if (error) { window.alert('이름을 바꾸지 못했습니다. 잠시 후 다시 시도해주세요.'); return; }
+    if (error) { appToast('이름을 바꾸지 못했습니다. 잠시 후 다시 시도해주세요.'); return; }
     setForms(prev => prev.map(f => f.id === form.id ? { ...f, title } : f));
     if (editingForm?.id === form.id) setEditingForm(prev => prev ? { ...prev, title } : prev);
   };
@@ -178,7 +179,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
     const { count } = await supabase.from('survey_responses').select('id', { count: 'exact', head: true }).in('form_id', idsToDelete);
     const target = pairedPost ? `"${form.title}"와 연결된 사후 설문 "${pairedPost.title}"` : `"${form.title}"`;
     const respNote = count ? ` 응답 ${count}건도 함께 삭제됩니다.` : '';
-    if (!window.confirm(`${target}을(를) 삭제할까요?${respNote}\n이 작업은 되돌릴 수 없습니다.`)) return;
+    if (!await appConfirm(`${target}을(를) 삭제할까요?${respNote}\n이 작업은 되돌릴 수 없습니다.`)) return;
 
     await supabase.from('survey_forms').delete().in('id', idsToDelete);
     setForms(prev => prev.filter(f => !idsToDelete.includes(f.id)));

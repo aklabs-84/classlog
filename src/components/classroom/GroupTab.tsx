@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { regenerateClassGroups } from '../../lib/groupRegenerate';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 interface Student {
   id: string;
@@ -110,9 +111,9 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
     setAddLoading(false);
     if (error) {
       if (error.code === '23505') {
-        alert(`'${name}' 이름의 조가 이미 있습니다. 다른 이름을 사용해주세요.`);
+        appToast(`'${name}' 이름의 조가 이미 있습니다. 다른 이름을 사용해주세요.`);
       } else {
-        alert('조 생성 중 오류가 발생했습니다.');
+        appToast('조 생성 중 오류가 발생했습니다.');
       }
       return;
     }
@@ -158,9 +159,9 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
     setRenameLoading(false);
     if (error) {
       if (error.code === '23505') {
-        alert(`'${name}' 이름의 조가 이미 있습니다. 다른 이름을 사용해주세요.`);
+        appToast(`'${name}' 이름의 조가 이미 있습니다. 다른 이름을 사용해주세요.`);
       } else {
-        alert('조 이름 수정 중 오류가 발생했습니다.');
+        appToast('조 이름 수정 중 오류가 발생했습니다.');
       }
       return;
     }
@@ -205,7 +206,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
   const autoAssign = async () => {
     if (groups.length === 0) {
-      alert('먼저 조를 만들어주세요.');
+      appToast('먼저 조를 만들어주세요.');
       return;
     }
     setAutoLoading(true);
@@ -236,14 +237,14 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
   const randomPickGroups = async () => {
     if (students.length < 2) return;
-    if (groups.length > 0 && !confirm('기존 조를 새로운 조로 랜덤 재편성할까요? (같은 이름의 조는 유지되고, 이전 제출 기록은 그대로 보존됩니다)')) return;
+    if (groups.length > 0 && !await appConfirm('기존 조를 새로운 조로 랜덤 재편성할까요? (같은 이름의 조는 유지되고, 이전 제출 기록은 그대로 보존됩니다)')) return;
 
     setRandomLoading(true);
 
     const numGroups = randomNumGroups;
     const names = Array.from({ length: numGroups }, (_, i) => randomGroupNames[i]?.trim() || `${i + 1}조`);
     if (new Set(names).size !== names.length) {
-      alert('조 이름이 중복되었습니다. 서로 다른 이름을 입력해주세요.');
+      appToast('조 이름이 중복되었습니다. 서로 다른 이름을 입력해주세요.');
       setRandomLoading(false);
       return;
     }
@@ -269,7 +270,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
   };
 
   const clearAll = async () => {
-    if (!confirm('모든 조 배정을 초기화하시겠습니까?')) return;
+    if (!await appConfirm('모든 조 배정을 초기화하시겠습니까?')) return;
     await supabase
       .from('class_group_members')
       .delete()
@@ -281,7 +282,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
   const sendGroupNotifications = async () => {
     const assignedCount = Object.keys(memberMap).length;
     if (assignedCount === 0) {
-      alert('배정된 학생이 없습니다.');
+      appToast('배정된 학생이 없습니다.');
       return;
     }
     setNotifLoading(true);

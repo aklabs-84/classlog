@@ -4,6 +4,7 @@ import { Video, Plus, ExternalLink, StopCircle, Trash2, ChevronDown, Radio, Play
 import { supabase } from '../../lib/supabase';
 import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth } from '../../lib/auth';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 type Platform = 'google_meet' | 'zoom' | 'etc';
 
@@ -107,7 +108,7 @@ export default function OnlineMeeting() {
       created_by: user.id,
     }).select().single();
     setSaving(false);
-    if (error || !data) { alert('등록 중 오류가 발생했습니다.'); return; }
+    if (error || !data) { appToast('등록 중 오류가 발생했습니다.'); return; }
     setMeetings(prev => [data as ClassMeeting, ...prev]);
     setTitle('온라인 수업');
     setMeetingUrl('');
@@ -129,7 +130,7 @@ export default function OnlineMeeting() {
   };
 
   const handleDeleteMeeting = async (meeting: ClassMeeting) => {
-    if (!confirm('이 미팅 기록을 삭제할까요?')) return;
+    if (!await appConfirm('이 미팅 기록을 삭제할까요?')) return;
     await supabase.from('class_meetings').delete().eq('id', meeting.id);
     setMeetings(prev => prev.filter(m => m.id !== meeting.id));
   };

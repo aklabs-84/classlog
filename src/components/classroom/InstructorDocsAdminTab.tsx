@@ -9,6 +9,7 @@ import {
   Plus, X, Pencil, Trash2, ArrowUp, ArrowDown, Loader2, Paperclip, CheckSquare, PenLine, FileSignature,
   Check, Clock, AlertTriangle, Radio, Download,
 } from 'lucide-react';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Props {
   projectId: string;
@@ -161,7 +162,7 @@ export default function InstructorDocsAdminTab({ projectId, teacherNames, school
   const remove = async (r: DocRequirement) => {
     const n = subs.filter(s => s.requirement_id === r.id).length;
     const warn = n > 0 ? `\n이미 제출된 ${n}건의 기록도 함께 사라져요.` : '';
-    if (!confirm(`'${r.title}' 서류를 삭제할까요?${warn}`)) return;
+    if (!await appConfirm(`'${r.title}' 서류를 삭제할까요?${warn}`)) return;
     const { error: err } = await supabase.from('instructor_doc_requirements').delete().eq('id', r.id);
     if (err) { flash('삭제에 실패했어요.'); return; }
     reload();

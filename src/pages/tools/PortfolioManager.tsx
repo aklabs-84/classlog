@@ -8,6 +8,7 @@ import {
   Loader2, Check, Link2, Eye, EyeOff, Globe, Lock, Sparkles, BookOpen, ExternalLink,
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
+import { appToast } from '../../lib/appDialog';
 
 const SLUG_PATTERN = /^[a-z0-9-]{3,32}$/;
 
@@ -130,7 +131,7 @@ const PortfolioManager = () => {
       const draft = await generatePortfolioIntroDraft(stats, showcaseTitles);
       setIntro(draft);
     } catch {
-      alert('소개글 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      appToast('소개글 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setGeneratingIntro(false);
     }
@@ -138,8 +139,8 @@ const PortfolioManager = () => {
 
   const handleSave = async () => {
     if (!user) return;
-    if (slugCheck !== 'available' && slug) { alert('slug 중복 확인을 먼저 완료해주세요.'); return; }
-    if (!SLUG_PATTERN.test(slug)) { alert('URL은 영문 소문자/숫자/하이픈으로 3~32자여야 합니다.'); return; }
+    if (slugCheck !== 'available' && slug) { appToast('slug 중복 확인을 먼저 완료해주세요.'); return; }
+    if (!SLUG_PATTERN.test(slug)) { appToast('URL은 영문 소문자/숫자/하이픈으로 3~32자여야 합니다.'); return; }
     setSaving(true);
     const { error } = await supabase.from('teacher_portfolios').upsert({
       teacher_id: user.id,
@@ -151,7 +152,7 @@ const PortfolioManager = () => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'teacher_id' });
     setSaving(false);
-    if (error) { alert(`저장 중 오류가 발생했습니다: ${error.message}`); return; }
+    if (error) { appToast(`저장 중 오류가 발생했습니다: ${error.message}`); return; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

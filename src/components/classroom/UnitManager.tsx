@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import UnitCreateModal from './UnitCreateModal';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Props {
   classId: string;
@@ -78,7 +79,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
   };
 
   const handleDeleteUnit = async (unitId: string, title: string) => {
-    if (!confirm(`"${title}" 단원을 삭제하시겠습니까? 학생 제출 데이터도 함께 삭제됩니다.`)) return;
+    if (!await appConfirm(`"${title}" 단원을 삭제하시겠습니까? 학생 제출 데이터도 함께 삭제됩니다.`)) return;
     try {
       const { error } = await supabase.from('units').delete().eq('id', unitId);
       if (!error) fetchUnits();
@@ -88,7 +89,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
   };
 
   const handleCompleteUnit = async (unitId: string) => {
-    if (!confirm('이 단원을 마무리하면 학생들에게 마무리 서식 제출 알림이 표시됩니다. 계속하시겠습니까?')) return;
+    if (!await appConfirm('이 단원을 마무리하면 학생들에게 마무리 서식 제출 알림이 표시됩니다. 계속하시겠습니까?')) return;
     try {
       const { error } = await supabase
         .from('units')

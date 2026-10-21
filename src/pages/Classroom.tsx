@@ -78,6 +78,7 @@ import PresentationModal from '../components/PresentationModal';
 import MaterialAnswersModal from '../components/MaterialAnswersModal';
 import StudentMaterialPage from '../components/StudentMaterialPage';
 import { mdComponents as materialMdComponents } from '../components/materialMdComponents';
+import { appConfirm, appToast } from '../lib/appDialog';
 
 const PREVIEW_ANSWERS = { load: async () => ({}), save: async () => {} };
 // AnimatePresence 자식으로 쓸 수 있도록 포탈을 컴포넌트로 감쌈 (createPortal 결과는 유효한 element가 아님)
@@ -421,7 +422,7 @@ const Classroom = () => {
   const handleGenerateRecap = async (idx: number) => {
     const item = (updateClassData.weekly_plan || [])[idx];
     if (!item?.material_id) return;
-    if ((item.recap || []).length > 0 && !window.confirm('이미 만들어 둔 키워드가 있어요.\nAI가 새로 만든 키워드로 바꿀까요?')) return;
+    if ((item.recap || []).length > 0 && !await appConfirm('이미 만들어 둔 키워드가 있어요.\nAI가 새로 만든 키워드로 바꿀까요?')) return;
     setRecapBusyIdx(idx);
     try {
       const { data, error } = await supabase.from('class_materials').select('content').eq('id', item.material_id).single();
@@ -1102,7 +1103,7 @@ const Classroom = () => {
     const msg = newState
       ? '수업을 종료하면 학생들은 활동기록 작성과 결과 제출을 할 수 없습니다. 수업을 종료하시겠습니까?'
       : '수업을 다시 진행 중으로 변경하시겠습니까?';
-    if (!confirm(msg)) return;
+    if (!await appConfirm(msg)) return;
     try {
       const { error } = await supabase.from('classes').update({ is_closed: newState }).eq('id', classId);
       if (error) throw error;
@@ -1118,7 +1119,7 @@ const Classroom = () => {
   };
 
   const handleDeleteClass = async (id: string) => {
-    if (!confirm('정말 이 학급을 삭제하시겠습니까? 삭제된 학급은 아카이브함으로 이동하며, 언제든지 복원할 수 있습니다.')) return;
+    if (!await appConfirm('정말 이 학급을 삭제하시겠습니까? 삭제된 학급은 아카이브함으로 이동하며, 언제든지 복원할 수 있습니다.')) return;
     
     try {
       const { error } = await supabase
@@ -1191,7 +1192,7 @@ const Classroom = () => {
   };
 
   const handlePermanentDelete = async (id: string, name: string) => {
-    if (!confirm(`"${name}" 학급을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 관련 데이터(학생, 기록 등)가 사라질 수 있습니다.`)) return;
+    if (!await appConfirm(`"${name}" 학급을 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없으며 모든 관련 데이터(학생, 기록 등)가 사라질 수 있습니다.`)) return;
     
     try {
       const filePaths = await collectClassResultPaths(id);
@@ -1453,7 +1454,7 @@ const Classroom = () => {
   };
 
   const handleDeleteSchool = async (schoolId: string, schoolName: string) => {
-    if (!window.confirm(`"${schoolName}" 학교 그룹을 삭제할까요?\n배정된 학급은 그룹에서 해제되지만 삭제되지는 않습니다.`)) return;
+    if (!await appConfirm(`"${schoolName}" 학교 그룹을 삭제할까요?\n배정된 학급은 그룹에서 해제되지만 삭제되지는 않습니다.`)) return;
     setDeletingSchoolId(schoolId);
     try {
       const { error } = await supabase.from('schools').delete().eq('id', schoolId);
@@ -1475,7 +1476,7 @@ const Classroom = () => {
     // 플랜별 학생 수 제한 체크
     const studentLimit = getStudentLimit(profile);
     if (students.length >= studentLimit) {
-      alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
+      appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       return;
     }
 
@@ -1483,7 +1484,7 @@ const Classroom = () => {
     const trimmedName = newStudentData.name.trim();
     const isDuplicateName = students.some(s => (s.full_name || '').trim() === trimmedName);
     if (isDuplicateName) {
-      const proceed = window.confirm(`'${trimmedName}' 학생이 이미 이 반에 등록되어 있어요.\n그래도 추가하시겠어요?`);
+      const proceed = await appConfirm(`'${trimmedName}' 학생이 이미 이 반에 등록되어 있어요.\n그래도 추가하시겠어요?`);
       if (!proceed) return;
     }
 
@@ -1504,7 +1505,7 @@ const Classroom = () => {
     } catch (err: any) {
       console.error('Error adding student:', err);
       if (typeof err?.message === 'string' && err.message.includes('STUDENT_LIMIT_EXCEEDED')) {
-        alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
+        appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       }
     }
   };
@@ -1536,7 +1537,7 @@ const Classroom = () => {
     const studentLimit = getStudentLimit(profile);
     if (students.length + names.length > studentLimit) {
       const remaining = Math.max(0, studentLimit - students.length);
-      alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${students.length}명 등록 중 — ${remaining}명만 추가 가능합니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
+      appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${students.length}명 등록 중 — ${remaining}명만 추가 가능합니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       return;
     }
 
@@ -1571,7 +1572,7 @@ const Classroom = () => {
         seenInBatch.add(n);
       }
       if (duplicateNames.size > 0) {
-        const proceed = window.confirm(`같은 이름이 중복돼요: ${Array.from(duplicateNames).join(', ')}\n그래도 등록하시겠어요?`);
+        const proceed = await appConfirm(`같은 이름이 중복돼요: ${Array.from(duplicateNames).join(', ')}\n그래도 등록하시겠어요?`);
         if (!proceed) return;
       }
 
@@ -1585,7 +1586,7 @@ const Classroom = () => {
     } catch (err: any) {
       console.error('Error bulk registering students:', err);
       if (typeof err?.message === 'string' && err.message.includes('STUDENT_LIMIT_EXCEEDED')) {
-        alert(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
+        appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       }
     }
   };
@@ -1610,7 +1611,7 @@ const Classroom = () => {
       showToast('승인 대기 중인 활동 기록이 없습니다.');
       return;
     }
-    if (!confirm(`이 반의 승인 대기 기록 ${pendingIds.length}건을 모두 승인하시겠습니까?`)) return;
+    if (!await appConfirm(`이 반의 승인 대기 기록 ${pendingIds.length}건을 모두 승인하시겠습니까?`)) return;
 
     try {
       const { error } = await supabase
@@ -1638,7 +1639,7 @@ const Classroom = () => {
   const handleBulkDelete = async () => {
     const count = selectedStudentIds.length;
     if (count === 0) return;
-    if (!confirm(`선택한 ${count}명의 학생 정보를 모두 삭제하시겠습니까? 기록된 모든 데이터가 영구적으로 사라집니다.`)) return;
+    if (!await appConfirm(`선택한 ${count}명의 학생 정보를 모두 삭제하시겠습니까? 기록된 모든 데이터가 영구적으로 사라집니다.`)) return;
 
     try {
       const filePaths = await collectStudentResultPaths(selectedStudentIds);
@@ -1659,7 +1660,7 @@ const Classroom = () => {
   };
 
   const handleResetPin = async (studentId: string) => {
-    if (!confirm('이 학생의 PIN을 초기화하시겠습니까? 학생이 다음 접속 시 새 PIN을 설정하게 됩니다.')) return;
+    if (!await appConfirm('이 학생의 PIN을 초기화하시겠습니까? 학생이 다음 접속 시 새 PIN을 설정하게 됩니다.')) return;
     try {
       const { error } = await supabase.from('students').update({ pin: null }).eq('id', studentId);
       if (error) throw error;
@@ -1670,7 +1671,7 @@ const Classroom = () => {
   };
 
   const handleDeleteStudent = async (studentId: string, studentName: string) => {
-    if (!confirm(`"${studentName}" 학생의 정보를 삭제하시겠습니까? 기록된 모든 데이터가 사라집니다.`)) return;
+    if (!await appConfirm(`"${studentName}" 학생의 정보를 삭제하시겠습니까? 기록된 모든 데이터가 사라집니다.`)) return;
     try {
       const filePaths = await collectStudentResultPaths([studentId]);
       const { error } = await supabase.from('students').delete().eq('id', studentId);
@@ -1916,7 +1917,7 @@ const Classroom = () => {
   };
   const handleRemoveBuiltinTool = async (toolId: string, label: string) => {
     if (!activeClassId) return;
-    if (!window.confirm(`이 클래스의 학습 도구에서 "${label}"을(를) 뺄까요?\n학생 화면에서도 사라지며, 다시 추가할 수 있어요.`)) return;
+    if (!await appConfirm(`이 클래스의 학습 도구에서 "${label}"을(를) 뺄까요?\n학생 화면에서도 사라지며, 다시 추가할 수 있어요.`)) return;
     setTogglingToolId(toolId);
     try {
       const { error } = await supabase
@@ -1937,7 +1938,7 @@ const Classroom = () => {
   // AIServiceHub 연동 앱 연결 해제 — class_enabled_tools 행 삭제(메인 도구였다면 지정도 해제). 이미 만든 주차 자료는 그대로 둔다
   const handleDisconnectHubApp = async (toolId: string, appName: string) => {
     if (!activeClassId) return;
-    if (!window.confirm(`이 클래스에서 "${appName}" 연결을 끊을까요?\n학생 화면의 학습 도구에서도 사라져요. 이미 만든 주차 자료는 그대로 남고, 다시 연결할 수 있어요.`)) return;
+    if (!await appConfirm(`이 클래스에서 "${appName}" 연결을 끊을까요?\n학생 화면의 학습 도구에서도 사라져요. 이미 만든 주차 자료는 그대로 남고, 다시 연결할 수 있어요.`)) return;
     setTogglingToolId(toolId);
     try {
       const { error } = await supabase
@@ -2369,7 +2370,7 @@ const Classroom = () => {
     const effectivePlan: any[] = effectivePlanInfo.plan;
     const linkedWeeks = effectivePlan.filter((p: any) => p.material_id === id).map((p: any) => p.week);
     if (linkedWeeks.length > 0) {
-      const ok = confirm(`이 자료는 ${linkedWeeks.join(', ')}주차 주차별 자료에 연결되어 있습니다.\n삭제하면 해당 주차에서 자료를 열 수 없게 됩니다. 그래도 삭제하시겠습니까?`);
+      const ok = await appConfirm(`이 자료는 ${linkedWeeks.join(', ')}주차 주차별 자료에 연결되어 있습니다.\n삭제하면 해당 주차에서 자료를 열 수 없게 됩니다. 그래도 삭제하시겠습니까?`);
       if (!ok) return;
     }
     setDeletingEditorMatId(id);
@@ -2420,10 +2421,10 @@ const Classroom = () => {
       '내 수업용 복사본을 만들었어요. 원본은 그대로예요.',
     );
   };
-  const handleApplyOrigin = (originalId: string) => {
+  const handleApplyOrigin = async (originalId: string) => {
     const copy = planOverrides[originalId];
     if (!copy) return;
-    if (!window.confirm('내 버전을 원본 내용으로 바꿀까요?\n바꾸기 직전 내용은 한 번 되돌릴 수 있게 보관돼요.')) return;
+    if (!await appConfirm('내 버전을 원본 내용으로 바꿀까요?\n바꾸기 직전 내용은 한 번 되돌릴 수 있게 보관돼요.')) return;
     runOverrideAction(originalId, () => applyOriginUpdate(copy), '원본 내용으로 바꿨어요. 필요하면 되돌릴 수 있어요.');
   };
   const handleUndoOrigin = (originalId: string) => {
@@ -2474,7 +2475,7 @@ const Classroom = () => {
       if (idx === next.length) next.push({ week: idx + 1, topic: '', url: '', requires_result: true, requires_activity: true });
       const cur = next[idx];
       if (cur.material_id && cur.material_id !== m.id &&
-        !window.confirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
+        !await appConfirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
         return;
       }
       next[idx] = { ...cur, material_id: m.id, url: '', topic: (cur.topic || '').trim() ? cur.topic : m.title };
@@ -4744,8 +4745,8 @@ const Classroom = () => {
                                             <button
                                               type="button"
                                               title="이미 학생 기록이 쌓인 차시라면, 주제를 바꾸면 이전 기록이 이 차시에서 분리될 수 있어요"
-                                              onClick={() => {
-                                                if ((item.topic || '').trim() && !window.confirm('수업 주제를 에디터 제목으로 바꿉니다.\n이미 학생 활동 기록이 쌓인 차시라면, 이전 기록이 이 차시와 연결되지 않을 수 있어요.\n계속할까요?')) return;
+                                              onClick={async () => {
+                                                if ((item.topic || '').trim() && !await appConfirm('수업 주제를 에디터 제목으로 바꿉니다.\n이미 학생 활동 기록이 쌓인 차시라면, 이전 기록이 이 차시와 연결되지 않을 수 있어요.\n계속할까요?')) return;
                                                 const plan = [...updateClassData.weekly_plan];
                                                 plan[idx].topic = linkedTitle;
                                                 setUpdateClassData({ ...updateClassData, weekly_plan: plan });

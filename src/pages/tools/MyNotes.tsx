@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import RichEditor from '../../components/RichEditor';
 import CodeBlock from '../../components/CodeBlock';
+import { appConfirm, appToast } from '../../lib/appDialog';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -106,12 +107,12 @@ export default function MyNotes() {
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
     if (file.size > 50 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      appToast('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
       throw new Error('파일 크기 초과');
     }
     const compressed = await compressToWebP(file);
     if (compressed.size > 20 * 1024 * 1024) {
-      alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
+      appToast('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
       throw new Error('파일 크기 초과');
     }
     const path = `notes/${user.id}/${Date.now()}.webp`;
@@ -169,7 +170,7 @@ export default function MyNotes() {
       setContent('');
       await fetchNotes();
     } catch (err: any) {
-      alert('저장 중 오류가 발생했습니다: ' + err.message);
+      appToast('저장 중 오류가 발생했습니다: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -205,7 +206,7 @@ export default function MyNotes() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('이 노트를 삭제하시겠습니까?')) return;
+    if (!await appConfirm('이 노트를 삭제하시겠습니까?')) return;
     setDeletingId(id);
     try {
       const { error } = await supabase.from('teacher_notes').delete().eq('id', id);

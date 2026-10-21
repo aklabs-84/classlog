@@ -8,6 +8,7 @@ import {
   getUploadKey, createOrRotateUploadKey, setUploadKeyActive, setReviewStatus, setFeatured, buildUploadLink,
   type UploadKey, type ReviewStatus,
 } from '../../lib/galleryAssistant';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Props {
   userId: string;
@@ -76,8 +77,8 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
     await setReviewStatus(ids, 'approved');
     setItems(prev => prev.map(i => (i.review_status === 'pending' ? { ...i, review_status: 'approved' } : i)));
   });
-  const remove = (item: GalleryItem) => {
-    if (!window.confirm('이 사진을 삭제할까요? 되돌릴 수 없습니다.')) return;
+  const remove = async (item: GalleryItem) => {
+    if (!await appConfirm('이 사진을 삭제할까요? 되돌릴 수 없습니다.')) return;
     run(async () => {
       await deleteGalleryItem(item.id, item.file_url);
       setItems(prev => prev.filter(i => i.id !== item.id));
@@ -204,7 +205,7 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
                 className="inline-flex items-center gap-1 text-xs font-semibold border border-gray-300 rounded-lg px-2.5 py-1.5 text-gray-700">
                 <Power className="w-3.5 h-3.5" /> {key.is_active ? '링크 끄기' : '링크 켜기'}
               </button>
-              <button disabled={busy} onClick={() => { if (window.confirm('새 링크를 만들면 지금 링크는 바로 못 쓰게 됩니다. 계속할까요?')) run(async () => setKey(await createOrRotateUploadKey(userId, classId))); }}
+              <button disabled={busy} onClick={async () => { if (await appConfirm('새 링크를 만들면 지금 링크는 바로 못 쓰게 됩니다. 계속할까요?')) run(async () => setKey(await createOrRotateUploadKey(userId, classId))); }}
                 className="inline-flex items-center gap-1 text-xs font-semibold border border-gray-300 rounded-lg px-2.5 py-1.5 text-gray-700">
                 <RefreshCw className="w-3.5 h-3.5" /> 새 링크로 바꾸기
               </button>

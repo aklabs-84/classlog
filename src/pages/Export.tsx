@@ -21,6 +21,7 @@ import { useAuth, checkIsPro } from '../lib/auth';
 import { isDemoTeacher, getDemoClassId } from '../lib/demo';
 import DemoModeBanner from '../components/DemoModeBanner';
 import NaissWorkstation from '../components/export/NaissWorkstation';
+import { appToast } from '../lib/appDialog';
 
 type Scope = 'all' | 'specific';
 type Format = 'csv' | 'xlsx';
@@ -189,7 +190,7 @@ const Export = () => {
       const targetId = cls?.linked_class_id || selectedClassId;
 
       const { data: allStuds } = await supabase.from('students').select('id, full_name, student_number').eq('class_id', targetId);
-      if (!allStuds || allStuds.length === 0) { alert('학급에 학생이 없습니다.'); return; }
+      if (!allStuds || allStuds.length === 0) { appToast('학급에 학생이 없습니다.'); return; }
 
       const studentIds = scope === 'specific' && selectedStudentIds.length > 0
         ? selectedStudentIds
@@ -218,7 +219,7 @@ const Export = () => {
         return Object.fromEntries(selectedColumns.map(col => [col, full[col] ?? '']));
       });
 
-      if (rows.length === 0) { alert('해당 기간에 활동 기록이 없습니다.'); return; }
+      if (rows.length === 0) { appToast('해당 기간에 활동 기록이 없습니다.'); return; }
 
       const className = cls?.name?.replace(/[/\\?%*:|"<>]/g, '-') || 'export';
       const fileName = `${className}_활동기록_${startDate}~${endDate}`;
@@ -243,7 +244,7 @@ const Export = () => {
       }
     } catch (err) {
       console.error(err);
-      alert('내보내기 중 오류가 발생했습니다.');
+      appToast('내보내기 중 오류가 발생했습니다.');
     } finally {
       setExporting(false);
     }
@@ -257,7 +258,7 @@ const Export = () => {
       const targetId = cls?.linked_class_id || selectedClassId;
 
       const { data: allStuds } = await supabase.from('students').select('id, full_name, student_number').eq('class_id', targetId);
-      if (!allStuds || allStuds.length === 0) { alert('학급에 학생이 없습니다.'); return; }
+      if (!allStuds || allStuds.length === 0) { appToast('학급에 학생이 없습니다.'); return; }
 
       const studentIds = scope === 'specific' && selectedStudentIds.length > 0
         ? selectedStudentIds
@@ -271,7 +272,7 @@ const Export = () => {
         .lte('created_at', new Date(endDate + 'T23:59:59').toISOString())
         .order('created_at', { ascending: true });
 
-      if (!obs || obs.length === 0) { alert('해당 기간에 활동 기록이 없습니다.'); return; }
+      if (!obs || obs.length === 0) { appToast('해당 기간에 활동 기록이 없습니다.'); return; }
 
       const studentMap: Record<string, { full_name: string; student_number: string }> = {};
       allStuds.forEach(s => { studentMap[s.id] = s; });
@@ -377,7 +378,7 @@ const Export = () => {
       }
     } catch (err) {
       console.error(err);
-      alert('내보내기 중 오류가 발생했습니다.');
+      appToast('내보내기 중 오류가 발생했습니다.');
     } finally {
       setExporting(false);
     }
@@ -411,7 +412,7 @@ const Export = () => {
         <button
           onClick={() => {
             if (!checkIsPro(profile)) {
-              alert('나이스 제출 준비는 Pro 플랜 전용 기능입니다.\naklabs84@naver.com으로 업그레이드 문의해 주세요.');
+              appToast('나이스 제출 준비는 Pro 플랜 전용 기능입니다.\naklabs84@naver.com으로 업그레이드 문의해 주세요.');
               return;
             }
             setActiveTab('naiss');

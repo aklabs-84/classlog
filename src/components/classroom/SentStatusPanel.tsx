@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { appConfirm } from '../../lib/appDialog';
 
 interface Props {
   kind: 'quiz' | 'board';
@@ -23,7 +24,7 @@ export default function SentStatusPanel({ kind, schoolIds, teacherNames, refresh
   const unsend = async (r: any) => {
     if (!r.id || busyId) return;
     const label = kind === 'quiz' ? '퀴즈' : '보드 틀';
-    if (!window.confirm(`'${r.class_name}'에 보낸 "${r.title}" ${label}를 취소(삭제)할까요?\n받은 강사 화면에서도 사라지고, 되돌릴 수 없어요.`)) return;
+    if (!await appConfirm(`'${r.class_name}'에 보낸 "${r.title}" ${label}를 취소(삭제)할까요?\n받은 강사 화면에서도 사라지고, 되돌릴 수 없어요.`)) return;
     setBusyId(r.id); setMsg('');
     const { data, error } = await supabase.rpc(kind === 'quiz' ? 'manager_unsend_quiz' : 'manager_unsend_board', kind === 'quiz' ? { p_quiz: r.id } : { p_board: r.id });
     const d = data as any;
