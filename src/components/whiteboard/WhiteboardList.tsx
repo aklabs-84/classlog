@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil, Archive, ArchiveRestore, MoreHorizontal, CheckSquare, Square } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../../lib/auth';
@@ -72,6 +72,13 @@ export default function WhiteboardList() {
   const [groupSizeInput, setGroupSizeInput] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  // 여러 개 선택 삭제 모드
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  // 마우스 호버가 없는 터치 기기(폰·태블릿) 여부 — 카드에 ⋯ 버튼을 항상 보여준다
+  const [isTouch] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(hover: none)').matches);
 
   const loadBoards = useCallback(async () => {
     if (!user) return;
@@ -167,9 +174,8 @@ export default function WhiteboardList() {
     navigate(`/whiteboard/${uuidv4()}`);
   };
 
-  const handleDeleteConfirm = async (id: string) => {
-    setDeletingId(id);
-
+  // 보드 1개의 이미지 파일 + 보드 본체 삭제 (한 개 삭제·선택 삭제 공용)
+  const removeBoardData = async (id: string) => {
     // 보드에 포함된 이미지가 Storage에 고아 파일로 남지 않도록 함께 삭제
     const { data: imageObjects } = await supabase
       .from('board_objects')
@@ -186,10 +192,40 @@ export default function WhiteboardList() {
     }
 
     await supabase.from('whiteboards').delete().eq('id', id);
+  };
+
+  const handleDeleteConfirm = async (id: string) => {
+    setDeletingId(id);
+    await removeBoardData(id);
     setBoards(prev => prev.filter(b => b.id !== id));
     setConfirmId(null);
     setDeletingId(null);
     setHoveredId(null);
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkConfirm(false);
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    for (const id of ids) await removeBoardData(id);
+    setBoards(prev => prev.filter(b => !selectedIds.has(b.id)));
+    setBulkDeleting(false);
+    exitSelectMode();
+    showLimitToast(`보드 ${ids.length}개를 삭제했어요.`);
   };
 
   // 오래된 보드 보관/복원 — archived_at 설정 시 기본 목록에서 숨기고 보관함 탭에서만 노출
@@ -673,10 +709,42 @@ export default function WhiteboardList() {
       )}
 
       {/* 보관함 토글 */}
-      {(showArchived || archivedCount > 0) && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        {boards.length > 0 && (
+          selectMode ? (
+            <>
+              <button
+                onClick={() => setSelectedIds(selectedIds.size === filteredBoards.length ? new Set() : new Set(filteredBoards.map(b => b.id)))}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {selectedIds.size === filteredBoards.length && filteredBoards.length > 0 ? '전체 해제' : `전체 선택 (${filteredBoards.length})`}
+              </button>
+              <button
+                onClick={() => setBulkConfirm(true)}
+                disabled={selectedIds.size === 0 || bulkDeleting}
+                style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: selectedIds.size === 0 ? '#FCA5A5' : '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedIds.size === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <Trash2 size={13} /> {selectedIds.size}개 삭제
+              </button>
+              <button
+                onClick={exitSelectMode}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                선택 끝내기
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => { setSelectMode(true); setConfirmId(null); setHoveredId(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              <CheckSquare size={13} /> 선택해서 삭제
+            </button>
+          )
+        )}
+        {(showArchived || archivedCount > 0) && (
           <button
-            onClick={() => setShowArchived(v => !v)}
+            onClick={() => { setShowArchived(v => !v); setSelectedIds(new Set()); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8,
               border: `1px solid ${showArchived ? '#93C5FD' : '#E5E7EB'}`,
@@ -687,8 +755,8 @@ export default function WhiteboardList() {
           >
             {showArchived ? <><ArchiveRestore size={12} /> 보관함 닫기</> : <><Archive size={12} /> 보관함 ({archivedCount})</>}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 보드 그리드 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
@@ -719,6 +787,7 @@ export default function WhiteboardList() {
             const isDisconnectingThis = disconnecting === board.id;
             const isConnected = !!board.class_id;
             const isSharing = board.is_public && !!board.class_id && !!classSessions[board.class_id];
+            const isSelected = selectedIds.has(board.id);
             const isStale = (Date.now() - new Date(board.updated_at).getTime()) / 86_400_000 > STALE_DAYS;
 
             return (
@@ -731,10 +800,10 @@ export default function WhiteboardList() {
                 transition={{ duration: 0.15 }}
                 onMouseEnter={() => setHoveredId(board.id)}
                 onMouseLeave={() => { setHoveredId(null); if (!isDeleting) setConfirmId(null); }}
-                onClick={() => !isConfirming && navigate(`/whiteboard/${board.id}`)}
+                onClick={() => { if (selectMode) { toggleSelected(board.id); return; } if (!isConfirming) navigate(`/whiteboard/${board.id}`); }}
                 style={{
                   background: '#fff',
-                  border: `1px solid ${isConfirming ? '#FCA5A5' : isHovered ? '#3B82F6' : '#E5E7EB'}`,
+                  border: `${isSelected ? 2 : 1}px solid ${isSelected ? '#EF4444' : isConfirming ? '#FCA5A5' : isHovered ? '#3B82F6' : '#E5E7EB'}`,
                   borderLeft: `3px solid ${isConnected ? '#22C55E' : '#E5E7EB'}`,
                   borderRadius: 12, cursor: isConfirming ? 'default' : 'pointer',
                   height: 168, overflow: 'hidden', position: 'relative',
@@ -742,6 +811,23 @@ export default function WhiteboardList() {
                   transition: 'all 0.15s',
                 }}
               >
+                {/* 선택 모드 체크 표시 */}
+                {selectMode && (
+                  <div style={{ position: 'absolute', top: 6, left: 6, zIndex: 2, background: '#fff', borderRadius: 6, padding: 2, display: 'flex' }}>
+                    {isSelected ? <CheckSquare size={22} color="#EF4444" /> : <Square size={22} color="#9CA3AF" />}
+                  </div>
+                )}
+                {/* 터치 기기: 호버 대신 ⋯ 버튼으로 액션 바 열기 */}
+                {isTouch && !selectMode && !isConfirming && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setHoveredId(prev => prev === board.id ? null : board.id); }}
+                    aria-label="보드 메뉴"
+                    style={{ position: 'absolute', top: 6, right: 6, zIndex: 2, width: 34, height: 34, borderRadius: 8, border: '1px solid #E5E7EB', background: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    <MoreHorizontal size={18} color="#374151" />
+                  </button>
+                )}
+
                 {/* 썸네일 */}
                 <div style={{ height: 86, background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {board.snapshot_url
@@ -797,7 +883,7 @@ export default function WhiteboardList() {
                 </div>
 
                 {/* 호버 시 액션 바 (하단) */}
-                {isHovered && !isConfirming && (
+                {isHovered && !isConfirming && !selectMode && (
                   <div
                     onClick={e => e.stopPropagation()}
                     style={{
@@ -903,6 +989,31 @@ export default function WhiteboardList() {
               : selectedClass
                 ? `${selectedClass.name} 클래스에 보드가 없습니다. '조별 보드 만들기'로 생성해보세요.`
                 : '아직 만든 보드가 없습니다.'}
+        </div>
+      )}
+
+      {/* 선택 삭제 확인 */}
+      {bulkConfirm && (
+        <div
+          onClick={() => !bulkDeleting && setBulkConfirm(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, maxWidth: 360, width: '100%', textAlign: 'center' }}>
+            <AlertTriangle size={28} color="#EF4444" />
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', margin: '10px 0 4px' }}>보드 {selectedIds.size}개를 삭제할까요?</p>
+            <p style={{ fontSize: 13, color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
+              되돌릴 수 없어요.
+              {boards.filter(b => selectedIds.has(b.id) && b.class_id).length > 0 && (
+                <><br />학급에 연결된 보드 {boards.filter(b => selectedIds.has(b.id) && b.class_id).length}개가 포함돼 있어요.</>
+              )}
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+              <button onClick={() => setBulkConfirm(false)} disabled={bulkDeleting} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', fontSize: 14, color: '#374151', cursor: 'pointer' }}>취소</button>
+              <button onClick={handleBulkDelete} disabled={bulkDeleting} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#EF4444', fontSize: 14, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                {bulkDeleting ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

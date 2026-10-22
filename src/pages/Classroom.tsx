@@ -486,6 +486,8 @@ const Classroom = () => {
     setTimeout(() => setRealtimeToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
+  const initialClassPickedRef = useRef(false);
+  const hadDeepLinkRef = useRef(!!searchParams.get('student_id') || !!sessionStorage.getItem('notif_open_student'));
   useEffect(() => {
     if (user) {
       fetchClasses();
@@ -852,6 +854,26 @@ const Classroom = () => {
       if (schoolIds.length > 0) {
         const { data: sch } = await supabase.from('school_projects').select('id, start_date, end_date').in('id', schoolIds);
         setSchoolSchedules(Object.fromEntries((sch || []).map((r: any) => [r.id, { start_date: r.start_date, end_date: r.end_date }])));
+      }
+
+      // 페이지를 처음 열 때만: 종료된 학급이 (주소/마지막 기억으로) 자동으로 열리지 않게 한다.
+      // 알림 바로가기·데모 계정은 의도된 진입이므로 건드리지 않는다.
+      const isFirstOpen = !initialClassPickedRef.current;
+      initialClassPickedRef.current = true;
+      if (isFirstOpen && !isDemoTeacher(user) && !hadDeepLinkRef.current && classData.length > 0) {
+        const current = classData.find(c => c.id === activeClassId);
+        if (!current || isClassClosed(current)) {
+          const firstOpen = classData.find(c => !isClassClosed(c));
+          if (firstOpen) {
+            setActiveClassId(firstOpen.id);
+          } else {
+            setActiveClassId(null);
+            setClassInfo(null);
+            localStorage.removeItem('teacher_last_class_id');
+            setLoading(false);
+          }
+          return;
+        }
       }
 
       if (classData.length > 0) {
@@ -2727,8 +2749,44 @@ const Classroom = () => {
             />
           )}
 
+          {/* 진행 중인 학급이 하나도 없을 때(전부 종료됨) 안내 */}
+          {!loading && !activeClassId && classes.length > 0 && (
+            <div className="flex flex-col items-center text-center gap-4 py-16 md:py-24 px-6 border border-dashed border-slate-300 dark:border-slate-700 rounded-3xl bg-surface-container-lowest">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <Lock size={24} className="text-slate-500" />
+              </div>
+              <div>
+                <p className="text-xl font-black text-on-surface">현재 진행 중인 학급이 없어요</p>
+                <p className="mt-2 text-[15px] text-on-surface-variant leading-relaxed">
+                  지금 있는 학급은 모두 수업이 끝났어요.<br />새 학급을 만들거나, 종료된 학급을 열어 볼 수 있어요.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={() => {
+                    if (isDemoTeacher(user)) {
+                      showToast('체험 계정에서는 새 학급을 만들 수 없어요. 무료로 가입하면 나만의 학급을 만들 수 있어요!');
+                      return;
+                    }
+                    setBreakGenNew(DEFAULT_BREAK_GEN);
+                    setIsCreateModalOpen(true);
+                  }}
+                  className="px-5 py-3 rounded-xl bg-primary text-white font-bold text-[15px] hover:opacity-90 transition-opacity"
+                >
+                  새 학급 만들기
+                </button>
+                <button
+                  onClick={() => { setArchiveModalTab('closed'); setIsArchiveModalOpen(true); }}
+                  className="px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-surface-container-lowest text-on-surface font-bold text-[15px] hover:border-primary/40 hover:text-primary transition-colors"
+                >
+                  종료된 학급 보기 ({classes.filter(isClassClosed).length})
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 2.1 Cohesive Segmented Control - 일반 클래스만 표시 */}
-          {(!classInfo?.school_project_id || classInfo?.parent_class_id) && (
+          {!(!loading && !activeClassId && classes.length > 0) && (!classInfo?.school_project_id || classInfo?.parent_class_id) && (
           <>
           <div className="mb-8 md:mb-10 border-b border-slate-200 dark:border-slate-700">
             <div
