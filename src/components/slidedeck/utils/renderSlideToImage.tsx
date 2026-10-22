@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import html2canvas from 'html2canvas';
+import { toCanvas } from 'html-to-image';
 import SlideStage from '../SlideStage';
 import type { DeckSlide } from '../types';
 import { DECK_CANVAS_W, DECK_CANVAS_H } from '../types';
@@ -9,9 +10,9 @@ import { DECK_CANVAS_W, DECK_CANVAS_H } from '../types';
 // includeObjects=false면 배경(색/그라디언트/배경이미지)만 캡처 — PPTX 배경 스냅샷용.
 export async function renderSlideToImage(
   slide: DeckSlide,
-  opts: { includeObjects?: boolean; scale?: number } = {}
+  opts: { includeObjects?: boolean; scale?: number; format?: 'png' | 'jpeg' } = {}
 ): Promise<string> {
-  const { includeObjects = true, scale = 2 } = opts;
+  const { includeObjects = true, scale = 2, format = 'png' } = opts;
 
   const container = document.createElement('div');
   container.style.position = 'fixed';
@@ -38,11 +39,24 @@ export async function renderSlideToImage(
     );
 
     const target = container.firstElementChild as HTMLElement;
-    const canvas = await html2canvas(target, {
-      scale, useCORS: true, backgroundColor: '#ffffff',
-      width: DECK_CANVAS_W, height: DECK_CANVAS_H,
-    });
-    return canvas.toDataURL('image/png');
+    // 브라우저가 직접 그린 모양 그대로 찍는다(html-to-image). 글자 위치가 화면과 같다.
+    // 실패하면 html2canvas로 대신 찍는다(글자가 조금 아래로 밀릴 수 있음).
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = await toCanvas(target, {
+        pixelRatio: scale, width: DECK_CANVAS_W, height: DECK_CANVAS_H, backgroundColor: '#ffffff', cacheBust: false,
+      });
+    } catch (err) {
+      console.warn('[renderSlideToImage] html-to-image 실패, html2canvas로 대체:', err);
+      canvas = await html2canvas(target, {
+        scale, useCORS: true, backgroundColor: '#ffffff',
+        width: DECK_CANVAS_W, height: DECK_CANVAS_H,
+        onclone: (doc) => {
+          doc.querySelectorAll<HTMLElement>('[data-slide-text]').forEach(el => { el.style.overflow = 'visible'; });
+        },
+      });
+    }
+    return format === 'jpeg' ? canvas.toDataURL('image/jpeg', 0.92) : canvas.toDataURL('image/png');
   } finally {
     root.unmount();
     document.body.removeChild(container);

@@ -9,14 +9,22 @@ const px2pt = (px: number) => px * 0.75; // 96dpi 기준 1px = 0.75pt
 
 const stripHash = (hex: string | undefined, fallback: string): string => (hex ?? fallback).replace('#', '');
 
-// 카드형 텍스트/링크/코드 블록의 모서리 둥글기(px)를 pptxgenjs의 rectRadius(0~1, 짧은 변 대비 비율)로 환산
+// 카드형 텍스트/링크/코드 블록의 모서리 둥글기(px)를 pptxgenjs의 rectRadius(인치 단위, 짧은 변의 절반이 최대)로 환산
 const toRectRadius = (borderRadiusPx: number | undefined, width: number, height: number): number => {
   if (!borderRadiusPx) return 0;
-  return Math.min(1, borderRadiusPx / (Math.min(width, height) / 2));
+  return Math.min(borderRadiusPx, Math.min(width, height) / 2) / 96;
 };
 
-async function imageUrlToPngDataUrl(url: string, cache: Map<string, string | null>): Promise<string | null> {
-  if (cache.has(url)) return cache.get(url) ?? null;
+interface PreparedImage { data: string; naturalW: number; naturalH: number }
+
+const imageSizeCache = new Map<string, { w: number; h: number }>();
+
+async function loadImage(url: string, cache: Map<string, string | null>): Promise<PreparedImage | null> {
+  if (cache.has(url)) {
+    const data = cache.get(url) ?? null;
+    const size = imageSizeCache.get(url);
+    return data && size ? { data, naturalW: size.w, naturalH: size.h } : null;
+  }
   const result = await (async () => {
     try {
       const img = new Image();
@@ -33,14 +41,47 @@ async function imageUrlToPngDataUrl(url: string, cache: Map<string, string | nul
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       ctx.drawImage(img, 0, 0);
+      imageSizeCache.set(url, { w: canvas.width, h: canvas.height });
       return canvas.toDataURL('image/png');
     } catch {
       return null;
     }
   })();
   cache.set(url, result);
-  return result;
+  const size = imageSizeCache.get(url);
+  return result && size ? { data: result, naturalW: size.w, naturalH: size.h } : null;
 }
+
+// 화면의 object-fit(cover/contain/fill)과 똑같이 보이도록, 사진을 칸 비율에 맞춰 미리 잘라 준다.
+// (pptxgenjs의 cover 옵션은 원본 비율을 몰라 사진이 늘어나 버린다)
+async function fitImageToBox(
+  img: PreparedImage, fit: 'cover' | 'contain' | 'fill', x: number, y: number, w: number, h: number
+): Promise<{ data: string; x: number; y: number; w: number; h: number }> {
+  if (fit === 'fill') return { data: img.data, x, y, w, h };
+  const boxRatio = w / h;
+  const imgRatio = img.naturalW / img.naturalH;
+  if (fit === 'contain') {
+    const fw = imgRatio > boxRatio ? w : h * imgRatio;
+    const fh = imgRatio > boxRatio ? w / imgRatio : h;
+    return { data: img.data, x: x + (w - fw) / 2, y: y + (h - fh) / 2, w: fw, h: fh };
+  }
+  // cover: 가운데를 기준으로 칸 비율만큼 잘라낸다
+  let sw = img.naturalW, sh = img.naturalH, sx = 0, sy = 0;
+  if (imgRatio > boxRatio) { sw = Math.round(img.naturalH * boxRatio); sx = Math.round((img.naturalW - sw) / 2); }
+  else { sh = Math.round(img.naturalW / boxRatio); sy = Math.round((img.naturalH - sh) / 2); }
+  const el = new Image();
+  await new Promise<void>(res => { el.onload = () => res(); el.onerror = () => res(); el.src = img.data; });
+  const canvas = document.createElement('canvas');
+  canvas.width = sw; canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { data: img.data, x, y, w, h };
+  ctx.drawImage(el, sx, sy, sw, sh, 0, 0, sw, sh);
+  return { data: canvas.toDataURL('image/png'), x, y, w, h };
+}
+
+// CSS 글꼴 목록("'Pretendard Variable', Pretendard, sans-serif")에서 첫 글꼴 이름만 꺼낸다(PPT는 이름 하나만 받는다)
+const firstFontName = (family: string | undefined): string | undefined =>
+  family?.split(',')[0]?.trim().replace(/^['"]|['"]$/g, '') || undefined;
 
 async function addObjectToSlide(
   pptxSlide: PptxGenJS.Slide,
@@ -61,8 +102,11 @@ async function addObjectToSlide(
       color: stripHash(style.color, stripHash(fallbackColor, '000000')),
       bold: !!style.bold,
       align: style.align ?? 'left',
-      valign: 'top',
-      fontFace: style.fontFamily,
+      valign: style.valign === 'middle' ? 'middle' : style.valign === 'bottom' ? 'bottom' : 'top',
+      fontFace: firstFontName(style.fontFamily),
+      // 화면의 줄 높이(1.0 등)를 PPT 줄 간격 배수로 환산(PPT 한 줄 기본 간격은 글자 크기의 약 1.2배)
+      lineSpacingMultiple: style.lineHeight != null ? style.lineHeight / 1.2 : undefined,
+      charSpacing: style.letterSpacing ? px2pt(style.letterSpacing) : undefined,
       fill: hasBg ? { color: stripHash(style.background, 'FFFFFF'), transparency } : undefined,
       transparency,
       shape: hasBg ? 'roundRect' : undefined,
@@ -105,24 +149,25 @@ async function addObjectToSlide(
       wrap: true,
     });
   } else if (obj.type === 'image' && obj.src) {
-    const dataUrl = await imageUrlToPngDataUrl(obj.src, imageCache);
-    if (dataUrl) {
+    const loadedImg = await loadImage(obj.src, imageCache);
+    if (loadedImg) {
+      const fit = style.fit === 'contain' ? 'contain' : style.fit === 'fill' ? 'fill' : 'cover';
+      const placed = await fitImageToBox(loadedImg, fit, x, y, w, h);
       pptxSlide.addImage({
-        data: dataUrl, x, y, w, h,
+        data: placed.data, x: placed.x, y: placed.y, w: placed.w, h: placed.h,
         rounding: style.frame === 'circle',
         rotate: style.rotate ?? 0,
         transparency,
-        sizing: { type: 'cover', w, h },
       });
     }
   } else if (obj.type === 'youtube' && obj.src) {
     const videoId = extractYoutubeVideoId(obj.src);
     if (videoId) {
-      const dataUrl = await imageUrlToPngDataUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, imageCache);
-      if (dataUrl) {
+      const yt = await loadImage(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, imageCache);
+      if (yt) {
+        const placed = await fitImageToBox(yt, 'cover', x, y, w, h);
         pptxSlide.addImage({
-          data: dataUrl, x, y, w, h,
-          sizing: { type: 'cover', w, h },
+          data: placed.data, x: placed.x, y: placed.y, w: placed.w, h: placed.h,
           hyperlink: { url: `https://www.youtube.com/watch?v=${videoId}` },
         });
       }
@@ -142,7 +187,7 @@ export async function exportDeckToPptx(deck: SlideDeck): Promise<void> {
 
   for (const slide of deck.slides) {
     const pptxSlide = pptx.addSlide();
-    const bgSnapshot = await renderSlideToImage(slide, { includeObjects: false });
+    const bgSnapshot = await renderSlideToImage(slide, { includeObjects: false, format: 'jpeg' });
     pptxSlide.background = { data: bgSnapshot };
 
     const sortedObjects = [...slide.objects].sort((a, b) => a.zIndex - b.zIndex);

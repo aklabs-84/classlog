@@ -431,6 +431,10 @@ export default function SlideDeckEditor() {
         pendingDraftNoteIdRef.current = null;
         supabase.from('teacher_notes').update({ linked_slide_id: (data as SlideDeck).id }).eq('id', noteId)
           .then(({ error: linkError }) => { if (linkError) console.error('[SlideDeckEditor] linked_slide_id 기록 오류:', linkError); });
+      } else if (importedMaterial.id !== 'idea-draft') {
+        // 아이디어 → 계획서 → 자료 → 슬라이드 경로: 자료를 만든 아이디어를 찾아 슬라이드 연결을 남긴다
+        supabase.from('teacher_notes').update({ linked_slide_id: (data as SlideDeck).id }).eq('linked_material_id', importedMaterial.id)
+          .then(({ error: linkError }) => { if (linkError) console.error('[SlideDeckEditor] 자료 기준 linked_slide_id 기록 오류:', linkError); });
       }
     } catch (err: any) {
       appToast(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 크레딧을 모두 사용했어요. 다음 달 1일에 새로 채워져요.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
@@ -806,7 +810,7 @@ export default function SlideDeckEditor() {
         {showImportModal && (
           <ImportMaterialModal
             userId={user?.id ?? ''}
-            onSelect={material => { setImportedMaterial(material); setView('template'); }}
+            onSelect={material => { setImportedMaterial(material); setShowImportModal(false); setView('template'); }}
             onClose={() => setShowImportModal(false)}
           />
         )}
@@ -855,6 +859,18 @@ export default function SlideDeckEditor() {
             <AiCreditCost feature="slidedeck_ai_draft" note="(개요 생성)" />
           </p>
         )}
+        {entryMode === 'app' && (
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={() => setShowImportModal(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', borderRadius: 8, padding: '8px 14px', fontSize: 14, fontWeight: 600,
+                border: '1px solid #3B82F6', background: '#EFF6FF', color: '#1D4ED8' }}>
+              <Sparkles size={14} /> {importedMaterial ? '다른 수업 자료 고르기' : '수업 자료에서 가져와 AI로 만들기'}
+            </button>
+            {!importedMaterial && (
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>자료를 고른 뒤 템플릿을 누르면, AI가 그 자료로 슬라이드를 만들어 줘요. 고르지 않으면 빈 템플릿으로 시작해요.</p>
+            )}
+          </div>
+        )}
         {importedMaterial && (
           <OutlineModePicker value={outlineMode} onChange={setOutlineMode} />
         )}
@@ -864,6 +880,13 @@ export default function SlideDeckEditor() {
             <Loader2 className="animate-spin" size={32} color="#3B82F6" />
             <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>슬라이드 구성안을 만들고 있어요...</p>
           </div>
+        )}
+        {showImportModal && (
+          <ImportMaterialModal
+            userId={user?.id ?? ''}
+            onSelect={material => { setImportedMaterial(material); setShowImportModal(false); }}
+            onClose={() => setShowImportModal(false)}
+          />
         )}
       </div>
     );

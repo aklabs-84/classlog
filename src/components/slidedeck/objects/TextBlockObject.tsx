@@ -50,6 +50,7 @@ export default function TextBlockObject({
 
   return (
     <div
+      data-slide-text
       style={{
         position: 'absolute', left: obj.x, top: obj.y, width: obj.width, height: obj.height,
         zIndex: isSelected ? 9999 : obj.zIndex,

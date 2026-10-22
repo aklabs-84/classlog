@@ -67,6 +67,7 @@ export default function Home() {
   const [quickBody, setQuickBody] = useState('');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
   const [cornerOn, setCornerOn] = useState(readCornerOn());
   const [mascot, setMascot] = useState<MascotKey>('robot');
   const [awayDays, setAwayDays] = useState(0);
@@ -183,13 +184,13 @@ export default function Home() {
     const content = quickBody.trim() || title;
     if (!content || !user || saving) return;
     setSaving(true);
-    const { error } = await supabase.from('teacher_notes').insert({ teacher_id: user.id, class_id: null, title: title || null, content, reference_links: [] });
+    const { data: saved, error } = await supabase.from('teacher_notes').insert({ teacher_id: user.id, class_id: null, title: title || null, content, reference_links: [] }).select('id').single();
     setSaving(false);
     if (error) { setToast('저장하지 못했어요. 잠시 후 다시 시도해 주세요.'); } else {
       setQuickTitle(''); setQuickBody(''); (document.activeElement as HTMLElement | null)?.blur();
-      setToast('아이디어를 기록했어요');
+      setSavedNoteId(saved?.id ?? null);
     }
-    setTimeout(() => setToast(''), 2800);
+    if (error) setTimeout(() => setToast(''), 2800);
   };
 
   const available = useMemo(() => TOOL_OPTIONS.filter(t => t.id !== 'lesson-plan' && !custom.includes(t.id)), [custom]);
@@ -245,6 +246,21 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {savedNoteId && (
+        <div role="status" className="home-rise -mt-6 mb-10 rounded-2xl border border-primary/40 bg-primary-container/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[17px] font-bold text-on-surface">✅ 아이디어를 기록했어요</p>
+            <p className="text-[15px] text-on-surface-variant mt-0.5">다음 칸은 &lsquo;AI로 발전시켜 수업 계획서 만들기&rsquo;예요.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:shrink-0">
+            <button type="button" onClick={() => navigate('/ideas', { state: { openNoteId: savedNoteId, fromHome: true } })}
+              className="bg-primary text-white rounded-lg px-4 py-2.5 text-[15px] font-medium">이어서 발전시키기</button>
+            <button type="button" onClick={() => setSavedNoteId(null)}
+              className="rounded-lg px-4 py-2.5 text-[15px] text-on-surface-variant border border-slate-200 dark:border-slate-600">나중에</button>
+          </div>
+        </div>
+      )}
 
       <nav aria-label="수업 준비 한 길" className="home-rise -mt-6 mb-10 flex flex-wrap items-center gap-x-2 gap-y-2 text-[15px]">
         <span className="font-bold text-on-surface-variant mr-1">수업 준비 한 길</span>

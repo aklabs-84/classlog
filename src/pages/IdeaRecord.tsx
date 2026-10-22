@@ -1395,19 +1395,23 @@ export default function IdeaRecord() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-surface-container-lowest">
+          <div className="hidden md:flex items-center gap-5 px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-surface-container-low text-[15px] font-semibold text-on-surface-variant">
+            <span className="flex-1">아이디어</span>
+            <span className="w-[270px] text-right">반 · 기록일</span>
+          </div>
+          <div className="divide-y divide-slate-200 dark:divide-slate-700">
           <AnimatePresence>
             {filteredNotes.map(note => {
               const isEditing = editingId === note.id;
               const isDeleting = deletingId === note.id;
-              const accent = getCardAccent(note.class_id);
               return (
                 <motion.div
                   key={note.id}
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className={`bg-surface-container-lowest rounded-2xl shadow-soft hover:shadow-elevated transition-all hover:-translate-y-0.5 border border-on-surface/[0.06] group ${isEditing ? 'md:col-span-2' : 'overflow-hidden'}`}
+                  className="group"
                 >
                   {isEditing ? (
                     <div className="p-5 space-y-3">
@@ -1479,90 +1483,53 @@ export default function IdeaRecord() {
                       </div>
                     </div>
                   ) : (
-                    <div className="cursor-pointer" onClick={() => setViewingNote(note)}>
-                      {/* 상단 컬러 배너 */}
-                      <div className={`h-2.5 ${accent.banner}`} />
-                      <div className="flex flex-col h-full p-5">
-                        <div className="flex items-start justify-between gap-2 mb-3">
-                          <div className={`w-10 h-10 rounded-xl ${accent.iconBg} ${accent.iconText} flex items-center justify-center shrink-0`}>
-                            <StickyNote size={17} />
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={e => { e.stopPropagation(); handleStartEdit(note); }}
-                                title="수정"
-                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
-                              >
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                onClick={e => { e.stopPropagation(); handleDelete(note.id); }}
-                                disabled={isDeleting}
-                                title="삭제"
-                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
-                              >
-                                {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                              </button>
-                            </div>
-                            <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant/60 whitespace-nowrap">
-                              {note.classes?.name || '미지정'}
-                            </span>
-                          </div>
+                    <div
+                      className="cursor-pointer px-4 md:px-5 py-4 flex flex-col md:flex-row md:items-center gap-2.5 md:gap-5 hover:bg-surface-container-low transition-colors"
+                      onClick={() => setViewingNote(note)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-bold text-on-surface tracking-tight truncate">{note.title || '제목 없는 아이디어'}</p>
+                        <div className="[&>*:last-child]:mb-0 line-clamp-2 overflow-hidden text-on-surface-variant mt-0.5">
+                          <ReactMarkdown components={noteMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                            {note.content}
+                          </ReactMarkdown>
                         </div>
 
-                        {(note.status === 'developed' || similarResourceDetails.has(note.id)) && (
-                          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                        {(note.status === 'developed' || similarResourceDetails.has(note.id) || note.tags?.length > 0 || note.reference_links?.length > 0) && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-2">
                             {note.status === 'developed' && (
                               <button
                                 onClick={e => { e.stopPropagation(); handleOpenAnalysis(note); }}
                                 title="AI 분석 결과 바로 보기"
-                                className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-primary-container text-primary hover:bg-primary/20 transition-colors"
+                                className="flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-primary-container text-primary hover:bg-primary/20 transition-colors"
                               >
-                                <Sparkles size={9} /> AI 분석 완료
+                                <Sparkles size={10} /> AI 분석 완료
                               </button>
                             )}
                             {similarResourceDetails.has(note.id) && (
                               <button
                                 onClick={e => { e.stopPropagation(); setSimilarItemsNote(note); }}
                                 title="비슷한 자료 보기"
-                                className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                                className="flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
                               >
-                                <Link2 size={9} /> 비슷한 자료 있음
+                                <Link2 size={10} /> 비슷한 자료 있음
                               </button>
                             )}
-                          </div>
-                        )}
-
-                        {note.title && <p className="text-sm font-black text-on-surface mb-1 tracking-tight">{note.title}</p>}
-                        <div className="[&>*:last-child]:mb-0 line-clamp-3 overflow-hidden flex-1">
-                          <ReactMarkdown components={noteMdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                            {note.content}
-                          </ReactMarkdown>
-                        </div>
-
-                        {note.tags?.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                            {note.tags.map(tag => (
-                              <span key={tag} className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70">
-                                <Tag size={9} /> {tag}
+                            {note.tags?.map(tag => (
+                              <span key={tag} className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70">
+                                <Tag size={10} /> {tag}
                               </span>
                             ))}
-                          </div>
-                        )}
-
-                        {note.reference_links?.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                            {note.reference_links.map((link, i) => (
+                            {note.reference_links?.map((link, i) => (
                               <a
                                 key={`${link.url}-${i}`}
                                 href={link.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={e => e.stopPropagation()}
-                                className="flex items-center gap-1 max-w-[150px] text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70 hover:text-primary transition-colors"
+                                className="flex items-center gap-1 max-w-[150px] text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant/70 hover:text-primary transition-colors"
                               >
-                                <Link2 size={9} className="shrink-0" /> <span className="truncate">{link.title}</span>
+                                <Link2 size={10} className="shrink-0" /> <span className="truncate">{link.title}</span>
                               </a>
                             ))}
                           </div>
@@ -1574,30 +1541,47 @@ export default function IdeaRecord() {
                             {note.linked_material_id && linkedTitles.get(`material:${note.linked_material_id}`) && (
                               <button
                                 onClick={e => { e.stopPropagation(); handleGoToLinked('material', note.linked_material_id!); }}
-                                className="flex items-center gap-1.5 text-[11px] font-black text-primary hover:underline w-fit"
+                                className="flex items-center gap-1.5 text-xs font-black text-primary hover:underline w-fit max-w-full text-left"
                               >
-                                <FileText size={11} className="shrink-0" /> → {linkedTitles.get(`material:${note.linked_material_id}`)} 자료로 만들어짐
+                                <FileText size={12} className="shrink-0" /> → {linkedTitles.get(`material:${note.linked_material_id}`)} 자료로 만들어짐
                               </button>
                             )}
                             {note.linked_slide_id && linkedTitles.get(`slide:${note.linked_slide_id}`) && (
                               <button
                                 onClick={e => { e.stopPropagation(); handleGoToLinked('slide', note.linked_slide_id!); }}
-                                className="flex items-center gap-1.5 text-[11px] font-black text-secondary hover:underline w-fit"
+                                className="flex items-center gap-1.5 text-xs font-black text-secondary hover:underline w-fit max-w-full text-left"
                               >
-                                <Presentation size={11} className="shrink-0" /> → {linkedTitles.get(`slide:${note.linked_slide_id}`)} 슬라이드로 만들어짐
+                                <Presentation size={12} className="shrink-0" /> → {linkedTitles.get(`slide:${note.linked_slide_id}`)} 슬라이드로 만들어짐
                               </button>
                             )}
                           </div>
                         )}
+                      </div>
 
-                        <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-on-surface/[0.05]">
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40">
-                            <Clock size={10} />
-                            {new Date(note.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                          </div>
-                          <span className="text-[10px] font-black text-on-surface-variant/30 group-hover:text-primary transition-colors">
-                            자세히 보기 →
-                          </span>
+                      <div className="flex items-center gap-3 md:shrink-0 md:w-[270px] md:justify-end">
+                        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant whitespace-nowrap">
+                          {note.classes?.name || '미지정'}
+                        </span>
+                        <span className="flex items-center gap-1 text-xs font-semibold text-on-surface-variant whitespace-nowrap">
+                          <Clock size={11} />
+                          {new Date(note.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' })}
+                        </span>
+                        <div className="flex items-center gap-1 ml-auto md:ml-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={e => { e.stopPropagation(); handleStartEdit(note); }}
+                            title="수정"
+                            className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDelete(note.id); }}
+                            disabled={isDeleting}
+                            title="삭제"
+                            className="w-8 h-8 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
+                          >
+                            {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1606,6 +1590,7 @@ export default function IdeaRecord() {
               );
             })}
           </AnimatePresence>
+          </div>
         </div>
       )}
       </div>

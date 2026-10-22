@@ -1502,7 +1502,6 @@ const MaterialEditor = () => {
       .then(({ count, error }) => { if (!cancelled) setNeedsSlideForPlanId(!error && (count ?? 0) === 0 ? planId : null); });
     return () => { cancelled = true; };
   }, [editingMaterial?.id, editingMaterial?.source_lesson_plan_id]);
-  const [justCreatedIds, setJustCreatedIds] = useState<string[]>([]);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
   // 목록 화면에서 자료별로 "원본" 또는 AI 정리 버전 중 어떤 걸 보고 있는지 (null = 원본)
   const [selectedVersionId, setSelectedVersionId] = useState<Record<string, string | null>>({});
@@ -1772,7 +1771,6 @@ const MaterialEditor = () => {
       // 방금 만든 첫 차시 자료의 편집 화면을 바로 연다 (나머지 차시는 목록에서 찾을 수 있다)
       if (inserted && inserted.length > 0) {
         const sorted = [...inserted].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
-        setJustCreatedIds(sorted.map(r => r.id));
         handleEdit(drafts.length > 0 ? (inserted.find(r => r.title === (drafts[0].title.trim() || '수업 교안')) ?? sorted[0]) as Material : sorted[0] as Material);
       }
     })();
@@ -2838,6 +2836,27 @@ const MaterialEditor = () => {
 
           {/* 에디터 헤더 */}
           <div className="border-b border-surface-container bg-surface-container-low rounded-t-3xl">
+            {/* 한 계획서에서 차시별로 나뉘어 만들어진 자료 — 차시끼리 바로 오가는 탭 */}
+            {(() => {
+              const planId = editingMaterial?.source_lesson_plan_id;
+              if (!planId) return null;
+              const group = materials.filter(m => m.source_lesson_plan_id === planId).sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+              if (group.length < 2) return null;
+              return (
+                <div className="flex items-center gap-2 flex-wrap px-3 sm:px-5 pt-3">
+                  <span className="text-[13px] font-semibold text-on-surface-variant">이 계획서의 차시별 자료</span>
+                  {group.map((m, i) => {
+                    const active = m.id === editingMaterial?.id;
+                    return (
+                      <button key={m.id} type="button" onClick={() => { if (!active) handleEdit(m); }} title={m.title}
+                        className={`max-w-[220px] truncate rounded-full px-3 py-1 text-[14px] font-semibold border transition-colors ${active ? 'bg-primary text-white border-primary' : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-600 hover:border-primary/50'}`}>
+                        {i + 1}/{group.length}차시{active ? ' · 보는 중' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             {/* 1줄: 목록 이동 + 제목 + 뷰 모드 + 저장(가장 중요한 것만). 모바일은 폭이 부족하면 줄바꿈 */}
             <div className="flex items-center flex-wrap gap-2 px-3 sm:px-5 pt-4 pb-3.5">
               <span className="hidden sm:inline-block font-bold text-xs text-on-surface-variant truncate">
@@ -2995,11 +3014,6 @@ const MaterialEditor = () => {
                 </button>
               )}
               {/* 계획서에서 "가이드 만든 뒤 슬라이드도"를 고른 경우 — 가이드를 다듬은 뒤 같은 계획서로 슬라이드 만들기 */}
-              {justCreatedIds.length > 1 && editingMaterial && justCreatedIds.includes(editingMaterial.id) && (
-                <span className="px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-800 text-[13px] font-semibold whitespace-nowrap" title="나머지 차시 자료는 목록에서 찾을 수 있어요">
-                  방금 만든 {justCreatedIds.length}개 중 하나 · 나머지는 목록에 있어요
-                </span>
-              )}
               {(thenSlide || needsSlideForPlanId) && (
                 <button
                   onClick={() => navigate('/teaching-tools', {
@@ -3577,6 +3591,12 @@ const MaterialEditor = () => {
                         {!libraryMode && (
                           <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">{material.week_number}주차</span>
                         )}
+                        {material.source_lesson_plan_id && (() => {
+                          const group = materials.filter(m => m.source_lesson_plan_id === material.source_lesson_plan_id).sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+                          return group.length > 1 ? (
+                            <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full">계획서 {group.findIndex(m => m.id === material.id) + 1}/{group.length}차시</span>
+                          ) : null;
+                        })()}
                         {material.plan_origin_id && (
                           <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-primary bg-primary-container px-2.5 py-0.5 rounded-full">프로젝트 자료 · 내 버전</span>
                         )}
