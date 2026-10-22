@@ -74,7 +74,7 @@ export const PLANS: Plan[] = [
     features: {
       classes: '동시 진행 10개',
       students: '학생 40명/반',
-      retention: '수업 종료 후 6개월',
+      retention: '직접 삭제 전까지',
       ai: '월 약 2,000크레딧',
       copilot: true,
       editor: true,
