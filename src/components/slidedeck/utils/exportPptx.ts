@@ -1,7 +1,7 @@
 import PptxGenJS from 'pptxgenjs';
 import type { SlideDeck, SlideObject } from '../types';
 import { extractYoutubeVideoId } from '../types';
-import { renderSlideToImage } from './renderSlideToImage';
+import { createSlideRenderer } from './renderSlideToImage';
 
 // 1280x720 디자인 좌표(96dpi) → PPTX 인치/포인트 변환
 const px2in = (px: number) => px / 96;
@@ -178,22 +178,31 @@ async function addObjectToSlide(
 // 완성된 슬라이드 덱을 파워포인트에서 바로 열고 편집 가능한 .pptx로 내보낸다.
 // 배경(색/그라디언트/배경이미지)은 오브젝트 없이 스냅샷 이미지로 굽고, 텍스트/이미지/링크/이모지/코드는
 // 실제 편집 가능한 PPTX 오브젝트로 그 위에 배치한다.
-export async function exportDeckToPptx(deck: SlideDeck): Promise<void> {
+export async function exportDeckToPptx(deck: SlideDeck, onProgress?: (done: number, total: number) => void): Promise<void> {
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_WIDE';
   pptx.title = deck.title || '슬라이드';
 
   const imageCache = new Map<string, string | null>();
+  const total = deck.slides.length;
+  const renderer = createSlideRenderer();
 
-  for (const slide of deck.slides) {
-    const pptxSlide = pptx.addSlide();
-    const bgSnapshot = await renderSlideToImage(slide, { includeObjects: false, format: 'jpeg' });
-    pptxSlide.background = { data: bgSnapshot };
+  try {
+    onProgress?.(0, total);
+    for (let i = 0; i < total; i++) {
+      const slide = deck.slides[i];
+      const pptxSlide = pptx.addSlide();
+      const bgSnapshot = await renderer.render(slide, { includeObjects: false, format: 'jpeg' });
+      pptxSlide.background = { data: bgSnapshot };
 
-    const sortedObjects = [...slide.objects].sort((a, b) => a.zIndex - b.zIndex);
-    for (const obj of sortedObjects) {
-      await addObjectToSlide(pptxSlide, obj, slide.textColor, imageCache);
+      const sortedObjects = [...slide.objects].sort((a, b) => a.zIndex - b.zIndex);
+      for (const obj of sortedObjects) {
+        await addObjectToSlide(pptxSlide, obj, slide.textColor, imageCache);
+      }
+      onProgress?.(i + 1, total);
     }
+  } finally {
+    renderer.dispose();
   }
 
   await pptx.writeFile({ fileName: `${deck.title || '슬라이드'}.pptx` });

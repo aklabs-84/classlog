@@ -11,6 +11,7 @@ import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
 import SlideSnippetLibrary from '../../components/slidedeck/SlideSnippetLibrary';
 import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
+import ExportProgressModal, { type ExportProgress } from '../../components/slidedeck/ExportProgressModal';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import OutlineModePicker from '../../components/slidedeck/OutlineModePicker';
 import ImportMaterialModal, { type ImportableMaterial, resolveSourceContent } from '../../components/slidedeck/ImportMaterialModal';
@@ -114,6 +115,7 @@ export default function SlideDeckEditor() {
   const [revisingAllSlides, setRevisingAllSlides] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
   const [exporting, setExporting] = useState<'pptx' | 'pdf' | null>(null);
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
   const [importingPptx, setImportingPptx] = useState(false);
   const [showApplyTemplateModal, setShowApplyTemplateModal] = useState(false);
   const bgFileRef = useRef<HTMLInputElement>(null);
@@ -701,29 +703,26 @@ export default function SlideDeckEditor() {
     setShowApplyTemplateModal(false);
   };
 
-  const handleExportPptx = async () => {
+  const runExport = async (kind: 'pptx' | 'pdf') => {
     if (!activeDeck || exporting) return;
-    setExporting('pptx');
+    setExporting(kind);
+    setExportProgress({ kind, done: 0, total: activeDeck.slides.length, phase: 'rendering' });
+    const onProgress = (done: number, total: number) =>
+      setExportProgress({ kind, done, total, phase: done >= total ? 'saving' : 'rendering' });
     try {
-      await exportDeckToPptx(activeDeck);
+      if (kind === 'pptx') await exportDeckToPptx(activeDeck, onProgress);
+      else await exportDeckToPdf(activeDeck, onProgress);
+      setExportProgress({ kind, done: activeDeck.slides.length, total: activeDeck.slides.length, phase: 'done' });
+      await new Promise(r => setTimeout(r, 900));
     } catch {
-      appToast('PPT 파일을 만드는 중 오류가 발생했습니다.');
+      appToast(`${kind === 'pptx' ? 'PPT' : 'PDF'} 파일을 만드는 중 오류가 발생했습니다.`);
     } finally {
+      setExportProgress(null);
       setExporting(null);
     }
   };
-
-  const handleExportPdf = async () => {
-    if (!activeDeck || exporting) return;
-    setExporting('pdf');
-    try {
-      await exportDeckToPdf(activeDeck);
-    } catch {
-      appToast('PDF 파일을 만드는 중 오류가 발생했습니다.');
-    } finally {
-      setExporting(null);
-    }
-  };
+  const handleExportPptx = () => runExport('pptx');
+  const handleExportPdf = () => runExport('pdf');
 
   const selectedObject = currentSlide?.objects.find(o => o.id === selectedObjectId) ?? null;
 
@@ -1187,6 +1186,7 @@ export default function SlideDeckEditor() {
             {exporting === 'pdf' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />}
             <span className="hidden @[1180px]:inline">PDF 다운로드</span>
           </button>
+          {exportProgress && <ExportProgressModal progress={exportProgress} />}
           <button
             onClick={() => setPresenting(true)}
             title="발표 시작"
