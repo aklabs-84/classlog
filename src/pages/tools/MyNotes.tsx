@@ -9,6 +9,7 @@ import { useAuth } from '../../lib/auth';
 import RichEditor from '../../components/RichEditor';
 import CodeBlock from '../../components/CodeBlock';
 import { appConfirm, appToast } from '../../lib/appDialog';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -132,11 +133,11 @@ export default function MyNotes() {
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('name');
-    setClasses(data || []);
+    setClasses(filterMyTeachingClasses(data, user!.id));
   };
 
   const fetchNotes = async () => {

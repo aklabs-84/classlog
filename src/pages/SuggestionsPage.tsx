@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { appConfirm } from '../lib/appDialog';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 
 type Suggestion = {
   id: string;
@@ -47,10 +48,10 @@ const SuggestionsPage = () => {
       setClassesLoading(true);
       const { data } = await supabase
         .from('classes')
-        .select('id, name, subject, class_type')
+        .select('id, name, subject, class_type, school_project_id, parent_class_id, assigned_teacher_id')
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
-      setClasses(data || []);
+      setClasses(filterMyTeachingClasses(data, user.id));
       setClassesLoading(false);
     };
     fetchClasses();

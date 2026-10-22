@@ -17,6 +17,7 @@ import {
 } from '../lib/gallery';
 import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import GalleryScreening from '../components/gallery/GalleryScreening';
+import { isMyTeachingClass } from '../lib/projectClassFilter';
 
 const FREE_IMAGE_LIMIT = 100;
 const DRIVE_SERVICE_ACCOUNT_EMAIL = 'saengilog-drive@saengilog-drive.iam.gserviceaccount.com';
@@ -80,12 +81,12 @@ export default function Gallery() {
     if (!user) return;
     supabase
       .from('classes')
-      .select('id, name, weekly_plan')
+      .select('id, name, weekly_plan, school_project_id, parent_class_id, assigned_teacher_id')
       .or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`)
       .eq('is_archived', false)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        const list = data ?? [];
+        const list = (data ?? []).filter(c => isMyTeachingClass(c, user.id));
         setClasses(list);
         // 기존 선택이 목록에 여전히 유효하면 유지, 아니면 첫 번째로 초기화
         setSelectedClassId(prev => {

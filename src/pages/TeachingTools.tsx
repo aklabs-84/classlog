@@ -22,6 +22,7 @@ import PortfolioManager from './tools/PortfolioManager';
 import SubmissionViewer from './tools/SubmissionViewer';
 import MicrobitPythonLab from './tools/MicrobitPythonLab';
 import LiveBoardList from '../components/live-board/LiveBoardList';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 
 const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -497,12 +498,12 @@ const TeachingTools = () => {
       (async () => {
         const { data, error } = await supabase
           .from('classes')
-          .select('id, name')
+          .select('id, name, school_project_id, parent_class_id, assigned_teacher_id')
           .eq('teacher_id', user.id)
           .eq('is_archived', false)
           .order('created_at', { ascending: false });
         if (error) { console.error('내 클래스 목록 조회 오류:', error); }
-        else setMyClasses(data || []);
+        else setMyClasses(filterMyTeachingClasses(data, user.id));
         setMyClassesLoading(false);
       })();
     }

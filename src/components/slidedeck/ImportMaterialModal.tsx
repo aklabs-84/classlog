@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, BookOpen, ChevronRight, Library, Loader2, Sparkles, X as XIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 
 export interface AiVersion {
   id: string;
@@ -52,11 +53,11 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
   useEffect(() => {
     supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', userId)
       .eq('is_archived', false)
       .order('created_at', { ascending: false })
-      .then(({ data }) => { setClasses(data || []); setLoading(false); });
+      .then(({ data }) => { setClasses(filterMyTeachingClasses(data, userId)); setLoading(false); });
   }, [userId]);
 
   const handleSelectClass = async (cls: { id: string; name: string }) => {

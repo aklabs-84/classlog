@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
+import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
 import { isDemoTeacher, getDemoClassId } from '../../lib/demo';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions, embedText, proofreadMaterialContent, type ProofreadIssue } from '../../lib/gemini';
 import { LessonPlanModal } from '../../components/LessonPlanModal';
@@ -157,13 +158,13 @@ const ImportFromClassModal = ({
   useEffect(() => {
     let query = supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', userId)
       .eq('is_archived', false);
     if (currentClassId) query = query.neq('id', currentClassId);
     query
       .order('created_at', { ascending: false })
-      .then(({ data }) => { setClasses(data || []); setLoading(false); });
+      .then(({ data }) => { setClasses(filterMyTeachingClasses(data, userId)); setLoading(false); });
   }, []);
 
   const handleSelectClass = async (cls: any) => {
@@ -1375,6 +1376,8 @@ const MaterialEditor = () => {
   type MaterialUsage = { projects: string[]; classes: string[] };
   const [usageMap, setUsageMap] = useState<Record<string, MaterialUsage>>({});
   const [usageFilter, setUsageFilter] = useState<'all' | 'project' | 'class' | 'none'>('all');
+  const [searchText, setSearchText] = useState('');
+  const [sortMode, setSortMode] = useState<'week' | 'recent'>('week');
 
   // 자료 목록
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -1522,7 +1525,7 @@ const MaterialEditor = () => {
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, subject, class_type, weekly_plan, parent_class_id')
+      .select('id, name, subject, class_type, weekly_plan, parent_class_id, school_project_id, assigned_teacher_id')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
@@ -1534,7 +1537,8 @@ const MaterialEditor = () => {
       .not('parent_class_id', 'is', null)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
-    const merged: any[] = [...(data ?? [])];
+    // 학교 프로젝트용 반(예: "○○학교 (전체)")은 담당자의 내 반이 아니므로 목록에서 뺀다
+    const merged: any[] = [...filterMyTeachingClasses(data ?? [], user!.id)];
     (assigned ?? []).forEach(c => { if (!merged.some(x => x.id === c.id)) merged.push({ ...c, _assignedOnly: true }); });
     // 체험 계정은 여러 방문자가 함께 쓰므로 내 체험 학급만 보여주고 바로 선택해 둔다
     if (isDemoTeacher(user)) {
@@ -2217,7 +2221,12 @@ const MaterialEditor = () => {
   const visibleMaterials = (activeFolderId === 'all'
     ? [...materials]
     : materials.filter(m => (m.folder_id ?? null) === activeFolderId)
-  ).filter(matchesUsageFilter).sort(byWeekThenTitle);
+  ).filter(matchesUsageFilter).filter(m => {
+    const q = searchText.trim().toLowerCase();
+    return !q || (m.title ?? '').toLowerCase().includes(q) || (m.content ?? '').toLowerCase().includes(q);
+  }).sort(sortMode === 'recent'
+    ? (a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    : byWeekThenTitle);
 
   // 공통 자료함 카드의 "쓰는 곳" 꼬리표 (공개/비공개 대신 — 쓰이는 순간 학생에게 자동으로 보인다)
   const renderUsageChips = (m: Material) => {
@@ -3448,6 +3457,34 @@ const MaterialEditor = () => {
             </div>
           )}
 
+          {/* 자료 찾기: 검색 + 정렬 */}
+          <div className="flex items-center flex-wrap gap-2">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                placeholder="제목이나 내용으로 자료 찾기"
+                className="w-full pl-9 pr-9 py-2 rounded-full border border-slate-200 bg-surface-container-lowest text-[14px] focus:outline-none focus:border-primary"
+              />
+              {searchText && (
+                <button onClick={() => setSearchText('')} title="검색어 지우기"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-on-surface-variant hover:bg-black/5">
+                  <XIcon size={14} />
+                </button>
+              )}
+            </div>
+            <div className="inline-flex rounded-full border border-slate-200 overflow-hidden text-[14px] font-semibold">
+              {([['week', '주차순'], ['recent', '최근 입력순']] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setSortMode(key)}
+                  className={`px-3.5 py-2 transition-colors ${sortMode === key ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface hover:bg-primary-container/50'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 폴더 칩 바 — 위의 '상태' 줄과 다른 종류의 선택이라 이름표·청록색·폴더 탭 모양으로 구분 */}
           <div className={`flex items-center flex-wrap gap-1.5 ${libraryMode ? 'pt-3 border-t border-slate-200' : ''}`}>
             <span className="w-11 shrink-0 text-[13px] font-black text-teal-800">폴더</span>
@@ -3556,7 +3593,7 @@ const MaterialEditor = () => {
           ) : visibleMaterials.length === 0 ? (
             <div className="flex flex-col items-center py-16 space-y-3 text-on-surface-variant">
               <Folder size={48} className="text-primary/50" />
-              <p className="text-lg font-bold text-on-surface">이 폴더에는 아직 자료가 없습니다.</p>
+              <p className="text-lg font-bold text-on-surface">{searchText.trim() ? '검색 결과가 없어요. 다른 낱말로 찾아보세요.' : '이 폴더에는 아직 자료가 없습니다.'}</p>
             </div>
           ) : viewLayout === 'list' ? (
             <div className="flex flex-col gap-2">
