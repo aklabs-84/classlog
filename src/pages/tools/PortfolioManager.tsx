@@ -157,10 +157,10 @@ const PortfolioManager = () => {
     }
   };
 
-  const handleSave = async () => {
-    if (!user) return;
-    if (slugCheck !== 'available' && slug) { appToast('slug 중복 확인을 먼저 완료해주세요.'); return; }
-    if (!SLUG_PATTERN.test(slug)) { appToast('URL은 영문 소문자/숫자/하이픈으로 3~32자여야 합니다.'); return; }
+  const handleSave = async (): Promise<boolean> => {
+    if (!user) return false;
+    if (slugCheck !== 'available' && slug) { appToast('slug 중복 확인을 먼저 완료해주세요.'); return false; }
+    if (!SLUG_PATTERN.test(slug)) { appToast('URL은 영문 소문자/숫자/하이픈으로 3~32자여야 합니다.'); return false; }
     setSaving(true);
     const { error } = await supabase.from('teacher_portfolios').upsert({
       teacher_id: user.id,
@@ -173,9 +173,20 @@ const PortfolioManager = () => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'teacher_id' });
     setSaving(false);
-    if (error) { appToast(`저장 중 오류가 발생했습니다: ${error.message}`); return; }
+    if (error) { appToast(`저장 중 오류가 발생했습니다: ${error.message}`); return false; }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+    return true;
+  };
+
+  // 공개 페이지는 저장된 내용만 보여 주므로, 먼저 저장한 뒤 새 탭을 연다 (팝업 차단을 피하려고 탭을 먼저 열어 둠)
+  const handleOpenPublic = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const win = window.open('', '_blank');
+    const ok = await handleSave();
+    if (win) {
+      if (ok) win.location.href = publicUrl; else win.close();
+    }
   };
 
   if (!user) return null;
@@ -343,7 +354,7 @@ const PortfolioManager = () => {
           {saved ? '저장됨' : '저장'}
         </button>
         {slug && (
-          <a href={publicUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+          <a href={publicUrl} onClick={handleOpenPublic} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
             {visibility === 'private' ? <EyeOff size={13} /> : <Eye size={13} />} 공개 페이지 보기 <ExternalLink size={11} />
           </a>
         )}

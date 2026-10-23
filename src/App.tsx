@@ -241,7 +241,7 @@ function App() {
       <ReferralNotice />
       {/* 첫 화면 설치 팝업은 숨김: 로그인 후 내비게이션의 설치 버튼으로 대체 */}
       <div className="relative min-h-screen bg-surface">
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none print:hidden">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px]" />
           <div className="absolute top-[20%] right-[-5%] w-[30%] h-[30%] bg-accent/5 rounded-full blur-[100px]" />
