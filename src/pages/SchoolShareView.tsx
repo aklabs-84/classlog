@@ -30,6 +30,9 @@ import {
   BookOpen,
   Sparkles,
 } from 'lucide-react';
+import ResultFileActions from '../components/common/ResultFileActions';
+import PercentLoader from '../components/common/PercentLoader';
+import { computeFinalMarks } from '../lib/finalSubmission';
 import { appToast } from '../lib/appDialog';
 
 async function blobDownload(url: string, filename: string) {
@@ -51,6 +54,8 @@ interface StudentRow {
   full_name: string;
   student_number: number | null;
   avatar_url: string | null;
+  /** 조 묶음 카드일 때만: 조원 이름 */
+  memberNames?: string[];
 }
 
 interface ObsRow {
@@ -74,7 +79,12 @@ interface ResultRow {
   file_url?: string | null;
   image_url?: string | null;
   image_urls?: string[];
+  display_name?: string | null;
+  storage_path?: string | null;
   teacher_eval_score?: number | null;
+  group_id?: string | null;
+  is_group_submission?: boolean;
+  submission_group?: string | null;
 }
 
 interface StudentData {
@@ -109,6 +119,7 @@ interface ClassData {
   studentData: StudentData[];
   galleryItems: GalleryItem[];
   evalMap: Record<string, EvalRow>;
+  groups: { id: string; name: string; memberIds: string[] }[];
   loaded: boolean;
 }
 
@@ -290,6 +301,14 @@ const SchoolShareView = () => {
       const evalMap: Record<string, EvalRow> = {};
       ((payload as any).evaluations || []).forEach((e: any) => { evalMap[e.student_id] = e; });
 
+      const memberIdsByGroup: Record<string, string[]> = {};
+      ((payload as any).group_members || []).forEach((m: any) => {
+        (memberIdsByGroup[m.group_id] ||= []).push(m.student_id);
+      });
+      const groups = (((payload as any).groups || []) as any[])
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map(g => ({ id: g.id as string, name: g.name as string, memberIds: memberIdsByGroup[g.id] || [] }));
+
       setClassDataMap(prev => ({
         ...prev,
         [classId]: {
@@ -301,6 +320,7 @@ const SchoolShareView = () => {
           studentData,
           galleryItems: [...((payload as any).gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)],
           evalMap,
+          groups,
           loaded: true,
         },
       }));
@@ -451,6 +471,41 @@ const SchoolShareView = () => {
       results: weekFilter === 'all' ? sd.results : sd.results.filter(r => r.week_number === weekFilter),
     }));
   }, [currentData, weekFilter]);
+
+  // 조별 제출은 조원 수만큼 복제돼 있으므로 조 단위 한 묶음으로 보여 준다
+  const listData = useMemo(() => {
+    if (!currentData) return [];
+    const groups = currentData.groups;
+    if (groups.length === 0) return filteredData;
+    const gidOf = (sid: string, r: ResultRow) => {
+      if (!r.is_group_submission) return null;
+      const gid = r.group_id || groups.find(g => g.memberIds.includes(sid))?.id || null;
+      return gid && groups.some(g => g.id === gid) ? gid : null;
+    };
+    const bundled = new Map<string, Map<string, ResultRow>>();
+    filteredData.forEach(({ student, results }) => results.forEach(r => {
+      const gid = gidOf(student.id, r);
+      if (!gid) return;
+      const m = bundled.get(gid) || new Map<string, ResultRow>();
+      const key = `${gid}|${r.submission_group || r.created_at}|${r.result_type}|${r.title}`;
+      if (!m.has(key)) m.set(key, r);
+      bundled.set(gid, m);
+    }));
+    const groupCards = groups.filter(g => bundled.has(g.id)).map(g => {
+      const names = g.memberIds.map(id => currentData.studentData.find(sd => sd.student.id === id)?.student)
+        .filter((x): x is StudentRow => !!x)
+        .sort((a, b) => (a.student_number ?? 0) - (b.student_number ?? 0)).map(x => x.full_name);
+      return {
+        student: { id: `group-${g.id}`, full_name: `${g.name} 결과`, student_number: null, avatar_url: null, memberNames: names } as StudentRow,
+        obs: [] as ObsRow[],
+        results: [...bundled.get(g.id)!.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+      };
+    });
+    const individuals = filteredData
+      .map(sd => ({ ...sd, results: sd.results.filter(r => !gidOf(sd.student.id, r)) }))
+      .filter((sd, i) => sd.obs.length > 0 || sd.results.length > 0 || !filteredData[i].results.some(r => gidOf(sd.student.id, r)));
+    return [...groupCards, ...individuals];
+  }, [currentData, filteredData]);
 
   const filteredGallery = useMemo(() => {
     if (!currentData) return [];
@@ -649,10 +704,7 @@ const SchoolShareView = () => {
   if (metaLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 size={36} className="animate-spin text-indigo-500" />
-          <p className="text-sm font-semibold text-gray-500">확인 중...</p>
-        </div>
+        <PercentLoader label="확인 중" />
       </div>
     );
   }
@@ -819,6 +871,12 @@ const SchoolShareView = () => {
           </div>
         </div>
 
+        {classList.length > 1 && (
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-2 text-sm font-bold text-indigo-700 bg-indigo-50/60">
+            👆 위에서 학급을 고르면 그 학급의 결과가 아래에 나와요. (지금: {classList.find(c => c.id === activeClassId)?.name || '학급을 골라 주세요'})
+          </div>
+        )}
+
         {/* 결과/갤러리/학급기록 탭 */}
         {currentData?.loaded && (
           <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 print:hidden">
@@ -852,16 +910,11 @@ const SchoolShareView = () => {
       {/* 본문 */}
       {isClassLoading ? (
         <div className="flex items-center justify-center py-32">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 size={32} className="animate-spin text-indigo-400" />
-            <p className="text-sm font-semibold text-gray-400">데이터 불러오는 중...</p>
-          </div>
+          <PercentLoader label="학급 기록 불러오는 중" />
         </div>
       ) : !currentData?.loaded ? (
         <div className="flex items-center justify-center py-32">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 size={32} className="animate-spin text-indigo-400" />
-          </div>
+          <PercentLoader label="학급 기록 불러오는 중" />
         </div>
       ) : (
         <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -983,7 +1036,7 @@ const SchoolShareView = () => {
                   ))}
                   <div className="ml-auto flex items-center gap-1.5">
                     <button
-                      onClick={() => setExpandedIds(new Set(currentData.studentData.map(sd => sd.student.id)))}
+                      onClick={() => setExpandedIds(new Set(listData.map(sd => sd.student.id)))}
                       className="text-xs font-black text-gray-500 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-all"
                     >
                       전체 열기
@@ -1000,8 +1053,11 @@ const SchoolShareView = () => {
 
               {/* 학생 목록 */}
               <div className="space-y-2">
-                {filteredData.map(({ student, obs, results }) => {
+                {listData.map(({ student, obs, results }) => {
                   const isExpanded = expandedIds.has(student.id);
+                  const finalMarks = student.memberNames
+                    ? computeFinalMarks(results.map(r => ({ id: r.id, week: r.week_number, kind: r.result_type, created_at: r.created_at })))
+                    : new Map<string, 'final' | 'older'>();
                   const hasActivity = obs.length > 0 || results.length > 0;
                   return (
                     <div
@@ -1013,11 +1069,16 @@ const SchoolShareView = () => {
                         disabled={!hasActivity}
                         className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasActivity ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-50'}`}
                       >
-                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
-                          <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
+                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100 flex items-center justify-center">
+                          {student.memberNames
+                            ? <span className="text-lg">👥</span>
+                            : <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
+                          {student.memberNames && student.memberNames.length > 0 && (
+                            <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">조원: {student.memberNames.join(', ')}</p>
+                          )}
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                             {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
                             {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
@@ -1051,14 +1112,16 @@ const SchoolShareView = () => {
                             </div>
                           ))}
 
-                          {results.map(r => {
+                          {[...results].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map(r => {
                             const allImgResults = results.filter(x => x.image_urls && x.image_urls.length > 0);
                             const allImgUrls = allImgResults.flatMap(x => x.image_urls as string[]);
                             const allImgNames = allImgResults.flatMap(x => (x.image_urls as string[]).map((_, i) => `${x.title || '결과물'}-${i + 1}.webp`));
                             return (
-                              <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                              <div key={r.id} className={`bg-white rounded-xl border p-4 ${finalMarks.get(r.id) === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${finalMarks.get(r.id) === 'older' ? 'opacity-70' : ''}`}>
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                                   <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
+                                  {finalMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
+                                  {finalMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
                                   {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
                                   <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                                 </div>
@@ -1088,9 +1151,7 @@ const SchoolShareView = () => {
                                   </a>
                                 )}
                                 {r.file_url && (
-                                  <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                    <Download size={14} /> 파일 다운로드
-                                  </a>
+                                  <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />
                                 )}
                               </div>
                             );

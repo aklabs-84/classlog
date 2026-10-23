@@ -35,6 +35,10 @@ import {
   Sparkles,
   BarChart2,
 } from 'lucide-react';
+import ResultFileActions from '../components/common/ResultFileActions';
+import PercentLoader from '../components/common/PercentLoader';
+import FullScreenView from '../components/common/FullScreenView';
+import { computeFinalMarks } from '../lib/finalSubmission';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
@@ -127,6 +131,8 @@ interface ResultRow {
   file_url?: string | null;
   image_url?: string | null;
   image_urls?: string[];
+  display_name?: string | null;
+  storage_path?: string | null;
   group_id?: string | null;
   is_group_submission?: boolean;
 }
@@ -725,10 +731,7 @@ const ShareClassView = () => {
   if (metaLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 size={36} className="animate-spin text-indigo-500" />
-          <p className="text-sm font-semibold text-gray-500">확인 중...</p>
-        </div>
+        <PercentLoader label="확인 중" />
       </div>
     );
   }
@@ -1002,10 +1005,7 @@ const ShareClassView = () => {
 
       {dataLoading ? (
         <div className="flex items-center justify-center py-32">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 size={32} className="animate-spin text-indigo-400" />
-            <p className="text-sm font-semibold text-gray-400">데이터 불러오는 중...</p>
-          </div>
+          <PercentLoader label="학급 기록 불러오는 중" />
         </div>
       ) : (
         <main id="main-content" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -1517,32 +1517,14 @@ const ShareClassView = () => {
           const pagedResults = results.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
 
           return (
-            <motion.div
-              key="student-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[250] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-              onClick={() => setModalStudentId(null)}
+            <FullScreenView
+              key="student-fullscreen"
+              onClose={() => setModalStudentId(null)}
+              title={student.full_name}
+              subtitle={`활동 기록 ${obs.length}건 · 결과물 ${results.length}건`}
+              icon={<div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100"><img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" /></div>}
             >
-              <motion.div
-                initial={reduceMotion ? undefined : { y: 24, opacity: 0 }}
-                animate={reduceMotion ? undefined : { y: 0, opacity: 1 }}
-                exit={reduceMotion ? undefined : { y: 24, opacity: 0 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
-              >
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
-                    <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
-                  </div>
-                  <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{student.full_name}</p>
-                  <button onClick={() => setModalStudentId(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">
-                    <X size={18} />
-                  </button>
-                </div>
-
+              <div className="flex flex-col">
                 <div className="flex gap-1 px-5 pt-3 shrink-0">
                   <button
                     onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'obs' }))}
@@ -1624,9 +1606,7 @@ const ShareClassView = () => {
                           </a>
                         )}
                         {r.file_url && (
-                          <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                            <Download size={14} /> 파일 다운로드
-                          </a>
+                          <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />
                         )}
                       </div>
                     );
@@ -1639,8 +1619,8 @@ const ShareClassView = () => {
                     />
                   )}
                 </div>
-              </motion.div>
-            </motion.div>
+              </div>
+            </FullScreenView>
           );
         })()}
       </AnimatePresence>
@@ -1652,34 +1632,16 @@ const ShareClassView = () => {
           if (!entry) return null;
           const { group, students } = entry;
           const results = groupResultsMap[group.id] || [];
+          const finalMarks = computeFinalMarks(results.map((r) => ({ id: r.id, week: r.week_number, kind: r.result_type, created_at: r.created_at })));
 
           return (
-            <motion.div
-              key="group-modal-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[250] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-              onClick={() => setModalGroupId(null)}
+            <FullScreenView
+              key="group-fullscreen"
+              onClose={() => setModalGroupId(null)}
+              title={group.name}
+              subtitle={`조원 ${students.length}명 · 결과물 ${results.length}건`}
+              icon={<div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: group.color + '18' }}><Users size={16} style={{ color: group.color }} /></div>}
             >
-              <motion.div
-                initial={reduceMotion ? undefined : { y: 24, opacity: 0 }}
-                animate={reduceMotion ? undefined : { y: 0, opacity: 1 }}
-                exit={reduceMotion ? undefined : { y: 24, opacity: 0 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
-              >
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: group.color + '18' }}>
-                    <Users size={16} style={{ color: group.color }} />
-                  </div>
-                  <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{group.name}</p>
-                  <button onClick={() => setModalGroupId(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">
-                    <X size={18} />
-                  </button>
-                </div>
-
                 <div className="px-5 py-4 space-y-4 overflow-y-auto">
                   {/* 조원 명단 */}
                   <div>
@@ -1702,11 +1664,13 @@ const ShareClassView = () => {
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">📁 조별 결과물 {results.length}건</p>
                     {results.length === 0 && <p className="text-xs font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
                     <div className="space-y-3">
-                      {results.map((r) => {
+                      {[...results].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((r) => {
                         const typeBadge = RESULT_TYPE_BADGE[r.result_type];
                         return (
-                          <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                          <div key={r.id} className={`bg-white rounded-xl border p-4 ${finalMarks.get(r.id) === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${finalMarks.get(r.id) === 'older' ? 'opacity-70' : ''}`}>
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              {finalMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
+                              {finalMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
                               {typeBadge && (
                                 <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
                                   {typeBadge.icon} {typeBadge.label}
@@ -1738,9 +1702,7 @@ const ShareClassView = () => {
                               </a>
                             )}
                             {r.file_url && (
-                              <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                <Download size={14} /> 파일 다운로드
-                              </a>
+                              <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />
                             )}
                           </div>
                         );
@@ -1748,8 +1710,7 @@ const ShareClassView = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            </motion.div>
+            </FullScreenView>
           );
         })()}
       </AnimatePresence>

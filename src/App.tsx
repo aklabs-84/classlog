@@ -76,6 +76,7 @@ const SchoolProjectNewPage = lazy(() => import('./pages/SchoolProjectNewPage'));
 const SchoolProjectDetailPage = lazy(() => import('./pages/SchoolProjectDetailPage'));
 const SchoolProjectClassDetailPage = lazy(() => import('./pages/SchoolProjectClassDetailPage'));
 const AttachmentView = lazy(() => import('./pages/AttachmentView'));
+const ResultFileView = lazy(() => import('./pages/ResultFileView'));
 const Community = lazy(() => import('./pages/Community'));
 import DemoTourOverlay from './components/DemoTourOverlay';
 import DemoSpotlightTour from './components/DemoSpotlightTour';
@@ -269,6 +270,7 @@ function App() {
               <Route path="/survey/:pin" element={<SurveyStudent />} />
               <Route path="/survey" element={<SurveyStudent />} />
               <Route path="/attachment-view" element={<AttachmentView />} />
+              <Route path="/result-view" element={<ResultFileView />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/video-guide" element={<VideoGuide />} />

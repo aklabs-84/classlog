@@ -4,7 +4,8 @@ import { X, Loader2, Play, Square, AlertTriangle, Download } from 'lucide-react'
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import DOMPurify from 'dompurify';
-import { downloadFile } from '../../lib/fileUtils';
+import { downloadFile, fetchWithProgress } from '../../lib/fileUtils';
+import PercentLoader from '../common/PercentLoader';
 
 interface SubmissionViewerModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ const getViewerKind = (fileName: string): ViewerKind => {
 const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: SubmissionViewerModalProps) => {
   const kind = getViewerKind(fileName);
   const [loading, setLoading] = useState(true);
+  const [loadPercent, setLoadPercent] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zipEntryUrl, setZipEntryUrl] = useState<string | null>(null);
   const [htmlBlobUrl, setHtmlBlobUrl] = useState<string | null>(null);
@@ -65,6 +67,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   useEffect(() => {
     if (!isOpen) return;
     setLoading(true);
+    setLoadPercent(null);
     setError(null);
     setPyOutput('');
     setDocxHtml('');
@@ -78,9 +81,9 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     if (kind === 'web-html') {
       (async () => {
         try {
-          const res = await fetch(fileUrl);
+          const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const text = await res.text();
-          const htmlBlob = new Blob([text], { type: 'text/html' });
+          const htmlBlob = new Blob([text], { type: 'text/html;charset=utf-8' });
           const htmlUrl = URL.createObjectURL(htmlBlob);
           objectUrlsRef.current.push(htmlUrl);
           setHtmlBlobUrl(htmlUrl);
@@ -93,41 +96,70 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     } else if (kind === 'web-zip') {
       (async () => {
         try {
-          const res = await fetch(fileUrl);
+          const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const blob = await res.blob();
           const zip = await JSZip.loadAsync(blob);
-          const entries = Object.keys(zip.files).filter(n => !zip.files[n].dir);
-          const indexPath = entries.find(n => /(^|\/)index\.html$/i.test(n))
-            || entries.find(n => n.toLowerCase().endsWith('.html'));
+          const entries = Object.keys(zip.files)
+            .filter(n => !zip.files[n].dir && !/(^|\/)(__MACOSX|node_modules)\//.test(n) && !/(^|\/)\.DS_Store$/.test(n));
+          const depth = (n: string) => n.split('/').length;
+          const htmls = entries.filter(n => n.toLowerCase().endsWith('.html')).sort((x, y) => depth(x) - depth(y));
+          const indexPath = htmls.find(n => /(^|\/)index\.html$/i.test(n)) || htmls[0];
           if (!indexPath) {
-            setError('압축 파일 안에서 index.html을 찾을 수 없습니다.');
+            setError('압축 파일 안에서 열 수 있는 html 파일을 찾을 수 없습니다. 다운로드 버튼으로 받아 확인해주세요.');
+            setLoading(false);
+            return;
+          }
+          const html0 = await zip.files[indexPath].async('text');
+          if (/<script[^>]+src=["'][^"']*\.(tsx|ts|jsx)["']/i.test(html0)) {
+            setError('이 압축 파일은 완성본이 아니라 "만들기 전 소스 파일"이라 화면에서 바로 열 수 없어요. 다운로드 버튼으로 받아 확인해주세요. (학생에게 빌드된 결과 또는 index.html 하나로 다시 제출하도록 안내해도 좋아요)');
             setLoading(false);
             return;
           }
           const basedir = indexPath.includes('/') ? indexPath.slice(0, indexPath.lastIndexOf('/') + 1) : '';
+          const mimeMap: Record<string, string> = {
+            html: 'text/html;charset=utf-8', css: 'text/css;charset=utf-8', js: 'text/javascript;charset=utf-8', mjs: 'text/javascript;charset=utf-8', json: 'application/json',
+            png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon',
+            mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf',
+          };
           const urlMap: Record<string, string> = {};
+          const track = (blob: Blob) => { const u = URL.createObjectURL(blob); objectUrlsRef.current.push(u); return u; };
+          const safeDecode = (v: string) => { try { return decodeURIComponent(v); } catch { return v; } };
+          const resolve = (from: string, ref: string): string | undefined => {
+            if (/^(https?:|data:|blob:|mailto:|tel:|javascript:|#|\/\/)/i.test(ref)) return undefined;
+            const clean = safeDecode(ref.split('#')[0].split('?')[0]);
+            if (!clean) return undefined;
+            const parts = (clean.startsWith('/') ? clean.slice(1) : from + clean).split('/');
+            const out: string[] = [];
+            parts.forEach(seg => { if (seg === '..') out.pop(); else if (seg && seg !== '.') out.push(seg); });
+            const full = out.join('/');
+            if (urlMap[full]) return urlMap[full];
+            if (clean.startsWith('/') && urlMap[basedir + full]) return urlMap[basedir + full];
+            return undefined;
+          };
+          const extOf = (n: string) => n.split('.').pop()?.toLowerCase() || '';
+          // 1) css·html·js 외 파일 먼저 주소 만들기
           for (const name of entries) {
-            const ext = name.split('.').pop()?.toLowerCase() || '';
-            const mimeMap: Record<string, string> = {
-              html: 'text/html', css: 'text/css', js: 'text/javascript', json: 'application/json',
-              png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml',
-              mp3: 'audio/mpeg', wav: 'audio/wav', woff: 'font/woff', woff2: 'font/woff2',
-            };
-            const fileBlob = await zip.files[name].async('blob');
-            const typedBlob = mimeMap[ext] ? new Blob([fileBlob], { type: mimeMap[ext] }) : fileBlob;
-            const url = URL.createObjectURL(typedBlob);
-            objectUrlsRef.current.push(url);
-            urlMap[name] = url;
+            const ext = extOf(name);
+            if (ext === 'css' || ext === 'html') continue;
+            const fb = await zip.files[name].async('blob');
+            urlMap[name] = track(mimeMap[ext] ? new Blob([fb], { type: mimeMap[ext] }) : fb);
           }
-          let html = await zip.files[indexPath].async('text');
-          html = html.replace(/(src|href)=["']([^"':][^"']*)["']/g, (match, attr, path) => {
-            const resolved = basedir + path.replace(/^\.\//, '');
-            const normalized = Object.keys(urlMap).find(k => k === resolved || k === path);
-            return normalized ? `${attr}="${urlMap[normalized]}"` : match;
+          // 2) css는 안의 url(...) 경로를 바꾼 뒤 주소 만들기
+          for (const name of entries.filter(n => extOf(n) === 'css')) {
+            const dir = name.includes('/') ? name.slice(0, name.lastIndexOf('/') + 1) : '';
+            const css = (await zip.files[name].async('text')).replace(/url\(\s*(["']?)([^)"']+)\1\s*\)/g, (m, q, ref) => {
+              const r = resolve(dir, ref.trim());
+              return r ? `url(${q}${r}${q})` : m;
+            });
+            urlMap[name] = track(new Blob([css], { type: mimeMap.css }));
+          }
+          const baseDirForHtml = basedir;
+          const html = html0.replace(/(src|href)=(["'])([^"']+)\2/g, (m, attr, q, ref) => {
+            const r = resolve(baseDirForHtml, ref);
+            return r ? `${attr}=${q}${r}${q}` : m;
           });
-          const htmlBlob = new Blob([html], { type: 'text/html' });
-          const htmlUrl = URL.createObjectURL(htmlBlob);
-          objectUrlsRef.current.push(htmlUrl);
+          const htmlBlob = new Blob([html], { type: mimeMap.html });
+          const htmlUrl = track(htmlBlob);
           setZipEntryUrl(htmlUrl);
           setLoading(false);
         } catch (e: any) {
@@ -139,7 +171,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
       (async () => {
         try {
           const mammoth = await import('mammoth');
-          const res = await fetch(fileUrl);
+          const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const arrayBuffer = await res.arrayBuffer();
           const { value } = await mammoth.convertToHtml({ arrayBuffer });
           setDocxHtml(DOMPurify.sanitize(value));
@@ -154,7 +186,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
         try {
           const { HwpxReader } = await import('hwp-convert');
           const reader = new HwpxReader();
-          const res = await fetch(fileUrl);
+          const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const arrayBuffer = await res.arrayBuffer();
           await reader.loadFromArrayBuffer(arrayBuffer);
           const html = await reader.extractHtml({ renderImages: true, renderTables: true, renderStyles: true, embedImages: true });
@@ -168,7 +200,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     } else if (kind === 'sheet') {
       (async () => {
         try {
-          const res = await fetch(fileUrl);
+          const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const arrayBuffer = await res.arrayBuffer();
           const workbook = XLSX.read(arrayBuffer, { type: 'array' });
           const parsedSheets = workbook.SheetNames.map(name => ({
@@ -190,7 +222,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
       setPyRunning(false);
       (async () => {
         try {
-          const res = await fetch(fileUrl);
+          const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const text = await res.text();
           setPyCode(text);
           setLoading(false);
@@ -252,11 +284,8 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className={`bg-white rounded-2xl shadow-2xl w-full h-[80vh] flex flex-col overflow-hidden ${kind === 'python' ? 'max-w-6xl' : 'max-w-4xl'}`}
-        onClick={e => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-[200] bg-white">
+      <div className="w-full h-full flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
           <div className="min-w-0">
             <p className="text-sm font-black text-on-surface truncate">{fileName}</p>
@@ -296,13 +325,18 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                   <p className="text-sm font-bold">{error}</p>
                 </div>
               ) : htmlBlobUrl && (
+                <div className="w-full h-full flex flex-col">
+                                <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
+                  🔊 학생이 만든 페이지라 열자마자 소리(음성 안내)가 날 수 있어요.
+                </div>
                 <iframe
                   ref={iframeRef}
                   src={htmlBlobUrl}
                   sandbox="allow-scripts allow-forms allow-popups allow-modals"
-                  className="w-full h-full border-0"
+                  className="w-full flex-1 min-h-0 border-0"
                   title={fileName}
                 />
+                </div>
               )}
             </>
           )}
@@ -315,12 +349,17 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                   <p className="text-sm font-bold">{error}</p>
                 </div>
               ) : zipEntryUrl && (
+                <div className="w-full h-full flex flex-col">
+                <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
+                  🔊 학생이 만든 페이지라 열자마자 소리(음성 안내)가 날 수 있어요.
+                </div>
                 <iframe
                   src={zipEntryUrl}
                   sandbox="allow-scripts allow-forms allow-popups allow-modals"
-                  className="w-full h-full border-0"
+                  className="w-full flex-1 min-h-0 border-0"
                   title={fileName}
                 />
+                </div>
               )}
             </>
           )}
@@ -460,8 +499,8 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
           )}
 
           {loading && (kind === 'web-html' || kind === 'web-zip' || kind === 'docx' || kind === 'hwpx' || kind === 'sheet' || kind === 'python') && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-              <Loader2 size={24} className="animate-spin text-primary" />
+            <div className="absolute inset-0 flex items-center justify-center bg-white/90 px-6">
+              <PercentLoader percent={loadPercent} label="파일 여는 중" />
             </div>
           )}
         </div>

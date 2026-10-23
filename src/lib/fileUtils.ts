@@ -49,3 +49,25 @@ export const openFile = async (url: string, fileName: string): Promise<void> => 
     window.open(url, '_blank');
   }
 };
+
+/**
+ * 파일을 받으면서 진행률(0~100)을 알려 줍니다. 서버가 전체 크기를 안 알려 주면 progress를 부르지 않습니다.
+ * 반환값은 .text()/.blob()/.arrayBuffer()를 그대로 쓸 수 있는 Response입니다.
+ */
+export const fetchWithProgress = async (url: string, onProgress?: (percent: number) => void): Promise<Response> => {
+  const res = await fetch(url);
+  const total = Number(res.headers.get('content-length') || 0);
+  if (!res.body || !total || !onProgress) return res;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    onProgress(Math.min(99, Math.round((received / total) * 100)));
+  }
+  onProgress(100);
+  return new Response(new Blob(chunks as BlobPart[]), { status: res.status, headers: res.headers });
+};
