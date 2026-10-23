@@ -42,6 +42,13 @@ export default function Whiteboard() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState('새 보드');
   const [showClassLinkModal, setShowClassLinkModal] = useState(false);
+  // 좁은 화면(폰)에서는 헤더 버튼을 아이콘만 보여 화면 밖으로 잘리지 않게 한다
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [linkedClassName, setLinkedClassName] = useState<string | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -392,14 +399,14 @@ export default function Whiteboard() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6', overflow: 'hidden' }}>
       {/* 헤더 */}
-      <div style={{ height: 52, background: '#1e1e1e', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', flexShrink: 0, zIndex: 100 }}>
+      <div style={{ height: 52, background: '#1e1e1e', display: 'flex', alignItems: 'center', gap: narrow ? 6 : 12, padding: narrow ? '0 8px' : '0 16px', flexShrink: 0, zIndex: 100 }}>
         <button
           onClick={handleStudentExit}
-          style={{ background: '#2a2a2a', border: '1px solid #444', borderRadius: 8, padding: '6px 14px 6px 10px', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600 }}
+          style={{ background: '#2a2a2a', border: '1px solid #444', borderRadius: 8, padding: narrow ? '6px 8px' : '6px 14px 6px 10px', color: '#e5e7eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}
         >
-          <ArrowLeft size={14} /> {(fromWbJoin || isAnonymousUser(user)) ? '수업 나가기' : '뒤로'}
+          <ArrowLeft size={14} /> {narrow ? ((fromWbJoin || isAnonymousUser(user)) ? '나가기' : '') : ((fromWbJoin || isAnonymousUser(user)) ? '수업 나가기' : '뒤로')}
         </button>
-        <div style={{ width: 1, height: 20, background: '#333' }} />
+        {!narrow && <div style={{ width: 1, height: 20, background: '#333' }} />}
         {editingTitle ? (
           <input
             autoFocus value={title}
@@ -409,14 +416,14 @@ export default function Whiteboard() {
             style={{ background: 'transparent', border: '1px solid #3B82F6', borderRadius: 4, color: '#fff', fontSize: 14, fontWeight: 'bold', padding: '3px 8px', outline: 'none', minWidth: 160 }}
           />
         ) : (
-          <span onDoubleClick={() => setEditingTitle(true)} style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'text', padding: '3px 0' }}>
+          <span onDoubleClick={() => setEditingTitle(true)} style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: 'text', padding: '3px 0', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {title}
           </span>
         )}
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: narrow ? 6 : 12, flexShrink: 0 }}>
           {/* 클래스 뱃지 — 선생님만 표시 (학생 진입 시 숨김) */}
-          {linkedClassName && !fromWbJoin && (
+          {!narrow && linkedClassName && !fromWbJoin && (
             <button
               onClick={() => setShowClassLinkModal(true)}
               title="클래스 연결 설정"
@@ -432,23 +439,23 @@ export default function Whiteboard() {
           )}
 
           {/* 접속 멤버 */}
-          {members.length > 0 && (
+          {!narrow && members.length > 0 && (
             <MembersBar members={members} currentUserId={user?.id ?? ''} />
           )}
           {/* 연결 상태 */}
-          <ConnectionStatus status={connectionStatus} />
+          {!narrow && <ConnectionStatus status={connectionStatus} />}
 
-          <div style={{ width: 1, height: 20, background: '#333' }} />
+          {!narrow && <div style={{ width: 1, height: 20, background: '#333' }} />}
 
           {/* 저장 상태 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: saveStatus === 'error' ? '#EF4444' : '#6B7280' }}>
-            {saveStatus === 'saving' && <><Loader2 size={13} /> 저장 중...</>}
-            {saveStatus === 'saved' && <><Check size={13} color="#10B981" /> 저장됨</>}
-            {saveStatus === 'error' && <><AlertCircle size={13} /> 저장 실패</>}
+            {saveStatus === 'saving' && <><Loader2 size={13} />{!narrow && ' 저장 중...'}</>}
+            {saveStatus === 'saved' && <><Check size={13} color="#10B981" />{!narrow && ' 저장됨'}</>}
+            {saveStatus === 'error' && <><AlertCircle size={13} />{!narrow && ' 저장 실패'}</>}
           </div>
           {!isViewer && (
-            <button onClick={() => saveObjects(objects)} style={{ background: '#374151', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Save size={13} /> 저장
+            <button onClick={() => saveObjects(objects)} title="저장" aria-label="저장" style={{ background: '#374151', border: 'none', color: '#fff', borderRadius: 6, padding: narrow ? '7px 9px' : '5px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Save size={13} /> {!narrow && '저장'}
             </button>
           )}
           {/* 클래스 연결 버튼 (생성자만) */}
@@ -458,18 +465,19 @@ export default function Whiteboard() {
               title="클래스 연결"
               style={{
                 background: linkedClassName ? '#1D4ED8' : '#374151',
-                border: 'none', color: '#fff', borderRadius: 6, padding: '5px 12px',
+                border: 'none', color: '#fff', borderRadius: 6, padding: narrow ? '7px 9px' : '5px 12px',
                 cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4,
               }}
+              aria-label="클래스 연결"
             >
-              <Users size={13} /> 클래스
+              <Users size={13} /> {!narrow && '클래스'}
             </button>
           )}
-          <button onClick={handleShare} style={{ background: '#374151', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Share2 size={13} /> 공유
+          <button onClick={handleShare} title="공유" aria-label="공유" style={{ background: '#374151', border: 'none', color: '#fff', borderRadius: 6, padding: narrow ? '7px 9px' : '5px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Share2 size={13} /> {!narrow && '공유'}
           </button>
-          <button onClick={handleExportPng} style={{ background: '#3B82F6', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Download size={13} /> 내보내기
+          <button onClick={handleExportPng} title="내보내기" aria-label="내보내기" style={{ background: '#3B82F6', border: 'none', color: '#fff', borderRadius: 6, padding: narrow ? '7px 9px' : '5px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Download size={13} /> {!narrow && '내보내기'}
           </button>
         </div>
       </div>

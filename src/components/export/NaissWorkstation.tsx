@@ -627,13 +627,13 @@ CREATE POLICY "teacher_own" ON student_evaluations
 
       {/* 상단 컨트롤 */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap max-w-full">
           <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)}
-            className="pl-3 pr-8 py-2.5 bg-white border-2 border-neutral-200 rounded-xl text-sm font-bold appearance-none focus:border-primary/40 outline-none">
+            className="max-w-full pl-3 pr-8 py-2.5 bg-white border-2 border-neutral-200 rounded-xl text-sm font-bold appearance-none focus:border-primary/40 outline-none">
             {classes.map(c => <option key={c.id} value={c.id}>[{c.class_type === 'homeroom' ? '담임' : '교과'}] {c.name} - {c.subject}</option>)}
           </select>
           <select value={academicYear} onChange={e => setAcademicYear(Number(e.target.value))}
-            className="pl-3 pr-8 py-2.5 bg-white border-2 border-neutral-200 rounded-xl text-sm font-bold appearance-none focus:border-primary/40 outline-none">
+            className="max-w-full pl-3 pr-8 py-2.5 bg-white border-2 border-neutral-200 rounded-xl text-sm font-bold appearance-none focus:border-primary/40 outline-none">
             {[2026, 2025, 2024].map(y => <option key={y} value={y}>{y}학년도</option>)}
           </select>
         </div>

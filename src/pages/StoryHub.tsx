@@ -32,7 +32,7 @@ export default function StoryHub() {
             <span className="text-base font-black tracking-tight text-amber-800">클래스로그 AI</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <a
               href={KAKAO_OPEN_CHAT_URL}
               target="_blank"
@@ -44,7 +44,7 @@ export default function StoryHub() {
             </a>
             <button
               onClick={() => navigate('/training-request?source=stories')}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-700 text-sm font-bold rounded-full transition-colors shadow-sm"
+              className="flex items-center gap-2 max-sm:px-3 max-sm:text-[13px] px-4 py-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-700 text-sm font-bold rounded-full transition-colors shadow-sm"
             >
               <GraduationCap size={14} />
               교육 신청하기
@@ -52,7 +52,7 @@ export default function StoryHub() {
             {isLoggedIn ? (
               <button
                 onClick={() => navigate('/dashboard')}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+                className="flex items-center gap-2 max-sm:px-3 max-sm:text-[13px] px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
               >
                 <LayoutDashboard size={14} />
                 대시보드

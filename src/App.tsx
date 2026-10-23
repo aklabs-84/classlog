@@ -67,6 +67,7 @@ const VideoGuide = lazy(() => import('./pages/VideoGuide'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const SchoolIntroPage = lazy(() => import('./pages/SchoolIntroPage'));
 const PortfolioPublic = lazy(() => import('./pages/PortfolioPublic'));
+const PortfolioSample = lazy(() => import('./pages/PortfolioSample'));
 const Demo = lazy(() => import('./pages/Demo'));
 const DemoMaterialEditor = lazy(() => import('./pages/DemoMaterialEditor'));
 const StoryHub = lazy(() => import('./pages/StoryHub'));
@@ -282,6 +283,7 @@ function App() {
               <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
               <Route path="/report/:shareToken" element={<ParentReportShareView />} />
               <Route path="/school-intro" element={<SchoolIntroPage />} />
+              <Route path="/portfolio-sample/:id" element={<PortfolioSample />} />
               <Route path="/portfolio/:slug" element={<PortfolioPublic />} />
               <Route path="/demo" element={<Demo />} />
               <Route path="/demo/material-editor" element={<DemoMaterialEditor />} />

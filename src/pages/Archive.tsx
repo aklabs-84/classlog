@@ -138,8 +138,8 @@ const ArchivePage = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-             <div className="relative group min-w-[300px]">
+          <div className="flex items-center gap-4 max-sm:w-full">
+             <div className="relative group sm:min-w-[300px] max-sm:w-full">
                 <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
                 <input 
                   type="text" 

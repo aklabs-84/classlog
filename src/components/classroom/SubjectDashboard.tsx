@@ -445,10 +445,10 @@ const SubjectDashboard = ({
 
       {/* 3. 주차별 제출 현황 (항상 펼쳐 둠) */}
       <section className="px-4">
-        <div className="flex items-center gap-2 mb-3">
-          <BarChart2 size={18} className="text-primary" />
-          <h2 className="text-[19px] font-bold text-on-surface">{weekWord}별 제출 현황</h2>
-          {statsWeeks.length > 0 && <span className="text-[14px] text-on-surface-variant">총 {statsWeeks.length}{weekWord} · {weekWord}를 누르면 아래 표가 그 주차 기준으로 바뀌어요</span>}
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-3">
+          <BarChart2 size={18} className="text-primary shrink-0" />
+          <h2 className="text-[19px] font-bold text-on-surface whitespace-nowrap">{weekWord}별 제출 현황</h2>
+          {statsWeeks.length > 0 && <span className="text-[14px] text-on-surface-variant max-sm:basis-full">총 {statsWeeks.length}{weekWord} · {weekWord}를 누르면 아래 표가 그 주차 기준으로 바뀌어요</span>}
         </div>
         {statsLoading ? (
           <p className="py-6 text-[15px] text-on-surface-variant">불러오는 중...</p>

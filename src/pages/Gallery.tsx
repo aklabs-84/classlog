@@ -345,7 +345,7 @@ export default function Gallery() {
         </div>
 
         {/* 업로드 버튼 그룹 */}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap justify-end gap-2 max-w-full">
           {/* 상영회 시작 */}
           <button
             onClick={() => setScreeningOpen(true)}

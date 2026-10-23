@@ -1270,7 +1270,7 @@ const Dashboard = () => {
         )}
 
         {/* 가이드 & 카탈로그 링크 */}
-        <div className="col-span-12 grid grid-cols-3 gap-3">
+        <div className="col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <a
             href="/catalog.html"
             target="_blank"

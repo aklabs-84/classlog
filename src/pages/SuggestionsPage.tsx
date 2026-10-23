@@ -150,11 +150,11 @@ const SuggestionsPage = () => {
 
         {/* 수업 선택 드롭다운 */}
         {!classesLoading && classes.length > 0 && (
-          <div className="relative">
+          <div className="relative max-w-full">
             <select
               value={selectedClassId}
               onChange={e => setSelectedClassId(e.target.value)}
-              className="appearance-none pl-4 pr-10 py-2.5 bg-white border-2 border-primary/20 rounded-2xl font-black text-sm focus:outline-none focus:border-primary/50 transition-all cursor-pointer"
+              className="appearance-none max-w-full pl-4 pr-10 py-2.5 bg-white border-2 border-primary/20 rounded-2xl font-black text-sm focus:outline-none focus:border-primary/50 transition-all cursor-pointer"
             >
               <option value="">전체 수업</option>
               {classes.map(c => (

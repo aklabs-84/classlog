@@ -143,7 +143,7 @@ const ClassSelector = ({
 
   return (
     <nav className="w-full bg-surface-container-lowest border-b border-surface-container-high px-3 sm:px-6 py-3 shrink-0 z-50 sticky top-0 shadow-none">
-      <div className="max-w-[1600px] mx-auto flex items-center gap-2 sm:gap-6">
+      <div className="max-w-[1600px] mx-auto flex items-center max-sm:flex-wrap gap-2 sm:gap-6">
         {/* Brand/Label */}
         <div className="hidden lg:flex flex-col items-start shrink-0 mr-2">
           <span className="text-[14px] font-bold   text-primary/70 leading-none">Classboard</span>

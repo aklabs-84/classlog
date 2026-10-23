@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import type { DragEvent as ReactDragEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -43,7 +44,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderPlus, FolderInput, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
+  Folder, FolderOpen, Undo2, Redo2, FolderPlus, FolderInput, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
 } from 'lucide-react';
 import StudentScreenTour, { type StudentScreenStep } from '../../components/student/StudentScreenTour';
 import { mdComponents } from '../../components/materialMdComponents';
@@ -125,8 +126,11 @@ interface MaterialFolder {
   teacher_id: string;
   class_id: string | null;
   name: string;
+  parent_id?: string | null;
   created_at: string;
 }
+
+const MAX_FOLDER_DEPTH = 5;
 
 const formatVersionDate = (iso: string) => {
   try {
@@ -1386,7 +1390,7 @@ const MaterialEditor = () => {
   // 폴더 — 클래스별 또는 공통 자료함별로 자료를 정리
   const [folders, setFolders] = useState<MaterialFolder[]>([]);
   // 'all' = 전체, null = 미분류, 그 외 = 특정 폴더 id
-  const [activeFolderId, setActiveFolderId] = useState<'all' | string | null>('all');
+  const [activeFolderId, setActiveFolderId] = useState<'all' | 'unfiled' | string | null>('all');
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renamingFolderName, setRenamingFolderName] = useState('');
   const [newFolderOpen, setNewFolderOpen] = useState(false);
@@ -1395,6 +1399,11 @@ const MaterialEditor = () => {
   const [moveMenuFor, setMoveMenuFor] = useState<string | null>(null);
   const [moreOpenFor, setMoreOpenFor] = useState<string | null>(null);
   const [deleteFolderConfirmId, setDeleteFolderConfirmId] = useState<string | null>(null);
+  // 파인더식 폴더 트리: 펼친 폴더, 끌어서 옮기는 중인 항목, 놓을 자리 강조, 모바일 폴더 서랍
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const dragItemRef = useRef<{ kind: 'material' | 'folder'; id: string } | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null | 'root'>(null);
+  const [folderDrawerOpen, setFolderDrawerOpen] = useState(false);
 
   // 에디터 열림 여부
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -1655,11 +1664,12 @@ const MaterialEditor = () => {
     try {
       const { data, error } = await supabase
         .from('material_folders')
-        .insert({ teacher_id: user!.id, class_id: libraryMode ? null : selectedClass?.id ?? null, name })
+        .insert({ teacher_id: user!.id, class_id: libraryMode ? null : selectedClass?.id ?? null, name, parent_id: currentFolderId })
         .select()
         .single();
       if (error) { appToast(`폴더 생성 중 오류가 발생했습니다.\n${error.message}`); return; }
       if (data) setFolders(prev => [...prev, data as MaterialFolder]);
+      if (currentFolderId) setExpandedFolders(prev => ({ ...prev, [currentFolderId]: true }));
       setNewFolderName('');
       setNewFolderOpen(false);
     } finally {
@@ -1680,18 +1690,120 @@ const MaterialEditor = () => {
     setDeleteFolderConfirmId(null);
     const { error } = await supabase.from('material_folders').delete().eq('id', folderId);
     if (error) { appToast(`폴더 삭제 중 오류가 발생했습니다.\n${error.message}`); return; }
-    setFolders(prev => prev.filter(f => f.id !== folderId));
-    setMaterials(prev => prev.map(m => m.folder_id === folderId ? { ...m, folder_id: null } : m));
-    if (activeFolderId === folderId) setActiveFolderId('all');
+    // 안의 폴더·자료는 지워지지 않고 한 단계 위로 올라간다 (DB 트리거와 같은 규칙)
+    const upId = folders.find(f => f.id === folderId)?.parent_id ?? null;
+    setFolders(prev => prev.filter(f => f.id !== folderId).map(f => f.parent_id === folderId ? { ...f, parent_id: upId } : f));
+    setMaterials(prev => prev.map(m => m.folder_id === folderId ? { ...m, folder_id: upId } : m));
+    if (activeFolderId === folderId) setActiveFolderId(upId);
   };
 
-  const handleMoveToFolder = async (material: Material, folderId: string | null) => {
+  // 되돌리기/다시 실행: 옮긴 기록(어디서 → 어디로)을 쌓아 둔다 (화면을 열어 둔 동안만 유지)
+  type MoveRecord = { kind: 'material' | 'folder'; id: string; from: string | null; to: string | null; label: string };
+  const moveHistoryRef = useRef<{ undo: MoveRecord[]; redo: MoveRecord[] }>({ undo: [], redo: [] });
+  const [, setHistoryTick] = useState(0);
+  const pushMoveRecord = (r: MoveRecord) => {
+    moveHistoryRef.current.undo.push(r);
+    if (moveHistoryRef.current.undo.length > 30) moveHistoryRef.current.undo.shift();
+    moveHistoryRef.current.redo = [];
+    setHistoryTick(t => t + 1);
+  };
+
+  const handleMoveToFolder = async (material: Material, folderId: string | null, record = true) => {
     setMoveMenuFor(null);
+    const from = material.folder_id ?? null;
+    if (from === folderId) return false;
     const { error } = await supabase.from('class_materials').update({ folder_id: folderId }).eq('id', material.id);
-    if (error) { appToast(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return; }
+    if (error) { appToast(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return false; }
     setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, folder_id: folderId } : m));
-    const folderName = folderId ? folders.find(f => f.id === folderId)?.name ?? '폴더' : '미분류';
-    showActionToast(`"${folderName}"(으)로 이동했습니다.`);
+    const folderName = folderId ? folders.find(f => f.id === folderId)?.name ?? '폴더' : '미지정';
+    if (record) {
+      pushMoveRecord({ kind: 'material', id: material.id, from, to: folderId, label: `"${material.title || '자료'}" 이동` });
+      showActionToast(`"${folderName}"(으)로 이동했습니다. (↶ 되돌리기 가능)`);
+    }
+    return true;
+  };
+
+  // 폴더를 다른 폴더 안으로 옮기기 (null = 맨 위 단계)
+  const handleMoveFolder = async (folderId: string, newParentId: string | null, record = true) => {
+    const f = folders.find(x => x.id === folderId);
+    if (!f || (f.parent_id ?? null) === newParentId) return false;
+    if (newParentId && folderPathOf(newParentId).some(x => x.id === folderId)) { appToast('폴더를 자기 안으로는 옮길 수 없어요.'); return false; }
+    const { error } = await supabase.from('material_folders').update({ parent_id: newParentId }).eq('id', folderId);
+    if (error) { appToast(`폴더 이동 중 오류가 발생했습니다.\n${error.message}`); return false; }
+    setFolders(prev => prev.map(x => x.id === folderId ? { ...x, parent_id: newParentId } : x));
+    if (newParentId) setExpandedFolders(prev => ({ ...prev, [newParentId]: true }));
+    if (record) {
+      pushMoveRecord({ kind: 'folder', id: folderId, from: f.parent_id ?? null, to: newParentId, label: `"${f.name}" 폴더 이동` });
+      showActionToast(`"${f.name}" 폴더를 옮겼습니다. (↶ 되돌리기 가능)`);
+    }
+    return true;
+  };
+
+  const applyMoveRecord = async (r: MoveRecord, target: string | null) => {
+    if (r.kind === 'material') {
+      const m = materials.find(x => x.id === r.id);
+      if (!m) return false;
+      if (target && !folders.some(f => f.id === target)) return false;
+      return handleMoveToFolder(m, target, false);
+    }
+    if (!folders.some(f => f.id === r.id)) return false;
+    if (target && !folders.some(f => f.id === target)) return false;
+    return handleMoveFolder(r.id, target, false);
+  };
+  const handleUndoMove = async () => {
+    const h = moveHistoryRef.current;
+    const r = h.undo[h.undo.length - 1];
+    if (!r) return;
+    if (await applyMoveRecord(r, r.from)) {
+      h.undo.pop(); h.redo.push(r);
+      showActionToast(`되돌렸어요: ${r.label}`);
+    } else {
+      h.undo.pop();
+      showActionToast('되돌릴 수 없어요. (폴더나 자료가 바뀌었어요)');
+    }
+    setHistoryTick(t => t + 1);
+  };
+  const handleRedoMove = async () => {
+    const h = moveHistoryRef.current;
+    const r = h.redo[h.redo.length - 1];
+    if (!r) return;
+    if (await applyMoveRecord(r, r.to)) {
+      h.redo.pop(); h.undo.push(r);
+      showActionToast(`다시 실행했어요: ${r.label}`);
+    } else {
+      h.redo.pop();
+      showActionToast('다시 실행할 수 없어요. (폴더나 자료가 바뀌었어요)');
+    }
+    setHistoryTick(t => t + 1);
+  };
+  // Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z (입력칸 안에서는 글자 되돌리기를 방해하지 않는다)
+  const undoRedoRef = useRef({ undo: handleUndoMove, redo: handleRedoMove });
+  undoRedoRef.current = { undo: handleUndoMove, redo: handleRedoMove };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest('input, textarea, select, [contenteditable="true"]'))) return;
+      if (!document.querySelector('[data-folder-ui]')) return;
+      e.preventDefault();
+      if (e.shiftKey) void undoRedoRef.current.redo(); else void undoRedoRef.current.undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // 끌어서 놓기: 자료든 폴더든 대상 폴더(null = 맨 위)로 이동
+  const handleDropOn = (targetId: string | null) => {
+    const item = dragItemRef.current;
+    dragItemRef.current = null;
+    setDropTargetId(null);
+    if (!item) return;
+    if (item.kind === 'material') {
+      const m = materials.find(x => x.id === item.id);
+      if (m) handleMoveToFolder(m, targetId);
+    } else {
+      handleMoveFolder(item.id, targetId);
+    }
   };
 
   const resetForm = () => {
@@ -1938,7 +2050,7 @@ const MaterialEditor = () => {
     const promise = (async () => {
       const insertPayload = {
         ...payload,
-        folder_id: activeFolderId && activeFolderId !== 'all' ? activeFolderId : null,
+        folder_id: activeFolderId && activeFolderId !== 'all' && activeFolderId !== 'unfiled' ? activeFolderId : null,
         source_lesson_plan_id: returnToPlanId ?? null,
       };
       const { data, error } = await supabase.from('class_materials').insert(insertPayload).select().single();
@@ -2218,9 +2330,136 @@ const MaterialEditor = () => {
     if (usageFilter === 'class') return u.classes.length > 0;
     return u.projects.length === 0 && u.classes.length === 0;
   };
-  const visibleMaterials = (activeFolderId === 'all'
+  // ── 파인더식 폴더 계산 ──
+  const currentFolderId: string | null = activeFolderId === 'all' || activeFolderId === 'unfiled' ? null : activeFolderId;
+  const isSearching = searchText.trim() !== '';
+  const childFoldersOf = (parentId: string | null) =>
+    folders.filter(f => (f.parent_id ?? null) === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' }));
+  const folderPathOf = (id: string | null): MaterialFolder[] => {
+    const path: MaterialFolder[] = [];
+    let cur = id ? folders.find(f => f.id === id) : undefined;
+    while (cur && path.length < 10) {
+      path.unshift(cur);
+      cur = cur.parent_id ? folders.find(f => f.id === cur!.parent_id) : undefined;
+    }
+    return path;
+  };
+  const folderDepthOf = (id: string) => folderPathOf(id).length;
+  const folderTreeFlat: { folder: MaterialFolder; depth: number }[] = [];
+  const walkFolders = (parentId: string | null, depth: number) => {
+    childFoldersOf(parentId).forEach(f => {
+      folderTreeFlat.push({ folder: f, depth });
+      if (depth < 10) walkFolders(f.id, depth + 1);
+    });
+  };
+  walkFolders(null, 0);
+  const materialCountIn = (folderId: string): number => {
+    const ids = new Set<string>([folderId]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      folders.forEach(f => { if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) { ids.add(f.id); grew = true; } });
+    }
+    return materials.filter(m => m.folder_id && ids.has(m.folder_id)).length;
+  };
+  const visibleFolders = isSearching || activeFolderId === 'unfiled' ? [] : childFoldersOf(currentFolderId);
+  const unfiledCount = materials.filter(m => !m.folder_id).length;
+  // '미지정' 칸: 자료만 받는다 (폴더를 놓으면 무시)
+  const unfiledDropProps = {
+    onDragOver: (e: ReactDragEvent) => { if (dragItemRef.current?.kind === 'material') { e.preventDefault(); e.stopPropagation(); if (dropTargetId !== 'unfiled') setDropTargetId('unfiled'); } },
+    onDragLeave: () => { if (dropTargetId === 'unfiled') setDropTargetId(null); },
+    onDrop: (e: ReactDragEvent) => { e.preventDefault(); e.stopPropagation(); if (dragItemRef.current?.kind === 'material') handleDropOn(null); },
+  };
+  const dropProps = (targetId: string | null) => {
+    const key = targetId ?? 'root';
+    return {
+      onDragOver: (e: ReactDragEvent) => { if (dragItemRef.current) { e.preventDefault(); e.stopPropagation(); if (dropTargetId !== key) setDropTargetId(key); } },
+      onDragLeave: () => { if (dropTargetId === key) setDropTargetId(null); },
+      onDrop: (e: ReactDragEvent) => { e.preventDefault(); e.stopPropagation(); handleDropOn(targetId); },
+    };
+  };
+  const folderDragProps = (folderId: string) => ({
+    draggable: true,
+    onDragStart: (e: ReactDragEvent) => { dragItemRef.current = { kind: 'folder' as const, id: folderId }; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', folderId); } catch { /* 일부 브라우저 */ } },
+    onDragEnd: () => { dragItemRef.current = null; setDropTargetId(null); },
+  });
+  const materialDragProps = (materialId: string) => ({
+    draggable: true,
+    onDragStart: (e: ReactDragEvent) => { dragItemRef.current = { kind: 'material' as const, id: materialId }; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', materialId); } catch { /* 일부 브라우저 */ } },
+    onDragEnd: () => { dragItemRef.current = null; setDropTargetId(null); },
+  });
+  const renderFolderNode = (folder: MaterialFolder, depth: number): ReactNode => {
+    const kids = childFoldersOf(folder.id);
+    const isOpen = !!expandedFolders[folder.id];
+    const isActive = activeFolderId === folder.id;
+    const isDrop = dropTargetId === folder.id;
+    return (
+      <div key={folder.id}>
+        <div
+          {...folderDragProps(folder.id)}
+          {...dropProps(folder.id)}
+          style={{ paddingLeft: 6 + depth * 14 }}
+          className={`group flex items-center gap-1 pr-1.5 py-1.5 rounded-lg cursor-pointer text-[14px] font-semibold transition-colors ${
+            isDrop ? 'outline outline-2 outline-dashed outline-primary bg-primary-container/60'
+              : isActive ? 'bg-primary-container text-primary font-bold' : 'text-on-surface hover:bg-surface-container-low'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => kids.length > 0 && setExpandedFolders(prev => ({ ...prev, [folder.id]: !prev[folder.id] }))}
+            title={isOpen ? '접기' : '펼치기'}
+            className={`shrink-0 w-5 h-5 grid place-items-center rounded text-on-surface-variant ${kids.length ? 'hover:bg-black/5' : 'invisible'}`}
+          >
+            <ChevronRight size={13} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {renamingFolderId === folder.id ? (
+            <input
+              autoFocus
+              value={renamingFolderName}
+              onChange={e => setRenamingFolderName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleRenameFolder(folder.id); if (e.key === 'Escape') setRenamingFolderId(null); }}
+              onBlur={() => handleRenameFolder(folder.id)}
+              className="min-w-0 flex-1 px-1.5 py-0.5 rounded bg-white text-on-surface text-[14px] font-semibold border border-primary/40 focus:outline-none"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setActiveFolderId(folder.id); setFolderDrawerOpen(false); }}
+              onDoubleClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
+              className="min-w-0 flex-1 flex items-center gap-1.5 text-left"
+              title={folder.name}
+            >
+              {isActive || isOpen ? <FolderOpen size={15} className="shrink-0 text-amber-500" /> : <Folder size={15} className="shrink-0 text-amber-500" />}
+              <span className="truncate">{folder.name}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
+            title="이름 바꾸기"
+            className="shrink-0 p-1 rounded hover:bg-black/10 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setDeleteFolderConfirmId(folder.id)}
+            title="폴더 삭제"
+            className="shrink-0 p-1 rounded hover:bg-black/10 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+          >
+            <XIcon size={12} />
+          </button>
+        </div>
+        {isOpen && kids.map(k => renderFolderNode(k, depth + 1))}
+      </div>
+    );
+  };
+  const visibleMaterials = (activeFolderId === 'all' || isSearching
     ? [...materials]
-    : materials.filter(m => (m.folder_id ?? null) === activeFolderId)
+    : activeFolderId === null ? []
+    : activeFolderId === 'unfiled' ? materials.filter(m => !m.folder_id)
+    : materials.filter(m => m.folder_id === activeFolderId)
   ).filter(matchesUsageFilter).filter(m => {
     const q = searchText.trim().toLowerCase();
     return !q || (m.title ?? '').toLowerCase().includes(q) || (m.content ?? '').toLowerCase().includes(q);
@@ -2463,14 +2702,15 @@ const MaterialEditor = () => {
                                   onClick={() => handleMoveToFolder(material, null)}
                                   className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
                                 >
-                                  <span className="flex-1 min-w-0 text-xs font-black">미분류</span>
+                                  <span className="flex-1 min-w-0 text-xs font-black">미지정 (폴더에서 빼기)</span>
                                   {!material.folder_id && <Check size={13} className="text-emerald-500 shrink-0" />}
                                 </button>
-                                {folders.map(folder => (
+                                {folderTreeFlat.map(({ folder, depth }) => (
                                   <button
                                     key={folder.id}
                                     onClick={() => handleMoveToFolder(material, folder.id)}
-                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                    style={{ paddingLeft: 16 + depth * 14 }}
+                                    className="w-full flex items-center gap-2 text-left pr-4 py-2.5 hover:bg-surface-container-low transition-colors"
                                   >
                                     <Folder size={13} className="text-primary shrink-0" />
                                     <span className="flex-1 min-w-0 text-xs font-black truncate">{folder.name}</span>
@@ -2583,7 +2823,7 @@ const MaterialEditor = () => {
         <div className="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
           <h3 className="font-bold text-on-surface mb-2">폴더를 삭제할까요?</h3>
           <p className="text-sm text-on-surface-variant whitespace-pre-line mb-5">
-            폴더 안의 자료는 삭제되지 않고 "미분류"로 이동합니다.
+            폴더 안의 자료와 폴더는 삭제되지 않고 한 단계 위로 올라갑니다.
           </p>
           <div className="flex justify-end gap-2">
             <button
@@ -3485,120 +3725,237 @@ const MaterialEditor = () => {
             </div>
           </div>
 
-          {/* 폴더 칩 바 — 위의 '상태' 줄과 다른 종류의 선택이라 이름표·청록색·폴더 탭 모양으로 구분 */}
-          <div className={`flex items-center flex-wrap gap-1.5 ${libraryMode ? 'pt-3 border-t border-slate-200' : ''}`}>
-            <span className="w-11 shrink-0 text-[13px] font-black text-teal-800">폴더</span>
-            <button
-              onClick={() => setActiveFolderId('all')}
-              className={`px-3.5 py-2 rounded-t-xl rounded-b-md font-semibold text-[14px] transition-colors ${
-                activeFolderId === 'all' ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-900 hover:bg-teal-100'
-              }`}
-            >
-              전체
-            </button>
-            <button
-              onClick={() => setActiveFolderId(null)}
-              className={`px-3.5 py-2 rounded-t-xl rounded-b-md font-semibold text-[14px] transition-colors ${
-                activeFolderId === null ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-900 hover:bg-teal-100'
-              }`}
-            >
-              미분류
-            </button>
-            {folders.map(folder => (
-              <div
-                key={folder.id}
-                className={`group flex items-center gap-1 pl-3.5 pr-2 py-2 rounded-t-xl rounded-b-md font-semibold text-[14px] transition-colors ${
-                  activeFolderId === folder.id ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-900 hover:bg-teal-100'
-                }`}
+          {/* 파인더식 폴더: 왼쪽 폴더 목록 + 오른쪽 그 폴더 안의 내용 */}
+          <div data-folder-ui className={`flex flex-col md:flex-row gap-4 items-start ${libraryMode ? 'pt-3 border-t border-slate-200' : ''}`}>
+            <aside className={`${folderDrawerOpen ? 'block' : 'hidden'} md:block w-full md:w-60 shrink-0 rounded-xl border border-slate-200 bg-surface-container-lowest p-2 md:sticky md:top-2 md:max-h-[70vh] overflow-y-auto`}>
+              <p className="px-2 pt-1 pb-1.5 text-[13px] font-black text-on-surface-variant">폴더</p>
+              <button
+                type="button"
+                onClick={() => { setActiveFolderId('all'); setFolderDrawerOpen(false); }}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[14px] font-semibold text-left transition-colors ${activeFolderId === 'all' ? 'bg-primary-container text-primary font-bold' : 'text-on-surface hover:bg-surface-container-low'}`}
               >
-                {renamingFolderId === folder.id ? (
-                  <input
-                    autoFocus
-                    value={renamingFolderName}
-                    onChange={e => setRenamingFolderName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setRenamingFolderId(null); }}
-                    onBlur={() => handleRenameFolder(folder.id)}
-                    className="w-24 px-1 py-0 rounded bg-white text-on-surface text-xs font-black focus:outline-none"
-                  />
+                <LayoutGrid size={15} className="shrink-0 text-on-surface-variant" />
+                <span className="flex-1 truncate">전체 자료</span>
+                <span className="text-[12px] text-on-surface-variant">{materials.length}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveFolderId(null); setFolderDrawerOpen(false); }}
+                {...dropProps(null)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[14px] font-semibold text-left transition-colors ${
+                  dropTargetId === 'root' ? 'outline outline-2 outline-dashed outline-primary bg-primary-container/60'
+                    : activeFolderId === null ? 'bg-primary-container text-primary font-bold' : 'text-on-surface hover:bg-surface-container-low'}`}
+              >
+                <FolderOpen size={15} className="shrink-0 text-amber-500" />
+                <span className="flex-1 truncate">내 자료함 (맨 위)</span>
+              </button>
+              <div className="mt-0.5">
+                {childFoldersOf(null).map(f => renderFolderNode(f, 1))}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setActiveFolderId('unfiled'); setFolderDrawerOpen(false); }}
+                {...unfiledDropProps}
+                className={`mt-0.5 w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[14px] font-semibold text-left transition-colors ${
+                  dropTargetId === 'unfiled' ? 'outline outline-2 outline-dashed outline-primary bg-primary-container/60'
+                    : activeFolderId === 'unfiled' ? 'bg-primary-container text-primary font-bold' : 'text-on-surface-variant hover:bg-surface-container-low'}`}
+              >
+                <Folder size={15} className="shrink-0 text-slate-400" />
+                <span className="flex-1 truncate">미지정</span>
+                <span className="text-[12px] text-on-surface-variant">{unfiledCount}</span>
+              </button>
+              {folders.length === 0 && (
+                <p className="px-2 py-3 text-[13px] text-on-surface-variant">아직 폴더가 없어요. 오른쪽 위의 '새 폴더'를 눌러 만들어 보세요.</p>
+              )}
+            </aside>
+
+            <div className="min-w-0 flex-1 w-full space-y-3">
+              {/* 경로 + 새 폴더 + 보기 방식 */}
+              <div className="flex items-center flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFolderDrawerOpen(v => !v)}
+                  className="md:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-[14px] font-semibold text-on-surface hover:bg-surface-container-low"
+                >
+                  <Folder size={15} /> 폴더 목록 {folderDrawerOpen ? '닫기' : '열기'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFolderId(currentFolderId ? (folders.find(f => f.id === currentFolderId)?.parent_id ?? null) : null)}
+                  disabled={activeFolderId === 'all' || (currentFolderId === null && activeFolderId !== 'unfiled')}
+                  title="한 단계 위로"
+                  className="shrink-0 w-8 h-8 grid place-items-center rounded-lg border border-slate-200 text-on-surface hover:bg-surface-container-low disabled:opacity-35 disabled:cursor-default"
+                >
+                  <ArrowLeft size={15} />
+                </button>
+                <nav className="flex items-center flex-wrap gap-0.5 min-w-0 flex-1 max-sm:basis-full max-sm:order-last text-[14px] font-bold" aria-label="폴더 경로">
+                  {activeFolderId === 'all' ? (
+                    <span className="px-2 py-1 text-primary">전체 자료</span>
+                  ) : (
+                    <>
+                      <button type="button" {...dropProps(null)} onClick={() => setActiveFolderId(null)}
+                        className={`px-2 py-1 rounded-md hover:bg-primary-container/50 ${activeFolderId === null ? 'text-primary' : 'text-on-surface'} ${dropTargetId === 'root' ? 'outline outline-2 outline-dashed outline-primary' : ''}`}>
+                        내 자료함
+                      </button>
+                      {folderPathOf(currentFolderId).map((f, i, arr) => (
+                        <span key={f.id} className="flex items-center gap-0.5 min-w-0">
+                          <ChevronRight size={13} className="shrink-0 text-on-surface-variant" />
+                          <button type="button" {...dropProps(f.id)} onClick={() => setActiveFolderId(f.id)}
+                            className={`px-2 py-1 rounded-md truncate max-w-[10rem] hover:bg-primary-container/50 ${i === arr.length - 1 ? 'text-primary' : 'text-on-surface'} ${dropTargetId === f.id ? 'outline outline-2 outline-dashed outline-primary' : ''}`}>
+                            {f.name}
+                          </button>
+                        </span>
+                      ))}
+                      {activeFolderId === 'unfiled' && (
+                        <span className="flex items-center gap-0.5">
+                          <ChevronRight size={13} className="shrink-0 text-on-surface-variant" />
+                          <span className="px-2 py-1 text-primary">미지정</span>
+                        </span>
+                      )}
+                    </>
+                  )}
+                </nav>
+                {newFolderOpen ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={newFolderName}
+                      onChange={e => setNewFolderName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleCreateFolder(); if (e.key === 'Escape') { setNewFolderOpen(false); setNewFolderName(''); } }}
+                      onBlur={() => { if (!newFolderName.trim()) setNewFolderOpen(false); }}
+                      placeholder={currentFolderId ? `"${folders.find(f => f.id === currentFolderId)?.name ?? ''}" 안에 만들 폴더` : '새 폴더 이름'}
+                      className="w-44 px-2.5 py-1.5 rounded-xl border border-surface-container text-[14px] font-semibold focus:outline-none focus:border-primary/40"
+                    />
+                    <button onClick={handleCreateFolder} className="p-1.5 rounded-lg bg-primary text-white"><Check size={14} /></button>
+                  </div>
                 ) : (
-                  <button onClick={() => setActiveFolderId(folder.id)} className="flex items-center gap-1.5">
-                    <Folder size={11} /> {folder.name}
+                  <button
+                    onClick={() => {
+                      if (currentFolderId && folderDepthOf(currentFolderId) >= MAX_FOLDER_DEPTH) { appToast(`폴더는 ${MAX_FOLDER_DEPTH}단계까지만 만들 수 있어요.`); return; }
+                      setNewFolderOpen(true);
+                    }}
+                    title={currentFolderId ? '지금 보고 있는 폴더 안에 새 폴더를 만들어요' : '맨 위 단계에 새 폴더를 만들어요'}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 font-semibold text-[14px] text-on-surface hover:bg-surface-container-low transition-colors"
+                  >
+                    <FolderPlus size={15} /> 새 폴더
                   </button>
                 )}
-                <button
-                  onClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
-                  title="이름 변경"
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-black/10 transition-opacity"
-                >
-                  <Pencil size={10} />
-                </button>
-                <button
-                  onClick={() => setDeleteFolderConfirmId(folder.id)}
-                  title="폴더 삭제"
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-black/10 transition-opacity"
-                >
-                  <XIcon size={10} />
-                </button>
+                <div className="flex items-center gap-0.5">
+                  <button type="button" onClick={handleUndoMove} disabled={moveHistoryRef.current.undo.length === 0}
+                    title="방금 옮긴 것 되돌리기 (Cmd+Z)"
+                    className="w-8 h-8 grid place-items-center rounded-lg border border-slate-200 text-on-surface hover:bg-surface-container-low disabled:opacity-35 disabled:cursor-default"><Undo2 size={15} /></button>
+                  <button type="button" onClick={handleRedoMove} disabled={moveHistoryRef.current.redo.length === 0}
+                    title="다시 실행 (Cmd+Shift+Z)"
+                    className="w-8 h-8 grid place-items-center rounded-lg border border-slate-200 text-on-surface hover:bg-surface-container-low disabled:opacity-35 disabled:cursor-default"><Redo2 size={15} /></button>
+                </div>
+                <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-surface-container-low">
+                  <button
+                    onClick={() => changeViewLayout('card')}
+                    title="카드로 보기"
+                    className={`p-1.5 rounded-lg transition-colors ${viewLayout === 'card' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                  >
+                    <LayoutGrid size={14} />
+                  </button>
+                  <button
+                    onClick={() => changeViewLayout('list')}
+                    title="리스트로 보기"
+                    className={`p-1.5 rounded-lg transition-colors ${viewLayout === 'list' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
+                  >
+                    <List size={14} />
+                  </button>
+                </div>
               </div>
-            ))}
-            {newFolderOpen ? (
-              <div className="flex items-center gap-1">
-                <input
-                  autoFocus
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleCreateFolder(); if (e.key === 'Escape') { setNewFolderOpen(false); setNewFolderName(''); } }}
-                  onBlur={() => { if (!newFolderName.trim()) setNewFolderOpen(false); }}
-                  placeholder="폴더 이름"
-                  className="w-28 px-2.5 py-1.5 rounded-xl border border-surface-container text-xs font-black focus:outline-none focus:border-primary/40"
-                />
-                <button onClick={handleCreateFolder} className="p-1.5 rounded-lg bg-primary text-white"><Check size={12} /></button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setNewFolderOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-semibold text-[14px] text-on-surface-variant hover:bg-surface-container transition-colors"
-              >
-                <FolderPlus size={12} /> 새 폴더
-              </button>
-            )}
-            <div className="ml-auto flex items-center gap-0.5 p-0.5 rounded-xl bg-surface-container-low">
-              <button
-                onClick={() => changeViewLayout('card')}
-                title="카드로 보기"
-                className={`p-1.5 rounded-lg transition-colors ${viewLayout === 'card' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
-              >
-                <LayoutGrid size={14} />
-              </button>
-              <button
-                onClick={() => changeViewLayout('list')}
-                title="리스트로 보기"
-                className={`p-1.5 rounded-lg transition-colors ${viewLayout === 'list' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'}`}
-              >
-                <List size={14} />
-              </button>
-            </div>
-          </div>
+              {isSearching && (
+                <p className="text-[13px] text-on-surface-variant">검색 중에는 모든 폴더의 자료를 한꺼번에 찾아요.</p>
+              )}
+
+              {/* 이 폴더 안의 폴더들 (더블클릭/클릭으로 들어가기, 끌어서 옮기기) */}
+              {(visibleFolders.length > 0 || activeFolderId === null) && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  {visibleFolders.map(f => (
+                    <div
+                      key={f.id}
+                      {...folderDragProps(f.id)}
+                      {...dropProps(f.id)}
+                      onClick={() => { setActiveFolderId(f.id); setExpandedFolders(prev => ({ ...prev, ...Object.fromEntries(folderPathOf(f.id).map(x => [x.id, true])) })); }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter') setActiveFolderId(f.id); }}
+                      className={`group relative flex flex-col items-center text-center gap-1 px-3 py-4 rounded-xl border cursor-pointer transition-colors ${
+                        dropTargetId === f.id ? 'outline outline-2 outline-dashed outline-primary bg-primary-container/60 border-primary'
+                          : 'border-slate-200 bg-surface-container-lowest hover:border-primary/40 hover:bg-surface-container-low'}`}
+                    >
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <button type="button" title="이름 바꾸기" onClick={e => { e.stopPropagation(); setRenamingFolderId(f.id); setRenamingFolderName(f.name); }}
+                          className="p-1.5 rounded-md bg-white/90 border border-slate-200 text-on-surface-variant hover:text-primary"><Pencil size={13} /></button>
+                        <button type="button" title="폴더 삭제" onClick={e => { e.stopPropagation(); setDeleteFolderConfirmId(f.id); }}
+                          className="p-1.5 rounded-md bg-white/90 border border-slate-200 text-on-surface-variant hover:text-red-600"><XIcon size={13} /></button>
+                      </div>
+                      <Folder size={56} strokeWidth={1.5} className="shrink-0 text-amber-500 fill-amber-200" />
+                      <div className="min-w-0 w-full">
+                        {renamingFolderId === f.id ? (
+                          <input
+                            autoFocus
+                            value={renamingFolderName}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => setRenamingFolderName(e.target.value)}
+                            onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleRenameFolder(f.id); if (e.key === 'Escape') setRenamingFolderId(null); }}
+                            onBlur={() => handleRenameFolder(f.id)}
+                            className="w-full px-1.5 py-0.5 rounded bg-white text-on-surface text-[14px] font-bold text-center border border-primary/40 focus:outline-none"
+                          />
+                        ) : (
+                          <p className="font-bold text-[15px] truncate" title={f.name}>{f.name}</p>
+                        )}
+                        <p className="text-[12px] text-on-surface-variant">자료 {materialCountIn(f.id)}개{childFoldersOf(f.id).length > 0 ? ` · 폴더 ${childFoldersOf(f.id).length}개` : ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {activeFolderId === null && (
+                    <div
+                      {...unfiledDropProps}
+                      onClick={() => setActiveFolderId('unfiled')}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter') setActiveFolderId('unfiled'); }}
+                      className={`flex flex-col items-center text-center gap-1 px-3 py-4 rounded-xl border cursor-pointer transition-colors ${
+                        dropTargetId === 'unfiled' ? 'outline outline-2 outline-dashed outline-primary bg-primary-container/60 border-primary'
+                          : 'border-slate-200 bg-surface-container-lowest hover:border-primary/40 hover:bg-surface-container-low'}`}
+                    >
+                      <Folder size={56} strokeWidth={1.5} className="shrink-0 text-slate-400 fill-slate-200" />
+                      <div className="min-w-0 w-full">
+                        <p className="font-bold text-[15px]">미지정</p>
+                        <p className="text-[12px] text-on-surface-variant">폴더에 안 넣은 자료 {unfiledCount}개</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
           {materialsLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 size={28} className="animate-spin text-primary" />
             </div>
-          ) : materials.length === 0 ? (
+          ) : materials.length === 0 && folders.length === 0 ? (
             <div className="flex flex-col items-center py-16 space-y-3 text-on-surface-variant">
               <BookOpen size={48} className="text-primary/50" />
               <p className="text-xl font-bold text-on-surface">{libraryMode ? '아직 등록된 공통 자료가 없습니다.' : '아직 작성된 수업 자료가 없습니다.'}</p>
               <p className="text-[15px]">위의 '새 자료 작성' 버튼을 눌러 시작하세요.</p>
             </div>
           ) : visibleMaterials.length === 0 ? (
-            <div className="flex flex-col items-center py-16 space-y-3 text-on-surface-variant">
+            visibleFolders.length > 0 || activeFolderId === null ? null : (
+            <div
+              {...dropProps(currentFolderId)}
+              className={`flex flex-col items-center py-16 space-y-3 text-on-surface-variant rounded-xl ${dropTargetId === (currentFolderId ?? 'root') ? 'outline outline-2 outline-dashed outline-primary' : ''}`}
+            >
               <Folder size={48} className="text-primary/50" />
-              <p className="text-lg font-bold text-on-surface">{searchText.trim() ? '검색 결과가 없어요. 다른 낱말로 찾아보세요.' : '이 폴더에는 아직 자료가 없습니다.'}</p>
+              <p className="text-lg font-bold text-on-surface">{isSearching ? '검색 결과가 없어요. 다른 낱말로 찾아보세요.' : '이 폴더는 비어 있어요.'}</p>
+              {!isSearching && <p className="text-[15px]">자료를 이 화면으로 끌어다 놓거나, '새 폴더'로 하위 폴더를 만들어 보세요.</p>}
             </div>
+            )
           ) : viewLayout === 'list' ? (
             <div className="flex flex-col gap-2">
               {visibleMaterials.map((material, idx) => (
-                <div key={material.id} className="bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <div key={material.id} {...materialDragProps(material.id)} className="bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 p-3 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div
                       onClick={() => handleEdit(material)}
@@ -3648,7 +4005,7 @@ const MaterialEditor = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="sm:shrink-0 sm:max-w-[60%]">
+                  <div className="lg:shrink-0 lg:max-w-[60%]">
                     {renderMaterialActions(material, true, idx === 0)}
                   </div>
                 </div>
@@ -3657,7 +4014,7 @@ const MaterialEditor = () => {
           ) : (
             <div data-tour="me-card-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {visibleMaterials.map((material, idx) => (
-                <div key={material.id} className="group bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 flex flex-col">
+                <div key={material.id} {...materialDragProps(material.id)} className="group bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 flex flex-col">
                   {/* 표지 썸네일 */}
                   <div
                     onClick={() => handleEdit(material)}
@@ -3722,6 +4079,8 @@ const MaterialEditor = () => {
               ))}
             </div>
           )}
+            </div>
+          </div>
         </div>
       )}
 

@@ -9,6 +9,10 @@ import {
 } from 'lucide-react';
 import AiCreditCost from '../../components/common/AiCreditCost';
 import { appToast } from '../../lib/appDialog';
+import ResumeEditor from '../../components/portfolio/ResumeEditor';
+import { PORTFOLIO_SAMPLES, SAMPLE_START_KEY } from '../../lib/portfolioSamples';
+import { emptyResume, normalizeResume, hasResumeContent } from '../../lib/portfolioResume';
+import type { ResumeData } from '../../lib/portfolioResume';
 
 const SLUG_PATTERN = /^[a-z0-9-]{3,32}$/;
 
@@ -28,6 +32,7 @@ interface PortfolioRow {
   visibility: 'private' | 'link_only' | 'public';
   included_class_ids: string[];
   showcase_plan_ids: Record<string, string>;
+  resume: unknown;
 }
 
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -49,6 +54,7 @@ const PortfolioManager = () => {
   const [showcasePlanIds, setShowcasePlanIds] = useState<Record<string, string>>({});
   const [plansByClass, setPlansByClass] = useState<Record<string, PlanRow[]>>({});
   const [generatingIntro, setGeneratingIntro] = useState(false);
+  const [resume, setResume] = useState<ResumeData>(emptyResume());
 
   useEffect(() => {
     if (!user) return;
@@ -56,7 +62,7 @@ const PortfolioManager = () => {
       setLoading(true);
       const [{ data: classData }, { data: portfolioData }] = await Promise.all([
         supabase.from('classes').select('id, name, subject, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).eq('is_archived', false).order('created_at', { ascending: false }),
-        supabase.from('teacher_portfolios').select('slug, intro, visibility, included_class_ids, showcase_plan_ids').eq('teacher_id', user.id).maybeSingle(),
+        supabase.from('teacher_portfolios').select('slug, intro, visibility, included_class_ids, showcase_plan_ids, resume').eq('teacher_id', user.id).maybeSingle(),
       ]);
       setClasses(filterMyTeachingClasses(classData, user.id) as ClassRow[]);
       if (portfolioData) {
@@ -67,8 +73,22 @@ const PortfolioManager = () => {
         setVisibility(p.visibility);
         setIncludedClassIds(p.included_class_ids || []);
         setShowcasePlanIds(p.showcase_plan_ids || {});
+        setResume(normalizeResume(p.resume));
       }
       setLoading(false);
+
+      // 샘플 페이지에서 "이 내용으로 시작하기"를 눌러 넘어온 경우: 입력칸에만 채우고 저장은 사용자가 직접 한다
+      let sampleId: string | null = null;
+      try { sampleId = localStorage.getItem(SAMPLE_START_KEY); localStorage.removeItem(SAMPLE_START_KEY); } catch { /* 무시 */ }
+      const sm = PORTFOLIO_SAMPLES.find(x => x.id === sampleId);
+      if (sm) {
+        const current = portfolioData ? normalizeResume((portfolioData as PortfolioRow).resume) : emptyResume();
+        if (!hasResumeContent(current) || window.confirm('지금 적어 둔 이력서 내용이 샘플 내용으로 바뀝니다. 계속할까요?\n(저장 버튼을 누르기 전에는 바뀌지 않습니다)')) {
+          setResume(structuredClone(sm.resume));
+          setIntro(prev => prev || sm.intro);
+          appToast('샘플 내용을 채웠어요. 내 정보로 고친 뒤 저장해 주세요.');
+        }
+      }
     })();
   }, [user?.id]);
 
@@ -149,6 +169,7 @@ const PortfolioManager = () => {
       visibility,
       included_class_ids: includedClassIds,
       showcase_plan_ids: showcasePlanIds,
+      resume,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'teacher_id' });
     setSaving(false);
@@ -293,7 +314,25 @@ const PortfolioManager = () => {
         />
       </section>
 
-      {/* 6. 저장 */}
+      {/* 6. 이력서 */}
+      <div className="pt-2">
+        <p className="font-black text-base text-on-surface">이력서 내용</p>
+        <p className="text-xs text-on-surface-variant mt-1 mb-4">공개 페이지가 이력서 모양으로 만들어집니다. 비워 둔 칸은 페이지에서 자동으로 빠집니다.</p>
+        <div className="rounded-xl border border-surface-container p-3 mb-4">
+          <p className="text-xs font-bold text-on-surface">어떤 모양인지 먼저 보고 싶으세요?</p>
+          <p className="text-xs text-on-surface-variant mt-0.5 mb-2">가상의 예시 이력서가 새 창으로 열립니다. 저장되거나 공개되지 않고 구경만 합니다.</p>
+          <div className="flex flex-wrap gap-2">
+            {PORTFOLIO_SAMPLES.map(sm => (
+              <a key={sm.id} href={`/portfolio-sample/${sm.id}`} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg border border-surface-container text-xs font-bold text-primary hover:bg-surface-container-low">
+                샘플 보기 · {sm.label}
+              </a>
+            ))}
+          </div>
+        </div>
+        <ResumeEditor value={resume} onChange={setResume} />
+      </div>
+
+      {/* 7. 저장 */}
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={handleSave}

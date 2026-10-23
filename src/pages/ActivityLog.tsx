@@ -339,18 +339,18 @@ const ActivityLog = () => {
       </div>
 
       {/* 저장 버튼 */}
-      <div className="flex items-center justify-between p-8 pt-10 border-t border-surface-container-high">
+      <div className="flex items-center justify-between flex-wrap gap-3 p-4 sm:p-8 pt-6 sm:pt-10 border-t border-surface-container-high">
         <button onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-on-surface transition-all px-6 py-3 rounded-xl hover:bg-surface-container">
+          className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-on-surface transition-all px-3 sm:px-6 py-3 rounded-xl hover:bg-surface-container">
           <X size={18} /> 작성 취소
         </button>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button disabled={isSaving} onClick={() => handleSave(false)}
-            className="flex items-center gap-2 px-8 py-3.5 bg-primary-container text-primary rounded-xl font-bold text-sm hover:bg-primary-container/80 active:scale-95 transition-all disabled:opacity-50">
+            className="flex items-center gap-2 px-4 sm:px-8 py-3.5 bg-primary-container text-primary rounded-xl font-bold text-sm hover:bg-primary-container/80 active:scale-95 transition-all disabled:opacity-50">
             <Save size={18} /> {isSaving ? '저장 중...' : '저장'}
           </button>
           <button disabled={isSaving} onClick={() => handleSave(true)}
-            className="flex items-center gap-2 px-10 py-3.5 btn-gradient rounded-xl font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50">
+            className="flex items-center gap-2 px-4 sm:px-10 py-3.5 btn-gradient rounded-xl font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50">
             <PlusCircle size={18} /> {isSaving ? '등록 중...' : '저장 후 대시보드로'}
           </button>
         </div>

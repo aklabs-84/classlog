@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import ResumeSheet from '../components/portfolio/ResumeSheet';
+import { normalizeResume, hasResumeContent } from '../lib/portfolioResume';
 import { GraduationCap, BookOpen, FileText, CalendarRange, X, Loader2, ChevronRight } from 'lucide-react';
 
 interface LessonPlanSections {
@@ -39,6 +41,7 @@ interface PublicPortfolioData {
   teacherName: string;
   avatarUrl: string | null;
   intro: string;
+  resume?: unknown;
   stats: {
     classCount: number;
     totalMaterials: number;
@@ -123,6 +126,26 @@ const PortfolioPublic = () => {
         <GraduationCap size={40} className="opacity-40" />
         <p className="font-bold text-port-ink/60">존재하지 않거나 비공개된 페이지입니다.</p>
       </div>
+    );
+  }
+
+  // 이력서 내용이 채워져 있으면 이력서형 페이지, 비어 있으면 기존 모양 유지
+  const resume = normalizeResume(data.resume);
+  if (hasResumeContent(resume)) {
+    return (
+      <>
+        {visibility === 'link_only' && <meta name="robots" content="noindex" />}
+        <ResumeSheet
+          name={data.teacherName}
+          avatarUrl={data.avatarUrl}
+          intro={data.intro}
+          resume={resume}
+          classes={data.classHistory.map(c => ({
+            id: c.id, name: c.name, subject: c.subject,
+            period: formatPeriod(c.startDate, c.endDate) || '', materialCount: c.materialCount ?? 0,
+          }))}
+        />
+      </>
     );
   }
 

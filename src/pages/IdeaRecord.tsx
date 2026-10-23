@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import type { DragEvent as ReactDragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle, Globe, ExternalLink, ChevronDown, Plus, Flame, PartyPopper } from 'lucide-react';
+import { StickyNote, Save, Loader2, Pencil, Trash2, Check, Clock, Sparkles, X, Tag, RefreshCw, FileText, Presentation, Link2, Lightbulb, PenLine, List, Wand2, BookOpen, ArrowRight, ArrowLeft, HelpCircle, Globe, ExternalLink, ChevronDown, Plus, Flame, PartyPopper, Folder, FolderOpen, LayoutGrid, ChevronRight, Undo2, Redo2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import RichEditor from '../components/RichEditor';
@@ -17,6 +18,7 @@ import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
 import AiCreditCost from '../components/common/AiCreditCost';
 import { SLIDE_AI_ENABLED } from '../lib/featureFlags';
 import { appConfirm, appToast } from '../lib/appDialog';
+import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 
 const GUIDE_SEEN_KEY = 'idea_record_guide_seen';
 
@@ -358,11 +360,11 @@ export default function IdeaRecord() {
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, school_project_id, parent_class_id, assigned_teacher_id')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('name');
-    setClasses(data || []);
+    setClasses(filterMyTeachingClasses(data, user!.id).map(c => ({ id: c.id, name: c.name })));
   };
 
   // 5단계: "비슷한 자료 있음" 힌트 계산용 — 자료함 전체를 한 번만 가져와 클라이언트에서 태그 키워드 매칭
@@ -1076,6 +1078,101 @@ export default function IdeaRecord() {
     return n.class_id === filterClassId;
   });
 
+  // ── 파인더식 반 목록: 왼쪽 반 목록 + 끌어서 반 바꾸기 + 되돌리기 ──
+  const [folderDrawerOpen, setFolderDrawerOpen] = useState(false);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const dragNoteRef = useRef<string | null>(null);
+  type NoteMoveRecord = { id: string; from: string | null; to: string | null; label: string };
+  const noteHistoryRef = useRef<{ undo: NoteMoveRecord[]; redo: NoteMoveRecord[] }>({ undo: [], redo: [] });
+  const [, setNoteHistoryTick] = useState(0);
+  const noClassCount = notes.filter(n => !n.class_id).length;
+  const countOfClass = (id: string) => notes.filter(n => n.class_id === id).length;
+  const filterLabel = filterClassId === 'all' ? '전체' : filterClassId === NO_CLASS ? '미지정' : (classes.find(c => c.id === filterClassId)?.name ?? '반');
+
+  const moveNoteToClass = async (noteId: string, classId: string | null, record = true): Promise<boolean> => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return false;
+    const from = note.class_id ?? null;
+    if (from === classId) return false;
+    if (classId && !classes.some(c => c.id === classId)) return false;
+    const { error } = await supabase.from('teacher_notes').update({ class_id: classId, updated_at: new Date().toISOString() }).eq('id', noteId);
+    if (error) { appToast(`반 변경 중 오류가 발생했습니다.\n${error.message}`); return false; }
+    const className = classId ? classes.find(c => c.id === classId)?.name ?? null : null;
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, class_id: classId, classes: className ? { name: className } : null } : n));
+    if (record) {
+      const h = noteHistoryRef.current;
+      h.undo.push({ id: noteId, from, to: classId, label: `"${note.title || '제목 없는 아이디어'}" 이동` });
+      if (h.undo.length > 30) h.undo.shift();
+      h.redo = [];
+      setNoteHistoryTick(t => t + 1);
+      appToast(`"${className ?? '미지정'}"(으)로 옮겼습니다. (↶ 되돌리기 가능)`);
+    }
+    return true;
+  };
+  const handleUndoNote = async () => {
+    const h = noteHistoryRef.current;
+    const r = h.undo.pop();
+    if (!r) return;
+    if (await moveNoteToClass(r.id, r.from, false)) { h.redo.push(r); appToast(`되돌렸어요: ${r.label}`); }
+    else appToast('되돌릴 수 없어요. (아이디어나 반이 바뀌었어요)');
+    setNoteHistoryTick(t => t + 1);
+  };
+  const handleRedoNote = async () => {
+    const h = noteHistoryRef.current;
+    const r = h.redo.pop();
+    if (!r) return;
+    if (await moveNoteToClass(r.id, r.to, false)) { h.undo.push(r); appToast(`다시 실행했어요: ${r.label}`); }
+    else appToast('다시 실행할 수 없어요. (아이디어나 반이 바뀌었어요)');
+    setNoteHistoryTick(t => t + 1);
+  };
+  const noteUndoRef = useRef({ undo: handleUndoNote, redo: handleRedoNote });
+  noteUndoRef.current = { undo: handleUndoNote, redo: handleRedoNote };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (!document.querySelector('[data-idea-folder-ui]')) return;
+      e.preventDefault();
+      if (e.shiftKey) void noteUndoRef.current.redo(); else void noteUndoRef.current.undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const noteDropProps = (targetId: string | null) => {
+    const key = targetId ?? NO_CLASS;
+    return {
+      onDragOver: (e: ReactDragEvent) => { if (dragNoteRef.current) { e.preventDefault(); if (dropTargetId !== key) setDropTargetId(key); } },
+      onDragLeave: () => { if (dropTargetId === key) setDropTargetId(null); },
+      onDrop: (e: ReactDragEvent) => {
+        e.preventDefault();
+        const id = dragNoteRef.current;
+        dragNoteRef.current = null; setDropTargetId(null);
+        if (id) void moveNoteToClass(id, targetId);
+      },
+    };
+  };
+  const pickFilter = (id: string) => { setFilterClassId(id); setFolderDrawerOpen(false); };
+  const listRowBtn = (id: string, label: string, count: number, icon: React.ReactNode, dropTarget: string | null | undefined) => {
+    const active = filterClassId === id;
+    const dropKey = dropTarget === undefined ? null : (dropTarget ?? NO_CLASS);
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => pickFilter(id)}
+        {...(dropTarget === undefined ? {} : noteDropProps(dropTarget))}
+        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[14px] font-semibold text-left transition-colors ${
+          dropKey && dropTargetId === dropKey ? 'outline outline-2 outline-dashed outline-primary bg-primary-container/60'
+            : active ? 'bg-primary-container text-primary font-bold' : 'text-on-surface hover:bg-surface-container-low'}`}
+      >
+        {icon}
+        <span className="flex-1 truncate" title={label}>{label}</span>
+        <span className="text-[12px] text-on-surface-variant">{count}</span>
+      </button>
+    );
+  };
+
   const displayName = profile?.full_name ? `${profile.full_name} 선생님` : '선생님';
 
   return (
@@ -1366,20 +1463,42 @@ export default function IdeaRecord() {
       {/* 목록 */}
       {activeTab === 'list' && (
       <div className="space-y-4">
-        {/* 클래스별 필터 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {[{ id: 'all', label: '전체' }, { id: NO_CLASS, label: '미지정' }, ...classes.map(c => ({ id: c.id, label: c.name }))].map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFilterClassId(f.id)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                filterClassId === f.id ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* 파인더식: 왼쪽 반 목록 + 오른쪽 그 반의 아이디어 */}
+        <div data-idea-folder-ui className="flex flex-col lg:flex-row gap-4 items-start">
+          <aside className={`${folderDrawerOpen ? 'block' : 'hidden'} lg:block w-full lg:w-60 shrink-0 rounded-xl border border-slate-200 bg-surface-container-lowest p-2 lg:sticky lg:top-2 lg:max-h-[70vh] overflow-y-auto`}>
+            <p className="px-2 pt-1 pb-1.5 text-[13px] font-black text-on-surface-variant">반</p>
+            {listRowBtn('all', '전체', notes.length, <LayoutGrid size={15} className="shrink-0 text-on-surface-variant" />, undefined)}
+            {classes.map(c => listRowBtn(c.id, c.name, countOfClass(c.id), <Folder size={15} className="shrink-0 text-amber-500 fill-amber-200" />, c.id))}
+            {listRowBtn(NO_CLASS, '미지정', noClassCount, <Folder size={15} className="shrink-0 text-slate-400" />, null)}
+          </aside>
+
+          <div className="min-w-0 flex-1 w-full space-y-3">
+            <div className="flex items-center flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFolderDrawerOpen(v => !v)}
+                className="lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-[14px] font-semibold text-on-surface hover:bg-surface-container-low"
+              >
+                <FolderOpen size={15} /> 반 목록 {folderDrawerOpen ? '닫기' : '열기'}
+              </button>
+              <nav className="flex items-center gap-0.5 min-w-0 flex-1 text-[14px] font-bold" aria-label="반 경로">
+                <button type="button" onClick={() => pickFilter('all')} className={`px-2 py-1 rounded-md hover:bg-primary-container/50 ${filterClassId === 'all' ? 'text-primary' : 'text-on-surface'}`}>전체</button>
+                {filterClassId !== 'all' && (
+                  <span className="flex items-center gap-0.5 min-w-0">
+                    <ChevronRight size={13} className="shrink-0 text-on-surface-variant" />
+                    <span className="px-2 py-1 text-primary truncate">{filterLabel}</span>
+                  </span>
+                )}
+              </nav>
+              <div className="flex items-center gap-0.5">
+                <button type="button" onClick={handleUndoNote} disabled={noteHistoryRef.current.undo.length === 0}
+                  title="방금 옮긴 것 되돌리기 (Cmd+Z)"
+                  className="w-8 h-8 grid place-items-center rounded-lg border border-slate-200 text-on-surface hover:bg-surface-container-low disabled:opacity-35 disabled:cursor-default"><Undo2 size={15} /></button>
+                <button type="button" onClick={handleRedoNote} disabled={noteHistoryRef.current.redo.length === 0}
+                  title="다시 실행 (Cmd+Shift+Z)"
+                  className="w-8 h-8 grid place-items-center rounded-lg border border-slate-200 text-on-surface hover:bg-surface-container-low disabled:opacity-35 disabled:cursor-default"><Redo2 size={15} /></button>
+              </div>
+            </div>
 
         {loading ? (
         <div className="space-y-3">
@@ -1396,7 +1515,7 @@ export default function IdeaRecord() {
         </div>
       ) : (
         <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-surface-container-lowest">
-          <div className="hidden md:flex items-center gap-5 px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-surface-container-low text-[15px] font-semibold text-on-surface-variant">
+          <div className="hidden lg:flex items-center gap-5 px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-surface-container-low text-[15px] font-semibold text-on-surface-variant">
             <span className="flex-1">아이디어</span>
             <span className="w-[270px] text-right">반 · 기록일</span>
           </div>
@@ -1484,7 +1603,10 @@ export default function IdeaRecord() {
                     </div>
                   ) : (
                     <div
-                      className="cursor-pointer px-4 md:px-5 py-4 flex flex-col md:flex-row md:items-center gap-2.5 md:gap-5 hover:bg-surface-container-low transition-colors"
+                      draggable
+                      onDragStart={(e: ReactDragEvent) => { dragNoteRef.current = note.id; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', note.id); } catch { /* 일부 브라우저 */ } }}
+                      onDragEnd={() => { dragNoteRef.current = null; setDropTargetId(null); }}
+                      className="cursor-pointer px-4 lg:px-5 py-4 flex flex-col lg:flex-row lg:items-center gap-2.5 lg:gap-5 hover:bg-surface-container-low transition-colors"
                       onClick={() => setViewingNote(note)}
                     >
                       <div className="flex-1 min-w-0">
@@ -1558,7 +1680,7 @@ export default function IdeaRecord() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-3 md:shrink-0 md:w-[270px] md:justify-end">
+                      <div className="flex items-center gap-3 lg:shrink-0 lg:w-[270px] lg:justify-end">
                         <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant whitespace-nowrap">
                           {note.classes?.name || '미지정'}
                         </span>
@@ -1566,7 +1688,7 @@ export default function IdeaRecord() {
                           <Clock size={11} />
                           {new Date(note.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' })}
                         </span>
-                        <div className="flex items-center gap-1 ml-auto md:ml-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 ml-auto lg:ml-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={e => { e.stopPropagation(); handleStartEdit(note); }}
                             title="수정"
@@ -1593,6 +1715,8 @@ export default function IdeaRecord() {
           </div>
         </div>
       )}
+          </div>
+        </div>
       </div>
       )}
 
