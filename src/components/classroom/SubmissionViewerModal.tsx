@@ -289,15 +289,15 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
           <div className="min-w-0">
             <p className="text-sm font-black text-on-surface truncate">{fileName}</p>
-            <p className="text-[10px] font-bold text-on-surface-variant">제출물 미리보기</p>
+            <p className="text-[10px] font-bold text-on-surface-variant">제출한 파일 그대로 보기 (보안 격리 화면)</p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => downloadFile(fileUrl, fileName)}
-              title="다운로드"
-              className="w-8 h-8 rounded-lg hover:bg-surface-container flex items-center justify-center text-on-surface-variant"
+              title="파일을 내 컴퓨터에 받아서 직접 열기"
+              className="h-8 px-2.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 flex items-center justify-center gap-1.5 text-xs font-black text-amber-700"
             >
-              <Download size={16} />
+              <Download size={14} /> <span className="hidden sm:inline">파일 받아서 열기</span>
             </button>
             <button
               onClick={onClose}
@@ -327,7 +327,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
               ) : htmlBlobUrl && (
                 <div className="w-full h-full flex flex-col">
                                 <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
-                  🔊 학생이 만든 페이지라 열자마자 소리(음성 안내)가 날 수 있어요.
+                  🔊 열자마자 소리(음성 안내)가 날 수 있어요. 저장·다른 페이지 이동 등이 다르게 보이면 오른쪽 위 「파일 받아서 열기」로 받아서 열어 보세요.
                 </div>
                 <iframe
                   ref={iframeRef}
@@ -351,7 +351,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
               ) : zipEntryUrl && (
                 <div className="w-full h-full flex flex-col">
                 <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
-                  🔊 학생이 만든 페이지라 열자마자 소리(음성 안내)가 날 수 있어요.
+                  🔊 열자마자 소리(음성 안내)가 날 수 있어요. 저장·다른 페이지 이동 등이 다르게 보이면 오른쪽 위 「파일 받아서 열기」로 받아서 열어 보세요.
                 </div>
                 <iframe
                   src={zipEntryUrl}

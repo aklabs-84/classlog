@@ -18,6 +18,8 @@ import {
 import FullScreenView from '../components/common/FullScreenView';
 import PercentLoader from '../components/common/PercentLoader';
 import { computeFinalMarks } from '../lib/finalSubmission';
+import LinkSaveTip from '../components/common/LinkSaveTip';
+import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
 import ResultFileActions from '../components/common/ResultFileActions';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
@@ -119,6 +121,20 @@ const CountUpNumber = ({ value }: { value: number }) => {
   }, [value]);
   return <>{display}</>;
 };
+
+/** 카드에서 바로 열 결과 하나 고르기 (조별 제출이면 ⭐ 최종 우선) */
+function quickOpenFor(student: { resultGroups: ResultGroup[] }) {
+  const gm = computeFinalMarks(student.resultGroups.filter(g => g.isGroupSubmission).map(g => ({
+    id: g.items[0].id, week: g.week_number, kind: [...g.types].sort().join('+'), created_at: g.created_at,
+  })));
+  const marks = new Map<string, 'final' | 'older'>();
+  const sources = student.resultGroups.flatMap(g => g.items.map(it => {
+    const m = gm.get(g.items[0].id);
+    if (m) marks.set(it.id, m);
+    return { id: it.id, created_at: g.created_at, file_url: it.file_url, link_url: it.link_url, display_name: it.display_name, storage_path: it.storage_path };
+  }));
+  return pickQuickOpen(sources, marks);
+}
 
 interface ResultRow {
   id: string;
@@ -700,6 +716,7 @@ const SchoolProjectShareView = () => {
           title={detailGroup.group.title || '결과물'}
           subtitle={`${detailGroup.studentName} · ${new Date(detailGroup.group.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}`}
           onClose={() => setDetailGroup(null)}
+          onBackToList={() => { setDetailGroup(null); setModalStudent(null); }}
         >
           <div className="flex items-center gap-1.5 flex-wrap">
             {detailGroup.mark === 'final' && <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-white">⭐ 최종 제출</span>}
@@ -758,10 +775,13 @@ const SchoolProjectShareView = () => {
                     )}
                     {/* 링크 */}
                     {linkItem?.link_url && (
-                      <a href={linkItem.link_url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 text-base font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-3 rounded-2xl transition-colors shadow-sm">
-                        <ExternalLink size={16} /> 링크 열기
-                      </a>
+                      <div>
+                        <a href={linkItem.link_url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 text-base font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-3 rounded-2xl transition-colors shadow-sm">
+                          <ExternalLink size={16} /> 링크 열기
+                        </a>
+                        <LinkSaveTip />
+                      </div>
                     )}
                     {/* 파일 */}
                     {fileItem?.file_url && (
@@ -1585,10 +1605,10 @@ const SchoolProjectShareView = () => {
 
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                 {groupCards.map(card => (
+                                  <div key={card.id} className="col-span-2 sm:col-span-3 flex flex-col gap-1.5">
                                   <button
-                                    key={card.id}
                                     onClick={() => setModalStudent(card)}
-                                    className="col-span-2 sm:col-span-3 text-left bg-white rounded-xl border border-violet-200 hover:border-violet-500 p-3.5 transition-all cursor-pointer"
+                                    className="text-left bg-white rounded-xl border border-violet-200 hover:border-violet-500 p-3.5 transition-all cursor-pointer"
                                   >
                                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                                       <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
@@ -1599,12 +1619,14 @@ const SchoolProjectShareView = () => {
                                       <p className="text-sm text-slate-500 leading-relaxed">조원: {card.memberNames.join(', ')}</p>
                                     )}
                                   </button>
+                                  <QuickOpenLink target={quickOpenFor(card)} />
+                                  </div>
                                 ))}
                                 {individualStudents.map(student => {
                                   const hasData = student.observations.length > 0 || student.resultGroups.length > 0;
                                   return (
+                                    <div key={student.id} className="flex flex-col gap-1.5">
                                     <button
-                                      key={student.id}
                                       onClick={() => hasData && setModalStudent(student)}
                                       disabled={!hasData}
                                       className={`text-left bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-slate-200 hover:border-slate-900 cursor-pointer' : 'border-slate-200 opacity-50 cursor-default'}`}
@@ -1619,6 +1641,8 @@ const SchoolProjectShareView = () => {
                                         {!hasData && <span className="text-base text-slate-400">기록 없음</span>}
                                       </div>
                                     </button>
+                                    <QuickOpenLink target={quickOpenFor(student)} />
+                                    </div>
                                   );
                                 })}
                               </div>

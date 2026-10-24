@@ -6,7 +6,7 @@ import {
   Megaphone, Send, Loader2, Reply, Clock, ChevronDown,
   MessageSquare, CheckCircle2, Filter, ArrowLeft, Trash2
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appConfirm } from '../lib/appDialog';
 import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 
@@ -31,7 +31,8 @@ const SuggestionsPage = () => {
 
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   // '' = 전체 수업 보기
-  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [searchParams] = useSearchParams();
+  const [selectedClassId, setSelectedClassId] = useState<string>(searchParams.get('classId') || '');
   const [allSuggestions, setAllSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [classesLoading, setClassesLoading] = useState(true);
@@ -41,37 +42,44 @@ const SuggestionsPage = () => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // 수업 목록 로드
+  // 수업 목록 로드 (내가 만든 반 + 학교 프로젝트에서 내가 배정받은 반)
   useEffect(() => {
     if (!user) return;
     const fetchClasses = async () => {
       setClassesLoading(true);
-      const { data } = await supabase
-        .from('classes')
-        .select('id, name, subject, class_type, school_project_id, parent_class_id, assigned_teacher_id')
-        .eq('teacher_id', user.id)
-        .order('created_at', { ascending: false });
-      setClasses(filterMyTeachingClasses(data, user.id));
+      const cols = 'id, name, subject, class_type, school_project_id, parent_class_id, assigned_teacher_id';
+      const [own, assigned] = await Promise.all([
+        supabase.from('classes').select(cols).eq('teacher_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('classes').select(cols).eq('assigned_teacher_id', user.id).order('created_at', { ascending: false }),
+      ]);
+      const seen = new Set<string>();
+      const merged = [...filterMyTeachingClasses(own.data, user.id), ...(assigned.data || [])]
+        .filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+      setClasses(merged);
       setClassesLoading(false);
     };
     fetchClasses();
   }, [user]);
 
-  // teacher_id로 직접 조회 — classes 로드 여부와 무관하게 실행
+  // 내 이름으로 받은 건의 + 내가 배정받은 반의 건의 (수업 목록 로드 후 조회)
   useEffect(() => {
-    if (!user) return;
+    if (!user || classesLoading) return;
     const fetchAllSuggestions = async () => {
       setLoading(true);
+      const ids = classes.map(c => c.id);
+      const orFilter = ids.length > 0
+        ? `teacher_id.eq.${user.id},class_id.in.(${ids.join(',')})`
+        : `teacher_id.eq.${user.id}`;
       const { data } = await supabase
         .from('student_suggestions')
         .select('*')
-        .eq('teacher_id', user.id)
+        .or(orFilter)
         .order('created_at', { ascending: false });
       setAllSuggestions((data as Suggestion[]) || []);
       setLoading(false);
     };
     fetchAllSuggestions();
-  }, [user]);
+  }, [user, classes, classesLoading]);
 
   // 드롭다운 선택 = 클라이언트 필터
   const visibleSuggestions = selectedClassId

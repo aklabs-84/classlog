@@ -33,6 +33,8 @@ import {
 import ResultFileActions from '../components/common/ResultFileActions';
 import PercentLoader from '../components/common/PercentLoader';
 import { computeFinalMarks } from '../lib/finalSubmission';
+import LinkSaveTip from '../components/common/LinkSaveTip';
+import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
 import { appToast } from '../lib/appDialog';
 
 async function blobDownload(url: string, filename: string) {
@@ -44,6 +46,8 @@ async function blobDownload(url: string, filename: string) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+const fmtTime = (d: string) => new Date(d).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 function getAvatarUrl(student: { avatar_url?: string | null; full_name: string }) {
   return student.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.full_name)}&background=random`;
@@ -1051,6 +1055,11 @@ const SchoolShareView = () => {
                 </div>
               )}
 
+              <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 text-sm text-indigo-900 leading-relaxed print:hidden">
+                <b>결과는 이렇게 찾아보세요</b><br />
+                ① 이름(또는 조)을 누르면 제출한 결과가 펼쳐져요. ② 같은 결과를 여러 번 냈다면 <b>⭐ 최종 제출</b>이 맨 위에 나와요. ③ 접힌 카드의 <b>「바로 열기」</b> 버튼을 누르면 펼치지 않고 새 탭에서 곧바로 열려요.
+              </div>
+
               {/* 학생 목록 */}
               <div className="space-y-2">
                 {listData.map(({ student, obs, results }) => {
@@ -1091,9 +1100,17 @@ const SchoolShareView = () => {
                           </div>
                         )}
                       </button>
+                      {!isExpanded && hasActivity && (
+                        <div className="px-5 pb-3 -mt-1"><QuickOpenLink target={pickQuickOpen(results, finalMarks)} /></div>
+                      )}
 
                       {isExpanded && (
                         <div className="border-t border-gray-100 px-5 py-4 space-y-3 bg-gray-50/50">
+                          {(() => { const gf = results.find(x => finalMarks.get(x.id) === 'final'); return gf ? (
+                            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                              ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(gf.created_at)}</b> 제출입니다. 맨 위 카드이고, 나머지는 「이전 제출」이에요.
+                            </div>
+                          ) : null; })()}
                           {(studentTrendMap[student.id]?.some(p => p.engagement > 0)) && (
                             <div className="bg-white rounded-xl border border-gray-100 p-4">
                               <p className="text-xs font-black text-gray-500 mb-2">주차별 성장 추이</p>
@@ -1123,7 +1140,7 @@ const SchoolShareView = () => {
                                   {finalMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
                                   {finalMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
                                   {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                                  <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                                  <span className="text-[10px] font-bold text-gray-400 ml-auto">{fmtTime(r.created_at)}</span>
                                 </div>
                                 {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
                                 {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
@@ -1146,9 +1163,12 @@ const SchoolShareView = () => {
                                   </div>
                                 )}
                                 {r.link_url && (
-                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                  <div>
+                                    <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
                                     <ExternalLink size={14} /> 링크 열기
                                   </a>
+                                    <LinkSaveTip />
+                                  </div>
                                 )}
                                 {r.file_url && (
                                   <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />

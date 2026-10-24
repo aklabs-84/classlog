@@ -39,6 +39,8 @@ import ResultFileActions from '../components/common/ResultFileActions';
 import PercentLoader from '../components/common/PercentLoader';
 import FullScreenView from '../components/common/FullScreenView';
 import { computeFinalMarks } from '../lib/finalSubmission';
+import LinkSaveTip from '../components/common/LinkSaveTip';
+import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
@@ -98,6 +100,8 @@ async function blobDownload(url: string, filename: string) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+const fmtTime = (d: string) => new Date(d).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 function getAvatarUrl(student: { avatar_url?: string | null; full_name: string }) {
   return student.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.full_name)}&background=random`;
@@ -1139,14 +1143,20 @@ const ShareClassView = () => {
                 </div>
               )}
 
+              <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 text-sm text-indigo-900 leading-relaxed print:hidden">
+                <b>결과는 이렇게 찾아보세요</b><br />
+                ① 학생(또는 조) 카드를 누르면 제출한 결과 목록이 열려요. ② 같은 결과를 여러 번 냈다면 <b>⭐ 최종 제출</b>이 맨 앞에 나와요. ③ 카드 아래 <b>「바로 열기」</b> 버튼을 누르면 목록을 거치지 않고 새 탭에서 곧바로 열려요.
+              </div>
+
               {/* 학생 목록 */}
               {resultsViewMode === 'student' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {filteredData.map(({ student, obs, results }, i) => {
                     const hasActivity = obs.length > 0 || results.length > 0;
+                    const qo = pickQuickOpen(results, computeFinalMarks(results.map((x) => ({ id: x.id, week: x.week_number, kind: x.result_type, created_at: x.created_at }))));
                     return (
+                      <div key={student.id} className="flex flex-col gap-1.5">
                       <motion.button
-                        key={student.id}
                         onClick={() => hasActivity && setModalStudentId(student.id)}
                         disabled={!hasActivity}
                         initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
@@ -1169,6 +1179,8 @@ const ShareClassView = () => {
                           {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
                         </div>
                       </motion.button>
+                      <QuickOpenLink target={qo} />
+                      </div>
                     );
                   })}
                 </div>
@@ -1188,9 +1200,11 @@ const ShareClassView = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {groupsWithMembers.map(({ group, students }, i) => {
                     const resultCount = (groupResultsMap[group.id] || []).length;
+                    const gRes = groupResultsMap[group.id] || [];
+                    const gqo = pickQuickOpen(gRes, computeFinalMarks(gRes.map((x) => ({ id: x.id, week: x.week_number, kind: x.result_type, created_at: x.created_at }))));
                     return (
+                      <div key={group.id} className="flex flex-col gap-1.5">
                       <motion.button
-                        key={group.id}
                         onClick={() => setModalGroupId(group.id)}
                         initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
                         whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -1216,6 +1230,8 @@ const ShareClassView = () => {
                             : <span className="text-[10px] font-bold text-gray-400">조별 제출 없음</span>}
                         </div>
                       </motion.button>
+                      <QuickOpenLink target={gqo} />
+                      </div>
                     );
                   })}
                 </div>
@@ -1512,9 +1528,12 @@ const ShareClassView = () => {
           const obsSafePage = Math.min(obsPageByStudent[student.id] ?? 1, obsTotalPages);
           const pagedObs = obs.slice((obsSafePage - 1) * OBS_PAGE_SIZE, obsSafePage * OBS_PAGE_SIZE);
 
+          const stMarks = computeFinalMarks(results.map((x) => ({ id: x.id, week: x.week_number, kind: x.result_type, created_at: x.created_at })));
+          const sortedResults = [...results].sort((x, y) => (stMarks.get(y.id) === 'final' ? 1 : 0) - (stMarks.get(x.id) === 'final' ? 1 : 0));
+          const stFinal = sortedResults.find((x) => stMarks.get(x.id) === 'final');
           const resultsTotalPages = Math.max(1, Math.ceil(results.length / RESULTS_PAGE_SIZE));
           const resultsSafePage = Math.min(resultsPageByStudent[student.id] ?? 1, resultsTotalPages);
-          const pagedResults = results.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
+          const pagedResults = sortedResults.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
 
           return (
             <FullScreenView
@@ -1566,22 +1585,33 @@ const ShareClassView = () => {
                     />
                   )}
 
+                  {subTab === 'results' && stFinal && (
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                      ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(stFinal.created_at)}</b> 제출입니다. 1쪽에 있고, 나머지는 「이전 제출」이에요.
+                    </div>
+                  )}
                   {subTab === 'results' && pagedResults.map((r) => {
                     const allImgResults = results.filter((x) => x.image_urls && x.image_urls.length > 0);
                     const allImgUrls = allImgResults.flatMap((x) => x.image_urls as string[]);
                     const allImgNames = allImgResults.flatMap((x) => (x.image_urls as string[]).map((_, i) => `${x.title || '결과물'}-${i + 1}.webp`));
                     const typeBadge = RESULT_TYPE_BADGE[r.result_type];
                     return (
-                      <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                      <div key={r.id} className={`bg-white rounded-xl border p-4 ${stMarks.get(r.id) === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${stMarks.get(r.id) === 'older' ? 'opacity-80' : ''}`}>
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
+                          {stMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
+                          {stMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
+                          {stMarks.get(r.id) === 'older' && stFinal && (
+                            <button type="button" onClick={() => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: 1 }))}
+                              className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 hover:bg-amber-500 text-white">⭐ 최종본 보러 가기</button>
+                          )}
                           {typeBadge && (
                             <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
                               {typeBadge.icon} {typeBadge.label}
                             </span>
                           )}
                           {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                          <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                          <span className="text-[10px] font-bold text-gray-400 ml-auto">{fmtTime(r.created_at)}</span>
                         </div>
                         {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
                         {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
@@ -1601,9 +1631,12 @@ const ShareClassView = () => {
                           </div>
                         )}
                         {r.link_url && (
-                          <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                          <div>
+                            <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
                             <ExternalLink size={14} /> 링크 열기
                           </a>
+                            <LinkSaveTip />
+                          </div>
                         )}
                         {r.file_url && (
                           <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />
@@ -1663,6 +1696,11 @@ const ShareClassView = () => {
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">📁 조별 결과물 {results.length}건</p>
                     {results.length === 0 && <p className="text-xs font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
+                    {(() => { const gf = results.find((x) => finalMarks.get(x.id) === 'final'); return gf ? (
+                      <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                        ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(gf.created_at)}</b> 제출입니다. 맨 위 카드이고, 나머지는 「이전 제출」이에요.
+                      </div>
+                    ) : null; })()}
                     <div className="space-y-3">
                       {[...results].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((r) => {
                         const typeBadge = RESULT_TYPE_BADGE[r.result_type];
@@ -1677,7 +1715,7 @@ const ShareClassView = () => {
                                 </span>
                               )}
                               {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                              <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                              <span className="text-[10px] font-bold text-gray-400 ml-auto">{fmtTime(r.created_at)}</span>
                             </div>
                             {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
                             {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
@@ -1697,9 +1735,12 @@ const ShareClassView = () => {
                               </div>
                             )}
                             {r.link_url && (
-                              <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                              <div>
+                                <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
                                 <ExternalLink size={14} /> 링크 열기
                               </a>
+                                <LinkSaveTip />
+                              </div>
                             )}
                             {r.file_url && (
                               <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />

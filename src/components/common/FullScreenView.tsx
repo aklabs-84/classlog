@@ -9,11 +9,13 @@ interface Props {
   onClose: () => void;
   /** 겹쳐 열 때(예: 결과 목록 위에 상세) 더 위에 올리려면 크게 */
   z?: number;
+  /** 겹쳐 열린 상세 화면에서, 한 번에 맨 처음 목록까지 돌아가는 버튼을 추가 */
+  onBackToList?: () => void;
   children: ReactNode;
 }
 
 /** 작은 창 대신 화면을 꽉 채워 보여 주는 결과 보기 틀. 맨 위에 "돌아가기"가 항상 보인다. */
-const FullScreenView = ({ title, subtitle, icon, onClose, z = 60, children }: Props) => {
+const FullScreenView = ({ title, subtitle, icon, onClose, z = 60, onBackToList, children }: Props) => {
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -28,6 +30,11 @@ const FullScreenView = ({ title, subtitle, icon, onClose, z = 60, children }: Pr
         <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm shrink-0">
           <ArrowLeft size={16} /> 돌아가기
         </button>
+        {onBackToList && (
+          <button onClick={onBackToList} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black text-sm shrink-0">
+            <ArrowLeft size={16} /> 목록으로
+          </button>
+        )}
         {icon && <div className="shrink-0">{icon}</div>}
         <div className="min-w-0 flex-1">
           <p className="font-black text-gray-900 text-base sm:text-lg truncate">{title}</p>
