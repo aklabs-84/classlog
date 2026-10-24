@@ -41,6 +41,7 @@ import FullScreenView from '../components/common/FullScreenView';
 import { computeFinalMarks } from '../lib/finalSubmission';
 import LinkSaveTip from '../components/common/LinkSaveTip';
 import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
+import ResultThumb, { pickThumb } from '../components/common/ResultThumb';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
@@ -103,6 +104,121 @@ async function blobDownload(url: string, filename: string) {
 
 const fmtTime = (d: string) => new Date(d).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
+/** 한 번에 낸 글·링크·파일·사진을 "제출 1건"으로 묶는다 (학교 프로젝트 결과 화면과 같은 방식) */
+interface ResultBundle {
+  id: string;
+  items: ResultRow[];
+  created_at: string;
+  week_number: number | null;
+  title: string;
+  kind: string;
+  isGroup: boolean;
+}
+
+const bundleRows = (rows: ResultRow[]): ResultBundle[] => {
+  const map = new Map<string, ResultRow[]>();
+  for (const r of rows) {
+    const key = r.submission_group || r.id;
+    const arr = map.get(key);
+    if (arr) arr.push(r); else map.set(key, [r]);
+  }
+  return [...map.values()].map((items) => ({
+    id: items[0].id,
+    items,
+    created_at: items.reduce((m, x) => (x.created_at > m ? x.created_at : m), items[0].created_at),
+    week_number: items[0].week_number,
+    title: items.find((x) => x.title)?.title || '',
+    kind: [...new Set(items.map((x) => x.result_type))].sort().join('+'),
+    isGroup: items.some((x) => x.is_group_submission),
+  })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+};
+
+const bundleMarks = (bundles: ResultBundle[]) =>
+  computeFinalMarks(bundles.map((b) => ({ id: b.id, week: b.week_number, kind: b.kind, created_at: b.created_at })));
+
+/** 묶음 기준 ⭐ 최종을 계산해 목록 카드용 소스·표시를 만든다 */
+const markedSources = (rows: ResultRow[]) => {
+  const bundles = bundleRows(rows);
+  const bm = bundleMarks(bundles);
+  const marks = new Map<string, 'final' | 'older'>();
+  const sources = bundles.flatMap((b) => b.items.map((x) => {
+    const m = bm.get(b.id);
+    if (m) marks.set(x.id, m);
+    return { ...x, created_at: b.created_at };
+  }));
+  return { sources, marks };
+};
+
+/** 목록 카드의 "바로 열기": 묶음 기준 ⭐ 최종(없으면 최근) 하나를 고른다 */
+const quickOpenOf = (rows: ResultRow[]) => {
+  const { sources, marks } = markedSources(rows);
+  return pickQuickOpen(sources, marks);
+};
+
+/** 목록 카드의 결과 미리보기 (사진 또는 HTML 파일) */
+const thumbOf = (rows: ResultRow[]) => {
+  const { sources, marks } = markedSources(rows);
+  return pickThumb(sources, marks);
+};
+
+/** 제출 1건을 카드 한 장으로 보여준다 (글 + 사진 + 링크 + 파일 모두) */
+const BundleCard = ({ bundle, mark, extraBadges, onZoom }: {
+  bundle: ResultBundle;
+  mark?: 'final' | 'older';
+  extraBadges?: ReactNode;
+  onZoom: (urls: string[], names: string[]) => void;
+}) => {
+  const { items } = bundle;
+  const types = [...new Set(items.map((x) => x.result_type))];
+  const imgs = items.flatMap((x) => x.image_urls || []);
+  const imgNames = imgs.map((_, i) => `${bundle.title || '결과물'}-${i + 1}.webp`);
+  return (
+    <div className={`bg-white rounded-xl border p-4 ${mark === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${mark === 'older' ? 'opacity-80' : ''}`}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[13px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
+        {mark === 'final' && <span className="text-[13px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
+        {mark === 'older' && <span className="text-[13px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
+        {extraBadges}
+        {bundle.isGroup && <span className="text-[13px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full">👥 조별 제출</span>}
+        {types.map((t) => {
+          const b = RESULT_TYPE_BADGE[t];
+          return b ? (
+            <span key={t} className={`flex items-center gap-1 text-[13px] font-black px-2 py-0.5 rounded-full ${b.color}`}>{b.icon} {b.label}</span>
+          ) : null;
+        })}
+        {bundle.week_number && <span className="text-[13px] font-bold text-gray-400">{bundle.week_number}주차</span>}
+        <span className="text-[13px] font-bold text-gray-400 ml-auto">{fmtTime(bundle.created_at)}</span>
+      </div>
+      {bundle.title && <p className="text-base font-black text-gray-800 mb-1.5">{bundle.title}</p>}
+      {items.filter((x) => x.text_content && x.result_type !== 'link' && x.result_type !== 'file').map((x) => (
+        <p key={`t${x.id}`} className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{x.text_content}</p>
+      ))}
+      {imgs.length > 0 && (
+        <div className="mt-2 relative group cursor-pointer" onClick={() => onZoom(imgs, imgNames)}>
+          <img src={imgs[0]} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
+          {imgs.length > 1 && (
+            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[13px] font-bold px-1.5 py-0.5 rounded-full">1/{imgs.length}</div>
+          )}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
+          </div>
+        </div>
+      )}
+      {items.filter((x) => x.link_url).map((x) => (
+        <div key={`l${x.id}`}>
+          <a href={x.link_url as string} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-base font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+            <ExternalLink size={14} /> 링크 열기
+          </a>
+          <LinkSaveTip />
+        </div>
+      ))}
+      {items.filter((x) => x.file_url).map((x) => (
+        <ResultFileActions key={`f${x.id}`} url={x.file_url as string} displayName={x.display_name} storagePath={x.storage_path} tone="emerald" size="sm" />
+      ))}
+    </div>
+  );
+};
+
 function getAvatarUrl(student: { avatar_url?: string | null; full_name: string }) {
   return student.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.full_name)}&background=random`;
 }
@@ -139,6 +255,7 @@ interface ResultRow {
   storage_path?: string | null;
   group_id?: string | null;
   is_group_submission?: boolean;
+  submission_group?: string | null;
 }
 
 interface GroupRow {
@@ -748,7 +865,7 @@ const ShareClassView = () => {
             <AlertCircle size={28} className="text-red-400" />
           </div>
           <h2 className="text-xl font-black text-gray-800">접근할 수 없습니다</h2>
-          <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-line">{metaError}</p>
+          <p className="text-base text-gray-500 leading-relaxed whitespace-pre-line">{metaError}</p>
         </div>
       </div>
     );
@@ -769,11 +886,11 @@ const ShareClassView = () => {
                 {classInfo?.name}
                 {classInfo?.subject ? ` · ${classInfo.subject}` : ''}
               </h1>
-              <p className="text-indigo-200 text-xs font-semibold mt-1">선생님 공유 보기</p>
+              <p className="text-indigo-200 text-[13px] font-semibold mt-1">선생님 공유 보기</p>
             </div>
 
             <div className="px-8 py-7 space-y-5">
-              <p className="text-sm text-gray-600 text-center leading-relaxed">
+              <p className="text-base text-gray-600 text-center leading-relaxed">
                 담당 선생님께 받은 <span className="font-black text-indigo-600">입장 코드</span>를<br />
                 입력해 주세요.
               </p>
@@ -794,15 +911,15 @@ const ShareClassView = () => {
                 />
                 {isCodeLocked && (
                   <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-center">
-                    <p className="text-xs text-red-600 font-semibold">코드를 5번 틀려서 잠시 잠겼어요</p>
+                    <p className="text-[13px] text-red-600 font-semibold">코드를 5번 틀려서 잠시 잠겼어요</p>
                     <p className="text-2xl font-black text-red-600 tabular-nums mt-1">
                       {String(Math.floor(lockRemainingSec / 60)).padStart(2, '0')}:{String(lockRemainingSec % 60).padStart(2, '0')}
                     </p>
-                    <p className="text-[11px] text-red-500 mt-1">시간이 지나면 다시 입력할 수 있어요</p>
+                    <p className="text-[13px] text-red-500 mt-1">시간이 지나면 다시 입력할 수 있어요</p>
                   </div>
                 )}
                 {codeError && !isCodeLocked && (
-                  <p className="text-xs text-red-500 font-semibold text-center">{codeError}</p>
+                  <p className="text-[13px] text-red-500 font-semibold text-center">{codeError}</p>
                 )}
 
                 <button
@@ -819,7 +936,7 @@ const ShareClassView = () => {
             </div>
           </div>
 
-          <p className="text-center text-[11px] text-gray-400 font-semibold">
+          <p className="text-center text-[13px] text-gray-400 font-semibold">
             클래스로그 AI — 수업 기록부터 세특까지
           </p>
         </div>
@@ -849,7 +966,7 @@ const ShareClassView = () => {
               <p className="text-lg font-bold" style={{ color: '#ffb4a8' }}>선생님 공유 보기</p>
               <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/25 hover:bg-white/10 transition-colors shrink-0">
                 <Sparkles size={14} />
-                <span className="text-base font-bold text-white/90">Powered by 클래스로그 AI</span>
+                <span className="text-lg font-bold text-white/90">Powered by 클래스로그 AI</span>
               </a>
             </div>
             <h1 className="text-4xl sm:text-5xl font-black leading-[1.25] tracking-tight mb-3" style={{ color: '#fff' }}>
@@ -857,7 +974,7 @@ const ShareClassView = () => {
             </h1>
             <div className="flex items-center gap-4 text-lg flex-wrap text-slate-300">
               <span>{studentData.length}명의 학생이 참여 중</span>
-              {lastUpdated && <span className="text-base">{lastUpdated.toLocaleString('ko-KR')} 기준</span>}
+              {lastUpdated && <span className="text-lg">{lastUpdated.toLocaleString('ko-KR')} 기준</span>}
             </div>
             {(() => {
               const participationRate = studentData.length > 0 ? Math.round((activeCount / studentData.length) * 100) : 0;
@@ -880,7 +997,7 @@ const ShareClassView = () => {
                       <span className={`block text-4xl font-black tabular-nums leading-tight ${value > 0 ? 'text-white' : 'text-slate-500'}`}>
                         <CountUpNumber value={value} /><span className="text-lg font-bold ml-0.5">{unit}</span>
                       </span>
-                      <span className="text-base text-slate-300">{label}</span>
+                      <span className="text-lg text-slate-300">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -914,7 +1031,7 @@ const ShareClassView = () => {
                   >
                     {hero ? (
                       <>
-                        <p className="text-base font-bold mb-2 text-violet-600">{hero.label}</p>
+                        <p className="text-lg font-bold mb-2 text-violet-600">{hero.label}</p>
                         <blockquote className="text-2xl sm:text-4xl font-black text-slate-900 leading-snug tracking-tight">
                           “{hero.text}”
                         </blockquote>
@@ -922,7 +1039,7 @@ const ShareClassView = () => {
                           <div className={`grid gap-x-8 gap-y-5 mt-7 pt-6 border-t border-slate-200 ${rest.length === 1 ? 'sm:grid-cols-1' : rest.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
                             {rest.map(x => (
                               <div key={x.label}>
-                                <p className="text-base font-bold mb-1 text-violet-600">{x.label}</p>
+                                <p className="text-lg font-bold mb-1 text-violet-600">{x.label}</p>
                                 <p className="text-lg text-slate-800 leading-relaxed line-clamp-4">{x.text}</p>
                               </div>
                             ))}
@@ -944,7 +1061,7 @@ const ShareClassView = () => {
                     <button onClick={() => goToQuote(spotlightIndex - 1)} aria-label="이전 글" className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors">
                       <ChevronLeft size={22} />
                     </button>
-                    <span className="text-base font-bold tabular-nums min-w-[4.5rem] text-center">{spotlightIndex + 1} / {spotlightQuotes.length}</span>
+                    <span className="text-lg font-bold tabular-nums min-w-[4.5rem] text-center">{spotlightIndex + 1} / {spotlightQuotes.length}</span>
                     <button onClick={() => goToQuote(spotlightIndex + 1)} aria-label="다음 글" className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
                       <ChevronRight size={22} />
                     </button>
@@ -968,7 +1085,7 @@ const ShareClassView = () => {
                 <button
                   key={key}
                   onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech' | 'survey')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
                     activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
@@ -987,7 +1104,7 @@ const ShareClassView = () => {
               </button>
               <button
                 onClick={downloadCSV}
-                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-black transition-all"
+                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-base font-black transition-all"
                 title="CSV 다운로드"
               >
                 <FileText size={15} />
@@ -996,7 +1113,7 @@ const ShareClassView = () => {
               <button
                 onClick={downloadXLSX}
                 disabled={downloading}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-base font-black transition-all"
                 title="XLSX 엑셀 다운로드"
               >
                 {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
@@ -1033,13 +1150,13 @@ const ShareClassView = () => {
                             : <AlignLeft size={18} className="text-violet-500" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-gray-900 text-sm truncate">{r.title || '제목 없음'}</p>
-                      <p className="text-xs text-gray-400 font-semibold truncate">
+                      <p className="font-black text-gray-900 text-base truncate">{r.title || '제목 없음'}</p>
+                      <p className="text-[13px] text-gray-400 font-semibold truncate">
                         {student.full_name} · {new Date(r.created_at).toLocaleDateString('ko-KR')}
                       </p>
                     </div>
                     {RESULT_TYPE_BADGE[r.result_type] && (
-                      <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${RESULT_TYPE_BADGE[r.result_type].color}`}>
+                      <span className={`shrink-0 flex items-center gap-1 text-[13px] font-black px-2.5 py-1 rounded-full ${RESULT_TYPE_BADGE[r.result_type].color}`}>
                         {RESULT_TYPE_BADGE[r.result_type].icon}
                         {RESULT_TYPE_BADGE[r.result_type].label}
                       </span>
@@ -1092,7 +1209,7 @@ const ShareClassView = () => {
               {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
               {attendanceSummary && attendanceSummary.total > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 p-4 print:hidden">
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">출석 요약</p>
+                  <p className="text-[13px] font-black text-gray-500 uppercase tracking-widest mb-3">출석 요약</p>
                   <AttendanceDonutChart total={attendanceSummary.total} byStatus={attendanceSummary.byStatus} />
                 </div>
               )}
@@ -1100,10 +1217,10 @@ const ShareClassView = () => {
               {/* 주차 필터 */}
               {allWeeks.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap print:hidden">
-                  <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
+                  <span className="text-[13px] font-black text-gray-500 mr-1">주차:</span>
                   <button
                     onClick={() => setWeekFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
                       weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'
                     }`}
                   >
@@ -1113,7 +1230,7 @@ const ShareClassView = () => {
                     <button
                       key={w}
                       onClick={() => setWeekFilter(w)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
                         weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'
                       }`}
                     >
@@ -1133,7 +1250,7 @@ const ShareClassView = () => {
                     <button
                       key={key}
                       onClick={() => setResultsViewMode(key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
                         resultsViewMode === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
                       }`}
                     >
@@ -1143,7 +1260,7 @@ const ShareClassView = () => {
                 </div>
               )}
 
-              <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 text-sm text-indigo-900 leading-relaxed print:hidden">
+              <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 text-base text-indigo-900 leading-relaxed print:hidden">
                 <b>결과는 이렇게 찾아보세요</b><br />
                 ① 학생(또는 조) 카드를 누르면 제출한 결과 목록이 열려요. ② 같은 결과를 여러 번 냈다면 <b>⭐ 최종 제출</b>이 맨 앞에 나와요. ③ 카드 아래 <b>「바로 열기」</b> 버튼을 누르면 목록을 거치지 않고 새 탭에서 곧바로 열려요.
               </div>
@@ -1153,7 +1270,7 @@ const ShareClassView = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {filteredData.map(({ student, obs, results }, i) => {
                     const hasActivity = obs.length > 0 || results.length > 0;
-                    const qo = pickQuickOpen(results, computeFinalMarks(results.map((x) => ({ id: x.id, week: x.week_number, kind: x.result_type, created_at: x.created_at }))));
+                    const qo = quickOpenOf(results);
                     return (
                       <div key={student.id} className="flex flex-col gap-1.5">
                       <motion.button
@@ -1164,7 +1281,7 @@ const ShareClassView = () => {
                         viewport={{ once: true, margin: '-40px' }}
                         transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
                         whileHover={hasActivity && !reduceMotion ? { y: -4 } : undefined}
-                        className={`text-left bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
+                        className={`text-left flex-1 bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
@@ -1172,11 +1289,12 @@ const ShareClassView = () => {
                           </div>
                           {hasActivity && <ChevronRight size={15} className="text-gray-300" />}
                         </div>
-                        <p className="font-black text-gray-900 text-sm truncate mb-1.5">{student.full_name}</p>
+                        <ResultThumb target={thumbOf(results)} className="mb-3" />
+                        <p className="font-black text-gray-900 text-base truncate mb-1.5">{student.full_name}</p>
                         <div className="flex flex-col gap-1">
-                          {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
-                          {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
-                          {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
+                          {obs.length > 0 && <span className="text-[13px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
+                          {results.length > 0 && <span className="text-[13px] font-bold text-emerald-600">📁 결과물 {bundleRows(results).length}건</span>}
+                          {!hasActivity && <span className="text-[13px] font-bold text-gray-400">미제출</span>}
                         </div>
                       </motion.button>
                       <QuickOpenLink target={qo} />
@@ -1191,7 +1309,7 @@ const ShareClassView = () => {
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <StickyNote size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-sm">등록된 학생이 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">등록된 학생이 없습니다</p>
                 </div>
               )}
 
@@ -1199,9 +1317,9 @@ const ShareClassView = () => {
               {resultsViewMode === 'group' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {groupsWithMembers.map(({ group, students }, i) => {
-                    const resultCount = (groupResultsMap[group.id] || []).length;
+                    const resultCount = bundleRows(groupResultsMap[group.id] || []).length;
                     const gRes = groupResultsMap[group.id] || [];
-                    const gqo = pickQuickOpen(gRes, computeFinalMarks(gRes.map((x) => ({ id: x.id, week: x.week_number, kind: x.result_type, created_at: x.created_at }))));
+                    const gqo = quickOpenOf(gRes);
                     return (
                       <div key={group.id} className="flex flex-col gap-1.5">
                       <motion.button
@@ -1211,7 +1329,7 @@ const ShareClassView = () => {
                         viewport={{ once: true, margin: '-40px' }}
                         transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
                         whileHover={!reduceMotion ? { y: -4 } : undefined}
-                        className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-all cursor-pointer"
+                        className="text-left flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-all cursor-pointer"
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: group.color + '18' }}>
@@ -1219,15 +1337,16 @@ const ShareClassView = () => {
                           </div>
                           <ChevronRight size={15} className="text-gray-300" />
                         </div>
-                        <p className="font-black text-gray-900 text-sm truncate mb-1.5">{group.name}</p>
-                        <p className="text-[10px] font-bold text-gray-400 truncate mb-1.5">
+                        <ResultThumb target={thumbOf(gRes)} className="mb-3" />
+                        <p className="font-black text-gray-900 text-base truncate mb-1.5">{group.name}</p>
+                        <p className="text-[13px] font-bold text-gray-400 truncate mb-1.5">
                           {students.length > 0 ? students.map((s) => s.full_name).join(' · ') : '조원 없음'}
                         </p>
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-gray-400">👥 조원 {students.length}명</span>
+                          <span className="text-[13px] font-bold text-gray-400">👥 조원 {students.length}명</span>
                           {resultCount > 0
-                            ? <span className="text-[10px] font-bold text-emerald-600">📁 조별 결과물 {resultCount}건</span>
-                            : <span className="text-[10px] font-bold text-gray-400">조별 제출 없음</span>}
+                            ? <span className="text-[13px] font-bold text-emerald-600">📁 조별 결과물 {resultCount}건</span>
+                            : <span className="text-[13px] font-bold text-gray-400">조별 제출 없음</span>}
                         </div>
                       </motion.button>
                       <QuickOpenLink target={gqo} />
@@ -1242,7 +1361,7 @@ const ShareClassView = () => {
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <Users size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-sm">등록된 조가 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">등록된 조가 없습니다</p>
                 </div>
               )}
             </>
@@ -1255,16 +1374,16 @@ const ShareClassView = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 {allWeeks.length > 0 && (
                   <>
-                    <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
+                    <span className="text-[13px] font-black text-gray-500 mr-1">주차:</span>
                     <button
                       onClick={() => setWeekFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                     >
                       전체
                     </button>
                     {allWeeks.map((w) => (
                       <button key={w} onClick={() => setWeekFilter(w)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
+                        className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                       >
                         {w}주차
                       </button>
@@ -1275,7 +1394,7 @@ const ShareClassView = () => {
                   <button
                     onClick={handleZipDownload}
                     disabled={zipping}
-                    className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black transition-all shadow-sm"
+                    className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[13px] font-black transition-all shadow-sm"
                   >
                     {zipping
                       ? <><Loader2 size={13} className="animate-spin" /> ZIP 생성 중...</>
@@ -1285,7 +1404,7 @@ const ShareClassView = () => {
                 )}
               </div>
               {filteredGallery.some((g) => g.file_type === 'video') && (
-                <p className="flex items-center gap-1 text-[11px] text-gray-400 mt-2">
+                <p className="flex items-center gap-1 text-[13px] text-gray-400 mt-2">
                   <AlertCircle size={11} className="shrink-0" />
                   영상은 이 버튼으로 받아지지 않습니다. 영상을 눌러 재생 화면에서 개별적으로 다운로드해 주세요.
                 </p>
@@ -1296,7 +1415,7 @@ const ShareClassView = () => {
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <Images size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-sm">등록된 갤러리 항목이 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">등록된 갤러리 항목이 없습니다</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -1323,8 +1442,8 @@ const ShareClassView = () => {
                         </button>
                         {(item.caption || item.week_number) && (
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {item.week_number && <p className="text-[10px] font-bold text-white/80">{item.week_number}주차</p>}
-                            {item.caption && <p className="text-xs font-semibold text-white truncate">{item.caption}</p>}
+                            {item.week_number && <p className="text-[13px] font-bold text-white/80">{item.week_number}주차</p>}
+                            {item.caption && <p className="text-[13px] font-semibold text-white truncate">{item.caption}</p>}
                           </div>
                         )}
                       </div>
@@ -1372,11 +1491,11 @@ const ShareClassView = () => {
                     <div key={label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                       <div className="flex items-center gap-1.5 mb-2">
                         <Icon size={13} className="text-gray-400" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                        <p className="text-[13px] font-black uppercase tracking-widest text-gray-400">{label}</p>
                       </div>
                       <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-black text-gray-900">{value}</span>
-                        <span className="text-sm font-bold text-gray-400">{unit}</span>
+                        <span className="text-base font-bold text-gray-400">{unit}</span>
                       </div>
                     </div>
                   ))}
@@ -1408,25 +1527,25 @@ const ShareClassView = () => {
                             <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
+                            <p className="font-black text-gray-900 text-base">{student.full_name}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               {ev?.achievement_level && (
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${achLabel(ev.achievement_level)}`}>
+                                <span className={`text-[13px] font-black px-2 py-0.5 rounded-full ${achLabel(ev.achievement_level)}`}>
                                   성취도 {ev.achievement_level}
                                 </span>
                               )}
                               {hasContent && (
-                                <span className="text-[10px] font-bold text-gray-400">{content.length}자</span>
+                                <span className="text-[13px] font-bold text-gray-400">{content.length}자</span>
                               )}
                             </div>
                           </div>
-                          <span className={`shrink-0 text-[10px] font-black px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
+                          <span className={`shrink-0 text-[13px] font-black px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
                           {hasContent && <div className="shrink-0 text-gray-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>}
                         </button>
 
                         {isExpanded && (
                           <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
-                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                            <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
                           </div>
                         )}
                       </div>
@@ -1439,7 +1558,7 @@ const ShareClassView = () => {
                     <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                       <BookOpen size={32} className="text-gray-300" />
                     </div>
-                    <p className="font-black text-gray-400 text-sm">등록된 학생이 없습니다</p>
+                    <p className="font-black text-gray-400 text-base">등록된 학생이 없습니다</p>
                   </div>
                 )}
               </>
@@ -1451,13 +1570,13 @@ const ShareClassView = () => {
             <div className="space-y-4">
               <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
                 <p className="font-black text-gray-900">{surveyResult.formTitle}</p>
-                <p className="text-xs font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
+                <p className="text-[13px] font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
               </div>
               {surveyResult.questions.map((q, i) => {
                 const answers = surveyResult.answersByQuestion[q.id] || [];
                 return (
                   <div key={q.id} className="bg-white rounded-2xl border border-gray-100 p-5">
-                    <p className="font-black text-gray-900 text-sm mb-3">{i + 1}. {q.text}</p>
+                    <p className="font-black text-gray-900 text-base mb-3">{i + 1}. {q.text}</p>
                     {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
                     {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
                     {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
@@ -1479,19 +1598,19 @@ const ShareClassView = () => {
             className="relative overflow-hidden rounded-3xl px-6 py-8 sm:px-10 sm:py-14 print:hidden bg-gray-900"
           >
             <div className="relative">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[11px] font-black text-violet-300 mb-4">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[13px] font-black text-violet-300 mb-4">
                 <Sparkles size={12} />
                 클래스로그 AI
               </span>
               <h3 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-2 tracking-tight">
                 이런 학급 공유 페이지, 우리 학교도<br className="hidden sm:block" /> 만들어볼까요?
               </h3>
-              <p className="text-sm text-gray-400 font-semibold mb-5">
+              <p className="text-base text-gray-400 font-semibold mb-5">
                 학급 활동 기록부터 세특 작성까지, 클래스로그 AI가 도와드립니다
               </p>
               <div className="flex flex-wrap gap-3 mb-6">
                 {['학교 그룹 관리', '교사 계정 연동', '학급 공유 URL 발급'].map((item) => (
-                  <span key={item} className="flex items-center gap-1.5 text-xs font-bold text-gray-300">
+                  <span key={item} className="flex items-center gap-1.5 text-[13px] font-bold text-gray-300">
                     <CheckCircle2 size={14} className="text-violet-400" />
                     {item}
                   </span>
@@ -1499,7 +1618,7 @@ const ShareClassView = () => {
               </div>
               <a
                 href="/school-intro"
-                className="inline-flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-400 rounded-2xl text-sm font-black text-white transition-all active:scale-95"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-400 rounded-2xl text-base font-black text-white transition-all active:scale-95"
               >
                 무료로 시작하기
                 <ArrowRight size={16} />
@@ -1509,7 +1628,7 @@ const ShareClassView = () => {
 
           {/* 푸터 */}
           <div className="text-center pt-4 pb-8 print:pt-8">
-            <p className="text-[10px] text-gray-300 font-semibold">
+            <p className="text-[13px] text-gray-300 font-semibold">
               클래스로그 AI — 선생님 공유 보기 · {new Date().getFullYear()}
             </p>
           </div>
@@ -1528,10 +1647,11 @@ const ShareClassView = () => {
           const obsSafePage = Math.min(obsPageByStudent[student.id] ?? 1, obsTotalPages);
           const pagedObs = obs.slice((obsSafePage - 1) * OBS_PAGE_SIZE, obsSafePage * OBS_PAGE_SIZE);
 
-          const stMarks = computeFinalMarks(results.map((x) => ({ id: x.id, week: x.week_number, kind: x.result_type, created_at: x.created_at })));
-          const sortedResults = [...results].sort((x, y) => (stMarks.get(y.id) === 'final' ? 1 : 0) - (stMarks.get(x.id) === 'final' ? 1 : 0));
+          const stBundles = bundleRows(results);
+          const stMarks = bundleMarks(stBundles);
+          const sortedResults = [...stBundles].sort((x, y) => (stMarks.get(y.id) === 'final' ? 1 : 0) - (stMarks.get(x.id) === 'final' ? 1 : 0));
           const stFinal = sortedResults.find((x) => stMarks.get(x.id) === 'final');
-          const resultsTotalPages = Math.max(1, Math.ceil(results.length / RESULTS_PAGE_SIZE));
+          const resultsTotalPages = Math.max(1, Math.ceil(sortedResults.length / RESULTS_PAGE_SIZE));
           const resultsSafePage = Math.min(resultsPageByStudent[student.id] ?? 1, resultsTotalPages);
           const pagedResults = sortedResults.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
 
@@ -1540,7 +1660,7 @@ const ShareClassView = () => {
               key="student-fullscreen"
               onClose={() => setModalStudentId(null)}
               title={student.full_name}
-              subtitle={`활동 기록 ${obs.length}건 · 결과물 ${results.length}건`}
+              subtitle={`활동 기록 ${obs.length}건 · 결과물 ${stBundles.length}건`}
               icon={<div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100"><img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" /></div>}
             >
               <div className="flex flex-col">
@@ -1548,7 +1668,7 @@ const ShareClassView = () => {
                   <button
                     onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'obs' }))}
                     disabled={obs.length === 0}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       subTab === 'obs' ? 'bg-violet-100 text-violet-700 border border-violet-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
                     }`}
                   >
@@ -1557,11 +1677,11 @@ const ShareClassView = () => {
                   <button
                     onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'results' }))}
                     disabled={results.length === 0}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       subTab === 'results' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
                     }`}
                   >
-                    📁 결과물 {results.length}건
+                    📁 결과물 {stBundles.length}건
                   </button>
                 </div>
 
@@ -1569,12 +1689,12 @@ const ShareClassView = () => {
                   {subTab === 'obs' && pagedObs.map((o) => (
                     <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
-                        {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
-                        <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
+                        <span className="text-[13px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
+                        {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}주차</span>}
+                        <span className="text-[13px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
-                      {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
-                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                      {o.activity_name && <p className="text-[13px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
+                      <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
                     </div>
                   ))}
                   {subTab === 'obs' && (
@@ -1586,64 +1706,22 @@ const ShareClassView = () => {
                   )}
 
                   {subTab === 'results' && stFinal && (
-                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
                       ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(stFinal.created_at)}</b> 제출입니다. 1쪽에 있고, 나머지는 「이전 제출」이에요.
                     </div>
                   )}
-                  {subTab === 'results' && pagedResults.map((r) => {
-                    const allImgResults = results.filter((x) => x.image_urls && x.image_urls.length > 0);
-                    const allImgUrls = allImgResults.flatMap((x) => x.image_urls as string[]);
-                    const allImgNames = allImgResults.flatMap((x) => (x.image_urls as string[]).map((_, i) => `${x.title || '결과물'}-${i + 1}.webp`));
-                    const typeBadge = RESULT_TYPE_BADGE[r.result_type];
-                    return (
-                      <div key={r.id} className={`bg-white rounded-xl border p-4 ${stMarks.get(r.id) === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${stMarks.get(r.id) === 'older' ? 'opacity-80' : ''}`}>
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
-                          {stMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
-                          {stMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
-                          {stMarks.get(r.id) === 'older' && stFinal && (
-                            <button type="button" onClick={() => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: 1 }))}
-                              className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 hover:bg-amber-500 text-white">⭐ 최종본 보러 가기</button>
-                          )}
-                          {typeBadge && (
-                            <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
-                              {typeBadge.icon} {typeBadge.label}
-                            </span>
-                          )}
-                          {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                          <span className="text-[10px] font-bold text-gray-400 ml-auto">{fmtTime(r.created_at)}</span>
-                        </div>
-                        {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
-                        {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
-                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
-                        )}
-                        {r.image_urls && r.image_urls.length > 0 && (
-                          <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_urls![0]) })}>
-                            <img src={r.image_urls[0]} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
-                            {r.image_urls.length > 1 && (
-                              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                1/{r.image_urls.length}
-                              </div>
-                            )}
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
-                            </div>
-                          </div>
-                        )}
-                        {r.link_url && (
-                          <div>
-                            <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                            <ExternalLink size={14} /> 링크 열기
-                          </a>
-                            <LinkSaveTip />
-                          </div>
-                        )}
-                        {r.file_url && (
-                          <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />
-                        )}
-                      </div>
-                    );
-                  })}
+                  {subTab === 'results' && pagedResults.map((bd) => (
+                    <BundleCard
+                      key={bd.id}
+                      bundle={bd}
+                      mark={stMarks.get(bd.id)}
+                      onZoom={(urls, names) => setLightbox({ urls, names, index: 0 })}
+                      extraBadges={stMarks.get(bd.id) === 'older' && stFinal ? (
+                        <button type="button" onClick={() => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: 1 }))}
+                          className="text-[13px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 hover:bg-amber-500 text-white">⭐ 최종본 보러 가기</button>
+                      ) : null}
+                    />
+                  ))}
                   {subTab === 'results' && (
                     <Pagination
                       page={resultsSafePage}
@@ -1665,28 +1743,29 @@ const ShareClassView = () => {
           if (!entry) return null;
           const { group, students } = entry;
           const results = groupResultsMap[group.id] || [];
-          const finalMarks = computeFinalMarks(results.map((r) => ({ id: r.id, week: r.week_number, kind: r.result_type, created_at: r.created_at })));
+          const gBundles = bundleRows(results);
+          const finalMarks = bundleMarks(gBundles);
 
           return (
             <FullScreenView
               key="group-fullscreen"
               onClose={() => setModalGroupId(null)}
               title={group.name}
-              subtitle={`조원 ${students.length}명 · 결과물 ${results.length}건`}
+              subtitle={`조원 ${students.length}명 · 결과물 ${gBundles.length}건`}
               icon={<div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: group.color + '18' }}><Users size={16} style={{ color: group.color }} /></div>}
             >
                 <div className="px-5 py-4 space-y-4 overflow-y-auto">
                   {/* 조원 명단 */}
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">👥 조원 {students.length}명</p>
+                    <p className="text-[13px] font-black uppercase tracking-widest text-gray-400 mb-2">👥 조원 {students.length}명</p>
                     <div className="flex flex-wrap gap-2">
-                      {students.length === 0 && <span className="text-xs font-semibold text-gray-400">등록된 조원이 없습니다</span>}
+                      {students.length === 0 && <span className="text-[13px] font-semibold text-gray-400">등록된 조원이 없습니다</span>}
                       {students.map((s) => (
                         <div key={s.id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-full pl-1 pr-3 py-1">
                           <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 bg-gray-100">
                             <img src={getAvatarUrl(s)} alt={s.full_name} className="w-full h-full object-cover" />
                           </div>
-                          <span className="text-xs font-bold text-gray-700">{s.full_name}</span>
+                          <span className="text-[13px] font-bold text-gray-700">{s.full_name}</span>
                         </div>
                       ))}
                     </div>
@@ -1694,60 +1773,22 @@ const ShareClassView = () => {
 
                   {/* 조별 결과물 */}
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">📁 조별 결과물 {results.length}건</p>
-                    {results.length === 0 && <p className="text-xs font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
-                    {(() => { const gf = results.find((x) => finalMarks.get(x.id) === 'final'); return gf ? (
-                      <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                    <p className="text-[13px] font-black uppercase tracking-widest text-gray-400 mb-2">📁 조별 결과물 {gBundles.length}건</p>
+                    {gBundles.length === 0 && <p className="text-[13px] font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
+                    {(() => { const gf = gBundles.find((x) => finalMarks.get(x.id) === 'final'); return gf ? (
+                      <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
                         ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(gf.created_at)}</b> 제출입니다. 맨 위 카드이고, 나머지는 「이전 제출」이에요.
                       </div>
                     ) : null; })()}
                     <div className="space-y-3">
-                      {[...results].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((r) => {
-                        const typeBadge = RESULT_TYPE_BADGE[r.result_type];
-                        return (
-                          <div key={r.id} className={`bg-white rounded-xl border p-4 ${finalMarks.get(r.id) === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${finalMarks.get(r.id) === 'older' ? 'opacity-70' : ''}`}>
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                              {finalMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
-                              {finalMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
-                              {typeBadge && (
-                                <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
-                                  {typeBadge.icon} {typeBadge.label}
-                                </span>
-                              )}
-                              {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                              <span className="text-[10px] font-bold text-gray-400 ml-auto">{fmtTime(r.created_at)}</span>
-                            </div>
-                            {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
-                            {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
-                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
-                            )}
-                            {r.image_urls && r.image_urls.length > 0 && (
-                              <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: r.image_urls!, names: r.image_urls!.map((_, idx) => `${r.title || '결과물'}-${idx + 1}.webp`), index: 0 })}>
-                                <img src={r.image_urls[0]} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
-                                {r.image_urls.length > 1 && (
-                                  <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                    1/{r.image_urls.length}
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
-                                </div>
-                              </div>
-                            )}
-                            {r.link_url && (
-                              <div>
-                                <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                <ExternalLink size={14} /> 링크 열기
-                              </a>
-                                <LinkSaveTip />
-                              </div>
-                            )}
-                            {r.file_url && (
-                              <ResultFileActions url={r.file_url} displayName={r.display_name} storagePath={r.storage_path} tone="emerald" size="sm" />
-                            )}
-                          </div>
-                        );
-                      })}
+                      {[...gBundles].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((bd) => (
+                        <BundleCard
+                          key={bd.id}
+                          bundle={bd}
+                          mark={finalMarks.get(bd.id)}
+                          onZoom={(urls, names) => setLightbox({ urls, names, index: 0 })}
+                        />
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1785,7 +1826,7 @@ const ShareClassView = () => {
             </button>
           )}
           {lightbox.urls.length > 1 && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[13px] font-bold px-3 py-1.5 rounded-full">
               {lightbox.index + 1} / {lightbox.urls.length}
             </div>
           )}
@@ -1806,15 +1847,15 @@ const ShareClassView = () => {
       {/* 보고서 헤더 */}
       <div className="flex items-start justify-between pb-4 mb-5 border-b-2 border-gray-300">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">클래스로그 AI · 수업 결과 보고서</p>
+          <p className="text-[13px] font-black uppercase tracking-widest text-gray-400 mb-1">클래스로그 AI · 수업 결과 보고서</p>
           <h1 className="text-xl font-black text-gray-900">
             {classInfo?.name}{classInfo?.subject ? ` · ${classInfo.subject}` : ''}
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">{filterLabel !== '전체' ? `${filterLabel} 기준` : '전체 주차'}</p>
+          <p className="text-[13px] text-gray-500 mt-0.5">{filterLabel !== '전체' ? `${filterLabel} 기준` : '전체 주차'}</p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-gray-400">출력일</p>
-          <p className="text-xs font-black text-gray-700">{printToday}</p>
+          <p className="text-[13px] text-gray-400">출력일</p>
+          <p className="text-[13px] font-black text-gray-700">{printToday}</p>
         </div>
       </div>
 
@@ -1829,7 +1870,7 @@ const ShareClassView = () => {
         ].map(({ label, value, unit, color }) => (
           <div key={label} className="text-center">
             <p className={`text-2xl font-black ${color}`}>{value}</p>
-            <p className="text-[10px] text-gray-500 font-bold">{label}<span className="ml-0.5">{unit}</span></p>
+            <p className="text-[13px] text-gray-500 font-bold">{label}<span className="ml-0.5">{unit}</span></p>
           </div>
         ))}
       </div>
@@ -1837,7 +1878,7 @@ const ShareClassView = () => {
       {/* 학생 결과물 */}
       <div className="flex items-center gap-2 mb-3">
         <span className="w-1 h-4 bg-indigo-500 rounded-full" />
-        <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest">학생 결과물</h2>
+        <h2 className="text-[13px] font-black text-gray-800 uppercase tracking-widest">학생 결과물</h2>
       </div>
       <div className="space-y-3 mb-8">
         {filteredData.map(({ student, obs, results }) => {
@@ -1845,11 +1886,11 @@ const ShareClassView = () => {
           return (
             <div key={student.id} className="break-inside-avoid border border-gray-200 rounded-xl overflow-hidden">
               <div className={`flex items-center gap-3 px-4 py-2.5 ${hasActivity ? 'bg-indigo-50' : 'bg-gray-50'}`}>
-                <span className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600 shrink-0">
+                <span className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-[13px] font-black text-gray-600 shrink-0">
                   {student.student_number ?? '—'}
                 </span>
-                <span className="font-black text-gray-900 text-sm">{student.full_name}</span>
-                <div className="ml-auto flex items-center gap-3 text-[10px] font-bold">
+                <span className="font-black text-gray-900 text-base">{student.full_name}</span>
+                <div className="ml-auto flex items-center gap-3 text-[13px] font-bold">
                   {obs.length > 0 && <span className="text-violet-600">활동 기록 {obs.length}건</span>}
                   {results.length > 0 && <span className="text-emerald-600">결과물 {results.length}건</span>}
                   {!hasActivity && <span className="text-gray-400">미제출</span>}
@@ -1860,23 +1901,23 @@ const ShareClassView = () => {
                   {obs.map((o) => (
                     <div key={o.id} className="pl-3 border-l-2 border-violet-300">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-[9px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">📝 활동 기록</span>
-                        {o.week_number && <span className="text-[9px] text-gray-400 font-bold">{o.week_number}주차</span>}
-                        {o.activity_name && <span className="text-[9px] text-gray-500 font-semibold">{o.activity_name}</span>}
-                        <span className="text-[9px] text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
+                        <span className="text-[13px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">📝 활동 기록</span>
+                        {o.week_number && <span className="text-[13px] text-gray-400 font-bold">{o.week_number}주차</span>}
+                        {o.activity_name && <span className="text-[13px] text-gray-500 font-semibold">{o.activity_name}</span>}
+                        <span className="text-[13px] text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
-                      <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                      <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
                     </div>
                   ))}
                   {results.map((r) => (
                     <div key={r.id} className="pl-3 border-l-2 border-emerald-300">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">📁 결과물</span>
-                        {r.week_number && <span className="text-[9px] text-gray-400 font-bold">{r.week_number}주차</span>}
-                        {r.title && <span className="text-[9px] text-gray-600 font-black">{r.title}</span>}
-                        <span className="text-[9px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                        <span className="text-[13px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">📁 결과물</span>
+                        {r.week_number && <span className="text-[13px] text-gray-400 font-bold">{r.week_number}주차</span>}
+                        {r.title && <span className="text-[13px] text-gray-600 font-black">{r.title}</span>}
+                        <span className="text-[13px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
-                      {r.text_content && <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
+                      {r.text_content && <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
                       {r.image_urls && r.image_urls.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           {r.image_urls.map((u, i) => (
@@ -1884,8 +1925,8 @@ const ShareClassView = () => {
                           ))}
                         </div>
                       )}
-                      {r.link_url && <p className="text-[10px] text-indigo-500 mt-1 font-medium break-all">{r.link_url}</p>}
-                      {r.file_url && <p className="text-[10px] text-emerald-600 mt-1 font-medium">첨부 파일 포함</p>}
+                      {r.link_url && <p className="text-[13px] text-indigo-500 mt-1 font-medium break-all">{r.link_url}</p>}
+                      {r.file_url && <p className="text-[13px] text-emerald-600 mt-1 font-medium">첨부 파일 포함</p>}
                     </div>
                   ))}
                 </div>
@@ -1900,7 +1941,7 @@ const ShareClassView = () => {
         <div className="break-before-page">
           <div className="flex items-center gap-2 mb-3 pt-2">
             <span className="w-1 h-4 bg-emerald-500 rounded-full" />
-            <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest">수업 갤러리 ({printImages.length}장)</h2>
+            <h2 className="text-[13px] font-black text-gray-800 uppercase tracking-widest">수업 갤러리 ({printImages.length}장)</h2>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {printImages.map((item) => (
@@ -1909,7 +1950,7 @@ const ShareClassView = () => {
                   <img src={item.file_url} alt={item.caption || ''} className="w-full h-full object-cover" />
                 </div>
                 {(item.caption || item.week_number) && (
-                  <p className="text-[9px] text-gray-500 mt-0.5 truncate text-center">
+                  <p className="text-[13px] text-gray-500 mt-0.5 truncate text-center">
                     {item.week_number ? `${item.week_number}주차` : ''}{item.caption ? ` ${item.caption}` : ''}
                   </p>
                 )}
@@ -1934,7 +1975,7 @@ const ShareClassView = () => {
           <div className="break-before-page">
             <div className="flex items-center gap-2 mb-3 pt-2">
               <span className="w-1 h-4 bg-amber-500 rounded-full" />
-              <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest">세특 현황</h2>
+              <h2 className="text-[13px] font-black text-gray-800 uppercase tracking-widest">세특 현황</h2>
             </div>
             <div className="space-y-2">
               {printEvalRows.map(({ student, ev }) => {
@@ -1942,11 +1983,11 @@ const ShareClassView = () => {
                 return (
                   <div key={student.id} className="break-inside-avoid border border-gray-200 rounded-xl overflow-hidden">
                     <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50">
-                      <span className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600 shrink-0">
+                      <span className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-[13px] font-black text-gray-600 shrink-0">
                         {student.student_number ?? '—'}
                       </span>
-                      <span className="font-black text-gray-900 text-sm">{student.full_name}</span>
-                      <div className="ml-auto flex items-center gap-3 text-[10px] font-bold">
+                      <span className="font-black text-gray-900 text-base">{student.full_name}</span>
+                      <div className="ml-auto flex items-center gap-3 text-[13px] font-bold">
                         {ev?.achievement_level && <span className="text-blue-700">성취도 {ev.achievement_level}</span>}
                         <span className={ev?.status === 'done' || ev?.status === 'final' ? 'text-emerald-600' : 'text-gray-400'}>{statusLabel(ev?.status)}</span>
                         {content && <span className="text-gray-400">{content.length}자</span>}
@@ -1954,7 +1995,7 @@ const ShareClassView = () => {
                     </div>
                     {content && (
                       <div className="px-4 py-3">
-                        <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                        <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
                       </div>
                     )}
                   </div>
@@ -1966,7 +2007,7 @@ const ShareClassView = () => {
       })()}
 
       {/* 보고서 푸터 */}
-      <div className="flex items-center justify-between mt-8 pt-3 border-t border-gray-200 text-[9px] text-gray-400">
+      <div className="flex items-center justify-between mt-8 pt-3 border-t border-gray-200 text-[13px] text-gray-400">
         <span>클래스로그 AI — 수업 기록부터 세특까지</span>
         <span>{new Date().toLocaleString('ko-KR')}</span>
       </div>
@@ -2010,7 +2051,7 @@ function ShareGalleryVideo({ item }: { item: GalleryItem }) {
           />
         </div>
       )}
-      {item.caption && <p className="text-xs font-semibold text-gray-600 px-3 py-2 truncate">{item.caption}</p>}
+      {item.caption && <p className="text-[13px] font-semibold text-gray-600 px-3 py-2 truncate">{item.caption}</p>}
     </div>
   );
 }

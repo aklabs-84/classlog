@@ -35,6 +35,7 @@ import PercentLoader from '../components/common/PercentLoader';
 import { computeFinalMarks } from '../lib/finalSubmission';
 import LinkSaveTip from '../components/common/LinkSaveTip';
 import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
+import ResultThumb, { pickThumb } from '../components/common/ResultThumb';
 import { appToast } from '../lib/appDialog';
 
 async function blobDownload(url: string, filename: string) {
@@ -1101,7 +1102,7 @@ const SchoolShareView = () => {
                         )}
                       </button>
                       {!isExpanded && hasActivity && (
-                        <div className="px-5 pb-3 -mt-1"><QuickOpenLink target={pickQuickOpen(results, finalMarks)} /></div>
+                        <div className="px-5 pb-3 -mt-1 space-y-2"><ResultThumb target={pickThumb(results, finalMarks)} className="max-w-sm" /><QuickOpenLink target={pickQuickOpen(results, finalMarks)} /></div>
                       )}
 
                       {isExpanded && (

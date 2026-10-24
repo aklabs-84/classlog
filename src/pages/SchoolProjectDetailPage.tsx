@@ -692,7 +692,7 @@ const SchoolProjectDetailPage = () => {
               className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-3 py-2 rounded-xl transition-all"
             >
               {copiedCode === school.entry_code ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-              참가코드 {school.entry_code}
+              강사 참가코드 {school.entry_code}
             </button>
           )}
           <div className="relative">
@@ -842,6 +842,16 @@ const SchoolProjectDetailPage = () => {
                     <p className="text-xs text-on-surface-variant mt-0.5">
                       {c.teacherName || <span className="text-orange-500">담당 강사 미배정</span>}
                     </p>
+                    {c.entry_code && (
+                      <button
+                        onClick={() => handleCopyCode(c.entry_code)}
+                        title="누르면 복사됩니다. 학생이 접속할 때 입력하는 코드예요"
+                        className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-on-surface-variant bg-surface-container hover:bg-surface-container-high px-2 py-0.5 rounded-lg transition-all"
+                      >
+                        {copiedCode === c.entry_code ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+                        학생 입장코드 {c.entry_code}
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-bold text-on-surface-variant/70 mr-2">학생 {c.studentCount}명</span>

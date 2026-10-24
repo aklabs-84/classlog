@@ -92,7 +92,7 @@ const TAB_GUIDES: Record<string, { title: string; steps: string[] }> = {
     title: '반을 만들고 담당 선생님을 정하는 곳입니다',
     steps: [
       '[반 추가]로 학교별 반을 만들고 담당 선생님을 정하세요.',
-      '선생님은 위쪽의 [선생님 참여 코드]로 합류하거나, 직접 검색해서 배정할 수 있습니다.',
+      '선생님은 위쪽의 [강사 참가코드]로 합류하거나, 직접 검색해서 배정할 수 있습니다.',
       '같은 수업을 여러 선생님이 진행한다면 [과목 묶음]으로 묶어 두세요. 결과 요약에서 학교가 달라도 합산해 볼 수 있습니다.',
     ],
   },
@@ -152,7 +152,7 @@ const TAB_GUIDES: Record<string, { title: string; steps: string[] }> = {
 
 const START_STEPS = [
   '[학교 추가]로 참여 학교를 등록합니다.',
-  '[선생님 참여 코드]를 선생님들께 전달합니다. (가입 신청이 오면 승인해 주세요.)',
+  '[강사 참가코드]를 선생님들께 전달합니다. (가입 신청이 오면 승인해 주세요.)',
   '[강사 관리] 탭에서 반을 만들고 담당 선생님을 정합니다.',
   '[수업 자료], [주차별 계획] 탭에서 공용 자료와 계획을 등록합니다.',
   '수업이 시작되면 [설문]과 [결과 요약]으로 현황을 확인합니다.',
@@ -1101,7 +1101,7 @@ const SchoolProjectSchoolsPage = () => {
             <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
               <div className="flex items-center gap-2">
                 <UserPlus size={14} className="text-secondary" />
-                <p className="text-xs font-black text-on-surface uppercase tracking-widest">선생님 참여 코드</p>
+                <p className="text-xs font-black text-on-surface uppercase tracking-widest">강사 참가코드</p>
               </div>
               <div className="flex gap-2 items-center">
                 <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-sm font-black font-mono text-secondary border-2 border-secondary/20 tracking-widest text-center">
@@ -1461,7 +1461,7 @@ const SchoolProjectSchoolsPage = () => {
           />}
           <div className="flex items-center justify-between">
             <p className="text-xs text-on-surface-variant">
-              이 사업의 모든 학교에 걸쳐 반을 만들고 담당 강사를 배정합니다. 강사에게는 참가코드를 전달하거나, 직접 강사를 검색해 배정할 수 있습니다.
+              이 사업의 모든 학교에 걸쳐 반을 만들고 담당 강사를 배정합니다. 강사에게는 강사 참가코드를 전달하거나, 직접 강사를 검색해 배정할 수 있습니다.
             </p>
             <button
               onClick={() => { setNewClassSchoolId(activeSchoolId !== 'all' ? activeSchoolId : (schools[0]?.id || '')); setNewClassCourseId(''); setNewClassCourseName(''); setCourseError(''); setAddClassOpen(true); }}
@@ -1541,7 +1541,7 @@ const SchoolProjectSchoolsPage = () => {
             <div className="w-full surface-card p-10 border-2 border-dashed border-surface-container-high text-center text-on-surface-variant/60">
               <GraduationCap size={32} className="mx-auto mb-2" />
               <p className="text-sm font-bold">아직 생성된 반이 없습니다</p>
-              <p className="text-xs mt-1 opacity-70">반을 추가하고 참가코드를 강사에게 전달하세요</p>
+              <p className="text-xs mt-1 opacity-70">반을 추가하고 강사 참가코드를 강사에게 전달하세요</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -1565,7 +1565,7 @@ const SchoolProjectSchoolsPage = () => {
                           <th className="px-4 py-2.5 font-bold">반 이름</th>
                           <th className="px-4 py-2.5 font-bold">과목</th>
                           <th className="px-4 py-2.5 font-bold">담당 강사</th>
-                          <th className="px-4 py-2.5 font-bold">참가코드</th>
+                          <th className="px-4 py-2.5 font-bold">학생 입장코드</th>
                           <th className="px-4 py-2.5 font-bold text-right">학생</th>
                           <th className="px-4 py-2.5 font-bold"></th>
                         </tr>

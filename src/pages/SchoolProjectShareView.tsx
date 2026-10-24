@@ -20,6 +20,7 @@ import PercentLoader from '../components/common/PercentLoader';
 import { computeFinalMarks } from '../lib/finalSubmission';
 import LinkSaveTip from '../components/common/LinkSaveTip';
 import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
+import ResultThumb, { pickThumb } from '../components/common/ResultThumb';
 import ResultFileActions from '../components/common/ResultFileActions';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
@@ -122,8 +123,8 @@ const CountUpNumber = ({ value }: { value: number }) => {
   return <>{display}</>;
 };
 
-/** 카드에서 바로 열 결과 하나 고르기 (조별 제출이면 ⭐ 최종 우선) */
-function quickOpenFor(student: { resultGroups: ResultGroup[] }) {
+/** 카드용 소스·⭐ 표시 (조별 제출은 묶음 기준 ⭐ 최종) */
+function markedSourcesFor(student: { resultGroups: ResultGroup[] }) {
   const gm = computeFinalMarks(student.resultGroups.filter(g => g.isGroupSubmission).map(g => ({
     id: g.items[0].id, week: g.week_number, kind: [...g.types].sort().join('+'), created_at: g.created_at,
   })));
@@ -131,9 +132,21 @@ function quickOpenFor(student: { resultGroups: ResultGroup[] }) {
   const sources = student.resultGroups.flatMap(g => g.items.map(it => {
     const m = gm.get(g.items[0].id);
     if (m) marks.set(it.id, m);
-    return { id: it.id, created_at: g.created_at, file_url: it.file_url, link_url: it.link_url, display_name: it.display_name, storage_path: it.storage_path };
+    return { id: it.id, created_at: g.created_at, file_url: it.file_url, link_url: it.link_url, display_name: it.display_name, storage_path: it.storage_path, image_urls: it.image_urls };
   }));
+  return { sources, marks };
+}
+
+/** 카드에서 바로 열 결과 하나 고르기 (조별 제출이면 ⭐ 최종 우선) */
+function quickOpenFor(student: { resultGroups: ResultGroup[] }) {
+  const { sources, marks } = markedSourcesFor(student);
   return pickQuickOpen(sources, marks);
+}
+
+/** 카드 미리보기 (사진 또는 HTML 파일) */
+function thumbFor(student: { resultGroups: ResultGroup[] }) {
+  const { sources, marks } = markedSourcesFor(student);
+  return pickThumb(sources, marks);
 }
 
 interface ResultRow {
@@ -1605,15 +1618,16 @@ const SchoolProjectShareView = () => {
 
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                 {groupCards.map(card => (
-                                  <div key={card.id} className="col-span-2 sm:col-span-3 flex flex-col gap-1.5">
+                                  <div key={card.id} className="flex flex-col gap-1.5">
                                   <button
                                     onClick={() => setModalStudent(card)}
-                                    className="text-left bg-white rounded-xl border border-violet-200 hover:border-violet-500 p-3.5 transition-all cursor-pointer"
+                                    className="text-left flex-1 bg-white rounded-xl border border-violet-200 hover:border-violet-500 p-3.5 transition-all cursor-pointer"
                                   >
                                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                                       <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
                                       <span className="text-base font-bold text-slate-700">결과물 {card.resultGroups.length}건</span>
                                     </div>
+                                    <ResultThumb target={thumbFor(card)} className="mb-2.5" />
                                     <p className="font-bold text-base text-slate-900 mb-1">{card.full_name}</p>
                                     {card.memberNames && card.memberNames.length > 0 && (
                                       <p className="text-sm text-slate-500 leading-relaxed">조원: {card.memberNames.join(', ')}</p>
@@ -1629,11 +1643,12 @@ const SchoolProjectShareView = () => {
                                     <button
                                       onClick={() => hasData && setModalStudent(student)}
                                       disabled={!hasData}
-                                      className={`text-left bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-slate-200 hover:border-slate-900 cursor-pointer' : 'border-slate-200 opacity-50 cursor-default'}`}
+                                      className={`text-left flex-1 bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-slate-200 hover:border-slate-900 cursor-pointer' : 'border-slate-200 opacity-50 cursor-default'}`}
                                     >
                                       <div className="w-8 h-8 rounded-full overflow-hidden mb-2.5 bg-gray-100">
                                         <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                                       </div>
+                                      <ResultThumb target={thumbFor(student)} className="mb-2.5" />
                                       <p className="font-bold text-base truncate mb-1">{student.full_name}</p>
                                       <div className="flex flex-col gap-1">
                                         {student.observations.length > 0 && <span className="text-base font-bold text-slate-700">활동기록 {student.observations.length}건</span>}
