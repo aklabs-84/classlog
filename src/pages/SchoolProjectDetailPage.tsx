@@ -42,6 +42,7 @@ import SchoolMaterialsTab from '../components/classroom/SchoolMaterialsTab';
 import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
 import ClassRosterModal from '../components/classroom/ClassRosterModal';
 import SchoolNoticeTab from '../components/classroom/SchoolNoticeTab';
+import SchoolSuggestionsTab from '../components/classroom/SchoolSuggestionsTab';
 import SchoolPlanTab from '../components/classroom/SchoolPlanTab';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import AdminEvaluationEditor from '../components/classroom/AdminEvaluationEditor';
@@ -127,6 +128,7 @@ const TABS = [
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
   { key: 'records', label: '세특' },
+  { key: 'suggestions', label: '건의' },
   { key: 'daily', label: '일자별' },
   { key: 'materials', label: '수업 자료' },
   { key: 'quiz', label: '퀴즈 보내기' },
@@ -146,6 +148,7 @@ const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: stri
   { key: 'log', label: '수업 기록', subs: [
     { key: 'attendance', label: '출결' }, { key: 'daily', label: '일자별' },
     { key: 'results', label: '결과' }, { key: 'records', label: '세특' },
+    { key: 'suggestions', label: '건의' },
   ] },
   { key: 'mat', label: '수업 자료', subs: [
     { key: 'materials', label: '자료' }, { key: 'quiz', label: '퀴즈 보내기' }, { key: 'board', label: '보드 보내기' },
@@ -924,6 +927,10 @@ const SchoolProjectDetailPage = () => {
           schoolId={schoolId}
           teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))}
         />
+      )}
+
+      {tab === 'suggestions' && (
+        <SchoolSuggestionsTab classes={classes.map(c => ({ id: c.id, name: c.name, teacherName: c.teacherName }))} />
       )}
 
       {tab === 'notice' && projectId && schoolId && (
