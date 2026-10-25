@@ -8,6 +8,7 @@ import SendBoardTab from '../components/classroom/SendBoardTab';
 import { supabase } from '../lib/supabase';
 import {
   ArrowLeft,
+  BarChart2,
   School,
   MapPin,
   Users,
@@ -215,6 +216,8 @@ const SchoolProjectDetailPage = () => {
 
   const [obsRecords, setObsRecords] = useState<ObservationRow[]>([]);
   const [resultRecords, setResultRecords] = useState<ResultRow[]>([]);
+  // 학생별 설문 응답: 학생 id → [{설문 제목·단계, 문항별 답}]
+  const [surveyByStudent, setSurveyByStudent] = useState<Record<string, { id: string; title: string; phase: string | null; at: string; qa: { q: string; a: string }[] }[]>>({});
   const [resultsLoading, setResultsLoading] = useState(false);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
 
@@ -448,6 +451,43 @@ const SchoolProjectDetailPage = () => {
       ]);
       setObsRecords(obs || []);
       setResultRecords(results || []);
+      // 설문 응답(학생이 기록된 것만): 읽지 못해도 결과 탭은 그대로 보이게 한다
+      try {
+        const { data: resp } = await supabase.from('survey_responses').select('id, form_id, student_id, submitted_at').in('student_id', studentIds);
+        const rs = (resp || []) as any[];
+        if (rs.length === 0) { setSurveyByStudent({}); } else {
+          const formIds = [...new Set(rs.map(r => r.form_id))];
+          const [{ data: forms }, { data: qs }, { data: ans }] = await Promise.all([
+            supabase.from('survey_forms').select('id, title, survey_phase').in('id', formIds),
+            supabase.from('survey_questions').select('id, form_id, order_index, type, text, options').in('form_id', formIds),
+            supabase.from('survey_answers').select('response_id, question_id, value').in('response_id', rs.map(r => r.id)),
+          ]);
+          const fmap = new Map(((forms || []) as any[]).map(f => [f.id, f]));
+          const qsBy = new Map<string, any[]>();
+          ((qs || []) as any[]).forEach(q => qsBy.set(q.form_id, [...(qsBy.get(q.form_id) || []), q]));
+          const ansBy = new Map<string, Map<string, any>>();
+          ((ans || []) as any[]).forEach(a => { if (!ansBy.has(a.response_id)) ansBy.set(a.response_id, new Map()); ansBy.get(a.response_id)!.set(a.question_id, a.value); });
+          const fmt = (q: any, v: any): string => {
+            if (!v) return '(답 없음)';
+            const opt = (i: number) => q.options?.[i]?.label ?? `${i + 1}번`;
+            switch (q.type) {
+              case 'multiple_choice': return typeof v.selected === 'number' ? opt(v.selected) : '(답 없음)';
+              case 'yes_no': return v.value === true ? '예' : v.value === false ? '아니오' : '(답 없음)';
+              case 'star_rating': return v.rating != null ? `${'★'.repeat(Number(v.rating))} (${v.rating}점)` : '(답 없음)';
+              case 'opinion_scale': return v.score != null ? `${v.score}점` : '(답 없음)';
+              case 'ranking': return Array.isArray(v.order) ? v.order.map((i: number, k: number) => `${k + 1}위 ${opt(i)}`).join(' · ') : '(답 없음)';
+              default: return v.text ? String(v.text) : '(답 없음)';
+            }
+          };
+          const out: typeof surveyByStudent = {};
+          rs.forEach(r => {
+            const f = fmap.get(r.form_id);
+            const qa = (qsBy.get(r.form_id) || []).sort((x, y) => x.order_index - y.order_index).map(q => ({ q: q.text, a: fmt(q, ansBy.get(r.id)?.get(q.id)) }));
+            (out[r.student_id] = out[r.student_id] || []).push({ id: r.id, title: f?.title || '설문', phase: f?.survey_phase ?? null, at: r.submitted_at, qa });
+          });
+          setSurveyByStudent(out);
+        }
+      } catch { setSurveyByStudent({}); }
     } finally {
       setResultsLoading(false);
     }
@@ -1070,6 +1110,7 @@ const SchoolProjectDetailPage = () => {
                         const obs = obsRecords.filter(o => o.student_id === st.id);
                         const results = resultRecords.filter(r => r.student_id === st.id);
                         const expanded = expandedStudentId === st.id;
+                        const surveys = surveyByStudent[st.id] || [];
                         const submitted = obs.length > 0 || results.length > 0;
                         return (
                           <div key={st.id} className={submitted ? 'bg-violet-50/70 dark:bg-violet-950/20 border-l-4 border-violet-500' : 'border-l-4 border-transparent'}>
@@ -1085,12 +1126,32 @@ const SchoolProjectDetailPage = () => {
                               <span className="flex items-center gap-3 text-xs text-on-surface-variant">
                                 <span className={`flex items-center gap-1 ${obs.length > 0 ? 'font-black text-violet-700' : 'opacity-50'}`}><FileText size={12} />활동기록 {obs.length}</span>
                                 <span className={`flex items-center gap-1 ${results.length > 0 ? 'font-black text-violet-700' : 'opacity-50'}`}><BookOpen size={12} />결과물 {results.length}</span>
+                                <span className={`flex items-center gap-1 ${surveys.length > 0 ? 'font-black text-violet-700' : 'opacity-50'}`}><BarChart2 size={12} />설문 {surveys.length}</span>
                               </span>
                             </button>
                             {expanded && (
                               <div className="px-4 pb-3 pl-9 space-y-3">
+                                {surveys.length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-wide">설문 응답</p>
+                                    {surveys.map(sv => (
+                                      <div key={sv.id} className="bg-surface-container-low/60 rounded-lg px-3 py-2 space-y-1.5">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-xs font-bold">{sv.title}{sv.phase === 'pre' ? ' · 사전' : sv.phase === 'post' ? ' · 사후' : ''}</span>
+                                          <span className="text-[10px] text-on-surface-variant/50 shrink-0">{new Date(sv.at).toLocaleDateString('ko-KR')}</span>
+                                        </div>
+                                        {sv.qa.map((x, i) => (
+                                          <div key={i} className="text-xs">
+                                            <p className="text-on-surface-variant/70">{i + 1}. {x.q}</p>
+                                            <p className="font-bold whitespace-pre-wrap break-words pl-3">{x.a}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {obs.length === 0 && results.length === 0 ? (
-                                  <p className="text-xs text-on-surface-variant/50 py-2">제출된 활동기록/결과물이 없습니다.</p>
+                                  <p className="text-xs text-on-surface-variant/50 py-2">제출된 활동기록/결과물이 없습니다.{surveys.length === 0 ? ' (설문 응답도 없습니다)' : ''}</p>
                                 ) : (
                                   <>
                                     {obs.length > 0 && (

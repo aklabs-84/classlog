@@ -211,6 +211,18 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
     if (resultsForm && idsToDelete.includes(resultsForm.id)) setResultsForm(null);
   };
 
+  // 지금 결과 창에 보이는 범위(학교·반 필터)의 응답만 지운다. 설문 질문과 입장 코드는 그대로 둔다
+  const handleResetResponses = async () => {
+    if (!resultsForm) return;
+    const ids = [...filteredResponseIds()];
+    if (ids.length === 0) { appToast('지울 응답이 없습니다.'); return; }
+    if (!await appConfirm(`"${resultsForm.title}" 응답 ${ids.length}건을 지울까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    const { error } = await supabase.from('survey_responses').delete().in('id', ids);
+    if (error) { appToast('응답을 지우지 못했습니다. 다시 시도해 주세요.'); return; }
+    appToast(`응답 ${ids.length}건을 지웠습니다.`);
+    await openResults(resultsForm);
+  };
+
   const handleCopyPin = (pin: string) => {
     navigator.clipboard.writeText(pin);
     setCopiedPin(pin);
@@ -622,6 +634,11 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                 <div className="flex items-center gap-2 mb-4">
                   <Users size={14} className="text-on-surface-variant/50" />
                   <span className="text-xs font-bold text-on-surface-variant/70">전체 {resultsResponses.length}명 참여</span>
+                  {resultsResponses.length > 0 && !ro(resultsForm) && (
+                    <button onClick={handleResetResponses} className="ml-auto flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg text-red-600 border border-red-200 hover:bg-red-50">
+                      <Trash2 size={12} /> 응답 초기화
+                    </button>
+                  )}
                 </div>
 
                 {!schoolMode && <div className="flex gap-2 mb-4">
