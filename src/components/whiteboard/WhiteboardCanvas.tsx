@@ -96,6 +96,61 @@ export default function WhiteboardCanvas({
     return objects.length > 0 ? Math.max(...objects.map(o => o.z_index)) + 1 : 1;
   }, [objects]);
 
+  // 터치: 두 손가락 핀치 = 확대/축소 + 두 손가락 이동 (물건 위에서 시작해도 동작)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinch: { dist: number; midX: number; midY: number } | null = null;
+    const measure = () => {
+      const [a, b] = [...touches.values()];
+      return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+    };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) {
+        // 한 손가락 이동/물건 드래그는 멈추고 핀치로 전환
+        isPanning.current = false;
+        dragRef.current = null;
+        pinch = measure();
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size !== 2 || !pinch) return;
+      const cur = measure();
+      const rect = el.getBoundingClientRect();
+      const oldZoom = zoomRef.current;
+      const newZoom = Math.max(0.1, Math.min(3, oldZoom * (cur.dist / pinch.dist)));
+      const ratio = newZoom / oldZoom;
+      // 이전 중심점을 기준으로 확대한 뒤, 중심점이 움직인 만큼 같이 이동
+      const px = pinch.midX - rect.left;
+      const py = pinch.midY - rect.top;
+      panRef.current.x = px - (px - panRef.current.x) * ratio + (cur.midX - pinch.midX);
+      panRef.current.y = py - (py - panRef.current.y) * ratio + (cur.midY - pinch.midY);
+      zoomRef.current = newZoom;
+      applyTransform(panRef.current.x, panRef.current.y, newZoom);
+      setZoom(newZoom);
+      pinch = cur;
+    };
+    const onUp = (e: PointerEvent) => {
+      touches.delete(e.pointerId);
+      pinch = touches.size === 2 ? measure() : null;
+    };
+    el.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [applyTransform]);
+
   // Canvas coords using refs (stable, no stale closure)
   const toCanvasCoords = useCallback((clientX: number, clientY: number) => {
     const rect = containerRef.current!.getBoundingClientRect();
