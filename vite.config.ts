@@ -3,9 +3,22 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// 배포(빌드)할 때마다 달라지는 버전 번호. 화면 속 번호와 version.json 속 번호를 비교해 새 버전을 알아챈다.
+const BUILD_ID = String(Date.now())
+
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
+    {
+      name: 'emit-version-json',
+      apply: 'build',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ id: BUILD_ID }) })
+      },
+    },
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',

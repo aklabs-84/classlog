@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { registerSW } from 'virtual:pwa-register'
-import { isUserTyping, showUpdateReadyToast, showUpdatingAndReload } from './lib/appUpdateNotice'
+import { isUserTyping, showUpdateReadyToast, showUpdatingAndReload, startVersionWatch } from './lib/appUpdateNotice'
 
 registerSW({
   onRegisteredSW(_swUrl, registration) {
@@ -29,6 +29,8 @@ if ('serviceWorker' in navigator) {
     else showUpdatingAndReload()
   })
 }
+
+startVersionWatch()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

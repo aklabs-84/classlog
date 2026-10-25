@@ -86,3 +86,102 @@ export function showUpdateReadyToast() {
   toast.append(text, btn)
   document.body.appendChild(toast)
 }
+
+// 서비스워커·캐시를 비우고 최신 화면을 새로 불러온다 (Ctrl+Shift+R 과 같은 효과)
+async function hardReload() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map((r) => r.unregister()))
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+    }
+  } catch {
+    // 지우기에 실패해도 새로고침은 진행
+  }
+  window.location.reload()
+}
+
+// 화면 가운데 "앱이 업데이트됐어요" 안내창 (자동 새로고침이 안 되는 기기용)
+export function showUpdateModal() {
+  if (document.getElementById('app-update-modal')) return
+  ensureStyle()
+
+  const overlay = document.createElement('div')
+  overlay.id = 'app-update-modal'
+  overlay.setAttribute('role', 'alertdialog')
+  overlay.setAttribute('aria-modal', 'true')
+  overlay.setAttribute('aria-labelledby', 'app-update-modal-title')
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;' +
+    'background:rgba(30,27,75,0.45);backdrop-filter:blur(3px);animation:app-update-fade .25s ease-out;font-family:inherit;'
+
+  const box = document.createElement('div')
+  box.style.cssText =
+    'width:100%;max-width:380px;background:#fff;border-radius:20px;padding:28px 24px 22px;text-align:center;' +
+    'box-shadow:0 20px 50px rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;gap:12px;'
+
+  const icon = document.createElement('div')
+  icon.textContent = '✨'
+  icon.style.cssText = 'font-size:36px;line-height:1;'
+
+  const title = document.createElement('div')
+  title.id = 'app-update-modal-title'
+  title.textContent = '앱이 새로워졌어요'
+  title.style.cssText = 'font-size:20px;font-weight:700;color:#1e1b4b;'
+
+  const sub = document.createElement('div')
+  sub.textContent = '아래 버튼을 눌러야 새 기능과 수정된 화면이 보여요. 작성 중인 내용이 있다면 먼저 저장해 주세요.'
+  sub.style.cssText = 'font-size:15px;line-height:1.6;color:#4b5563;'
+
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.textContent = '지금 업데이트'
+  btn.style.cssText =
+    `margin-top:6px;width:100%;border:0;border-radius:12px;padding:14px;background:${PRIMARY};color:#fff;font-size:16px;font-weight:700;cursor:pointer;`
+  btn.addEventListener('click', () => {
+    btn.disabled = true
+    btn.textContent = '업데이트 중...'
+    void hardReload()
+  })
+
+  const later = document.createElement('button')
+  later.type = 'button'
+  later.textContent = '나중에'
+  later.style.cssText = 'border:0;background:none;color:#6b7280;font-size:14px;padding:6px 12px;cursor:pointer;'
+  later.addEventListener('click', () => overlay.remove())
+
+  box.append(icon, title, sub, btn, later)
+  overlay.append(box)
+  document.body.appendChild(overlay)
+  btn.focus()
+}
+
+// 새 버전이 배포됐는지 확인한다 (version.json 의 번호가 지금 화면의 번호와 다른지)
+let lastPromptedId = ''
+export async function checkForNewVersion() {
+  try {
+    const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+    if (!res.ok) return
+    const data = (await res.json()) as { id?: string }
+    if (!data.id || data.id === __APP_BUILD_ID__ || data.id === lastPromptedId) return
+    lastPromptedId = data.id
+    document.getElementById('app-update-toast')?.remove()
+    showUpdateModal()
+  } catch {
+    // 오프라인·일시 오류는 조용히 넘기고 다음 확인 때 다시 시도
+  }
+}
+
+// 앱을 열 때 / 다른 화면에서 돌아왔을 때 / 켜 둔 채 5분마다 확인 (백그라운드 탭은 건너뜀)
+export function startVersionWatch() {
+  if (import.meta.env.DEV) return
+  const check = () => {
+    if (document.visibilityState === 'visible') void checkForNewVersion()
+  }
+  check()
+  document.addEventListener('visibilitychange', check)
+  setInterval(check, 5 * 60 * 1000)
+}
