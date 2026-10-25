@@ -1616,6 +1616,12 @@ const SchoolProjectShareView = () => {
                                 </div>
                               )}
 
+                              {groupCards.length > 0 && (
+                                <p className="flex items-center gap-2 text-lg font-black text-slate-900">
+                                  <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
+                                  <span>{groupCards.length}개 조</span>
+                                </p>
+                              )}
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                 {groupCards.map(card => (
                                   <div key={card.id} className="flex flex-col gap-1.5">
@@ -1636,6 +1642,14 @@ const SchoolProjectShareView = () => {
                                   <QuickOpenLink target={quickOpenFor(card)} />
                                   </div>
                                 ))}
+                              </div>
+                              {groupCards.length > 0 && individualStudents.length > 0 && (
+                                <p className="flex items-center gap-2 text-lg font-black text-slate-900 pt-2">
+                                  <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">🙋 개인 제출</span>
+                                  <span>{individualStudents.length}명</span>
+                                </p>
+                              )}
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                 {individualStudents.map(student => {
                                   const hasData = student.observations.length > 0 || student.resultGroups.length > 0;
                                   return (
