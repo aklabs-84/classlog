@@ -8,7 +8,7 @@ import SchoolProjectSurveyTab from '../components/classroom/SchoolProjectSurveyT
 import ProjectTeacherStatus from '../components/classroom/ProjectTeacherStatus';
 import ProjectResultSummary from '../components/classroom/ProjectResultSummary';
 import InstructorDocsAdminTab from '../components/classroom/InstructorDocsAdminTab';
-import SendQuizTab from '../components/classroom/SendQuizTab';
+import ProjectQuizTab from '../components/classroom/ProjectQuizTab';
 import SendBoardTab from '../components/classroom/SendBoardTab';
 import {
   ArrowLeft,
@@ -1678,8 +1678,8 @@ const SchoolProjectSchoolsPage = () => {
         <InstructorDocsAdminTab projectId={projectId} teacherNames={teacherNames} schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherSchools={teacherSchools} />
       )}
 
-      {activeTab === 'quiz' && (
-        <SendQuizTab schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherNames={teacherNames} />
+      {activeTab === 'quiz' && projectId && (
+        <ProjectQuizTab projectId={projectId} schools={schools.map(sc => ({ id: sc.id, name: sc.name }))} teacherNames={teacherNames} />
       )}
 
       {activeTab === 'board' && (

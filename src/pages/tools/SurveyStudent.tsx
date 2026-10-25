@@ -263,6 +263,15 @@ export default function SurveyStudent() {
   const sessionStudentId = (location.state as any)?.studentId ?? null;
   const sessionClassId = (location.state as any)?.classId ?? null;
 
+  // 학생 화면에서 넘어온 경우에만 학생 통과표를 사용 (서버가 학생·학급을 결정)
+  const studentToken = (): string | null => {
+    if (!sessionStudentId) return null;
+    try {
+      const st = JSON.parse(sessionStorage.getItem('student_session') || '{}');
+      return st.student_id === sessionStudentId ? (st.token ?? null) : null;
+    } catch { return null; }
+  };
+
   const [step, setStep] = useState<Step>(pin ? 'name' : 'pin');
   const [pinInput, setPinInput] = useState(pin ?? '');
   const [nameInput, setNameInput] = useState(autoJoinName);
@@ -290,7 +299,7 @@ export default function SurveyStudent() {
   const loadFormByPin = async (p: string): Promise<boolean> => {
     setLoading(true);
     setShowRefreshHelp(false);
-    const { data: bundle, error } = await rpcWithRetry(() => supabase.rpc('survey_by_pin', { p_pin: p.trim() }));
+    const { data: bundle, error } = await rpcWithRetry(() => supabase.rpc('survey_by_pin', { p_pin: p.trim(), p_token: studentToken() }));
     if (error) {
       // 없는 PIN은 error 없이 빈 결과로 오므로, error 는 연결·서버 문제
       console.warn('[survey-pin] 연결 오류', error);
@@ -354,14 +363,7 @@ export default function SurveyStudent() {
   const submitResponse = async (classId: string | null) => {
     if (!form) return;
     setLoading(true);
-    // 학생 화면에서 넘어온 경우에만 학생 통과표를 사용 (서버가 학생·학급을 결정)
-    let token: string | null = null;
-    if (sessionStudentId) {
-      try {
-        const st = JSON.parse(sessionStorage.getItem('student_session') || '{}');
-        if (st.student_id === sessionStudentId) token = st.token ?? null;
-      } catch { /* noop */ }
-    }
+    const token = studentToken();
     const { data: newId, error } = await supabase.rpc('survey_start', {
       p_pin: form.pin_code,
       p_name: nameInput.trim(),

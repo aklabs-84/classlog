@@ -958,6 +958,14 @@ const StudentLog = () => {
     return () => clearInterval(timer);
   }, [session?.class_id]);
 
+  // 수업 끝 설문 칸 — 선생님이 설문을 열면 새로고침 없이 빨갛게 켜지도록 10초마다 확인
+  useEffect(() => {
+    if (!session?.class_id) return;
+    fetchActiveSurveyForms(true);
+    const timer = setInterval(() => fetchActiveSurveyForms(true), 10000);
+    return () => clearInterval(timer);
+  }, [session?.class_id]);
+
   // 주차에 연결된 보드의 공개 여부 — 선생님이 공개하면 새로고침 없이 반영 (10초마다 확인)
   useEffect(() => {
     if (!session?.token) return;
@@ -1940,9 +1948,9 @@ const StudentLog = () => {
     setQuizHistoryLoading(false);
   };
 
-  const fetchActiveSurveyForms = async () => {
+  const fetchActiveSurveyForms = async (silent = false) => {
     if (!session?.class_id) return;
-    setSurveyLoading(true);
+    if (!silent) setSurveyLoading(true);
     try {
       const { data, error } = await supabase.rpc('student_active_surveys', { p_token: session.token });
       if (!error && data) setActiveSurveyForms(data);
@@ -5367,7 +5375,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 설문에 바로 참여하세요</p>
                   </div>
                   <button
-                    onClick={fetchActiveSurveyForms}
+                    onClick={() => fetchActiveSurveyForms()}
                     disabled={surveyLoading}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-sm transition-all disabled:opacity-50"
                   >
@@ -5390,7 +5398,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       <p className="text-sm text-on-surface-variant/50 font-bold">선생님이 설문을 시작하면 여기에 표시됩니다</p>
                     </div>
                     <button
-                      onClick={fetchActiveSurveyForms}
+                      onClick={() => fetchActiveSurveyForms()}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 font-black text-sm hover:bg-teal-100 transition-all"
                     >
                       <RefreshCw size={14} />

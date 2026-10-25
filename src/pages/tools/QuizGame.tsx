@@ -112,6 +112,7 @@ const QuizGame = () => {
   const { user } = useAuth();
   const location = useLocation();
   const openSetHandledRef = useRef(false);
+  const autoStartRef = useRef(false);
 
   // 클래스/퀴즈 세트
   const [classes, setClasses] = useState<any[]>([]);
@@ -240,10 +241,11 @@ const QuizGame = () => {
   // AI 코파일럿에서 방금 만든 퀴즈 세트로 바로 이동한 경우
   useEffect(() => {
     if (openSetHandledRef.current) return;
-    const state = location.state as { openQuizSetId?: string } | null;
+    const state = location.state as { openQuizSetId?: string; autoStart?: boolean } | null;
     const openId = state?.openQuizSetId;
     if (!openId) return;
     openSetHandledRef.current = true;
+    if (state?.autoStart) autoStartRef.current = true;
     (async () => {
       const { data: qs } = await supabase.from('quiz_sets').select('*').eq('id', openId).single();
       if (!qs) return;
@@ -627,6 +629,14 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
   };
 
   // ── 게임 시작 ──────────────────────────────────────────────────────────────
+  // 클래스룸 "퀴즈 시작" 버튼으로 들어온 경우: 준비가 끝나면 대기실을 바로 연다
+  useEffect(() => {
+    if (!autoStartRef.current || view !== 'questions' || !selectedQuizSet || !selectedClass || questions.length === 0) return;
+    autoStartRef.current = false;
+    handleStartGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selectedQuizSet?.id, selectedClass?.id, questions.length]);
+
   const handleStartGame = async () => {
     if (!selectedQuizSet || !selectedClass || questions.length === 0) return;
     setLoading(true);

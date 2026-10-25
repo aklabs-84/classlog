@@ -12,6 +12,7 @@ import {
   type QuestionType, type SurveyQuestion, type SurveyAnswer,
 } from '../../pages/tools/SurveyTool';
 import { appConfirm, appToast } from '../../lib/appDialog';
+import { SURVEY_TEMPLATES, type SurveyTemplate } from '../../pages/tools/surveyTemplates';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface SurveyFormRow {
@@ -23,6 +24,8 @@ interface SurveyFormRow {
   survey_phase: 'pre' | 'post' | null;
   paired_form_id: string | null;
   school_id: string | null;
+  target_class_id: string | null;
+  week_number: number | null;
   created_at: string;
 }
 
@@ -76,15 +79,36 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
     setLoading(false);
   };
 
+  // ── 대상 반·주차 바꾸기 ───────────────────────────────────────────────────
+  const handleUpdateTarget = async (form: SurveyFormRow, patch: { target_class_id?: string | null; week_number?: number | null }) => {
+    const { error } = await supabase.from('survey_forms').update(patch).eq('id', form.id);
+    if (error) { appToast('저장하지 못했습니다. 다시 시도해 주세요.'); return; }
+    setForms(prev => prev.map(f => f.id === form.id ? { ...f, ...patch } : f));
+  };
+
   // ── 사전 설문 생성 ────────────────────────────────────────────────────────
-  const handleCreatePre = async () => {
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const handleCreatePre = async (template?: SurveyTemplate) => {
+    setTemplateMenuOpen(false);
     if (!user) return;
     const pin = generatePin();
     const { data, error } = await supabase.from('survey_forms').insert({
       teacher_id: user.id, school_project_id: projectId, school_id: schoolId, survey_phase: 'pre',
-      title: '사전 설문', pin_code: pin, status: 'draft', is_anonymous: false,
+      title: template?.title ?? '사전 설문', pin_code: pin, status: 'draft', is_anonymous: false,
     }).select().single();
     if (error || !data) return;
+    if (template) {
+      const { error: qError } = await supabase.from('survey_questions').insert(
+        template.questions.map((q, i) => ({
+          form_id: data.id, order_index: i, type: q.type, text: q.text, options: q.options ?? [],
+        }))
+      );
+      if (qError) {
+        await supabase.from('survey_forms').delete().eq('id', data.id);
+        appToast('설문을 만드는 중 오류가 발생했습니다.');
+        return;
+      }
+    }
     setForms(prev => [data, ...prev]);
     openEditor(data);
   };
@@ -328,11 +352,12 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
   // ── 사전 설문 목록 (사후는 사전 아래 묶어서 표시) ───────────────────────────
   // 학교 화면: 이 학교 전용 설문이 있으면 그것만, 없으면 공통 설문을 읽기 전용으로 보여준다
   const schoolMode = !!schoolId;
-  const hasOwn = schoolMode && forms.some(f => f.school_id === schoolId);
-  const showingCommon = schoolMode && !hasOwn;
+  // 공통 설문은 모든 학교에 걸려 있으므로 학교 화면에서는 문항·삭제·시작/종료를 막고 주차·대상 반만 정한다
+  const ro = (f: SurveyFormRow) => schoolMode && !f.school_id;
   const [formFilter, setFormFilter] = useState<string>('all'); // 프로젝트 화면 전용: 'all' | 'common' | 학교 id
+  const schoolClassIds = new Set(schools.flatMap(sc => sc.classes.map(c => c.id)));
   const visibleForms = schoolMode
-    ? forms.filter(f => hasOwn ? f.school_id === schoolId : !f.school_id)
+    ? forms.filter(f => (f.school_id === schoolId || !f.school_id) && (!f.target_class_id || schoolClassIds.has(f.target_class_id)))
     : forms.filter(f => formFilter === 'all' ? true : formFilter === 'common' ? !f.school_id : f.school_id === formFilter);
   const preForms = visibleForms.filter(f => f.survey_phase === 'pre' || !f.survey_phase);
   const schoolLabel = (f: SurveyFormRow) => f.school_id ? `${schools.find(s => s.id === f.school_id)?.school_name || schools.find(s => s.id === f.school_id)?.name || '학교'} 전용` : '공통';
@@ -344,12 +369,11 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
   return (
     <div className="space-y-4">
       {schoolMode ? (
-        <div className={`flex items-start gap-3 p-4 rounded-2xl border ${showingCommon ? 'bg-surface-container border-surface-container-high' : 'bg-amber-50 border-amber-200'}`}>
+        <div className="flex items-start gap-3 p-4 rounded-2xl border bg-surface-container border-surface-container-high">
           <BarChart2 size={16} className="text-primary mt-0.5 shrink-0" />
           <p className="text-xs text-on-surface-variant">
-            {showingCommon
-              ? <>지금 <span className="font-bold text-primary">프로젝트 공통 설문</span>을 보여드리고 있습니다 (결과는 {schoolName || '이 학교'} 학생 응답만). 이 학교만의 설문을 만들면 <span className="font-bold">공통 설문 대신 그 설문이 표시</span>됩니다.</>
-              : <><span className="font-bold text-amber-700">{schoolName || '이 학교'} 전용 설문</span>이 있어 공통 설문 대신 표시됩니다. 이 학교 학생만 참여할 수 있습니다.</>}
+            <span className="font-bold text-primary">프로젝트 공통 설문</span>과 <span className="font-bold text-amber-700">{schoolName || '이 학교'} 전용 설문</span>이 함께 보입니다 (결과는 {schoolName || '이 학교'} 학생 응답만).
+            공통 설문은 문항 수정·삭제를 프로젝트 화면에서 하고, 여기서는 주차와 대상 반만 정할 수 있어요. 대상 반을 정하면 그 반 클래스룸에만 나타납니다.
           </p>
         </div>
       ) : (
@@ -373,10 +397,29 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
         </div>
       )}
 
-      {(!schoolMode || !hasOwn || preForms.length === 0) && (
-        <button onClick={handleCreatePre} className="w-full py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5">
-          <Plus size={16} /> {schoolMode ? `${schoolName || '이 학교'} 전용 사전 설문 만들기` : '새 사전 설문 만들기'}
-        </button>
+      {(
+
+        <div className="rounded-xl border-2 border-dashed border-surface-container-high overflow-hidden">
+          <button onClick={() => setTemplateMenuOpen(v => !v)} className="w-full py-3 hover:bg-primary/5 hover:text-primary text-sm font-bold text-on-surface-variant/60 transition-all flex items-center justify-center gap-1.5">
+            <Plus size={16} /> {schoolMode ? `${schoolName || '이 학교'} 전용 설문 만들기` : '새 설문 만들기'} <ChevronDown size={14} className={templateMenuOpen ? 'rotate-180' : ''} />
+          </button>
+          {templateMenuOpen && (
+            <div className="border-t border-surface-container-high bg-surface-container-lowest">
+              <button onClick={() => handleCreatePre()} className="block w-full text-left px-4 py-3 border-b border-surface-container-high hover:bg-surface-container">
+                <span className="block text-sm font-bold text-on-surface">빈 설문으로 시작</span>
+                <span className="block text-xs text-on-surface-variant/70 mt-0.5">질문을 하나씩 직접 만들어요</span>
+              </button>
+              {SURVEY_TEMPLATES.map(t => (
+                <button key={t.id} onClick={() => handleCreatePre(t)} className="block w-full text-left px-4 py-3 border-b border-surface-container-high hover:bg-surface-container">
+                  <span className="block text-sm font-bold text-on-surface">{t.title}</span>
+                  <span className="block text-xs text-primary mt-0.5">{t.when}</span>
+                  <span className="block text-xs text-on-surface-variant/70 mt-0.5">{t.description}</span>
+                </button>
+              ))}
+              <p className="text-[11px] text-on-surface-variant/50 px-4 py-2 bg-surface-container">만든 뒤에 문항을 고치거나 더하거나 지울 수 있어요</p>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="space-y-3">
@@ -397,6 +440,8 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                       {preForm.status === 'open' ? '진행 중' : preForm.status === 'closed' ? '종료' : '준비 중'}
                     </span>
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${preForm.school_id ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-on-surface-variant'}`}>{schoolLabel(preForm)}</span>
+                    {preForm.week_number && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">{preForm.week_number}주차</span>}
+                    {preForm.target_class_id && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">{schools.flatMap(sc => sc.classes).find(c => c.id === preForm.target_class_id)?.name ?? '특정 반'}만</span>}
                     {postForm && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">사후 설문 연결됨</span>}
                   </div>
                 </div>
@@ -412,7 +457,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                           {renamingId === form.id ? renameInput(form, 'flex-1') : (
                             <>
                               <span className="text-xs font-black text-on-surface-variant/80 truncate">{form.title}</span>
-                              {!showingCommon && <button onClick={() => startRename(form)} className="p-1 rounded-lg text-on-surface-variant/50 hover:text-primary shrink-0" title="이름 바꾸기"><Pencil size={12} /></button>}
+                              {!ro(form) && <button onClick={() => startRename(form)} className="p-1 rounded-lg text-on-surface-variant/50 hover:text-primary shrink-0" title="이름 바꾸기"><Pencil size={12} /></button>}
                             </>
                           )}
                         </div>
@@ -420,21 +465,46 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                           <button onClick={() => handleCopyPin(form.pin_code)} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg bg-surface-container-lowest border border-surface-container-high">
                             PIN {form.pin_code} {copiedPin === form.pin_code ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
                           </button>
-                          {!showingCommon && <button onClick={() => handleDeleteForm(form)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="설문 삭제">
+                          {!ro(form) && <button onClick={() => handleDeleteForm(form)} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="설문 삭제">
                             <Trash2 size={12} />
                           </button>}
                         </div>
                       </div>
+                      {(
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <label className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant/70">
+                            주차
+                            <select value={form.week_number ?? ''} onChange={e => handleUpdateTarget(form, { week_number: e.target.value ? Number(e.target.value) : null })}
+                              className="text-xs font-bold px-2 py-1 rounded-lg bg-surface-container-lowest border border-surface-container-high">
+                              <option value="">정하지 않음</option>
+                              {Array.from({ length: 20 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}주차</option>)}
+                            </select>
+                          </label>
+                          <label className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant/70">
+                            대상 반
+                            <select value={form.target_class_id ?? ''} onChange={e => handleUpdateTarget(form, { target_class_id: e.target.value || null })}
+                              className="text-xs font-bold px-2 py-1 rounded-lg bg-surface-container-lowest border border-surface-container-high max-w-[11rem]">
+                              <option value="">{form.school_id ? '학교 모든 반' : '모든 반'}</option>
+                              {(form.school_id ? schools.filter(sc => sc.id === form.school_id) : schools).map(sc => (
+                                <optgroup key={sc.id} label={sc.school_name || sc.name}>
+                                  {sc.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      )}
+                      {!ro(form) && <p className="text-[11px] font-bold text-on-surface-variant/50 leading-relaxed">반별로 여는 것은 각 선생님 클래스룸의 "학교 프로젝트 설문"에서 합니다. 아래 "설문 시작"은 PIN을 아는 모든 학생에게 한꺼번에 여는 것입니다.</p>}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {!showingCommon && <button onClick={() => openEditor(form)} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface-container-lowest border border-surface-container-high hover:border-primary/40">
+                        <button onClick={async () => { if (ro(form) && !await appConfirm('공통 설문은 프로젝트의 모든 학교가 함께 쓰는 설문입니다.\n문항을 고치면 다른 학교 설문도 같이 바뀝니다. 계속할까요?')) return; openEditor(form); }} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-surface-container-lowest border border-surface-container-high hover:border-primary/40">
                           문항 편집
-                        </button>}
-                        {!showingCommon && form.status !== 'open' && (
+                        </button>
+                        {!ro(form) && form.status !== 'open' && (
                           <button onClick={() => handleToggleStatus(form, 'open')} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-green-500 text-white flex items-center gap-1">
                             <Play size={12} /> 설문 시작
                           </button>
                         )}
-                        {!showingCommon && form.status === 'open' && (
+                        {!ro(form) && form.status === 'open' && (
                           <button onClick={() => handleToggleStatus(form, 'closed')} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-gray-500 text-white flex items-center gap-1">
                             <StopCircle size={12} /> 종료
                           </button>
@@ -445,7 +515,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                       </div>
                     </div>
                   ))}
-                  {!postForm && !showingCommon && (
+                  {!postForm && !ro(preForm) && (
                     <button onClick={() => handleCreatePost(preForm)} className="w-full py-2.5 rounded-xl border-2 border-dashed border-blue-200 hover:border-blue-400 text-xs font-bold text-blue-400 hover:text-blue-600 transition-all flex items-center justify-center gap-1.5">
                       <Plus size={14} /> 사후 설문 만들기 (동일 문항 복제)
                     </button>

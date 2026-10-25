@@ -113,6 +113,8 @@ import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import ProjectMaterialsForTeacher from '../components/classroom/ProjectMaterialsForTeacher';
 import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
+import ClassProjectSurveyPanel from '../components/classroom/ClassProjectSurveyPanel';
+import ClassProjectQuizPanel from '../components/classroom/ClassProjectQuizPanel';
 import ClassroomGuideTour from '../components/classroom/ClassroomGuideTour';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
@@ -2848,6 +2850,14 @@ const Classroom = () => {
 
           {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
             <InstructorStartGuide schoolProjectId={classInfo.school_project_id} />
+          )}
+
+          {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
+            <ClassProjectSurveyPanel classId={classInfo.id} />
+          )}
+
+          {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
+            <ClassProjectQuizPanel classId={classInfo.id} teacherId={user!.id} />
           )}
 
           {classInfo && (

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../lib/auth';
 import DailyLogTab from '../components/classroom/DailyLogTab';
-import SendQuizTab from '../components/classroom/SendQuizTab';
+import ProjectQuizTab from '../components/classroom/ProjectQuizTab';
 import SendBoardTab from '../components/classroom/SendBoardTab';
 import { supabase } from '../lib/supabase';
 import {
@@ -131,7 +131,7 @@ const TABS = [
   { key: 'suggestions', label: '건의' },
   { key: 'daily', label: '일자별' },
   { key: 'materials', label: '수업 자료' },
-  { key: 'quiz', label: '퀴즈 보내기' },
+  { key: 'quiz', label: '퀴즈' },
   { key: 'board', label: '보드 보내기' },
   { key: 'plan', label: '주차별 계획' },
   { key: 'gallery', label: '갤러리' },
@@ -151,8 +151,9 @@ const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: stri
     { key: 'suggestions', label: '건의' },
   ] },
   { key: 'mat', label: '수업 자료', subs: [
-    { key: 'materials', label: '자료' }, { key: 'quiz', label: '퀴즈 보내기' }, { key: 'board', label: '보드 보내기' },
+    { key: 'materials', label: '자료' }, { key: 'board', label: '보드 보내기' },
   ] },
+  { key: 'quiz', label: '퀴즈', subs: [{ key: 'quiz', label: '퀴즈' }] },
   { key: 'plan', label: '주차별 계획', subs: [{ key: 'plan', label: '주차별 계획' }] },
   { key: 'gallery', label: '갤러리', subs: [{ key: 'gallery', label: '갤러리' }] },
   { key: 'survey', label: '설문', subs: [{ key: 'survey', label: '설문' }] },
@@ -913,8 +914,8 @@ const SchoolProjectDetailPage = () => {
         </div>
       )}
 
-      {tab === 'quiz' && schoolId && (
-        <SendQuizTab schools={[{ id: schoolId, name: school?.name || '이 학교' }]} teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))} />
+      {tab === 'quiz' && schoolId && projectId && (
+        <ProjectQuizTab projectId={projectId} schoolId={schoolId} schools={[{ id: schoolId, name: school?.name || '이 학교' }]} teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))} />
       )}
 
       {tab === 'board' && schoolId && (
