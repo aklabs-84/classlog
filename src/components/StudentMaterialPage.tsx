@@ -1,3 +1,5 @@
+import CodeBlock from './CodeBlock';
+import { ANSWER_INPUT_EVENT } from '../lib/answerFill';
 import { cloneElement, createContext, createElement, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -98,7 +100,7 @@ const AnswerText = ({ fieldKey, inline, rows = 1, blanks = 3, extra }: { fieldKe
     el.style.height = 'auto';
     if (el.scrollHeight) el.style.height = `${el.scrollHeight}px`;
   }, [v]);
-  const onChange = (nv: string) => { setV(nv); ctx.set(fieldKey, nv); };
+  const onChange = (nv: string) => { setV(nv); ctx.set(fieldKey, nv); window.dispatchEvent(new Event(ANSWER_INPUT_EVENT)); };
   if (inline) {
     return (
       <input
@@ -336,7 +338,17 @@ const buildAnswerComponents = (base: any) => {
     const { node: _node, ...rest } = props;
     return <input {...rest} />;
   };
-  return { ...base, p: P, td: Td, tr: Tr, li: Li, input: Input };
+  // 코드 블록의 【이름】 자리는 위쪽 표에 적은 값으로 자동으로 채운다(짝이 없거나 비어 있으면 그대로)
+  const Pre = (props: any) => {
+    const ctx = useContext(AnswerContext);
+    const BasePre = base?.pre;
+    if (!ctx || !BasePre) return createElement(BasePre ?? 'pre', props);
+    const child = (Array.isArray(props.children) ? props.children[0] : props.children) as any;
+    const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} fillable />;
+  };
+  return { ...base, p: P, td: Td, tr: Tr, li: Li, input: Input, pre: Pre };
 };
 
 // 에디터 미리보기용 — 학생 화면과 똑같이 입력칸을 보여주되 저장은 하지 않고, 화면을 닫으면 사라진다

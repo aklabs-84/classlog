@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { fillParts, useTableValues } from '../lib/answerFill';
 
 interface Props {
   lang: string;
   code: string;
+  /** true면 【이름】 자리에 위쪽 표에 적은 값을 끼워 보여 주고 복사한다 */
+  fillable?: boolean;
 }
 
 /**
@@ -12,8 +15,11 @@ interface Props {
  * - 우상단 복사 버튼 (클릭 시 2초간 "복사됨 ✓" 피드백)
  * - 다크 테마 코드 영역
  */
-const CodeBlock = ({ lang, code }: Props) => {
+const CodeBlock = ({ lang, code: rawCode, fillable = false }: Props) => {
   const [copied, setCopied] = useState(false);
+  const values = useTableValues(fillable);
+  const parts = fillable ? fillParts(rawCode, values) : [{ text: rawCode, filled: false }];
+  const code = parts.map(p => p.text).join('');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code).catch(() => {
@@ -57,7 +63,9 @@ const CodeBlock = ({ lang, code }: Props) => {
       {/* ── 코드 본문 ── */}
       <pre className="m-0 px-5 py-4 bg-[#0d1117] overflow-x-auto">
         <code className="text-sm font-mono text-[#e6edf3] whitespace-pre leading-relaxed">
-          {code}
+          {parts.map((p, i) => p.filled
+            ? <mark key={i} data-filled className="bg-emerald-400/25 text-emerald-200 rounded px-0.5">{p.text}</mark>
+            : p.text)}
         </code>
       </pre>
     </div>
