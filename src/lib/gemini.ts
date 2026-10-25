@@ -1450,13 +1450,16 @@ const STUDENT_GUIDE_FORMAT = `[학생용 자기주도 실습 가이드 형식]
 
 // 강사가 고른 보기 모양(viewer_style)에 맞춰 분량 단계를 정한다 — 간단: A·B·기본 / 자세히: C·D
 export function studentGuideDensityNote(viewerStyle?: string | null): string {
-  const detailed = viewerStyle === 'note' || viewerStyle === 'challenge';
+  const detailed = viewerStyle === 'note' || viewerStyle === 'challenge' || viewerStyle === 'manual';
+  const adult = viewerStyle === 'manual' || viewerStyle === 'workshop';
   const label =
     viewerStyle === 'mission' ? 'A. 게임 미션형' :
     viewerStyle === 'storybook' ? 'B. 그림책형' :
     viewerStyle === 'note' ? 'C. 노트형' :
-    viewerStyle === 'challenge' ? 'D. 챌린지형' : '기본(보기 모양 미정)';
-  return `\n\n[이번 자료의 분량 단계]\n보기 모양: ${label} → "${detailed ? '자세히' : '간단'}" 기준을 따릅니다. (모양 이름은 글에 쓰지 않습니다)`;
+    viewerStyle === 'challenge' ? 'D. 챌린지형' :
+    viewerStyle === 'manual' ? 'E. 업무 매뉴얼형(성인 대상)' :
+    viewerStyle === 'workshop' ? 'F. 워크숍 카드형(성인 대상)' : '기본(보기 모양 미정)';
+  return `\n\n[이번 자료의 분량 단계]\n보기 모양: ${label} → "${detailed ? '자세히' : '간단'}" 기준을 따릅니다. (모양 이름은 글에 쓰지 않습니다)${adult ? '\n읽는 사람은 교사·성인입니다. 비유·감탄·게임식 표현 없이 간결한 안내체로 쓰고, 결론을 먼저 말합니다. 입력 칸은 STEP당 1~2개로 줄이고 마지막에 "내일 바로 쓸 것 1가지"를 받습니다.' : ''}`;
 }
 
 // ── 수업 자료 AI 재구성 (학습 가이드 / 발표 자료) ─────────────────────────────

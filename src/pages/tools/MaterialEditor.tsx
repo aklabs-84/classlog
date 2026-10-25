@@ -653,7 +653,7 @@ const AiReorganizeModal = ({
               </div>
               {mode === 'guide' && (() => {
                 const info = viewerStyleInfo(viewerStyle);
-                const detailed = viewerStyle === 'note' || viewerStyle === 'challenge';
+                const detailed = viewerStyle === 'note' || viewerStyle === 'challenge' || viewerStyle === 'manual';
                 return (
                   <div className="px-3.5 py-3 rounded-2xl bg-primary/5 border border-primary/20 space-y-2">
                     <p className="text-xs font-black text-on-surface">📐 고른 보기 모양에 맞춰 글의 양이 달라져요</p>

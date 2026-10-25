@@ -1,8 +1,8 @@
 // 수업 자료 보기 모양(스킨) — 자료마다 강사가 고른다. 내용(마크다운)은 그대로이고 겉모습만 바뀐다.
-// DB: class_materials.viewer_style (default | mission | storybook | challenge | note)
+// DB: class_materials.viewer_style (default | mission | storybook | challenge | note | manual | workshop)
 import './materialSkins.css';
 
-export type ViewerStyle = 'default' | 'mission' | 'storybook' | 'challenge' | 'note';
+export type ViewerStyle = 'default' | 'mission' | 'storybook' | 'challenge' | 'note' | 'manual' | 'workshop';
 
 export interface ViewerStyleInfo {
   id: ViewerStyle;
@@ -21,6 +21,8 @@ export const VIEWER_STYLES: ViewerStyleInfo[] = [
   { id: 'storybook', label: 'B. 그림책형', desc: '큰 글씨와 넉넉한 여백. 책장을 넘기듯 차분하게', grade: '초등 저·중학년 추천', clearLabel: '이 쪽 다 읽었어요', doneLabel: '잘 읽었어요 🌱', unit: '쪽 읽음', startLabel: '' },
   { id: 'note', label: 'C. 노트형', desc: '담백한 노트형. 학습 목표와 흐름 위주', grade: '고등학생 추천', clearLabel: '이 단계 완료', doneLabel: '완료됨', unit: '완료', startLabel: '' },
   { id: 'challenge', label: 'D. 챌린지형', desc: '굵은 테두리·점수판·CHALLENGE 단계. 활기찬 도전 느낌', grade: '중학생 추천', clearLabel: '✔ 클리어', doneLabel: '클리어 완료', unit: '클리어', startLabel: '도전 시작 ▶' },
+  { id: 'manual', label: 'E. 업무 매뉴얼형', desc: '결론 먼저, 절차는 표로. 사내 매뉴얼처럼 차분하게', grade: '교사·성인 추천', clearLabel: '이 단계 완료', doneLabel: '완료됨', unit: '완료', startLabel: '' },
+  { id: 'workshop', label: 'F. 워크숍 카드형', desc: '단계마다 큰 번호 카드. 강사가 화면에 띄우고 함께 진행', grade: '교사·성인 추천', clearLabel: '이 단계 완료', doneLabel: '완료됨', unit: '완료', startLabel: '시작하기 ▶' },
 ];
 
 const IDS = new Set<string>(VIEWER_STYLES.map(s => s.id));

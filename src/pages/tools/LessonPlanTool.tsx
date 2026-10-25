@@ -667,7 +667,7 @@ const SavedPlanViewModal = ({
                   <span className="min-w-0">
                     <span className="block text-sm font-black text-on-surface">{v.label} <span className="text-xs font-bold text-primary">· {v.grade}</span></span>
                     <span className="block text-xs text-on-surface-variant mt-0.5">{v.desc}</span>
-                    <span className="block text-[11px] text-on-surface-variant/70 mt-0.5">글 양: {v.id === 'note' || v.id === 'challenge' ? '자세히' : '짧고 가볍게'}</span>
+                    <span className="block text-[11px] text-on-surface-variant/70 mt-0.5">글 양: {v.id === 'note' || v.id === 'challenge' || v.id === 'manual' ? '자세히' : '짧고 가볍게'}</span>
                   </span>
                 </label>
               ))}
