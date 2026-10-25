@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DeckSlide, SlideObject } from './types';
 import { DECK_CANVAS_W, DECK_CANVAS_H } from './types';
 import TextBlockObject from './objects/TextBlockObject';
@@ -20,6 +20,7 @@ interface Props {
   // false(기본)면 기존처럼 폭 기준으로만 계산하고 wrapper 자체가 16:9 비율을 갖는다(썸네일/발표/템플릿 미리보기용).
   fitContainer?: boolean;
   zoom?: number | null;  // fitContainer일 때만 사용. null/undefined면 화면에 자동으로 맞춤.
+  onZoomChange?: (zoom: number) => void;  // 두 손가락 핀치로 배율이 바뀔 때 부모에 알림(부모가 zoom 상태를 가진다)
   onScaleChange?: (scale: number) => void;  // fitContainer일 때 실제 렌더 배율이 바뀔 때마다 호출(줌 UI 표시용)
 }
 
@@ -27,9 +28,12 @@ interface Props {
 // 드래그/리사이즈 델타도 이 scale 값으로 나눠 디자인 좌표로 환산한다.
 export default function SlideStage({
   slide, editable = false, selectedId = null, onSelect, onUpdateObject, onDeleteObject, captureMode = false,
-  fitContainer = false, zoom = null, onScaleChange,
+  fitContainer = false, zoom = null, onScaleChange, onZoomChange,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const sizerRef = useRef<HTMLDivElement>(null);
+  const pinchingRef = useRef(false);
+  const pendingAnchorRef = useRef<{ left: number; top: number } | null>(null);
   const [scale, setScale] = useState(1);
   const scaleRef = useRef(1);
   const [fitScale, setFitScale] = useState(1);
@@ -75,6 +79,64 @@ export default function SlideStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitContainer, zoom, fitScale]);
 
+  // 핀치 때 손가락 가운데 점이 같은 자리에 머물도록, 새 배율이 그려진 직후 스크롤 위치를 보정한다
+  const applyAnchor = () => {
+    const wrap = wrapRef.current, sizer = sizerRef.current, a = pendingAnchorRef.current;
+    if (!wrap || !sizer || !a) return;
+    const r = sizer.getBoundingClientRect();
+    wrap.scrollLeft += r.left - a.left;
+    wrap.scrollTop += r.top - a.top;
+  };
+  useLayoutEffect(() => { applyAnchor(); }, [scale]);
+
+  // 두 손가락 확대·축소 + 이동 (편집 화면 전용)
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !fitContainer || !editable || !onZoomChange) return;
+    const touches = new Map<number, { x: number; y: number }>();
+    let start: { dist: number; scale: number; cx: number; cy: number } | null = null;
+    const measure = () => {
+      const [a, b] = [...touches.values()];
+      return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+    };
+    const begin = () => {
+      const m = measure();
+      const r = sizerRef.current!.getBoundingClientRect();
+      const sc = scaleRef.current || 1;
+      start = { dist: m.dist, scale: sc, cx: (m.midX - r.left) / sc, cy: (m.midY - r.top) / sc };
+    };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) { pinchingRef.current = true; begin(); }
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size !== 2 || !start) return;
+      const m = measure();
+      const next = Math.max(0.1, Math.min(2.5, Number((start.scale * (m.dist / start.dist)).toFixed(3))));
+      pendingAnchorRef.current = { left: m.midX - start.cx * next, top: m.midY - start.cy * next };
+      if (next === scaleRef.current) applyAnchor();
+      else onZoomChange(next);
+    };
+    const onUp = (e: PointerEvent) => {
+      touches.delete(e.pointerId);
+      if (touches.size === 2) begin();
+      else { start = null; pinchingRef.current = false; pendingAnchorRef.current = null; }
+    };
+    wrap.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      wrap.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [fitContainer, editable, onZoomChange]);
+
   const CENTER_SNAP_THRESHOLD = 10; // 디자인 좌표 기준(px) — 오브젝트 중심이 이 오차 안이면 캔버스 정중앙에 스냅
 
   const startDrag = (obj: SlideObject) => (e: React.PointerEvent) => {
@@ -82,6 +144,7 @@ export default function SlideStage({
     const startX = e.clientX, startY = e.clientY;
     const startObjX = obj.x, startObjY = obj.y;
     const onMove = (ev: PointerEvent) => {
+      if (pinchingRef.current) return;
       const s = scaleRef.current || 1;
       const dx = (ev.clientX - startX) / s;
       const dy = (ev.clientY - startY) / s;
@@ -112,6 +175,7 @@ export default function SlideStage({
     const startX = e.clientX, startY = e.clientY;
     const startW = obj.width, startH = obj.height;
     const onMove = (ev: PointerEvent) => {
+      if (pinchingRef.current) return;
       const s = scaleRef.current || 1;
       const dx = (ev.clientX - startX) / s;
       const dy = (ev.clientY - startY) / s;
@@ -131,14 +195,14 @@ export default function SlideStage({
     <div
       ref={wrapRef}
       style={fitContainer
-        ? { width: '100%', height: '100%', position: 'relative', overflow: zoom != null ? 'auto' : 'hidden' }
+        ? { width: '100%', height: '100%', position: 'relative', overflow: zoom != null ? 'auto' : 'hidden', touchAction: editable && onZoomChange ? 'none' : undefined }
         : { width: '100%', aspectRatio: `${DECK_CANVAS_W} / ${DECK_CANVAS_H}`, position: 'relative', overflow: 'hidden' }}
     >
       <div style={fitContainer ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minWidth: '100%', minHeight: '100%', paddingTop: 8 } : undefined}>
       {/* fitContainer 모드에서 transform: scale()은 화면에 그려지는 모양만 바꿀 뿐 레이아웃 박스 크기(1280x720)는 그대로라,
           이 sizer가 없으면 브라우저가 중앙 정렬·overflow 계산을 원본 크기 기준으로 해서 축소된 캔버스가 잘려 보인다.
           sizer를 실제 보이는 크기(scale 적용값)로 잡아 레이아웃 계산이 시각적 크기와 일치하게 만든다. */}
-      <div style={fitContainer ? { width: DECK_CANVAS_W * scale, height: DECK_CANVAS_H * scale, flexShrink: 0 } : undefined}>
+      <div ref={sizerRef} style={fitContainer ? { width: DECK_CANVAS_W * scale, height: DECK_CANVAS_H * scale, flexShrink: 0 } : undefined}>
       <div
         onPointerDown={editable ? (e) => { if (e.target === e.currentTarget) onSelect?.(null); } : undefined}
         style={{

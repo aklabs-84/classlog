@@ -1367,6 +1367,7 @@ export default function SlideDeckEditor() {
               onDeleteObject={handleDeleteObject}
               fitContainer
               zoom={manualZoom}
+              onZoomChange={setManualZoom}
               onScaleChange={setRenderedScale}
             />
             <div style={{
