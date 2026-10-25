@@ -105,14 +105,27 @@ export default function SlideStage({
       const sc = scaleRef.current || 1;
       start = { dist: m.dist, scale: sc, cx: (m.midX - r.left) / sc, cy: (m.midY - r.top) / sc };
     };
+    // 한 손가락으로 빈 곳(슬라이드 배경·바깥 여백)을 끌면 확대된 화면을 상하좌우로 이동
+    let panFrom: { x: number; y: number } | null = null;
+    const isBackground = (t: EventTarget | null) => {
+      const sizer = sizerRef.current;
+      return t === wrap || t === wrap.firstElementChild || t === sizer || t === sizer?.firstElementChild;
+    };
     const onDown = (e: PointerEvent) => {
       if (e.pointerType !== 'touch') return;
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.size === 2) { pinchingRef.current = true; begin(); }
+      if (touches.size === 2) { pinchingRef.current = true; panFrom = null; begin(); }
+      else if (touches.size === 1 && isBackground(e.target)) panFrom = { x: e.clientX, y: e.clientY };
     };
     const onMove = (e: PointerEvent) => {
       if (!touches.has(e.pointerId)) return;
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 1 && panFrom) {
+        wrap.scrollLeft -= e.clientX - panFrom.x;
+        wrap.scrollTop -= e.clientY - panFrom.y;
+        panFrom = { x: e.clientX, y: e.clientY };
+        return;
+      }
       if (touches.size !== 2 || !start) return;
       const m = measure();
       const next = Math.max(0.1, Math.min(2.5, Number((start.scale * (m.dist / start.dist)).toFixed(3))));
@@ -122,6 +135,7 @@ export default function SlideStage({
     };
     const onUp = (e: PointerEvent) => {
       touches.delete(e.pointerId);
+      panFrom = null;
       if (touches.size === 2) begin();
       else { start = null; pinchingRef.current = false; pendingAnchorRef.current = null; }
     };
