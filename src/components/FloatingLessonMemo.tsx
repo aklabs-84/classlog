@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { motion, useDragControls } from 'framer-motion';
-import { NotebookPen, X, Minus } from 'lucide-react';
+import { NotebookPen, X, Minus, ChevronDown, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
@@ -13,6 +13,7 @@ import { useAuth } from '../lib/auth';
 
 type Scope = 'class' | 'common';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type ClassOption = { id: string; name: string };
 
 const LAST_CLASS_KEY = 'teacher_last_class_id';
 const OPEN_KEY = 'lesson_memo_open';
@@ -29,6 +30,9 @@ const FloatingLessonMemo = () => {
   const [scope, setScope] = useState<Scope>('class');
   const [classId, setClassId] = useState<string | null>(null);
   const [className, setClassName] = useState('');
+  const [pageClassId, setPageClassId] = useState<string | null>(null);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [memoClassIds, setMemoClassIds] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -86,7 +90,26 @@ const FloatingLessonMemo = () => {
     const fromUrl = location.pathname.startsWith('/classroom') ? new URLSearchParams(location.search).get('id') : null;
     const id = fromUrl || readLS(LAST_CLASS_KEY);
     setClassId(prev => (prev === id ? prev : id));
+    setPageClassId(id);
   }, [location.pathname, location.search]);
+
+  // 메모장 안에서 고를 수 있는 내 반 목록 + 메모가 적혀 있는 반 표시 (열 때 한 번)
+  useEffect(() => {
+    if (!user || !open) return;
+    let stop = false;
+    (async () => {
+      const [cls, memos] = await Promise.all([
+        supabase.from('classes').select('id, name')
+          .or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`)
+          .eq('is_archived', false).order('name'),
+        supabase.from('lesson_memos').select('class_id, content').eq('teacher_id', user.id).not('class_id', 'is', null),
+      ]);
+      if (stop) return;
+      if (!cls.error) setClasses((cls.data ?? []) as ClassOption[]);
+      if (!memos.error) setMemoClassIds(new Set((memos.data ?? []).filter(m => (m.content ?? '').trim()).map(m => m.class_id as string)));
+    })();
+    return () => { stop = true; };
+  }, [user?.id, open]);
 
   useEffect(() => {
     if (!classId) { setClassName(''); return; }
@@ -114,6 +137,14 @@ const FloatingLessonMemo = () => {
         ? await supabase.from('lesson_memos').update({ content, updated_at: now }).eq('id', row.id)
         : await supabase.from('lesson_memos').insert({ teacher_id: t.uid, class_id: t.classId, content });
       if (error) throw error;
+      if (t.classId) {
+        const id = t.classId;
+        setMemoClassIds(prev => {
+          const next = new Set(prev);
+          if (content.trim()) next.add(id); else next.delete(id);
+          return next;
+        });
+      }
       setSaveState('saved');
     } catch (e) {
       console.warn('[lesson-memo] 저장 실패', e);
@@ -216,13 +247,17 @@ const FloatingLessonMemo = () => {
             scope={scope}
             setScope={setScope}
             className={className}
-            hasClass={!!classId}
+            classId={classId}
+            pageClassId={pageClassId}
+            classes={classes}
+            memoClassIds={memoClassIds}
+            onPickClass={id => { setClassId(id); setScope('class'); }}
             onClose={() => toggle(false)}
             onDragStart={e => dragControls.start(e)}
           />
           {noClass ? (
             <div className="flex flex-1 items-center justify-center p-5 text-center text-sm text-on-surface-variant">
-              반을 먼저 열면 그 반 메모가 나와요.<br />위의 [공용]에는 어느 반에서나 보이는 메모를 적을 수 있어요.
+              위에서 반을 골라 주세요. 고른 반의 메모가 나와요.<br />[공용]에는 어느 반에서나 보이는 메모를 적을 수 있어요.
             </div>
           ) : (
             <textarea
@@ -244,32 +279,74 @@ const FloatingLessonMemo = () => {
   );
 };
 
-const MemoHeader = ({ scope, setScope, className, hasClass, onClose, onDragStart }: {
-  scope: Scope; setScope: (s: Scope) => void; className: string; hasClass: boolean; onClose: () => void;
+const MemoHeader = ({ scope, setScope, className, classId, pageClassId, classes, memoClassIds, onPickClass, onClose, onDragStart }: {
+  scope: Scope; setScope: (s: Scope) => void; className: string; classId: string | null; pageClassId: string | null;
+  classes: ClassOption[]; memoClassIds: Set<string>; onPickClass: (id: string) => void; onClose: () => void;
   onDragStart: (e: React.PointerEvent) => void;
-}) => (
-  <div onPointerDown={onDragStart} className="flex cursor-grab touch-none items-center gap-1 bg-blue-600 px-2 py-2 text-white active:cursor-grabbing">
-    <NotebookPen size={15} className="ml-1 shrink-0" />
-    <div className="flex flex-1 gap-1 pl-1">
-      <button
-        type="button"
-        onClick={() => setScope('class')}
-        className={`max-w-[150px] truncate rounded-lg px-2.5 py-1 text-xs font-black ${scope === 'class' ? 'bg-white text-blue-700' : 'bg-white/15'}`}
-        title={hasClass ? `${className} 메모` : '반 메모'}
-      >
-        {hasClass ? (className || '이 반') : '반 메모'}
-      </button>
-      <button
-        type="button"
-        onClick={() => setScope('common')}
-        className={`rounded-lg px-2.5 py-1 text-xs font-black ${scope === 'common' ? 'bg-white text-blue-700' : 'bg-white/15'}`}
-      >
-        공용
-      </button>
+}) => {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const away = (e: PointerEvent) => { if (!pickerRef.current?.contains(e.target as Node)) setPickerOpen(false); };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [pickerOpen]);
+
+  // "지금 보고 있는 반"을 맨 위에, 나머지는 이름순
+  const ordered = [...classes].sort((a, b) => Number(b.id === pageClassId) - Number(a.id === pageClassId));
+  const label = classId ? (className || '이 반') : '반 선택';
+
+  return (
+    <div onPointerDown={onDragStart} className="relative flex cursor-grab touch-none items-center gap-1 bg-blue-600 px-2 py-2 text-white active:cursor-grabbing">
+      <NotebookPen size={15} className="ml-1 shrink-0" />
+      <div className="flex min-w-0 flex-1 gap-1 pl-1">
+        <div ref={pickerRef} onPointerDown={e => e.stopPropagation()} className="relative min-w-0">
+          <button
+            type="button"
+            onClick={() => { setScope('class'); setPickerOpen(o => !o); }}
+            aria-haspopup="listbox"
+            aria-expanded={pickerOpen}
+            className={`flex max-w-[170px] items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black ${scope === 'class' ? 'bg-white text-blue-700' : 'bg-white/15'}`}
+            title="메모를 볼 반 고르기"
+          >
+            <span className="truncate">{label}</span>
+            <ChevronDown size={13} className={`shrink-0 transition-transform ${pickerOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {pickerOpen && (
+            <div role="listbox" className="absolute left-0 top-full z-10 mt-1.5 max-h-[240px] w-[250px] overflow-y-auto rounded-xl border border-blue-100 bg-white p-1 text-on-surface shadow-xl">
+              {ordered.length === 0 && <p className="px-3 py-3 text-xs text-on-surface-variant">아직 만든 반이 없어요.</p>}
+              {ordered.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="option"
+                  aria-selected={c.id === classId}
+                  onClick={() => { onPickClass(c.id); setPickerOpen(false); }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-blue-50 ${c.id === classId ? 'bg-blue-50 font-black text-blue-700' : 'font-bold'}`}
+                >
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                  {c.id === pageClassId && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">보는 중</span>}
+                  {memoClassIds.has(c.id) && <span title="메모가 있어요" className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />}
+                  {c.id === classId && <Check size={14} className="shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setScope('common')}
+          className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-black ${scope === 'common' ? 'bg-white text-blue-700' : 'bg-white/15'}`}
+        >
+          공용
+        </button>
+      </div>
+      <button type="button" onClick={onClose} title="접기" className="rounded-lg p-1.5 hover:bg-white/20"><Minus size={14} /></button>
+      <button type="button" onClick={onClose} title="닫기" className="rounded-lg p-1.5 hover:bg-white/20"><X size={14} /></button>
     </div>
-    <button type="button" onClick={onClose} title="접기" className="rounded-lg p-1.5 hover:bg-white/20"><Minus size={14} /></button>
-    <button type="button" onClick={onClose} title="닫기" className="rounded-lg p-1.5 hover:bg-white/20"><X size={14} /></button>
-  </div>
-);
+  );
+};
 
 export default FloatingLessonMemo;
