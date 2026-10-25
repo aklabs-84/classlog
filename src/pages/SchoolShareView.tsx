@@ -1066,7 +1066,7 @@ const SchoolShareView = () => {
                 {listData.map(({ student, obs, results }) => {
                   const isExpanded = expandedIds.has(student.id);
                   const finalMarks = student.memberNames
-                    ? computeFinalMarks(results.map(r => ({ id: r.id, week: r.week_number, kind: r.result_type, created_at: r.created_at })))
+                    ? computeFinalMarks(results.map(r => ({ id: r.id, week: r.week_number, title: r.title, created_at: r.created_at })))
                     : new Map<string, 'final' | 'older'>();
                   const hasActivity = obs.length > 0 || results.length > 0;
                   return (

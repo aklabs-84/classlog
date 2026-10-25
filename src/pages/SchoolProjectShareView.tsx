@@ -126,7 +126,7 @@ const CountUpNumber = ({ value }: { value: number }) => {
 /** 카드용 소스·⭐ 표시 (조별 제출은 묶음 기준 ⭐ 최종) */
 function markedSourcesFor(student: { resultGroups: ResultGroup[] }) {
   const gm = computeFinalMarks(student.resultGroups.filter(g => g.isGroupSubmission).map(g => ({
-    id: g.items[0].id, week: g.week_number, kind: [...g.types].sort().join('+'), created_at: g.created_at,
+    id: g.items[0].id, week: g.week_number, title: g.title, created_at: g.created_at,
   })));
   const marks = new Map<string, 'final' | 'older'>();
   const sources = student.resultGroups.flatMap(g => g.items.map(it => {
@@ -636,7 +636,7 @@ const SchoolProjectShareView = () => {
         >
           {(() => {
             const marks = computeFinalMarks(modalStudent.resultGroups.filter(g => g.isGroupSubmission).map(g => ({
-              id: g.items[0].id, week: g.week_number, kind: [...g.types].sort().join('+'), created_at: g.created_at,
+              id: g.items[0].id, week: g.week_number, title: g.title, created_at: g.created_at,
             })));
             const fmtTime = (d: string) => new Date(d).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
             const finalGroup = modalStudent.resultGroups.find(g => marks.get(g.items[0].id) === 'final');

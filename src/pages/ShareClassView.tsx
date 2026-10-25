@@ -134,7 +134,7 @@ const bundleRows = (rows: ResultRow[]): ResultBundle[] => {
 };
 
 const bundleMarks = (bundles: ResultBundle[]) =>
-  computeFinalMarks(bundles.map((b) => ({ id: b.id, week: b.week_number, kind: b.kind, created_at: b.created_at })));
+  computeFinalMarks(bundles.map((b) => ({ id: b.id, week: b.week_number, title: b.title, created_at: b.created_at })));
 
 /** 묶음 기준 ⭐ 최종을 계산해 목록 카드용 소스·표시를 만든다 */
 const markedSources = (rows: ResultRow[]) => {
