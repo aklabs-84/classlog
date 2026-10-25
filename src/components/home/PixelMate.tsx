@@ -80,6 +80,30 @@ function Sprite({ mascot, state, size }: { mascot: MascotKey; state: MateState; 
   );
 }
 
+const PM_CSS = `
+        @keyframes pm-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+        @keyframes pm-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(.5px)}}
+        @keyframes pm-nod{0%,100%{transform:rotate(0)}50%{transform:rotate(4deg)}}
+        @keyframes pm-sway{0%,100%{transform:translateX(0)}50%{transform:translateX(-.5px)}}
+        @keyframes pm-jump{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}}
+        @keyframes pm-blink{0%,92%,100%{opacity:1}94%,98%{opacity:0}}
+        @keyframes pm-blinkb{0%,92%,100%{opacity:0}94%,98%{opacity:1}}
+        @keyframes pm-zz{0%{transform:translate(0,2px);opacity:0}30%{opacity:1}100%{transform:translate(1px,-3px);opacity:0}}
+        @keyframes pm-fall{0%{transform:translateY(-3px);opacity:0}20%{opacity:1}100%{transform:translateY(12px);opacity:0}}
+        .pm-body{transform-box:fill-box;transform-origin:50% 100%}
+        .pm-excited{animation:pm-bounce .5s steps(2) infinite}
+        .pm-normal{animation:pm-breathe 2s steps(2) infinite}
+        .pm-sleepy{animation:pm-nod 2.4s steps(2) infinite}
+        .pm-lonely{animation:pm-sway 3s steps(2) infinite}
+        .pm-party{animation:pm-jump .8s steps(4) infinite}
+        .pm-eo{animation:pm-blink 4s steps(1) infinite}
+        .pm-eb{opacity:0;animation:pm-blinkb 4s steps(1) infinite}
+        .pm-z1{animation:pm-zz 2.4s steps(6) infinite}
+        .pm-z2{animation:pm-zz 2.4s steps(6) .8s infinite}
+        .pm-cf{animation:pm-fall 1.6s steps(8) infinite}
+        @media (prefers-reduced-motion:reduce){.pm *{animation:none!important}}
+      `;
+
 export function deriveMate(weekCount: number, awayDays: number, celebrate = false): { state: MateState; reason: string } {
   if (celebrate) return { state: 'party', reason: MATE_TEXT.party.line };
   if (awayDays >= 7) return { state: 'lonely', reason: `${awayDays}일 만이에요! 기다리고 있었어요` };
@@ -113,29 +137,7 @@ export default function PixelMate({ mascot, state, reason, onPick, placement = '
 
   return (
     <div ref={box} className="pm relative shrink-0 text-on-surface-variant">
-      <style>{`
-        @keyframes pm-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
-        @keyframes pm-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(.5px)}}
-        @keyframes pm-nod{0%,100%{transform:rotate(0)}50%{transform:rotate(4deg)}}
-        @keyframes pm-sway{0%,100%{transform:translateX(0)}50%{transform:translateX(-.5px)}}
-        @keyframes pm-jump{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}}
-        @keyframes pm-blink{0%,92%,100%{opacity:1}94%,98%{opacity:0}}
-        @keyframes pm-blinkb{0%,92%,100%{opacity:0}94%,98%{opacity:1}}
-        @keyframes pm-zz{0%{transform:translate(0,2px);opacity:0}30%{opacity:1}100%{transform:translate(1px,-3px);opacity:0}}
-        @keyframes pm-fall{0%{transform:translateY(-3px);opacity:0}20%{opacity:1}100%{transform:translateY(12px);opacity:0}}
-        .pm-body{transform-box:fill-box;transform-origin:50% 100%}
-        .pm-excited{animation:pm-bounce .5s steps(2) infinite}
-        .pm-normal{animation:pm-breathe 2s steps(2) infinite}
-        .pm-sleepy{animation:pm-nod 2.4s steps(2) infinite}
-        .pm-lonely{animation:pm-sway 3s steps(2) infinite}
-        .pm-party{animation:pm-jump .8s steps(4) infinite}
-        .pm-eo{animation:pm-blink 4s steps(1) infinite}
-        .pm-eb{opacity:0;animation:pm-blinkb 4s steps(1) infinite}
-        .pm-z1{animation:pm-zz 2.4s steps(6) infinite}
-        .pm-z2{animation:pm-zz 2.4s steps(6) .8s infinite}
-        .pm-cf{animation:pm-fall 1.6s steps(8) infinite}
-        @media (prefers-reduced-motion:reduce){.pm *{animation:none!important}}
-      `}</style>
+      <style>{PM_CSS}</style>
 
       <button type="button" onClick={() => setOpen(o => !o)} aria-label={`캐릭터 ${MATE_TEXT[state].label}: ${reason}. 눌러서 캐릭터 바꾸기`}
         className="peer block rounded-2xl p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -185,5 +187,15 @@ export default function PixelMate({ mascot, state, reason, onPick, placement = '
         </div>
       )}
     </div>
+  );
+}
+
+/** 숫자 옆에 작게 붙이는 캐릭터(말풍선·선택창 없음) — 움직임 CSS를 함께 넣어 어디서든 단독으로 쓸 수 있다 */
+export function MateBadge({ mascot, state, size = 64 }: { mascot: MascotKey; state: MateState; size?: number }) {
+  return (
+    <span className="pm inline-block shrink-0 text-on-surface-variant" style={{ width: size, height: size }} aria-hidden>
+      <style>{PM_CSS}</style>
+      <Sprite mascot={mascot} state={state} size={size} />
+    </span>
   );
 }

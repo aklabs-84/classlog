@@ -1096,15 +1096,15 @@ const SchoolProjectSchoolsPage = () => {
       </div>
 
       {(program?.share_token || program?.entry_code) && (
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {program?.entry_code && (
-            <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
+            <div className="min-w-0 p-4 bg-secondary/5 rounded-2xl border border-secondary/10 space-y-2">
               <div className="flex items-center gap-2">
                 <UserPlus size={14} className="text-secondary" />
                 <p className="text-xs font-black text-on-surface uppercase tracking-widest">강사 참가코드</p>
               </div>
               <div className="flex gap-2 items-center">
-                <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-sm font-black font-mono text-secondary border-2 border-secondary/20 tracking-widest text-center">
+                <div className="flex-1 min-w-0 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-sm font-black font-mono text-secondary border-2 border-secondary/20 tracking-widest text-center">
                   {program.entry_code}
                 </div>
                 <button
@@ -1125,13 +1125,13 @@ const SchoolProjectSchoolsPage = () => {
           )}
 
           {program?.share_token && (
-            <div className="p-4 bg-surface-container rounded-2xl border border-surface-container-high space-y-2">
+            <div className="min-w-0 p-4 bg-surface-container rounded-2xl border border-surface-container-high space-y-2">
               <div className="flex items-center gap-2">
                 <LinkIcon size={14} className="text-on-surface-variant" />
                 <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">학교 담당자 공유 URL</p>
               </div>
               <div className="flex gap-2 items-center">
-                <div className="flex-1 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-[11px] font-mono text-on-surface-variant border border-surface-container-high truncate">
+                <div className="flex-1 min-w-0 px-3 py-2.5 bg-surface-container-lowest rounded-xl text-[11px] font-mono text-on-surface-variant border border-surface-container-high truncate">
                   {window.location.origin}/school-project/{program.share_token}
                 </div>
                 <button

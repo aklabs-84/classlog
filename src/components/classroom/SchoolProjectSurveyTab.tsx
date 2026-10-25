@@ -542,13 +542,13 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
       {/* 문항 편집 — 수업도구 설문과 동일한 전체화면 빌더 */}
       {editingForm && (
         <div className="fixed inset-0 bg-surface-container-lowest z-50 overflow-y-auto">
-          <div className="max-w-2xl mx-auto p-6">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="max-w-2xl mx-auto p-4 pt-20 sm:p-6 lg:pt-6">
+            <div className="flex items-center flex-wrap gap-x-3 gap-y-2 mb-6">
               <button onClick={() => setEditingForm(null)} className="text-on-surface-variant/60 hover:text-on-surface flex items-center gap-1 text-sm shrink-0">
                 <ArrowLeft size={16} /> 목록
               </button>
               {renamingId === editingForm.id ? renameInput(editingForm, 'flex-1 !text-base') : (
-                <h2 className="flex-1 font-black text-lg truncate flex items-center gap-1.5 min-w-0">
+                <h2 className="flex-1 basis-32 font-black text-lg truncate flex items-center gap-1.5 min-w-0">
                   <span className="truncate">{editingForm.title}</span>
                   <button onClick={() => startRename(editingForm)} className="p-1 rounded-lg text-on-surface-variant/50 hover:text-primary shrink-0" title="이름 바꾸기"><Pencil size={14} /></button>
                 </h2>

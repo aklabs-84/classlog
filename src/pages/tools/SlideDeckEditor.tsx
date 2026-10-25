@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical, Wand2 } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
@@ -86,6 +86,8 @@ export default function SlideDeckEditor() {
   const [renderedScale, setRenderedScale] = useState(1);
   const stageRowRef = useRef<HTMLDivElement>(null);
   const [stageAreaHeight, setStageAreaHeight] = useState(560);
+  // 좁은 화면(모바일)에서만 쓰는 슬라이드 목록 접기/펼치기 — 기본은 접힘
+  const [railOpen, setRailOpen] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
@@ -197,7 +199,8 @@ export default function SlideDeckEditor() {
     const el = stageRowRef.current;
     if (!el) return;
     const recompute = () => {
-      const top = el.getBoundingClientRect().top;
+      // 스크롤 위치와 무관하게 계산해야 (뷰포트 기준 top은 스크롤하면 바뀜) 높이가 계속 늘어나는 현상이 없다
+      const top = el.getBoundingClientRect().top + window.scrollY;
       // <main>의 padding-bottom(글자 크기 배율에 따라 rem 기준으로 달라짐)만큼만 하단 여백으로 남겨둔다
       const mainEl = el.closest('main');
       const bottomReserve = mainEl ? parseFloat(getComputedStyle(mainEl).paddingBottom) || 24 : 24;
@@ -1109,8 +1112,8 @@ export default function SlideDeckEditor() {
             {snippetToast.text}
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 220px', minWidth: 0 }}>
             <button
               onClick={handleBackToList}
               title="슬라이드 목록으로"
@@ -1197,7 +1200,7 @@ export default function SlideDeckEditor() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+        <div style={{ display: 'flex', gap: 8, position: 'relative', flexWrap: 'wrap' }}>
           <button onClick={() => addObject('text')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
             <Type size={14} /> 텍스트 추가
           </button>
@@ -1260,7 +1263,7 @@ export default function SlideDeckEditor() {
         </div>
 
         {selectedObject && (selectedObject.type === 'text' || selectedObject.type === 'image' || selectedObject.type === 'emoji') && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', flexWrap: 'wrap' }}>
           {selectedObject?.type === 'text' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
@@ -1334,17 +1337,27 @@ export default function SlideDeckEditor() {
         </div>
 
         <div ref={stageRowRef} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', height: stageAreaHeight }}>
-          <SlideThumbnailRail
-            slides={activeDeck.slides}
-            activeIndex={activeSlideIndex}
-            onSelect={i => { setActiveSlideIndex(i); setSelectedObjectId(null); }}
-            onAdd={handleAddSlide}
-            onDuplicate={handleDuplicateSlide}
-            onDelete={handleDeleteSlide}
-            onReorder={handleReorderSlides}
-            onSaveToLibrary={handleSaveSnippet}
-          />
+          <div className={`${railOpen ? '' : 'hidden '}@[640px]:block`} style={{ height: '100%', flexShrink: 0 }}>
+            <SlideThumbnailRail
+              slides={activeDeck.slides}
+              activeIndex={activeSlideIndex}
+              onSelect={i => { setActiveSlideIndex(i); setSelectedObjectId(null); }}
+              onAdd={handleAddSlide}
+              onDuplicate={handleDuplicateSlide}
+              onDelete={handleDeleteSlide}
+              onReorder={handleReorderSlides}
+              onSaveToLibrary={handleSaveSnippet}
+            />
+          </div>
           <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
+            <button
+              onClick={() => setRailOpen(v => !v)}
+              title={railOpen ? '슬라이드 목록 접기' : '슬라이드 목록 펼치기'}
+              className="@[640px]:hidden"
+              style={{ position: 'absolute', left: 8, top: 8, zIndex: 5, display: 'flex', alignItems: 'center', gap: 4, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', cursor: 'pointer' }}
+            >
+              {railOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />} 슬라이드 목록 {railOpen ? '접기' : `(${activeDeck.slides.length})`}
+            </button>
             <SlideStage
               slide={currentSlide}
               editable
@@ -1362,7 +1375,7 @@ export default function SlideDeckEditor() {
               boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}>
               <button
-                onClick={() => setManualZoom(Math.max(0.3, Number((renderedScale - 0.1).toFixed(2))))}
+                onClick={() => setManualZoom(Math.max(0.1, Number((renderedScale - 0.1).toFixed(2))))}
                 title="축소"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 'none', background: 'none', borderRadius: 999, cursor: 'pointer', color: '#374151' }}
               >

@@ -14,6 +14,7 @@ import CodeBlock from '../components/CodeBlock';
 import { analyzeIdea, generateLessonPlanDraft, embedText, webSearchForIdea, fetchLinkTitle, type IdeaAnalysisResult, type RelatedMaterialRef, type LessonPRD, type WebSearchResult } from '../lib/gemini';
 import type { DeckSlide } from '../components/slidedeck/types';
 import IdeaPRDWizard from '../components/idea/IdeaPRDWizard';
+import { MateBadge, type MascotKey, type MateState } from '../components/home/PixelMate';
 import IdeaRecordGuideModal from '../components/idea/IdeaRecordGuideModal';
 import AiCreditCost from '../components/common/AiCreditCost';
 import { SLIDE_AI_ENABLED } from '../lib/featureFlags';
@@ -409,8 +410,37 @@ export default function IdeaRecord() {
   }, [notes]);
 
   // 자산화 가시화: 아이디어가 실제로 자료/슬라이드로 발전한 누적 건수 — "기록의 복리"를 눈에 보이는 숫자로
-  const materialCount = useMemo(() => notes.filter(n => n.linked_material_id).length, [notes]);
-  const slideCount = useMemo(() => notes.filter(n => n.linked_slide_id).length, [notes]);
+  // 앱 안에서 만든 자료·슬라이드 전체 개수(아이디어에서 이어진 것만이 아니라 자료함·슬라이드함 전부)
+  const [totalMaterials, setTotalMaterials] = useState<number | null>(null);
+  const [totalSlides, setTotalSlides] = useState<number | null>(null);
+  const [mateMascot, setMateMascot] = useState<MascotKey>('robot');
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [mats, decks, prefs] = await Promise.all([
+        supabase.from('class_materials').select('id', { count: 'exact', head: true }).eq('teacher_id', user.id),
+        supabase.from('slide_decks').select('id', { count: 'exact', head: true }).eq('teacher_id', user.id),
+        supabase.from('teacher_home_prefs').select('mascot').eq('user_id', user.id).maybeSingle(),
+      ]);
+      setTotalMaterials(mats.count ?? 0);
+      setTotalSlides(decks.count ?? 0);
+      const m = prefs.data?.mascot;
+      if (m === 'robot' || m === 'sprout' || m === 'cat') setMateMascot(m);
+    })();
+  }, [user?.id]);
+
+  // 이번 달 기록 캐릭터: 기록 수에 따라 졸림/차분/신남, 새로 기록하면 잠깐 축하 동작
+  const [mateCelebrate, setMateCelebrate] = useState(false);
+  const prevMonthCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = prevMonthCountRef.current;
+    prevMonthCountRef.current = thisMonthCount;
+    if (prev === null || thisMonthCount <= prev) return;
+    setMateCelebrate(true);
+    const t = setTimeout(() => setMateCelebrate(false), 2600);
+    return () => clearTimeout(t);
+  }, [thisMonthCount]);
+  const mateState: MateState = mateCelebrate ? 'party' : thisMonthCount >= 5 ? 'excited' : thisMonthCount >= 1 ? 'normal' : 'sleepy';
 
   // 꾸준함 가시화: KST 기준 날짜별로 기록 여부를 묶어 "오늘(또는 어제)부터 며칠 연속 기록했는지" 계산
   // 오늘 아직 기록이 없어도 어제까지 이어졌다면 자정 전에 스트릭이 끊긴 것처럼 보이지 않도록 어제부터 확인
@@ -1199,7 +1229,7 @@ export default function IdeaRecord() {
               <HelpCircle size={13} /> 가이드 보기
             </button>
 
-            {/* 자산화 가시화: 기록이 실제로 무엇을 낳았는지 누적 숫자로 보여주는 스탯 바 */}
+            {/* 자산화 가시화: 앱에서 만든 아이디어·자료·슬라이드가 지금 몇 개인지 보여주는 스탯 바 */}
             {notes.length > 0 && (
               <div className="flex items-center gap-2 mt-4 flex-wrap">
                 <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.06] shadow-soft">
@@ -1207,17 +1237,15 @@ export default function IdeaRecord() {
                   <span className="text-lg font-black text-on-surface leading-none tabular-nums">{notes.length}</span>
                   <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">아이디어 기록</span>
                 </div>
-                <ArrowRight size={14} className="text-on-surface-variant/25 shrink-0" />
                 <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.06] shadow-soft">
                   <FileText size={15} className="text-primary/60 shrink-0" />
-                  <span className="text-lg font-black text-primary leading-none tabular-nums">{materialCount}</span>
-                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">자료로 발전</span>
+                  <span className="text-lg font-black text-primary leading-none tabular-nums">{totalMaterials ?? '–'}</span>
+                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">자료</span>
                 </div>
-                <ArrowRight size={14} className="text-on-surface-variant/25 shrink-0" />
                 <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-surface-container-lowest border border-on-surface/[0.06] shadow-soft">
                   <Presentation size={15} className="text-secondary/60 shrink-0" />
-                  <span className="text-lg font-black text-secondary leading-none tabular-nums">{slideCount}</span>
-                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">슬라이드로 발전</span>
+                  <span className="text-lg font-black text-secondary leading-none tabular-nums">{totalSlides ?? '–'}</span>
+                  <span className="text-[11px] font-bold text-on-surface-variant/60 whitespace-nowrap">슬라이드</span>
                 </div>
               </div>
             )}
@@ -1228,9 +1256,18 @@ export default function IdeaRecord() {
                 <Flame size={11} className="text-orange-500/70 shrink-0" />{currentStreak}일 연속 기록
               </span>
             )}
-            <div className="text-right">
-              <p className="text-3xl font-black text-primary leading-none tabular-nums">{thisMonthCount}</p>
-              <p className="text-[11px] font-black text-on-surface-variant/50 mt-1">이번 달 기록</p>
+            <div className="flex items-end gap-2">
+              <MateBadge mascot={mateMascot} state={mateState} size={72} />
+              <div className="text-right pb-1">
+                <motion.p
+                  key={thisMonthCount}
+                  initial={{ scale: 1.5, y: -4 }}
+                  animate={{ scale: 1, y: 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 14 }}
+                  className="text-3xl font-black text-primary leading-none tabular-nums"
+                >{thisMonthCount}</motion.p>
+                <p className="text-[11px] font-black text-on-surface-variant/50 mt-1">이번 달 기록</p>
+              </div>
             </div>
           </div>
         </div>

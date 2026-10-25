@@ -397,7 +397,7 @@ const SavedPlanViewModal = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4" onClick={editing ? undefined : onClose}>
+    <div className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 sm:px-4" onClick={editing ? undefined : onClose}>
       <div
         className={`bg-white shadow-2xl rounded-2xl w-full flex flex-col overflow-hidden transition-all ${
           isFullscreen
@@ -415,7 +415,7 @@ const SavedPlanViewModal = ({
           <button
             onClick={() => setIsFullscreen(v => !v)}
             title={isFullscreen ? '작은 화면으로' : '전체 화면으로'}
-            className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+            className="hidden sm:block p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
           >
             {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
@@ -469,7 +469,7 @@ const SavedPlanViewModal = ({
           </div>
         )}
 
-        <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
+        <div className="flex items-center flex-wrap gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
           {editing ? (
             <>
               <button onClick={cancelEditing} className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">
@@ -550,11 +550,11 @@ const SavedPlanViewModal = ({
                   </>
                 )}
               </div>
-              <div className="flex-1 min-w-0" />
+              <div className="hidden sm:block flex-1 min-w-0" />
               <button
                 onClick={handleOpenMake}
                 disabled={creatingMaterial || checkingLinked}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
+                className="flex items-center justify-center gap-2 px-4 py-2 flex-1 basis-full sm:flex-none sm:basis-auto rounded-xl font-black text-sm bg-primary text-white hover:opacity-90 disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
               >
                 {creatingMaterial || checkingLinked ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 수업 자료 만들기
               </button>

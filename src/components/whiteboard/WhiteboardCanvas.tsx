@@ -171,9 +171,11 @@ export default function WhiteboardCanvas({
       setIsPanningState(false);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   }, [applyTransform]);
 
   // 컨테이너(배경) 클릭: 오브젝트 생성 / 선택 해제 / 패닝
@@ -278,6 +280,8 @@ export default function WhiteboardCanvas({
           backgroundSize: `${DOT_SPACING * INIT_ZOOM}px ${DOT_SPACING * INIT_ZOOM}px`,
           backgroundPosition: `${INIT_X}px ${INIT_Y}px`,
           cursor,
+          // 터치로 끌 때 브라우저가 스크롤로 가로채 몇 픽셀만 움직이던 문제 방지
+          touchAction: 'none',
         }}
         onPointerDown={handleContainerPointerDown}
         onPointerMove={e => {

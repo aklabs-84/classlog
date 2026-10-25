@@ -5628,13 +5628,13 @@ const Classroom = () => {
 
         {/* 수업 자료실 모달 */}
         {isResourceModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-surface-container-lowest p-8 rounded-2xl space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-surface-container-lowest p-4 sm:p-8 rounded-2xl space-y-4 sm:space-y-6 relative shadow-lg border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-3 right-3 sm:top-6 sm:right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
 
               {/* 헤더 */}
               <div className="pr-8">
-                <h3 className="text-[26px] font-bold text-on-surface">수업 자료실</h3>
+                <h3 className="text-[22px] sm:text-[26px] font-bold text-on-surface">수업 자료실</h3>
                 <p className="text-[14px] text-on-surface-variant mt-1">클릭하면 새 탭으로 열립니다</p>
               </div>
 
@@ -5668,7 +5668,7 @@ const Classroom = () => {
                           return (
                             <div key={`plan-${item.week}`} className="space-y-1">
                             <div
-                              className={`w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container-high group transition-all ${
+                              className={`w-full flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-2 sm:gap-3 p-3 sm:p-4 bg-white rounded-2xl border border-surface-container-high group transition-all ${
                                 isMaterial && !matInfo ? 'opacity-50' : ''
                               }`}
                             >
@@ -5684,12 +5684,12 @@ const Classroom = () => {
                                     window.open(item.url, '_blank');
                                   }
                                 }}
-                                className={`flex items-center gap-3 flex-1 min-w-0 text-left transition-all ${
+                                className={`flex items-center gap-2.5 sm:gap-3 flex-1 basis-full sm:basis-0 min-w-0 text-left transition-all ${
                                   isMaterial ? 'hover:text-secondary' : 'hover:text-primary'
                                 }`}
                               >
                                 {/* 아이콘 */}
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${
                                   isMaterial ? 'bg-secondary/10' : 'bg-primary/10'
                                 }`}>
                                   {isMaterial
@@ -5708,7 +5708,6 @@ const Classroom = () => {
                                   </p>
                                   <p className="text-[14px] text-on-surface-variant truncate">
                                     {item.week}주차
-                                    {item.topic && !isMaterial && ` · ${item.topic}`}
                                     {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
                                   </p>
                                 </div>
@@ -5753,7 +5752,7 @@ const Classroom = () => {
                                   }
                                 }}
                                 title={isMaterial ? '수업 자료 페이지 보기' : '새 탭에서 링크 열기'}
-                                className={`p-2 rounded-xl text-on-surface-variant transition-colors shrink-0 ${
+                                className={`hidden sm:block p-2 rounded-xl text-on-surface-variant transition-colors shrink-0 ${
                                   isMaterial ? 'hover:bg-secondary/10 hover:text-secondary' : 'hover:bg-primary/10 hover:text-primary'
                                 }`}
                               >
@@ -5865,16 +5864,16 @@ const Classroom = () => {
                         const unlinkedMats = matsWithLinks.filter(({ linkedWeeks }) => linkedWeeks.length === 0);
                         
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
-                          <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
+                          <div key={mat.id} className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-2 sm:gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
                               onClick={() => setPreviewMaterial({ id: mat.id, plan_origin_id: (mat as any).plan_origin_id ?? null, class_id: mat.class_id, title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined, activity_urls: mat.activity_urls, attachments: mat.attachments, viewer_style: mat.viewer_style })}
-                              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                              className="flex items-center gap-3 flex-1 basis-full sm:basis-0 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
                                 <BookOpen size={14} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
                                   <p className="text-sm font-bold break-words group-hover:text-secondary transition-colors">{mat.title}</p>
                                   {linkedWeeks.length > 0 && (
                                     <span className="text-[13px] font-bold px-1.5 py-0.5 bg-primary-container text-primary rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
@@ -6240,11 +6239,11 @@ const Classroom = () => {
                       ) : (
                         <div className="space-y-1.5">
                           {[...generalMaterials].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ko', { numeric: true, sensitivity: 'base' })).map(mat => (
-                            <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
+                            <div key={mat.id} className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-2 sm:gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                               <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${mat.type === 'file' ? 'bg-primary-container' : 'bg-cyan-100'}`}>
                                 {mat.type === 'file' ? <File size={14} className="text-primary" /> : <Link2 size={14} className="text-cyan-600" />}
                               </div>
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1 basis-[calc(100%-2.75rem)] sm:basis-0 min-w-0">
                                 {mat.type === 'link' ? (
                                   <a href={mat.url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold hover:text-primary transition-colors truncate block">{mat.title}</a>
                                 ) : (

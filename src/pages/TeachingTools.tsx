@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Radio, Sparkles, Loader2 } from 'lucide-react';
@@ -658,10 +658,30 @@ const TeachingTools = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
+  // 기기(브라우저) 뒤로 가기: 목록에서 도구를 열 때만 기록(history)을 한 칸 쌓고,
+  // 뒤로 가기로 tool= 가 사라지면 도구 목록 화면으로 돌아오게 URL → 화면 방향도 동기화한다.
+  const pushedToolRef = useRef(false);
+  const toolEffectMountedRef = useRef(false);
+  const urlToolId = searchParams.get('tool');
+  useEffect(() => {
+    if (!urlToolId) {
+      if (activeTool) { pushedToolRef.current = false; setActiveTool(null); }
+      return;
+    }
+    if (activeTool?.id === urlToolId) return;
+    const t = tools.find(x => x.id === urlToolId);
+    if (t && !isToolLocked(t, checkIsPro(profile), checkIsBasicOrAbove(profile))) setActiveTool(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlToolId]);
+
   // activeTool이 바뀔 때마다 URL tool= 파라미터 동기화
   // state 옵션을 넘기지 않으면 location.state가 undefined로 덮어써져
   // openSessionId 같은 딥링크 payload가 자식 컴포넌트에 도달하기 전에 유실된다.
   useEffect(() => {
+    // 목록(도구 없음) → 도구 열기일 때만 새 기록으로 쌓는다. 첫 렌더·도구 간 이동·닫기는 기존처럼 덮어쓴다.
+    const opening = toolEffectMountedRef.current && !!activeTool && !searchParams.get('tool');
+    toolEffectMountedRef.current = true;
+    if (opening) pushedToolRef.current = true;
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (activeTool) {
@@ -671,7 +691,7 @@ const TeachingTools = () => {
       }
       return next;
     }, {
-      replace: true,
+      replace: !opening,
       // activeToolId는 "이 도구를 열어라"는 일회성 신호라 한 번 읽었으면 지운다.
       // 남겨 두면 다른 도구로 이동할 때 state 감지 effect가 이전 도구를 다시 열어 버린다.
       state: (() => {
@@ -699,6 +719,8 @@ const TeachingTools = () => {
               const planId = (location.state as { returnToPlanId?: string } | null)?.returnToPlanId;
               // 수업 계획서에서 넘어온 경우: 열어 보던 계획서 모달로 돌아간다
               if (planId) { navigate(location.pathname, { replace: true, state: { activeToolId: 'lesson-plan', openPlanId: planId } }); return; }
+              // 목록에서 눌러 열어 기록이 한 칸 쌓여 있으면 뒤로 가기와 똑같이 한 칸 되돌아간다
+              if (pushedToolRef.current) { pushedToolRef.current = false; navigate(-1); return; }
               // 그 외: 도구를 열라는 state를 지워야 location.state 감지 effect가 도구를 다시 열지 않는다
               navigate(location.pathname + location.search, { replace: true, state: null });
               setActiveTool(null);

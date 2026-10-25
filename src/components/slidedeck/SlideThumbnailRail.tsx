@@ -21,8 +21,8 @@ export default function SlideThumbnailRail({ slides, activeIndex, onSelect, onAd
   const resetDrag = () => { setDragIndex(null); setOverIndex(null); };
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 10, width: 168, flexShrink: 0,
+    <div className="w-[104px] @[640px]:w-[168px]" style={{
+      display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0,
       overflowY: 'auto', padding: '4px 2px',
       height: '100%', minHeight: 320,
     }}>

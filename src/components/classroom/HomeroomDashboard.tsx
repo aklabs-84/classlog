@@ -93,6 +93,8 @@ const HomeroomDashboard = ({
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
+  const [mobileListOpen, setMobileListOpen] = useState(false);
+  useEffect(() => { if (searchQuery) setMobileListOpen(true); }, [searchQuery]);
   const [mobileStatusTab, setMobileStatusTab] = useState<'submitted' | 'notSubmitted'>('submitted');
 
   // ── 주차별 제출 통계 ──
@@ -478,8 +480,18 @@ const HomeroomDashboard = ({
              )}
            </div>
 
+           {/* ── 모바일: 학생 목록 접기/펼치기 (기본 접힘, 검색하면 자동으로 펼침) ── */}
+           <button
+             type="button"
+             onClick={() => setMobileListOpen(o => !o)}
+             aria-expanded={mobileListOpen}
+             className="md:hidden w-full flex items-center justify-between gap-2 px-4 py-3 mb-3 rounded-xl bg-surface-container-lowest border border-slate-200 dark:border-slate-700 text-left"
+           >
+             <span className="flex items-center gap-2 text-sm font-black text-on-surface"><Users size={16} className="text-primary" />학생 목록 <span className="text-on-surface-variant/70 font-bold">({filteredStudents.length}명)</span></span>
+             <span className="flex items-center gap-1 text-[13px] font-bold text-primary">{mobileListOpen ? '접기' : '펼치기'}{mobileListOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
+           </button>
            {/* ── 모바일 카드 뷰 (md 미만) ── */}
-           <div className="md:hidden space-y-3">
+           <div className={`${mobileListOpen ? '' : 'hidden '}md:hidden space-y-3`}>
              {filteredStudents.length === 0 ? (
                <div className="text-center py-16 text-on-surface-variant/70 font-bold">학생이 없습니다</div>
              ) : filteredStudents.map((s) => {
