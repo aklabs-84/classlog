@@ -45,7 +45,7 @@ const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 const Settings = () => {
   const { user, profile: authProfile, loading: authLoading, refreshProfile, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { installState, triggerInstall } = usePWAInstall();
+  const { canInstallNow, triggerInstall } = usePWAInstall();
   const isAppInstalled = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -895,7 +895,7 @@ const Settings = () => {
                 <p className="text-sm text-on-surface-variant leading-relaxed">
                   폰 바탕화면에 클래스로그 아이콘을 만들어 앱처럼 쓸 수 있어요.
                 </p>
-                {installState === 'available' && (
+                {canInstallNow && (
                   <button
                     onClick={triggerInstall}
                     className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 transition-all"

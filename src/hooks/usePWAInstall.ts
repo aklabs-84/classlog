@@ -7,6 +7,21 @@ interface BeforeInstallPromptEvent extends Event {
 
 export type InstallState = 'idle' | 'available' | 'ios' | 'installed' | 'dismissed';
 
+// 설치 허용 신호는 앱이 열리자마자 한 번만 오므로, 화면이 뜨기 전에 모듈 단계에서 붙잡아 둔다
+let storedPrompt: BeforeInstallPromptEvent | null = null;
+const promptListeners = new Set<() => void>();
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    storedPrompt = e as BeforeInstallPromptEvent;
+    promptListeners.forEach((fn) => fn());
+  });
+  window.addEventListener('appinstalled', () => {
+    storedPrompt = null;
+    promptListeners.forEach((fn) => fn());
+  });
+}
+
 const DISMISS_KEY = 'pwa-install-hide-until';
 
 function isBannerHidden() {
@@ -16,7 +31,15 @@ function isBannerHidden() {
 
 export function usePWAInstall() {
   const [installState, setInstallState] = useState<InstallState>('idle');
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(storedPrompt);
+
+  // 배너 숨김(하루 미루기)과 무관하게, 한 번에 설치 가능한 상태인지 (설정 화면용)
+  useEffect(() => {
+    const sync = () => setDeferredPrompt(storedPrompt);
+    promptListeners.add(sync);
+    sync();
+    return () => { promptListeners.delete(sync); };
+  }, []);
 
   useEffect(() => {
     if (isBannerHidden()) return;
@@ -29,19 +52,15 @@ export function usePWAInstall() {
       return;
     }
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setInstallState('available');
-    };
-
-    window.addEventListener('beforeinstallprompt', handler);
+    if (storedPrompt) setInstallState('available');
+    const handler = () => { if (storedPrompt) setInstallState('available'); };
+    promptListeners.add(handler);
 
     const installedHandler = () => setInstallState('installed');
     window.addEventListener('appinstalled', installedHandler);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
+      promptListeners.delete(handler);
       window.removeEventListener('appinstalled', installedHandler);
     };
   }, []);
@@ -49,6 +68,7 @@ export function usePWAInstall() {
   const triggerInstall = async () => {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
+    storedPrompt = null;
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setInstallState('installed');
@@ -63,5 +83,5 @@ export function usePWAInstall() {
     setInstallState('dismissed');
   };
 
-  return { installState, triggerInstall, dismiss };
+  return { installState, triggerInstall, dismiss, canInstallNow: !!deferredPrompt };
 }
