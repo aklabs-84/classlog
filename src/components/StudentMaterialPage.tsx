@@ -717,6 +717,24 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
     scrollRef.current?.scrollTo({ top: 0 });
   };
 
+  // 단계별 화면의 클리어 버튼: 도장을 새로 찍을 때만 잠깐 뒤 다음 단계로 넘어간다(취소할 땐 그대로)
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current); }, []);
+  const clearAndAdvance = (from: number) => {
+    const wasDone = done.includes(from);
+    toggleDone(from);
+    if (wasDone || from + 1 >= stepCount) return;
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    advanceTimerRef.current = setTimeout(() => {
+      // 그 사이 학생이 직접 다른 단계로 옮겼다면 건드리지 않는다
+      setStep(cur => {
+        if (cur !== from) return cur;
+        scrollRef.current?.scrollTo({ top: 0 });
+        return from + 1;
+      });
+    }, 600);
+  };
+
   const switchMode = (toStep: boolean) => {
     if (toStep === stepMode) return;
     if (toStep) {
@@ -1008,7 +1026,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
             )}
             {skinned && stepping && missions.includes(step) && (
               <div className="mt-8">
-                <button type="button" className={`mv-clear ${done.includes(step) ? 'is-done' : ''}`} onClick={() => toggleDone(step)} aria-pressed={done.includes(step)}>
+                <button type="button" className={`mv-clear ${done.includes(step) ? 'is-done' : ''}`} onClick={() => clearAndAdvance(step)} aria-pressed={done.includes(step)}>
                   {done.includes(step) ? skinInfo.doneLabel : skinInfo.clearLabel}
                 </button>
               </div>
