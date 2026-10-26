@@ -93,6 +93,7 @@ export default function SlideDeckEditor() {
   const toggleImmersive = useCallback(async () => {
     const next = !immersive;
     setImmersive(next);
+    setRailOpen(next); // 전체 화면에 들어가면 목록은 펼친 채로 시작, 나가면 원래대로 접기
     try {
       if (next) {
         // 안드로이드: 전체화면 + 가로 잠금 (아이폰은 미지원이라 조용히 무시)
@@ -108,7 +109,7 @@ export default function SlideDeckEditor() {
     }
   }, [immersive]);
   useEffect(() => {
-    const onFs = () => { if (!document.fullscreenElement) { setImmersive(false); try { (screen.orientation as any)?.unlock?.(); } catch { /* */ } } };
+    const onFs = () => { if (!document.fullscreenElement) { setImmersive(false); setRailOpen(false); try { (screen.orientation as any)?.unlock?.(); } catch { /* */ } } };
     document.addEventListener('fullscreenchange', onFs);
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
@@ -1371,7 +1372,7 @@ export default function SlideDeckEditor() {
         </div>
 
         <div ref={stageRowRef} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', height: stageAreaHeight }}>
-          <div className={`${railOpen ? '' : 'hidden '}@[640px]:block`} style={{ height: '100%', flexShrink: 0 }}>
+          <div className={immersive ? (railOpen ? '' : 'hidden') : `${railOpen ? '' : 'hidden '}@[640px]:block`} style={{ height: '100%', flexShrink: 0 }}>
             <SlideThumbnailRail
               slides={activeDeck.slides}
               activeIndex={activeSlideIndex}
@@ -1387,7 +1388,7 @@ export default function SlideDeckEditor() {
             <button
               onClick={() => setRailOpen(v => !v)}
               title={railOpen ? '슬라이드 목록 접기' : '슬라이드 목록 펼치기'}
-              className="@[640px]:hidden"
+              className={immersive ? '' : '@[640px]:hidden'}
               style={{ position: 'absolute', left: 8, top: 8, zIndex: 5, display: 'flex', alignItems: 'center', gap: 4, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#374151', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', cursor: 'pointer' }}
             >
               {railOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />} 슬라이드 목록 {railOpen ? '접기' : `(${activeDeck.slides.length})`}
