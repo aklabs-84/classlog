@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink, Lightbulb, Check, ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, Bookmark, GripVertical, Wand2, ChevronLeft, ChevronRight, Smartphone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth, checkIsBasicOrAbove } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind, SlideSnippet } from '../../components/slidedeck/types';
@@ -88,6 +88,30 @@ export default function SlideDeckEditor() {
   const [stageAreaHeight, setStageAreaHeight] = useState(560);
   // 좁은 화면(모바일)에서만 쓰는 슬라이드 목록 접기/펼치기 — 기본은 접힘
   const [railOpen, setRailOpen] = useState(false);
+  // 모바일 "전체 화면(가로 편집)" 모드: 앱 상단바를 덮고 편집 영역을 꽉 채운다
+  const [immersive, setImmersive] = useState(false);
+  const toggleImmersive = useCallback(async () => {
+    const next = !immersive;
+    setImmersive(next);
+    try {
+      if (next) {
+        // 안드로이드: 전체화면 + 가로 잠금 (아이폰은 미지원이라 조용히 무시)
+        await document.documentElement.requestFullscreen?.();
+        await (screen.orientation as any)?.lock?.('landscape');
+      } else {
+        (screen.orientation as any)?.unlock?.();
+        if (document.fullscreenElement) await document.exitFullscreen();
+      }
+    } catch { /* 미지원 기기는 전체 화면 모드(상단바 숨김)만 적용 */ }
+    if (next && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      appToast('폰을 가로로 돌려 보세요. (아이폰은 직접 돌려야 해요)');
+    }
+  }, [immersive]);
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) { setImmersive(false); try { (screen.orientation as any)?.unlock?.(); } catch { /* */ } } };
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
@@ -216,7 +240,7 @@ export default function SlideDeckEditor() {
     window.addEventListener('resize', recompute);
     return () => { ro.disconnect(); window.removeEventListener('resize', recompute); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, selectedObjectId, activeDeck?.slides[activeSlideIndex]?.bgImage]);
+  }, [view, immersive, selectedObjectId, activeDeck?.slides[activeSlideIndex]?.bgImage]);
 
   // ── 덱 생성 ────────────────────────────────────────────────────────────
   const canCreateDeck = () => {
@@ -1100,7 +1124,9 @@ export default function SlideDeckEditor() {
 
   if (view === 'editor' && activeDeck && currentSlide) {
     return (
-      <div className="@container" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
+      <div className="@container" style={immersive
+        ? { display: 'flex', flexDirection: 'column', gap: 8, position: 'fixed', inset: 0, zIndex: 70, background: '#fff', overflow: 'auto', padding: 'max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left))' }
+        : { display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
         {snippetToast && (
           <div style={{
             position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
@@ -1120,6 +1146,14 @@ export default function SlideDeckEditor() {
               style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: 999, cursor: 'pointer', color: '#475569', padding: '6px 10px', fontSize: 12, fontWeight: 600 }}
             >
               <ArrowLeft size={14} /> <span className="hidden @[1180px]:inline">목록</span>
+            </button>
+            <button
+              onClick={toggleImmersive}
+              title={immersive ? '전체 화면 닫기' : '전체 화면 (가로 편집)'}
+              className="lg:hidden"
+              style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, background: immersive ? '#1E293B' : '#f1f5f9', border: 'none', borderRadius: 999, cursor: 'pointer', color: immersive ? '#fff' : '#475569', padding: '6px 10px', fontSize: 12, fontWeight: 600 }}
+            >
+              {immersive ? <XIcon size={14} /> : <Smartphone size={14} />} {immersive ? '닫기' : '전체 화면'}
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
               <button

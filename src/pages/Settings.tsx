@@ -33,7 +33,10 @@ import {
   ShieldCheck,
   GraduationCap,
   MessageCircle,
+  Download,
+  Smartphone,
 } from 'lucide-react';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 import { appToast } from '../lib/appDialog';
 import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 
@@ -42,6 +45,8 @@ const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/p7ZWBlKi';
 const Settings = () => {
   const { user, profile: authProfile, loading: authLoading, refreshProfile, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { installState, triggerInstall } = usePWAInstall();
+  const isAppInstalled = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -875,6 +880,37 @@ const Settings = () => {
 
       {/* Settings Sections */}
       <div className="space-y-6">
+        <div id="app-install" className="surface-card shadow-ambient overflow-hidden">
+          <div className="px-5 md:px-10 py-4 md:py-6 border-b border-surface-container bg-surface-container-low/30">
+            <h3 className="text-lg font-bold flex items-center gap-3">
+              <Smartphone size={22} className="text-primary" />
+              모바일 앱 설치
+            </h3>
+          </div>
+          <div className="px-5 md:px-10 py-4 md:py-6 space-y-4">
+            {isAppInstalled ? (
+              <p className="text-sm font-bold text-emerald-600 flex items-center gap-2"><Check size={16} /> 이미 앱으로 실행 중이에요</p>
+            ) : (
+              <>
+                <p className="text-sm text-on-surface-variant leading-relaxed">
+                  폰 바탕화면에 클래스로그 아이콘을 만들어 앱처럼 쓸 수 있어요.
+                </p>
+                {installState === 'available' && (
+                  <button
+                    onClick={triggerInstall}
+                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 transition-all"
+                  >
+                    <Download size={16} /> 앱 설치하기
+                  </button>
+                )}
+                <div className="text-[13px] text-on-surface-variant leading-relaxed space-y-1.5 bg-surface-container-low/50 rounded-xl p-4">
+                  <p><span className="font-black text-on-surface">아이폰(사파리)</span>: 아래쪽 공유 버튼(사각형에 위쪽 화살표) → "홈 화면에 추가"</p>
+                  <p><span className="font-black text-on-surface">안드로이드(크롬)</span>: 오른쪽 위 ⋮ 메뉴 → "앱 설치" 또는 "홈 화면에 추가"</p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
         {sections.map((section) => (
           <div key={section.id} id={section.id} className="surface-card shadow-ambient overflow-hidden transition-all">
             <div className="px-5 md:px-10 py-4 md:py-6 border-b border-surface-container bg-surface-container-low/30 flex items-center justify-between">
