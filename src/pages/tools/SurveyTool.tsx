@@ -186,56 +186,100 @@ export function StarRatingChart({ answers }: { answers: SurveyAnswer[] }) {
 }
 
 // ─── Word Cloud ─────────────────────────────────────────────────────────────────
-function buildWordFreq(answers: SurveyAnswer[]): { word: string; count: number }[] {
-  const stopWords = new Set(['이', '그', '저', '것', '수', '을', '를', '이', '가', '은', '는', '에', '의', '로', '으로', '와', '과', '도', '만', '에서', '까지', '부터', '한', '하다', '있다', '없다', '되다', '것이', '같다', 'the', 'a', 'an', 'is', 'it', 'in', 'of', 'to', 'and', 'or']);
+const KEYWORD_STOP = new Set(['이', '그', '저', '것', '수', '등', '더', '잘', '또', '다', '정말', '너무', '많이', '조금', '하지', '않아도', '되었습니다', '있다', '없다', '같다', '하다', 'the', 'a', 'an', 'is', 'it', 'in', 'of', 'to', 'and', 'or']);
+const KEYWORD_SUFFIX = ['으로', '에서', '에게', '처럼', '까지', '부터', '이다', '을', '를', '이', '가', '은', '는', '에', '의', '로', '와', '과', '도', '만'];
+
+// 응답마다 한 번씩만 센다 (같은 응답에 두 번 써도 1). 조사를 떼어 낸 뒤 2번 이상 나온 말만 돌려준다.
+function buildKeywords(texts: string[]): { word: string; count: number }[] {
   const freq: Record<string, number> = {};
-  answers.forEach(a => {
-    const text = ((a.value as any).text ?? '') as string;
-    text.split(/[\s,\.!?]+/).forEach(w => {
-      const clean = w.trim().replace(/[^\w가-힣]/g, '');
-      if (clean.length >= 2 && !stopWords.has(clean)) {
-        freq[clean] = (freq[clean] ?? 0) + 1;
+  texts.forEach(text => {
+    const seen = new Set<string>();
+    text.split(/[\s,.!?~]+/).forEach(raw => {
+      let w = raw.replace(/[^\w가-힣]/g, '');
+      for (const suf of KEYWORD_SUFFIX) {
+        if (w.length - suf.length >= 2 && w.endsWith(suf)) { w = w.slice(0, -suf.length); break; }
       }
+      if (w.length < 2 || KEYWORD_STOP.has(w) || /(습니다|합니다|했다|하지|않아|않고)$/.test(w)) return;
+      seen.add(w);
     });
+    seen.forEach(w => { freq[w] = (freq[w] ?? 0) + 1; });
   });
-  return Object.entries(freq).map(([word, count]) => ({ word, count })).sort((a, b) => b.count - a.count).slice(0, 30);
+  // 누르면 "그 말이 들어간 응답"만 걸러 보여 주므로, 개수도 같은 기준(포함 여부)으로 다시 센다.
+  const counted = Object.keys(freq)
+    .map(word => ({ word, count: texts.filter(t => t.includes(word)).length }))
+    .filter(k => k.count >= 2);
+  // '만들'과 '만들기'처럼 한쪽이 다른 쪽에 들어 있고 개수가 같으면 짧은 말 하나만 남긴다.
+  return counted
+    .filter(k => !counted.some(o => o.word !== k.word && k.word.includes(o.word) && o.count >= k.count))
+    .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
+    .slice(0, 10);
 }
+
+const SHORT_TEXT_PREVIEW = 10;
 
 export function ShortTextChart({ answers }: { answers: SurveyAnswer[] }) {
   const texts = answers.map(a => (a.value as any).text as string).filter(Boolean);
-  const words = buildWordFreq(answers);
-  const maxCount = words[0]?.count ?? 1;
-  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+  const keywords = buildKeywords(texts);
+  const maxCount = keywords[0]?.count ?? 1;
+  const [selected, setSelected] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const filtered = selected ? texts.filter(t => t.includes(selected)) : texts;
+  const visible = showAll || selected ? filtered : filtered.slice(0, SHORT_TEXT_PREVIEW);
+  const hidden = filtered.length - visible.length;
+
+  const renderText = (t: string) => {
+    if (!selected) return t;
+    return t.split(selected).flatMap((part, i, arr) => i < arr.length - 1
+      ? [part, <mark key={i} style={{ background: '#DBEAFE', color: '#1D4ED8', borderRadius: 3, padding: '0 2px' }}>{selected}</mark>]
+      : [part]);
+  };
 
   return (
     <div>
-      {/* 워드 클라우드 */}
-      {words.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '12px 0', marginBottom: 12, borderBottom: '1px solid #F3F4F6' }}>
-          {words.map((w, i) => {
-            const size = 11 + Math.round((w.count / maxCount) * 16);
-            return (
-              <motion.span key={w.word} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: i * 0.02 }}
-                style={{ fontSize: size, fontWeight: w.count > 1 ? 'bold' : 'normal', color: colors[i % colors.length], padding: '2px 6px', background: `${colors[i % colors.length]}15`, borderRadius: 6, cursor: 'default' }}
-              >
-                {w.word} {w.count > 1 && <sup style={{ fontSize: 9 }}>{w.count}</sup>}
-              </motion.span>
-            );
-          })}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
+        <span style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>{texts.length}</span>
+        <span style={{ fontSize: 13, color: '#6B7280' }}>명 응답</span>
+      </div>
+      {keywords.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {keywords.map(k => {
+              const on = selected === k.word;
+              const strong = k.count === maxCount && maxCount > 2;
+              return (
+                <button key={k.word} type="button" onClick={() => setSelected(on ? null : k.word)}
+                  style={{
+                    fontSize: strong ? 16 : 14, fontWeight: strong ? 700 : 500, padding: '4px 12px', borderRadius: 8, cursor: 'pointer',
+                    border: `1px solid ${on ? '#2563EB' : strong ? '#BFDBFE' : '#E5E7EB'}`,
+                    background: on ? '#2563EB' : strong ? '#EFF6FF' : '#F9FAFB',
+                    color: on ? '#fff' : strong ? '#1D4ED8' : '#4B5563',
+                  }}>
+                  {k.word}<span style={{ fontSize: 11, marginLeft: 4, opacity: 0.75 }}>{k.count}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>{selected ? `'${selected}'가 들어간 응답 ${filtered.length}개 · 다시 누르면 전체 보기` : '단어를 누르면 그 말이 들어간 응답만 모아 볼 수 있어요'}</p>
         </div>
       )}
-      {/* 응답 목록 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+      <div>
         {texts.length === 0
           ? <p style={{ fontSize: 13, color: '#9CA3AF' }}>아직 응답이 없습니다</p>
-          : texts.map((t, i) => (
-            <div key={i} style={{ fontSize: 13, color: '#374151', background: '#F9FAFB', borderRadius: 8, padding: '8px 12px', borderLeft: `3px solid ${colors[i % colors.length]}` }}>
-              {t}
+          : visible.map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 4px', borderTop: '1px solid #F3F4F6', fontSize: 15, lineHeight: 1.6, color: '#111827' }}>
+              <span style={{ flex: '0 0 22px', textAlign: 'right', fontSize: 12, color: '#9CA3AF', paddingTop: 3 }}>{i + 1}</span>
+              <span style={{ wordBreak: 'break-word' }}>{renderText(t)}</span>
             </div>
           ))
         }
+        {hidden > 0 && (
+          <button type="button" onClick={() => setShowAll(true)}
+            style={{ width: '100%', textAlign: 'left', fontSize: 13, fontWeight: 600, color: '#2563EB', padding: '10px 4px 0', borderTop: '1px solid #F3F4F6', background: 'none', cursor: 'pointer' }}>
+            응답 {hidden}개 더 보기
+          </button>
+        )}
       </div>
-      <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8 }}>총 {texts.length}명 응답</p>
     </div>
   );
 }
