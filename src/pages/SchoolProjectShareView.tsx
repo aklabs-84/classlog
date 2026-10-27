@@ -1955,7 +1955,7 @@ const SchoolProjectShareView = () => {
       </section>
 
       {/* 클래스로그 홍보 CTA */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-12 pb-10 print:hidden">
+      <div className="max-w-5xl mx-auto px-5 sm:px-6 pt-12 pb-10 print:hidden">
         <motion.div
           initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -1965,24 +1965,24 @@ const SchoolProjectShareView = () => {
           <div className="relative">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full mb-3 bg-white/10">
               <Sparkles size={12} style={{ color: theme.from }} />
-              <span className="text-xs font-black" style={{ color: theme.from }}>클래스로그 AI</span>
+              <span className="text-[13px] font-black" style={{ color: theme.from }}>클래스로그 AI</span>
             </div>
-            <h2 className="text-lg sm:text-xl font-black mb-1.5 tracking-tight text-white">
+            <h2 className="text-xl sm:text-2xl font-black mb-2 tracking-tight text-white">
               이런 학급 공유 페이지, 우리 학교도 만들어볼까요?
             </h2>
-            <p className="text-sm mb-4 text-gray-400">
+            <p className="text-[15px] mb-5 text-gray-400">
               학급 관리부터 학생 결과 공유, AI 세특 작성까지 — 클래스로그 AI 하나로 끝냅니다
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 mb-5">
               {['학교·학급 그룹 관리', '학생 활동 기록 자동 정리', 'AI 세특 초안 생성'].map(item => (
-                <span key={item} className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-white/5 text-gray-300">
+                <span key={item} className="flex items-center gap-1.5 text-[13px] font-bold px-3 py-1 rounded-full bg-white/5 text-gray-300">
                   <CheckCircle2 size={13} style={{ color: theme.from }} /> {item}
                 </span>
               ))}
             </div>
             <a
               href="/"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black text-white transition-all active:scale-95 shadow-lg hover:brightness-110"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[15px] font-black text-white transition-all active:scale-95 shadow-lg hover:brightness-110"
               style={{ background: theme.from }}
             >
               무료로 시작하기 <ArrowRight size={16} />
