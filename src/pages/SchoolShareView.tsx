@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
+import { buildSurveyXlsxRows, buildSurveyCsvRows } from '../lib/surveyExport';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl } from '../lib/gallery';
@@ -146,42 +147,6 @@ function buildStudentWeeklyTrend(obs: ObsRow[], results: ResultRow[]): WeeklyTre
   return Object.entries(weekMap)
     .map(([week, v]) => ({ week: Number(week), engagement: v.engagement, avgScore: v.scoreCount > 0 ? v.scoreSum / v.scoreCount : null }))
     .sort((a, b) => a.week - b.week);
-}
-
-const SURVEY_TYPE_LABEL: Record<string, string> = {
-  multiple_choice: '객관식', yes_no: '예/아니오', star_rating: '별점', short_text: '주관식', opinion_scale: '의견 척도', ranking: '순위',
-};
-
-// 질문 하나의 응답들을 한 줄 글로 요약 (엑셀 시트용)
-function summarizeSurveyAnswers(q: any, ans: any[]): string {
-  const opts: string[] = (q.options || []).map((o: any) => (typeof o === 'string' ? o : o?.label ?? ''));
-  const count = (arr: (string | number)[]) => {
-    const m = new Map<string | number, number>();
-    arr.forEach(v => m.set(v, (m.get(v) || 0) + 1));
-    return m;
-  };
-  const avg = (nums: number[]) => (nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '-');
-  switch (q.type) {
-    case 'multiple_choice': {
-      const m = count(ans.map(a => a.selected).filter(v => typeof v === 'number'));
-      return opts.map((o, i) => `${o}: ${m.get(i) || 0}명`).join(' / ');
-    }
-    case 'yes_no': {
-      const yes = ans.filter(a => a.value === true).length;
-      return `예: ${yes}명 / 아니오: ${ans.filter(a => a.value === false).length}명`;
-    }
-    case 'star_rating': return `평균 ${avg(ans.map(a => a.rating).filter(v => typeof v === 'number'))}점`;
-    case 'opinion_scale': return `평균 ${avg(ans.map(a => a.score).filter(v => typeof v === 'number'))}점`;
-    case 'short_text': return ans.map(a => a.text).filter(Boolean).join('\n');
-    case 'ranking': {
-      const sums = opts.map((_, i) => {
-        const pos = ans.map(a => (a.order as number[] | undefined)?.indexOf(i)).filter(v => typeof v === 'number' && v >= 0) as number[];
-        return `${opts[i]}: 평균 ${avg(pos.map(p => p + 1))}위`;
-      });
-      return sums.join(' / ');
-    }
-    default: return '';
-  }
 }
 
 const SchoolShareView = () => {
@@ -606,15 +571,7 @@ const SchoolShareView = () => {
         (ev?.setech_content || '').length,
       ];
     });
-    // 설문 결과(집계)를 표 아래에 이어 붙임
-    const surveyCsv: (string | number)[][] = [];
-    (currentData.surveys || []).forEach((f: any) => {
-      surveyCsv.push([], [`설문: ${f.title}${f.phase === 'pre' ? ' (사전)' : f.phase === 'post' ? ' (사후)' : ''}`, `총 ${f.response_count}명 응답`], ['질문', '유형', '응답 수', '결과']);
-      (f.questions || []).forEach((q: any, i: number) => {
-        const ans = (f.answers || []).filter((a: any) => a.question_id === q.id).map((a: any) => a.value || {});
-        surveyCsv.push([`${i + 1}. ${q.text}`, SURVEY_TYPE_LABEL[q.type] || q.type, ans.length, summarizeSurveyAnswers(q, ans)]);
-      });
-    });
+    const surveyCsv = buildSurveyCsvRows(currentData.surveys || []);
     const csvContent = [headers, ...rows, ...surveyCsv]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\n');
@@ -730,18 +687,7 @@ const SchoolShareView = () => {
       ];
 
 
-      // 설문 결과 시트 (응답자 식별 없이 질문별 집계만)
-      const surveyRows: XCell[][] = [];
-      (currentData.surveys || []).forEach((f: any) => {
-        const phase = f.phase === 'pre' ? ' · 사전' : f.phase === 'post' ? ' · 사후' : '';
-        surveyRows.push([{ value: `${f.title}${phase} (총 ${f.response_count}명 응답)`, span: 4, style: 'section' }, null, null, null] as any);
-        surveyRows.push([{ value: '질문', style: 'header' }, { value: '유형', style: 'header' }, { value: '응답 수', style: 'header' }, { value: '결과', style: 'header' }]);
-        (f.questions || []).forEach((q: any, i: number) => {
-          const ans = (f.answers || []).filter((a: any) => a.question_id === q.id).map((a: any) => a.value || {});
-          surveyRows.push([{ value: `${i + 1}. ${q.text}`, style: 'wrap' }, { value: SURVEY_TYPE_LABEL[q.type] || q.type }, { value: ans.length }, { value: summarizeSurveyAnswers(q, ans), style: 'wrap' }]);
-        });
-        surveyRows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
-      });
+      const surveyRows = buildSurveyXlsxRows(currentData.surveys || []);
 
       const todayStr = new Date()
         .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })

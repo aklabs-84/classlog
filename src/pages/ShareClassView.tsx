@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
+import { buildSurveyXlsxRows, buildSurveyCsvRows } from '../lib/surveyExport';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl, isVerticalVideoUrl } from '../lib/gallery';
@@ -336,7 +337,8 @@ const ShareClassView = () => {
 
   const [evalMap, setEvalMap] = useState<Record<string, EvalRow>>({});
   const [attendanceSummary, setAttendanceSummary] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
-  const [surveyResult, setSurveyResult] = useState<{ formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number } | null>(null);
+  const [surveyResults, setSurveyResults] = useState<{ formTitle: string; phase: string | null; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }[]>([]);
+  const [surveyForms, setSurveyForms] = useState<any[]>([]);
 
   // ── UI 상태 ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
@@ -475,23 +477,27 @@ const ShareClassView = () => {
         setAttendanceSummary(null);
       }
 
-      // 설문 결과 (교사가 지정한 설문 1개, 응답자 식별 없이 집계만)
-      const survey = (payload as any).survey;
-      if (survey) {
+      // 설문 결과: 교사가 지정한 설문 + 이 학급 대상 설문(응답 3명 이상). 응답자 식별 없이 집계만
+      const forms: any[] = [...(((payload as any).surveys || []) as any[]).map(f => ({ ...f, phase: f.phase ?? null }))];
+      const shared = (payload as any).survey;
+      if (shared && !forms.some(f => f.title === shared.title && f.response_count === shared.response_count)) {
+        forms.unshift({ ...shared, phase: null });
+      }
+      setSurveyForms(forms);
+      setSurveyResults(forms.map(f => {
         const answersByQuestion: Record<string, SurveyAnswer[]> = {};
-        (survey.answers || []).forEach((a: any) => {
+        (f.answers || []).forEach((a: any) => {
           if (!answersByQuestion[a.question_id]) answersByQuestion[a.question_id] = [];
           answersByQuestion[a.question_id].push(a);
         });
-        setSurveyResult({
-          formTitle: survey.title || '설문',
-          questions: (survey.questions || []) as SurveyQuestion[],
+        return {
+          formTitle: f.title || '설문',
+          phase: f.phase,
+          questions: (f.questions || []) as SurveyQuestion[],
           answersByQuestion,
-          responseCount: survey.response_count || 0,
-        });
-      } else {
-        setSurveyResult(null);
-      }
+          responseCount: f.response_count || 0,
+        };
+      }));
 
       setLastUpdated(new Date());
     } catch (err) {
@@ -802,6 +808,7 @@ const ShareClassView = () => {
         { name: '전체학생', colWidths: [6, 14, 13, 12, 10], rows: sheet1Rows },
         ...studentSheets,
         { name: '학생 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
+        ...(surveyForms.length > 0 ? [{ name: '설문 결과', colWidths: [40, 14, 10, 60], rows: buildSurveyXlsxRows(surveyForms) }] : []),
       ]);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -833,7 +840,7 @@ const ShareClassView = () => {
         (ev?.setech_content || '').length,
       ];
     });
-    const csvContent = [headers, ...rows]
+    const csvContent = [headers, ...rows, ...buildSurveyCsvRows(surveyForms)]
       .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\n');
     const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -988,7 +995,7 @@ const ShareClassView = () => {
                 { key: 'results' as const, label: '결과 확인', value: totalResults, unit: '건' },
                 { key: 'gallery' as const, label: '갤러리', value: galleryItems.length, unit: '장' },
                 { key: 'setech' as const, label: '학생 기록', value: setechDoneCount, unit: '건' },
-                ...(surveyResult ? [{ key: 'survey' as const, label: '설문 결과', value: surveyResult.responseCount, unit: '명' }] : []),
+                ...(surveyResults.length > 0 ? [{ key: 'survey' as const, label: '설문 결과', value: surveyResults.reduce((n, r) => Math.max(n, r.responseCount), 0), unit: '명' }] : []),
               ];
               return (
                 <div className={`grid grid-cols-2 ${stats.length === 6 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} mt-8 border-t border-white/20`}>
@@ -1080,7 +1087,7 @@ const ShareClassView = () => {
                 { key: 'results', label: '결과 확인', icon: FileText },
                 { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
                 { key: 'setech', label: '학생 기록', icon: BookOpen },
-                ...(surveyResult ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
+                ...(surveyResults.length > 0 ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
               ].map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
@@ -1566,26 +1573,30 @@ const ShareClassView = () => {
           })()}
 
           {/* ── 설문 결과 탭 (교사가 지정한 설문 1개, 집계만 노출) ── */}
-          {activeTab === 'survey' && surveyResult && (
-            <div className="space-y-4">
-              <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
-                <p className="font-black text-gray-900">{surveyResult.formTitle}</p>
-                <p className="text-[13px] font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
-              </div>
-              {surveyResult.questions.map((q, i) => {
-                const answers = surveyResult.answersByQuestion[q.id] || [];
-                return (
-                  <div key={q.id} className="bg-white rounded-2xl border border-gray-100 p-5">
-                    <p className="font-black text-gray-900 text-base mb-3">{i + 1}. {q.text}</p>
-                    {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
-                    {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
-                    {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
-                    {q.type === 'short_text' && <ShortTextChart answers={answers} />}
-                    {q.type === 'opinion_scale' && <OpinionScaleBarChart question={q} answers={answers} />}
-                    {q.type === 'ranking' && <RankingBarChart question={q} answers={answers} />}
+          {activeTab === 'survey' && surveyResults.length > 0 && (
+            <div className="space-y-8">
+              {surveyResults.map((surveyResult, si) => (
+                <div key={si} className="space-y-4">
+                  <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3">
+                    <p className="font-black text-gray-900">{surveyResult.formTitle}{surveyResult.phase === 'pre' ? ' · 사전' : surveyResult.phase === 'post' ? ' · 사후' : ''}</p>
+                    <p className="text-[13px] font-bold text-gray-400 shrink-0">총 {surveyResult.responseCount}명 응답</p>
                   </div>
-                );
-              })}
+                  {surveyResult.questions.map((q, i) => {
+                    const answers = surveyResult.answersByQuestion[q.id] || [];
+                    return (
+                      <div key={q.id} className="bg-white rounded-2xl border border-gray-100 p-5">
+                        <p className="font-black text-gray-900 text-base mb-3">{i + 1}. {q.text}</p>
+                        {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
+                        {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
+                        {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
+                        {q.type === 'short_text' && <ShortTextChart answers={answers} />}
+                        {q.type === 'opinion_scale' && <OpinionScaleBarChart question={q} answers={answers} />}
+                        {q.type === 'ranking' && <RankingBarChart question={q} answers={answers} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           )}
 
