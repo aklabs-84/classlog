@@ -1619,30 +1619,30 @@ const ShareClassView = () => {
             whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-60px' }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="relative overflow-hidden rounded-3xl px-6 py-8 sm:px-10 sm:py-14 print:hidden bg-gray-900"
+            className="relative overflow-hidden rounded-2xl px-5 py-6 sm:px-8 sm:py-9 mt-10 print:hidden bg-gray-900"
           >
             <div className="relative">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[13px] font-black text-violet-300 mb-4">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-xs font-black text-violet-300 mb-3">
                 <Sparkles size={12} />
                 클래스로그 AI
               </span>
-              <h3 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-2 tracking-tight">
+              <h3 className="text-lg sm:text-xl font-black text-white leading-snug mb-1.5 tracking-tight">
                 이런 학급 공유 페이지, 우리 학교도<br className="hidden sm:block" /> 만들어볼까요?
               </h3>
-              <p className="text-base text-gray-400 font-semibold mb-5">
+              <p className="text-sm text-gray-400 font-semibold mb-4">
                 학급 활동 기록부터 세특 작성까지, 클래스로그 AI가 도와드립니다
               </p>
-              <div className="flex flex-wrap gap-3 mb-6">
+              <div className="flex flex-wrap gap-x-3 gap-y-1.5 mb-5">
                 {['학교 그룹 관리', '교사 계정 연동', '학급 공유 URL 발급'].map((item) => (
-                  <span key={item} className="flex items-center gap-1.5 text-[13px] font-bold text-gray-300">
-                    <CheckCircle2 size={14} className="text-violet-400" />
+                  <span key={item} className="flex items-center gap-1.5 text-xs font-bold text-gray-300">
+                    <CheckCircle2 size={13} className="text-violet-400" />
                     {item}
                   </span>
                 ))}
               </div>
               <a
                 href="/school-intro"
-                className="inline-flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-400 rounded-2xl text-base font-black text-white transition-all active:scale-95"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-violet-500 hover:bg-violet-400 rounded-xl text-sm font-black text-white transition-all active:scale-95"
               >
                 무료로 시작하기
                 <ArrowRight size={16} />
