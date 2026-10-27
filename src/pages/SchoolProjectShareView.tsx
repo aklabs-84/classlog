@@ -226,7 +226,10 @@ const SchoolProjectShareView = () => {
   const [project, setProject] = useState<any>(null);
   const [classList, setClassList] = useState<any[]>([]);
   const [attendanceByClass, setAttendanceByClass] = useState<Record<string, { total: number; byStatus: Record<string, number> }>>({});
-  const [surveyDataByForm, setSurveyDataByForm] = useState<Record<string, { formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }>>({});
+  const [surveyDataByForm, setSurveyDataByForm] = useState<Record<string, { targetClassId?: string | null; phase?: string | null; formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }>>({});
+  // 학급이 공개할 설문: 교사가 지정한 설문 + 그 학급 대상으로 만든 설문(응답 3명 이상)
+  const classSurveyIds = (cls: { id: string; shared_survey_form_id?: string | null }) =>
+    Object.keys(surveyDataByForm).filter(fid => fid === cls.shared_survey_form_id || surveyDataByForm[fid].targetClassId === cls.id);
   const [projectStats, setProjectStats] = useState<{ studentCount: number; obsCount: number; resultCount: number; galleryCount: number; setechDoneCount: number } | null>(null);
   const [highlightGallery, setHighlightGallery] = useState<Array<{ id: string; file_url: string; caption: string | null; class_id: string }>>([]);
   const [spotlightQuotes, setSpotlightQuotes] = useState<{ content: string; studentName: string; className: string }[]>([]);
@@ -317,7 +320,7 @@ const SchoolProjectShareView = () => {
       setAttendanceByClass(attendanceByClass);
 
       // 학급별 공개 설문 결과 (교사가 지정한 설문 1개씩, 응답자 식별 없이 집계만)
-      const surveyDataByForm: Record<string, { formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }> = {};
+      const surveyDataByForm: Record<string, { targetClassId?: string | null; phase?: string | null; formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }> = {};
       ((ov as any).surveys || []).forEach((f: any) => {
         const answersByQuestion: Record<string, SurveyAnswer[]> = {};
         (f.answers || []).forEach((a: any) => {
@@ -325,6 +328,8 @@ const SchoolProjectShareView = () => {
           answersByQuestion[a.question_id].push(a);
         });
         surveyDataByForm[f.form_id] = {
+          targetClassId: f.target_class_id || null,
+          phase: f.phase || null,
           formTitle: f.title || '설문',
           questions: (f.questions || []) as SurveyQuestion[],
           answersByQuestion,
@@ -1550,7 +1555,7 @@ const SchoolProjectShareView = () => {
                               { key: 'results', label: '결과 확인', icon: FileText },
                               { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
                               { key: 'setech', label: '학급 기록', icon: BookOpen },
-                              ...(cls.shared_survey_form_id && surveyDataByForm[cls.shared_survey_form_id] ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
+                              ...(classSurveyIds(cls).length > 0 ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
                             ].map(({ key, label, icon: Icon }) => (
                               <button
                                 key={key}
@@ -1861,31 +1866,35 @@ const SchoolProjectShareView = () => {
                           })()}
 
                           {/* ── 설문 결과 탭 ── */}
-                          {activeTab === 'survey' && cls.shared_survey_form_id && surveyDataByForm[cls.shared_survey_form_id] && (() => {
-                            const surveyResult = surveyDataByForm[cls.shared_survey_form_id];
-                            return (
-                              <div className="space-y-4">
-                                <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
-                                  <p className="font-black text-gray-900">{surveyResult.formTitle}</p>
-                                  <p className="text-sm font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
-                                </div>
-                                {surveyResult.questions.map((q, i) => {
-                                  const answers = surveyResult.answersByQuestion[q.id] || [];
-                                  return (
-                                    <div key={q.id} className="bg-white rounded-xl border border-slate-200 p-5">
-                                      <p className="font-black text-gray-900 text-base mb-3">{i + 1}. {q.text}</p>
-                                      {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
-                                      {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
-                                      {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
-                                      {q.type === 'short_text' && <ShortTextChart answers={answers} />}
-                                      {q.type === 'opinion_scale' && <OpinionScaleBarChart question={q} answers={answers} />}
-                                      {q.type === 'ranking' && <RankingBarChart question={q} answers={answers} />}
+                          {activeTab === 'survey' && classSurveyIds(cls).length > 0 && (
+                            <div className="space-y-8">
+                              {classSurveyIds(cls).map(fid => {
+                                const surveyResult = surveyDataByForm[fid];
+                                return (
+                                  <div key={fid} className="space-y-4">
+                                    <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
+                                      <p className="font-black text-gray-900">{surveyResult.formTitle}{surveyResult.phase === 'pre' ? ' · 사전' : surveyResult.phase === 'post' ? ' · 사후' : ''}</p>
+                                      <p className="text-sm font-bold text-gray-400 shrink-0">총 {surveyResult.responseCount}명 응답</p>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
+                                    {surveyResult.questions.map((q, i) => {
+                                      const answers = surveyResult.answersByQuestion[q.id] || [];
+                                      return (
+                                        <div key={q.id} className="bg-white rounded-xl border border-slate-200 p-5">
+                                          <p className="font-black text-gray-900 text-base mb-3">{i + 1}. {q.text}</p>
+                                          {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
+                                          {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
+                                          {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
+                                          {q.type === 'short_text' && <ShortTextChart answers={answers} />}
+                                          {q.type === 'opinion_scale' && <OpinionScaleBarChart question={q} answers={answers} />}
+                                          {q.type === 'ranking' && <RankingBarChart question={q} answers={answers} />}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
 
                         {/* 푸터 */}
