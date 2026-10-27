@@ -236,7 +236,6 @@ const SchoolProjectShareView = () => {
   const [spotlightIndex, setSpotlightIndex] = useState(0);
   const [spotlightPaused, setSpotlightPaused] = useState(false);
   const [classQuoteMap, setClassQuoteMap] = useState<Record<string, string>>({});
-  const [snapshotResult, setSnapshotResult] = useState<{ title: string | null; resultType: string; createdAt: string; studentName: string; className: string; url: string | null } | null>(null);
   const [openSchools, setOpenSchools] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +269,13 @@ const SchoolProjectShareView = () => {
   const [modalStudent, setModalStudent] = useState<StudentWithData | null>(null);
   // 학습 여정 / 결과 확인 / 갤러리 / 학급 기록 탭
   const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
+  type MainTab = 'overview' | 'weeks' | 'moments' | 'details';
+  const [mainTab, setMainTab] = useState<MainTab>(() => {
+    try {
+      const m = window.location.hash.match(/^#tab-(overview|weeks|moments|details)$/);
+      return (m?.[1] as MainTab) ?? 'overview';
+    } catch { return 'overview'; }
+  });
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -387,26 +393,6 @@ const SchoolProjectShareView = () => {
         [perStudentQuotes[i], perStudentQuotes[j]] = [perStudentQuotes[j], perStudentQuotes[i]];
       }
       setSpotlightQuotes(perStudentQuotes.slice(0, 3));
-
-      // 결과물 스냅샷: 가장 최근 결과물 1건
-      const snapRow = (ov as any).snapshot as any;
-      if (snapRow) {
-        const snapUrl = snapRow.result_type === 'link'
-          ? (snapRow.link_url || null)
-          : (snapRow.result_type === 'image' || snapRow.result_type === 'file') && snapRow.storage_path
-            ? supabase.storage.from('student-attachments').getPublicUrl(snapRow.storage_path).data?.publicUrl || null
-            : null;
-        setSnapshotResult({
-          title: snapRow.title,
-          resultType: snapRow.result_type,
-          createdAt: snapRow.created_at,
-          studentName: snapRow.student_name,
-          className: snapRow.class_name || '',
-          url: snapUrl,
-        });
-      } else {
-        setSnapshotResult(null);
-      }
     } finally {
       setLoading(false);
     }
@@ -604,11 +590,31 @@ const SchoolProjectShareView = () => {
 
   const isClosed = project?.status === 'closed' || project?.status === 'archived';
   const goToClass = (cls: any) => {
+    setMainTab('details');
     setOpenSchools(prev => new Set(prev).add(cls.schoolId));
     if (activeClassId !== cls.id) handleToggleClass(cls.id);
     [150, 700].forEach(ms => setTimeout(() => document.getElementById(`cls-${cls.id}`)?.scrollIntoView({ behavior: 'auto', block: 'start' }), ms));
   };
   const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  const openDetailsTab = () => {
+    setMainTab('details');
+    setTimeout(() => scrollToId('class-list'), 60);
+  };
+  const weekCount = Math.min(12, classList.reduce((m: number, c: any) => Math.max(m, (c.weekly_plan || []).length, ...Object.keys(c.weekResults || {}).map(Number)), 0));
+  const mainTabs: { id: MainTab; label: string }[] = [
+    { id: 'overview', label: '학급 한눈에' },
+    ...(weekCount > 0 ? [{ id: 'weeks' as MainTab, label: '주차별 현황' }] : []),
+    ...(highlightGallery.length > 0 ? [{ id: 'moments' as MainTab, label: '수업 속 순간들' }] : []),
+    { id: 'details', label: '학급별 상세' },
+  ];
+  const tab: MainTab = mainTabs.some(t => t.id === mainTab) ? mainTab : 'overview';
+  const selectMainTab = (id: MainTab) => {
+    const stuck = (document.getElementById('main-tabs')?.getBoundingClientRect().top ?? 1) <= 1;
+    setMainTab(id);
+    try { window.history.replaceState(null, '', `#tab-${id}`); } catch { /* 주소 갱신 실패는 무시 */ }
+    if (stuck) setTimeout(() => document.getElementById('tab-top')?.scrollIntoView({ behavior: 'auto', block: 'start' }), 0);
+  };
+  const tabHide = (id: MainTab) => (tab === id ? '' : 'hidden print:block');
 
   const schoolGroups = (() => {
     const m = new Map<string, { id: string; name: string; classes: any[] }>();
@@ -873,7 +879,7 @@ const SchoolProjectShareView = () => {
               ].map(({ label, value, unit }) => (
                 <button
                   key={label}
-                  onClick={() => document.getElementById('class-list')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
+                  onClick={openDetailsTab}
                   className="text-left pt-5 pb-2 pr-2 hover:opacity-80 transition-opacity"
                 >
                   <span className={`block text-4xl font-black tabular-nums leading-tight ${value > 0 ? 'text-white' : 'text-slate-500'}`}>
@@ -978,26 +984,31 @@ const SchoolProjectShareView = () => {
         </div>
       )}
 
-      {/* 위치 이동 메뉴 */}
+      {/* 구역 탭 */}
       {classList.length > 0 && (
-        <nav className="sticky top-0 z-20 bg-white border-b border-slate-200 print:hidden" aria-label="보고서 구역 이동">
-          <div className="max-w-5xl mx-auto px-5 sm:px-6 flex gap-6 overflow-x-auto">
-            {[
-              { id: 'class-overview', label: '학급 한눈에' },
-              { id: 'week-matrix', label: '주차별 현황' },
-              { id: 'class-list', label: '학급별 상세' },
-            ].map(n => (
-              <button key={n.id} onClick={() => scrollToId(n.id)} className="py-3.5 text-base font-bold text-slate-600 hover:text-slate-900 whitespace-nowrap border-b-[3px] border-transparent hover:border-slate-300 transition-colors">
-                {n.label}
-              </button>
-            ))}
-          </div>
-        </nav>
+        <>
+          <nav id="main-tabs" className="sticky top-0 z-20 bg-white border-b border-slate-200 print:hidden" aria-label="보고서 구역">
+            <div role="tablist" className="max-w-5xl mx-auto px-5 sm:px-6 flex gap-6 overflow-x-auto">
+              {mainTabs.map(n => (
+                <button
+                  key={n.id}
+                  role="tab"
+                  aria-selected={tab === n.id}
+                  onClick={() => selectMainTab(n.id)}
+                  className={`py-3.5 text-base font-bold whitespace-nowrap border-b-[3px] transition-colors ${tab === n.id ? 'text-slate-900 border-[#e8412c]' : 'text-slate-500 border-transparent hover:text-slate-900 hover:border-slate-300'}`}
+                >
+                  {n.label}
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div id="tab-top" className="scroll-mt-14" />
+        </>
       )}
 
       {/* 학급 한눈에 */}
       {classList.length > 0 && (
-        <section id="class-overview" className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 scroll-mt-14">
+        <section id="class-overview" className={`max-w-5xl mx-auto px-5 sm:px-6 pt-10 scroll-mt-14 ${tabHide('overview')}`}>
           <h2 className="text-2xl font-black text-slate-900">학급 한눈에</h2>
           <p className="text-lg text-slate-600 mb-5">학급을 누르면 아래 상세 내용으로 이동해요.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1045,7 +1056,7 @@ const SchoolProjectShareView = () => {
         const peak = Math.max(1, ...classList.flatMap((c: any) => Object.values(c.weekResults || {}) as number[]));
         const shade = (n: number) => n === 0 ? { bg: 'transparent', fg: '#94a3b8' } : n >= peak * 0.66 ? { bg: '#e8412c', fg: '#fff' } : n >= peak * 0.33 ? { bg: '#f9b9ae', fg: '#0e1a33' } : { bg: '#fde7e3', fg: '#0e1a33' };
         return (
-          <section id="week-matrix" className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 scroll-mt-14">
+          <section id="week-matrix" className={`max-w-5xl mx-auto px-5 sm:px-6 pt-10 scroll-mt-14 ${tabHide('weeks')}`}>
             <h2 className="text-2xl font-black text-slate-900">주차별 현황</h2>
             <p className="text-lg text-slate-600 mb-5">칸의 숫자는 그 주에 학생들이 올린 파일 수예요. 진할수록 활동이 많았다는 뜻이에요. (학급별 상세의 ‘결과물 N건’은 모둠 제출을 1건으로 세어 숫자가 다를 수 있어요.)</p>
             <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
@@ -1074,38 +1085,9 @@ const SchoolProjectShareView = () => {
         );
       })()}
 
-      {/* 결과물 스냅샷 카드 */}
-      {snapshotResult && (() => {
-        const typeLabel = TYPE_CONFIG[snapshotResult.resultType]?.label;
-        const cardInner = (
-          <>
-            <div className="min-w-0 flex-1">
-              <p className="text-lg font-bold text-slate-900 truncate">{snapshotResult.title || '제목 없음'}</p>
-              <p className="text-base text-slate-600 truncate">
-                {snapshotResult.className} · {snapshotResult.studentName} · {new Date(snapshotResult.createdAt).toLocaleDateString('ko-KR')}
-              </p>
-            </div>
-            {typeLabel && <span className="shrink-0 text-base font-bold" style={{ color: '#e8412c' }}>{typeLabel}{snapshotResult.url ? ' 열기 →' : ''}</span>}
-          </>
-        );
-        return (
-          <section className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 break-inside-avoid">
-            <h2 className="text-2xl font-black text-slate-900">최근 올라온 결과물</h2>
-            <p className="text-lg text-slate-600 mb-4">가장 최근에 올라온 학생 결과물이에요.</p>
-            {snapshotResult.url ? (
-              <a href={snapshotResult.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 hover:border-slate-900 px-5 sm:px-6 py-4 transition-colors">
-                {cardInner}
-              </a>
-            ) : (
-              <div className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 px-5 sm:px-6 py-4">{cardInner}</div>
-            )}
-          </section>
-        );
-      })()}
-
       {/* 하이라이트 갤러리 */}
       {highlightGallery.length > 0 && (
-        <div className="max-w-5xl mx-auto px-5 sm:px-6 pt-10 break-inside-avoid">
+        <div className={`max-w-5xl mx-auto px-5 sm:px-6 pt-10 break-inside-avoid ${tabHide('moments')}`}>
           <h2 className="text-2xl font-black text-slate-900">수업 속 순간들</h2>
           <p className="text-lg text-slate-600 mb-4">사진을 누르면 크게 볼 수 있어요.</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1130,7 +1112,7 @@ const SchoolProjectShareView = () => {
       )}
 
       {/* 학교별 목록 */}
-      <div id="class-list" className="print:hidden scroll-mt-14 max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12">
+      <div id="class-list" className={`print:hidden scroll-mt-14 max-w-5xl mx-auto px-5 sm:px-6 pt-10 pb-12 ${tab === 'details' ? '' : 'hidden'}`}>
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <h2 className="text-2xl font-black text-slate-900">학급별 상세</h2>
           {schoolGroups.length > 1 && (
