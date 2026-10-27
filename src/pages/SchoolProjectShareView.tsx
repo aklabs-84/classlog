@@ -250,6 +250,19 @@ const SchoolProjectShareView = () => {
   const [classEvalMap, setClassEvalMap] = useState<Record<string, Record<string, EvalRow>>>({});
   const [loadingClass, setLoadingClass] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
+
+  // 확대 보기: 키보드 ←/→ 로 사진 넘기기, Esc 로 닫기
+  const lightboxOpen = lightbox !== null;
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') setLightbox(prev => prev && prev.urls.length > 1 ? { ...prev, index: Math.max(0, prev.index - 1) } : prev);
+      else if (e.key === 'ArrowRight') setLightbox(prev => prev && prev.urls.length > 1 ? { ...prev, index: Math.min(prev.urls.length - 1, prev.index + 1) } : prev);
+      else if (e.key === 'Escape') setLightbox(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxOpen]);
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   // 결과물 상세 모달
   const [detailGroup, setDetailGroup] = useState<{ group: ResultGroup; studentName: string; mark?: 'final' | 'older'; finalGroup?: ResultGroup } | null>(null);

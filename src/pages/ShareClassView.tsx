@@ -353,6 +353,19 @@ const ShareClassView = () => {
   const [resultsViewMode, setResultsViewMode] = useState<'student' | 'group'>('student');
   const [modalGroupId, setModalGroupId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
+
+  // 확대 보기: 키보드 ←/→ 로 사진 넘기기, Esc 로 닫기
+  const lightboxOpen = lightbox !== null;
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') setLightbox(prev => prev && prev.urls.length > 1 ? { ...prev, index: (prev.index - 1 + prev.urls.length) % prev.urls.length } : prev);
+      else if (e.key === 'ArrowRight') setLightbox(prev => prev && prev.urls.length > 1 ? { ...prev, index: (prev.index + 1) % prev.urls.length } : prev);
+      else if (e.key === 'Escape') setLightbox(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxOpen]);
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
