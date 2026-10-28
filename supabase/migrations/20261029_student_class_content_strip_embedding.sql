@@ -1,0 +1,3 @@
+-- 학생 화면은 embedding(AI 검색용 숫자 덩어리)을 쓰지 않는다. 10초마다 호출되는 이 함수에서 모든 class_materials 줄의 embedding을 뺀다 (egress 절감).
+-- 적용본은 Supabase에 migration 'student_class_content_strip_embedding'으로 이미 반영됨.
+-- 변경점: plan_materials, editor 줄에 `- 'embedding'` 추가 (plan_overrides는 이미 제외하고 있었음)

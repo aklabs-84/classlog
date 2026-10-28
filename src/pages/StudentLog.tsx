@@ -987,7 +987,7 @@ const StudentLog = () => {
     return () => clearInterval(timer);
   }, [session?.token, classResources]);
 
-  // 선생님이 주차별 계획·수업 자료를 수정하면 새로고침 없이 반영 — 10초마다 조용히 다시 불러옴
+  // 선생님이 주차별 계획·수업 자료를 수정하면 새로고침 없이 반영 — 30초마다 조용히 다시 불러옴 (자료 전체를 받아 egress가 커서 10초→30초)
   // (학생은 토큰 로그인이라 테이블 직접 구독 대신 DB 함수 폴링 사용. 화면이 보일 때만 동작, 복귀 시 즉시 1회)
   useEffect(() => {
     if (!session?.token || !session?.class_id) return;
@@ -995,6 +995,7 @@ const StudentLog = () => {
     const classId = session.class_id;
     let cancelled = false;
     const keep = <T,>(next: T) => (prev: T) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next);
+    let lastContentHash: string | null = null; // 직전에 받은 자료 지문 — 같으면 본문(수십~수백KB)을 다시 받지 않음 (egress 절감)
 
     const refresh = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -1007,12 +1008,19 @@ const StudentLog = () => {
         setClassResources(keep(plan));
 
         const planIds = plan.map((p: any) => p.material_id).filter(Boolean);
-        const { data: content, error } = await supabase.rpc('student_class_content', { p_token: token, p_plan_ids: planIds });
-        if (cancelled || error || !content) return;
-        setClassMaterials(keep(applyPlanOverrides(content)));
-        setGeneralMaterials(keep(content.general || []));
-        setEditorMaterials(keep(content.editor || []));
-        setEnabledToolIds(keep((content.enabled_tools || []) as string[]));
+        // 지문 확인 실패(오류·null)면 예전처럼 전체를 받는다
+        const { data: hash, error: hashError } = await supabase.rpc('student_class_content_hash', { p_token: token, p_plan_ids: planIds });
+        const unchanged = !hashError && typeof hash === 'string' && hash === lastContentHash;
+        if (cancelled) return;
+        if (!unchanged) {
+          const { data: content, error } = await supabase.rpc('student_class_content', { p_token: token, p_plan_ids: planIds });
+          if (cancelled || error || !content) return;
+          lastContentHash = !hashError && typeof hash === 'string' ? hash : null;
+          setClassMaterials(keep(applyPlanOverrides(content)));
+          setGeneralMaterials(keep(content.general || []));
+          setEditorMaterials(keep(content.editor || []));
+          setEnabledToolIds(keep((content.enabled_tools || []) as string[]));
+        }
 
         const quizIds = [...new Set(plan.map((p: any) => p.quiz_set_id).filter(Boolean))];
         const boardIds = [...new Set(plan.map((p: any) => p.whiteboard_id).filter(Boolean))];
@@ -1025,7 +1033,7 @@ const StudentLog = () => {
       }
     };
 
-    const timer = setInterval(refresh, 10000);
+    const timer = setInterval(refresh, 30000);
     const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { cancelled = true; clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
