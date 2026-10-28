@@ -44,7 +44,7 @@ import {
   Users, Presentation, ChevronRight, X as XIcon,
   Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2, FileDown, Image as ImageIcon, Upload, Lightbulb, Wand2, GalleryHorizontal, FileText,
-  Folder, FolderOpen, Undo2, Redo2, FolderPlus, FolderInput, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
+  Folder, FolderOpen, Undo2, Redo2, FolderPlus, FolderInput, CheckSquare, Search, SpellCheck2, LayoutGrid, List, PenLine, HelpCircle,
 } from 'lucide-react';
 import StudentScreenTour, { type StudentScreenStep } from '../../components/student/StudentScreenTour';
 import { mdComponents } from '../../components/materialMdComponents';
@@ -1397,6 +1397,10 @@ const MaterialEditor = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const isCreatingFolderRef = useRef(false);
   const [moveMenuFor, setMoveMenuFor] = useState<string | null>(null);
+  // 여러 자료 한 번에 옮기기: 선택 모드, 체크한 자료, 아래 막대의 폴더 목록
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
   const [moreOpenFor, setMoreOpenFor] = useState<string | null>(null);
   const [deleteFolderConfirmId, setDeleteFolderConfirmId] = useState<string | null>(null);
   // 파인더식 폴더 트리: 펼친 폴더, 끌어서 옮기는 중인 항목, 놓을 자리 강조, 모바일 폴더 서랍
@@ -1698,7 +1702,7 @@ const MaterialEditor = () => {
   };
 
   // 되돌리기/다시 실행: 옮긴 기록(어디서 → 어디로)을 쌓아 둔다 (화면을 열어 둔 동안만 유지)
-  type MoveRecord = { kind: 'material' | 'folder'; id: string; from: string | null; to: string | null; label: string };
+  type MoveRecord = { kind: 'material' | 'folder' | 'batch'; id: string; from: string | null; to: string | null; label: string; items?: { id: string; from: string | null }[] };
   const moveHistoryRef = useRef<{ undo: MoveRecord[]; redo: MoveRecord[] }>({ undo: [], redo: [] });
   const [, setHistoryTick] = useState(0);
   const pushMoveRecord = (r: MoveRecord) => {
@@ -1723,6 +1727,25 @@ const MaterialEditor = () => {
     return true;
   };
 
+  // 체크한 자료를 한 번에 폴더로 옮기기 (null = 미지정). 보이는 목록 안의 자료만 옮긴다
+  const toggleSelected = (id: string) => setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); setBulkMenuOpen(false); };
+  const handleBulkMove = async (folderId: string | null) => {
+    setBulkMenuOpen(false);
+    const targets = visibleMaterials.filter(m => selectedIds.has(m.id) && (m.folder_id ?? null) !== folderId);
+    if (targets.length === 0) { showActionToast('선택한 자료가 이미 그 폴더에 있어요.'); return; }
+    const ids = targets.map(m => m.id);
+    const { error } = await supabase.from('class_materials').update({ folder_id: folderId }).in('id', ids);
+    if (error) { appToast(`자료 이동 중 오류가 발생했습니다.\n${error.message}`); return; }
+    setMaterials(prev => prev.map(m => ids.includes(m.id) ? { ...m, folder_id: folderId } : m));
+    pushMoveRecord({ kind: 'batch', id: '', from: null, to: folderId, label: `자료 ${ids.length}개 이동`, items: targets.map(m => ({ id: m.id, from: m.folder_id ?? null })) });
+    const folderName = folderId ? folders.find(f => f.id === folderId)?.name ?? '폴더' : '미지정';
+    showActionToast(`자료 ${ids.length}개를 "${folderName}"(으)로 옮겼어요. (↶ 한 번에 되돌리기 가능)`);
+    exitSelectMode();
+  };
+  // 폴더를 바꾸거나 검색어를 바꾸면 체크를 풀어, 안 보이는 자료가 같이 옮겨지는 일을 막는다
+  useEffect(() => { setSelectedIds(new Set()); setBulkMenuOpen(false); }, [activeFolderId, searchText]);
+
   // 폴더를 다른 폴더 안으로 옮기기 (null = 맨 위 단계)
   const handleMoveFolder = async (folderId: string, newParentId: string | null, record = true) => {
     const f = folders.find(x => x.id === folderId);
@@ -1739,7 +1762,18 @@ const MaterialEditor = () => {
     return true;
   };
 
-  const applyMoveRecord = async (r: MoveRecord, target: string | null) => {
+  const applyMoveRecord = async (r: MoveRecord, target: string | null, undo = false) => {
+    if (r.kind === 'batch') {
+      // 여러 자료를 한 번에 옮긴 기록: 되돌리기는 자료마다 원래 폴더로, 다시 실행은 옮겼던 폴더로
+      let any = false;
+      for (const it of r.items ?? []) {
+        const m = materials.find(x => x.id === it.id);
+        const dest = undo ? it.from : r.to;
+        if (!m || (dest && !folders.some(f => f.id === dest))) continue;
+        if (await handleMoveToFolder(m, dest, false)) any = true;
+      }
+      return any;
+    }
     if (r.kind === 'material') {
       const m = materials.find(x => x.id === r.id);
       if (!m) return false;
@@ -1754,7 +1788,7 @@ const MaterialEditor = () => {
     const h = moveHistoryRef.current;
     const r = h.undo[h.undo.length - 1];
     if (!r) return;
-    if (await applyMoveRecord(r, r.from)) {
+    if (await applyMoveRecord(r, r.from, true)) {
       h.undo.pop(); h.redo.push(r);
       showActionToast(`되돌렸어요: ${r.label}`);
     } else {
@@ -2455,6 +2489,16 @@ const MaterialEditor = () => {
       </div>
     );
   };
+  // 선택 모드에서는 카드 어디를 눌러도 체크만 되고, 보기·수정 같은 버튼은 눌리지 않는다
+  const selectCardProps = (id: string) => selectMode ? {
+    onClickCapture: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); toggleSelected(id); },
+  } : {};
+  const renderSelectBox = (id: string) => (
+    <span
+      aria-hidden
+      className={`shrink-0 w-6 h-6 rounded-md border-2 grid place-items-center ${selectedIds.has(id) ? 'bg-primary border-primary text-white' : 'bg-white border-slate-400 text-transparent'}`}
+    ><Check size={15} strokeWidth={3} /></span>
+  );
   const visibleMaterials = (activeFolderId === 'all' || isSearching
     ? [...materials]
     : activeFolderId === null ? []
@@ -3840,6 +3884,15 @@ const MaterialEditor = () => {
                     <FolderPlus size={15} /> 새 폴더
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                  aria-pressed={selectMode}
+                  title="여러 자료를 체크해서 한 번에 폴더로 옮겨요"
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border font-semibold text-[14px] transition-colors ${selectMode ? 'bg-primary text-white border-primary' : 'border-slate-200 text-on-surface hover:bg-surface-container-low'}`}
+                >
+                  <CheckSquare size={15} /> {selectMode ? '선택 끝내기' : '여러 개 선택'}
+                </button>
                 <div className="flex items-center gap-0.5">
                   <button type="button" onClick={handleUndoMove} disabled={moveHistoryRef.current.undo.length === 0}
                     title="방금 옮긴 것 되돌리기 (Cmd+Z)"
@@ -3955,8 +4008,9 @@ const MaterialEditor = () => {
           ) : viewLayout === 'list' ? (
             <div className="flex flex-col gap-2">
               {visibleMaterials.map((material, idx) => (
-                <div key={material.id} {...materialDragProps(material.id)} className="bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 p-3 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+                <div key={material.id} {...(selectMode ? {} : materialDragProps(material.id))} {...selectCardProps(material.id)} className={`bg-surface-container-lowest rounded-xl border transition-all hover:border-primary/40 p-3 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 ${selectMode ? 'cursor-pointer' : ''} ${selectedIds.has(material.id) ? 'border-primary ring-2 ring-primary/40 bg-primary-container/30' : 'border-slate-200 dark:border-slate-700'}`}>
                   <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {selectMode && renderSelectBox(material.id)}
                     <div
                       onClick={() => handleEdit(material)}
                       role="button"
@@ -4014,7 +4068,8 @@ const MaterialEditor = () => {
           ) : (
             <div data-tour="me-card-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {visibleMaterials.map((material, idx) => (
-                <div key={material.id} {...materialDragProps(material.id)} className="group bg-surface-container-lowest rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:border-primary/40 flex flex-col">
+                <div key={material.id} {...(selectMode ? {} : materialDragProps(material.id))} {...selectCardProps(material.id)} className={`group relative bg-surface-container-lowest rounded-xl border transition-all hover:border-primary/40 flex flex-col ${selectMode ? 'cursor-pointer' : ''} ${selectedIds.has(material.id) ? 'border-primary ring-2 ring-primary/40' : 'border-slate-200 dark:border-slate-700'}`}>
+                  {selectMode && <div className="absolute top-2 left-2 z-20">{renderSelectBox(material.id)}</div>}
                   {/* 표지 썸네일 */}
                   <div
                     onClick={() => handleEdit(material)}
@@ -4077,6 +4132,51 @@ const MaterialEditor = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {selectMode && (
+            <div className="sticky bottom-3 z-30 mt-4 flex flex-wrap items-center gap-2 px-4 py-3 rounded-2xl bg-white shadow-xl border border-primary/30">
+              <span className="text-[15px] font-black text-on-surface mr-auto">
+                {selectedIds.size === 0 ? '옮길 자료를 눌러 체크하세요' : `${selectedIds.size}개 선택됨`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(selectedIds.size === visibleMaterials.length ? new Set() : new Set(visibleMaterials.map(m => m.id)))}
+                className="px-3 py-2 rounded-lg border border-slate-200 text-[14px] font-semibold hover:bg-surface-container-low"
+              >
+                {selectedIds.size === visibleMaterials.length && visibleMaterials.length > 0 ? '선택 해제' : '전체 선택'}
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => setBulkMenuOpen(v => !v)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-[14px] font-bold disabled:opacity-40 disabled:cursor-default"
+                >
+                  <FolderInput size={15} /> 폴더로 이동
+                </button>
+                {bulkMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setBulkMenuOpen(false)} />
+                    <div className="absolute bottom-full mb-2 right-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-64 overflow-hidden">
+                      <p className="px-4 pt-3 pb-2 text-[12px] font-black text-on-surface-variant">선택한 {selectedIds.size}개를 옮길 폴더</p>
+                      <div className="max-h-64 overflow-y-auto">
+                        <button onClick={() => handleBulkMove(null)} className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low">
+                          <span className="flex-1 min-w-0 text-[13px] font-black">미지정 (폴더에서 빼기)</span>
+                        </button>
+                        {folderTreeFlat.map(({ folder, depth }) => (
+                          <button key={folder.id} onClick={() => handleBulkMove(folder.id)} style={{ paddingLeft: 16 + depth * 14 }} className="w-full flex items-center gap-2 text-left pr-4 py-2.5 hover:bg-surface-container-low">
+                            <Folder size={13} className="text-primary shrink-0" />
+                            <span className="flex-1 min-w-0 text-[13px] font-black truncate">{folder.name}</span>
+                          </button>
+                        ))}
+                        {folders.length === 0 && <p className="px-4 py-3 text-xs font-bold text-on-surface-variant opacity-60">폴더가 없습니다. 위의 '새 폴더'로 먼저 만들어주세요.</p>}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button type="button" onClick={exitSelectMode} className="px-3 py-2 rounded-lg border border-slate-200 text-[14px] font-semibold hover:bg-surface-container-low">취소</button>
             </div>
           )}
             </div>
