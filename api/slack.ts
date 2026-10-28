@@ -518,6 +518,59 @@ async function handleTrainingRequest(req: any, res: any) {
   return res.status(200).json({ ok: true });
 }
 
+// 주의 키워드가 감지된 학생 건의사항 → Slack (DB 트리거가 호출, 푸시와 같은 비밀 열쇠로 인증)
+async function handleFlaggedSuggestion(req: any, res: any) {
+  const webhookSecret = process.env.PUSH_WEBHOOK_SECRET;
+  const webhookUrl    = process.env.SLACK_WEBHOOK_URL;
+  const authHeader    = req.headers.authorization ?? '';
+  if (!webhookSecret || authHeader !== `Bearer ${webhookSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!webhookUrl) return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
+
+  // 학생이 쓴 글이므로 Slack 서식 문자를 무력화
+  const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const { student_name, content, link } = req.body ?? {};
+  if (!content) return res.status(400).json({ error: 'content is required' });
+
+  const origin = 'https://classlog-ai.vercel.app';
+  const href = typeof link === 'string' && link.startsWith('/') ? `${origin}${link}` : origin;
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        blocks: [
+          {
+            type: 'header',
+            text: { type: 'plain_text', text: '⚠️ 클래스로그 — 건의사항 주의 키워드 감지', emoji: true },
+          },
+          {
+            type: 'section',
+            fields: [
+              { type: 'mrkdwn', text: `*학생*\n${esc(student_name)}` },
+              { type: 'mrkdwn', text: `*내용(앞 80자)*\n${esc(String(content).slice(0, 80))}` },
+            ],
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: `<${href}|해당 학생 화면 열기> | ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+  } catch (slackErr: any) {
+    console.warn('[api/slack?type=flagged-suggestion] slack notify failed:', slackErr?.message);
+  }
+  return res.status(200).json({ ok: true });
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -531,5 +584,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'google-signup') return handleGoogleSignup(req, res);
   if (type === 'waitlist') return handleWaitlist(req, res);
   if (type === 'training-request') return handleTrainingRequest(req, res);
-  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request)' });
+  if (type === 'flagged-suggestion') return handleFlaggedSuggestion(req, res);
+  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request | flagged-suggestion)' });
 }
