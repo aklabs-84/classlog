@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Copy, Check, Users, Radio, Pause, Play,
-  Trash2, Save, Square, Loader2, MessageSquareText, Plus, Vote, Send, X, Pencil, RotateCcw,
+  Trash2, Save, Square, Loader2, MessageSquareText, Plus, Vote, Send, X, Pencil, RotateCcw, List,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -51,6 +51,8 @@ export default function LiveBoardTeacher() {
   const [adding, setAdding] = useState(false);
   const [confirmDeleteQ, setConfirmDeleteQ] = useState<LiveBoardQuestion | null>(null);
   const [deletingQ, setDeletingQ] = useState(false);
+  const [confirmDeleteBoard, setConfirmDeleteBoard] = useState(false);
+  const [deletingBoard, setDeletingBoard] = useState(false);
   const [editQ, setEditQ] = useState<LiveBoardQuestion | null>(null);
   const [editDraft, setEditDraft] = useState<QuestionDraft>(emptyDraft());
   const [savingEdit, setSavingEdit] = useState(false);
@@ -145,6 +147,20 @@ export default function LiveBoardTeacher() {
     emitToggle(false);
     emitEnded();
   };
+
+  // 게시판 통째로 삭제(질문·답변 포함). 보고 있는 학생에게는 끝났다고 알린 뒤 목록으로 돌아간다
+  const handleDeleteBoard = async () => {
+    if (!board || deletingBoard) return;
+    setDeletingBoard(true);
+    const { error } = await supabase.from('live_boards').delete().eq('id', board.id);
+    setDeletingBoard(false);
+    if (error) { showActionToast('삭제하지 못했어요. 다시 시도해주세요.'); return; }
+    emitEnded();
+    goList();
+  };
+
+  // 내 게시판 목록(수업 도구 > 실시간 참여 게시판)으로 간다
+  const goList = () => navigate('/teaching-tools', { state: { activeToolId: 'live-board' } });
 
   // 종료한 게시판을 다시 연다. 자동 삭제 시간도 새로 늘린다(저장된 게시판은 건드리지 않음)
   const handleRestart = async () => {
@@ -387,6 +403,18 @@ export default function LiveBoardTeacher() {
               </button>
             )}
 
+            <button
+              onClick={goList}
+              title="내가 만든 실시간 게시판 목록으로 이동"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8,
+                border: '1px solid #BAE6FD', background: '#F0F9FF', color: '#0369A1',
+                cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              }}
+            >
+              <List size={14} /> 내 게시판 목록
+            </button>
+
             <div style={{ flex: 1 }} />
 
             {!isEnded && !board.is_saved && (
@@ -432,6 +460,18 @@ export default function LiveBoardTeacher() {
                 <Square size={13} /> 수업 종료
               </button>
             )}
+
+            <button
+              onClick={() => setConfirmDeleteBoard(true)}
+              title="이 게시판을 완전히 삭제"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8,
+                border: 'none', background: 'transparent', color: '#B91C1C',
+                cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              }}
+            >
+              <Trash2 size={14} /> 삭제
+            </button>
           </div>
         </div>
 
@@ -682,6 +722,27 @@ export default function LiveBoardTeacher() {
               </button>
               <button onClick={handleEnd} disabled={ending} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
                 {ending ? '종료 중...' : '종료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmDeleteBoard && (
+        <div
+          onClick={() => !deletingBoard && setConfirmDeleteBoard(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, textAlign: 'center', margin: 16 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 6 }}>게시판을 삭제할까요?</h3>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 18, lineHeight: 1.5 }}>
+              질문과 학생 답변·투표가 모두 지워지고<br />되돌릴 수 없어요.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmDeleteBoard(false)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
+                취소
+              </button>
+              <button onClick={handleDeleteBoard} disabled={deletingBoard} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                {deletingBoard ? '삭제 중...' : '삭제'}
               </button>
             </div>
           </div>
