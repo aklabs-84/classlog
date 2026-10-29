@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { filterMyTeachingClasses } from '../../lib/projectClassFilter';
-import { getServerTimeOffsetMs } from '../../lib/serverTime';
+import { ServerClock, parseServerTs } from '../../lib/serverTime';
 import { useAuth } from '../../lib/auth';
 import { quizGeneratorAI } from '../../lib/gemini';
 import ConfettiEffect from '../../components/quiz/ConfettiEffect';
@@ -156,10 +156,15 @@ const QuizGame = () => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const savedHistoryRef = useRef(false);
-  // 기기 시계 - 서버 시계 오프셋(ms). 학생 화면과 동일한 방식으로 서버 기준 시각을 구해
-  // question_started_at을 저장하고 타이머를 계산해, 교사/학생 기기 시계가 달라도 어긋나지 않는다.
-  const offsetMsRef = useRef(0);
-  const serverNow = () => Date.now() + offsetMsRef.current;
+  // 서버 시계 보정 — 문제 시작 시각(question_started_at)은 DB가 직접 찍으므로,
+  // 선생님 화면 타이머도 서버 시각 기준으로 계산해 학생 화면과 어긋나지 않게 한다.
+  const clockRef = useRef(new ServerClock());
+  const serverNow = () => clockRef.current.now();
+  const syncServerClock = useCallback(async () => {
+    const t0 = Date.now();
+    const { data } = await supabase.rpc('quiz_server_now');
+    clockRef.current.sample(data, t0, Date.now());
+  }, []);
 
   // ── 수업 자료 AI 생성 ──────────────────────────────────────────────────────
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
@@ -291,7 +296,7 @@ const QuizGame = () => {
   // 진행 중 세션 이어서 진행 — 세션/문제/참가자를 다시 불러와 게임 화면으로 복귀
   const handleResumeOpenSession = async (os: any) => {
     setLoading(true);
-    offsetMsRef.current = await getServerTimeOffsetMs();
+    await syncServerClock();
     const [{ data: sess }, { data: qs }, { data: qRows }] = await Promise.all([
       supabase.from('quiz_sessions').select('*').eq('id', os.id).single(),
       supabase.from('quiz_sets').select('*').eq('id', os.quiz_set_id).single(),
@@ -642,7 +647,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
     setLoading(true);
 
     // 서버-기기 시간 오프셋 조회 (실패해도 0으로 폴백되어 진행에 영향 없음)
-    offsetMsRef.current = await getServerTimeOffsetMs();
+    await syncServerClock();
 
     // 수업 시간에 자동으로 열린 대기실이 이 퀴즈의 것이면 새로 만들지 않고 그대로 이어서 진행
     // (학생들이 이미 그 PIN으로 들어와 있을 수 있음)
@@ -761,6 +766,13 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
     };
   }, []);
 
+  // 게임 화면이 열려 있는 동안 서버 시계를 20초마다 다시 맞춘다
+  useEffect(() => {
+    if (view !== 'game') return;
+    const t = setInterval(() => { syncServerClock(); }, 20000);
+    return () => clearInterval(t);
+  }, [view, syncServerClock]);
+
   // Realtime 유실 대비 폴백 폴링 — postgres_changes는 웹소켓이 잠깐 끊기면
   // 유실된 이벤트를 재전송하지 않으므로, 주기적으로 참가자 목록을 직접 재동기화한다.
   useEffect(() => {
@@ -778,9 +790,9 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
     if (timerRef.current) clearInterval(timerRef.current);
 
     const sync = () => {
-      const started = new Date(session.question_started_at!).getTime();
+      const started = parseServerTs(session.question_started_at!);
       const elapsed = Math.floor((serverNow() - started) / 1000);
-      setTimer(Math.max(0, session.max_timer - elapsed));
+      setTimer(Math.min(session.max_timer, Math.max(0, session.max_timer - elapsed)));
     };
 
     sync();
@@ -863,14 +875,11 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
   };
 
   const handleQuizStart = async () => {
-    const now = new Date(serverNow()).toISOString();
     const q = questions[session!.current_question_index];
     const timeLimit = q?.time_limit ?? 20;
     setAnswers([]);
-    await updateSessionState('QUIZ', undefined, {
-      max_timer: timeLimit,
-      question_started_at: now,
-    });
+    // question_started_at은 DB(트리거)가 서버 시각으로 찍는다
+    await updateSessionState('QUIZ', undefined, { max_timer: timeLimit });
   };
 
   const handleShowResult = async () => {
@@ -888,14 +897,10 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
     if (nextIdx >= questions.length) {
       await updateSessionState('FINAL');
     } else {
-      const now = new Date(serverNow()).toISOString();
       const q = questions[nextIdx];
       const timeLimit = q?.time_limit ?? 20;
       setAnswers([]);
-      await updateSessionState('QUIZ', nextIdx, {
-        max_timer: timeLimit,
-        question_started_at: now,
-      });
+      await updateSessionState('QUIZ', nextIdx, { max_timer: timeLimit });
     }
   };
 

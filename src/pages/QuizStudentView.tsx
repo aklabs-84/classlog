@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { rpcWithRetry, hardReload, CONNECTION_ERROR_MSG } from '../lib/entryHelpers';
-import { getServerTimeOffsetMs } from '../lib/serverTime';
+import { ServerClock, parseServerTs } from '../lib/serverTime';
 import ConfettiEffect from '../components/quiz/ConfettiEffect';
 import { YouTubeEmbed } from '../components/quiz/YouTubeEmbed';
 import { getResultMedia } from '../components/quiz/resultMedia';
@@ -71,6 +71,34 @@ const OPTION_SHADOW = [
   'shadow-green-500/30',
 ] as const;
 
+// 제출 실패 이유를 학생이 알아볼 수 있는 말로 바꿈
+// 새로고침·튕김 후 자동 재입장용 — 같은 기기에서 같은 PIN으로 입장했던 이름을 3시간 동안 기억
+const REJOIN_TTL_MS = 3 * 60 * 60 * 1000;
+const rejoinKey = (pin: string) => `quizRejoin:${pin}`;
+const readRejoinName = (pin?: string): string => {
+  if (!pin) return '';
+  try {
+    const raw = localStorage.getItem(rejoinKey(pin));
+    if (!raw) return '';
+    const v = JSON.parse(raw);
+    if (typeof v?.name === 'string' && Date.now() - Number(v.at) < REJOIN_TTL_MS) return v.name;
+    localStorage.removeItem(rejoinKey(pin));
+  } catch { /* 저장소를 못 쓰는 환경은 수동 입장으로 */ }
+  return '';
+};
+const saveRejoinName = (pin: string, name: string) => {
+  try { localStorage.setItem(rejoinKey(pin), JSON.stringify({ name, at: Date.now() })); } catch { /* 무시 */ }
+};
+const clearRejoinName = (pin?: string) => {
+  if (!pin) return;
+  try { localStorage.removeItem(rejoinKey(pin)); } catch { /* 무시 */ }
+};
+
+const submitFailMessage = (msg?: string) => {
+  if (msg && /TIME_UP|NOT_ACCEPTING|NOT_CURRENT_QUESTION/.test(msg)) return '시간이 끝났거나 다음 문제로 넘어가서 제출되지 못했어요.';
+  return '전송이 안 됐어요. 인터넷을 확인하고 다시 눌러 주세요.';
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 const QuizStudentView = () => {
   const { pin } = useParams<{ pin: string }>();
@@ -78,12 +106,15 @@ const QuizStudentView = () => {
   const location = useLocation();
   // StudentLog에서 자동 입장 시 state로 이름 전달
   const autoJoinName = (location.state as any)?.autoJoinName ?? '';
+  // 새로고침/튕김 후 같은 기기에서 다시 열면 기억해 둔 이름으로 자동 재입장
+  const [rejoinName] = useState(() => (autoJoinName ? '' : readRejoinName(pin)));
+  const joinName = autoJoinName || rejoinName;
 
   // 단계: pin입력 → name입력 → 게임
   type Step = 'enter-pin' | 'enter-name' | 'game';
   const [step, setStep] = useState<Step>(pin ? 'enter-name' : 'enter-pin');
   const [pinInput, setPinInput] = useState(pin ?? '');
-  const [nameInput, setNameInput] = useState(autoJoinName);
+  const [nameInput, setNameInput] = useState(joinName);
   const [errorMsg, setErrorMsg] = useState('');
   const [showRefreshHelp, setShowRefreshHelp] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -105,7 +136,8 @@ const QuizStudentView = () => {
     pending?: boolean;
   } | null>(null);
   const [shortAnswerText, setShortAnswerText] = useState('');
-  const [timer, setTimer] = useState(20);
+  const [, setTick] = useState(0); // 남은 시간 화면 갱신용(250ms)
+  const [submitNotice, setSubmitNotice] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   // 주관식 제출 후 교사 채점 대기 중인 답변의 id — 채점 완료 realtime UPDATE를 이 id로만 매칭
   const pendingAnswerIdRef = useRef<string | null>(null);
@@ -114,10 +146,17 @@ const QuizStudentView = () => {
   const prevQuestionIndex = useRef<number>(-1);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // 기기 시계 - 서버 시계 오프셋(ms). 기기 시스템 시간이 틀려도 이 값을 Date.now()에
-  // 더하면 서버 기준 시각을 구할 수 있어, 타이머/응답시간이 교사 화면과 어긋나지 않는다.
-  const offsetMsRef = useRef(0);
-  const serverNow = () => Date.now() + offsetMsRef.current;
+  // 서버 시계 보정 — 서버가 응답마다 실어 주는 현재 시각으로 기기 시계 차이를 맞춘다.
+  // 기기 시스템 시간이 틀려도 타이머/제출 가능 여부가 선생님 화면·서버와 어긋나지 않는다.
+  const clockRef = useRef(new ServerClock());
+  const serverNow = () => clockRef.current.now();
+  // 남은 시간은 렌더할 때마다 서버 시각으로 바로 계산한다(상태로 저장하면 문제가 바뀐 직후
+  // 이전 문제의 0초가 잠깐 남아 "시간 종료"가 번쩍이는 문제가 생김).
+  const timer = (() => {
+    if (!session || session.state !== 'QUIZ' || !session.question_started_at) return 0;
+    const elapsed = Math.floor((serverNow() - parseServerTs(session.question_started_at)) / 1000);
+    return Math.min(session.max_timer, Math.max(0, session.max_timer - elapsed));
+  })();
 
   // ── PIN 확인 & 입장 ──────────────────────────────────────────────────────
   const handleVerifyPin = async () => {
@@ -148,8 +187,8 @@ const QuizStudentView = () => {
 
   // 자동 입장: autoJoinName이 있으면 enter-name 단계에서 자동으로 참가 처리
   useEffect(() => {
-    if (step === 'enter-name' && autoJoinName) {
-      handleJoin(autoJoinName);
+    if (step === 'enter-name' && joinName) {
+      handleJoin(joinName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -160,15 +199,21 @@ const QuizStudentView = () => {
     setLoading(true);
     setErrorMsg('');
 
-    // 서버-기기 시간 오프셋 조회 (백그라운드, 실패해도 0으로 폴백되어 진행에 영향 없음)
-    getServerTimeOffsetMs().then(ms => { offsetMsRef.current = ms; });
-
     // 서버 창구로 입장 (세션 확인 + 참가자 등록 + 문제 목록[정답 제외])
+    const t0 = Date.now();
     const { data: joined, error: joinErr } = await supabase.rpc('quiz_join', {
       p_pin: (session?.pin_code ?? pinInput).trim(),
       p_name: name,
     });
-    if (joinErr || !joined) { setErrorMsg('참가 등록에 실패했습니다'); setLoading(false); return; }
+    clockRef.current.sample(joined?.session?.server_now_ms, t0, Date.now());
+    if (joinErr || !joined) {
+      // 끝난 퀴즈 등으로 재입장이 안 되면 기억해 둔 이름을 지우고 직접 입력하게 한다
+      if (forceName && forceName === rejoinName) clearRejoinName(pin);
+      setErrorMsg('참가 등록에 실패했습니다');
+      setLoading(false);
+      return;
+    }
+    saveRejoinName(joined.session?.pin_code ?? pinInput.trim(), name);
     setSession(joined.session);
     setParticipant(joined.participant);
     setQuestions(joined.questions ?? []);
@@ -184,6 +229,7 @@ const QuizStudentView = () => {
         setMyAnswer(null);
         setLastResult(null);
         setShortAnswerText('');
+        setSubmitNotice('');
         pendingAnswerIdRef.current = null;
       }
       return updated;
@@ -191,8 +237,9 @@ const QuizStudentView = () => {
   }, []);
 
   // ── 폴링 동기화 (공개 조회를 막아 Realtime 대신 2초마다 서버 창구 확인) ──
-  const applyPoll = useCallback((d: any) => {
+  const applyPoll = useCallback((d: any, t0?: number, t1?: number) => {
     if (!d) return;
+    if (t0 !== undefined && t1 !== undefined) clockRef.current.sample(d.session?.server_now_ms, t0, t1);
     setIsConnected(true);
     applySessionUpdate(d.session as Session);
     setParticipant(prev => (prev ? { ...prev, ...d.participant } : (d.participant as Participant)));
@@ -215,8 +262,9 @@ const QuizStudentView = () => {
 
   const fetchParticipants = async (_sessionId?: string) => {
     if (!participant?.id) return;
+    const t0 = Date.now();
     const { data } = await supabase.rpc('quiz_poll', { p_participant_id: participant.id, p_answer_id: pendingAnswerIdRef.current });
-    applyPoll(data);
+    applyPoll(data, t0, Date.now());
   };
 
   useEffect(() => {
@@ -245,11 +293,12 @@ const QuizStudentView = () => {
     const participantId = participant.id;
     let alive = true;
     const poll = async () => {
+      const t0 = Date.now();
       const { data, error } = await supabase.rpc('quiz_poll', { p_participant_id: participantId, p_answer_id: pendingAnswerIdRef.current });
       if (!alive) return;
       if (error) { setIsConnected(false); return; }
       lastPollOkRef.current = Date.now();
-      applyPoll(data);
+      applyPoll(data, t0, lastPollOkRef.current);
     };
     lastPollOkRef.current = Date.now();
     poll();
@@ -271,24 +320,13 @@ const QuizStudentView = () => {
     };
   }, [step, participant?.id, applyPoll]);
 
-  // 타이머 동기화 (서버 시간 기준)
+  // 문제 푸는 동안 0.25초마다 화면을 다시 그려 남은 시간을 갱신
   useEffect(() => {
     if (!session || session.state !== 'QUIZ' || !session.question_started_at) return;
-
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-
-    const sync = () => {
-      const started = new Date(session.question_started_at!).getTime();
-      const elapsed = Math.floor((serverNow() - started) / 1000);
-      const remaining = Math.max(0, session.max_timer - elapsed);
-      setTimer(remaining);
-    };
-
-    sync();
-    timerIntervalRef.current = setInterval(sync, 250);
-
+    timerIntervalRef.current = setInterval(() => setTick(t => t + 1), 250);
     return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
-  }, [session?.state, session?.question_started_at, session?.max_timer]);
+  }, [session?.state, session?.question_started_at]);
 
   // 문제 인덱스 변경 감지 → 순위 최신화
   useEffect(() => {
@@ -335,6 +373,7 @@ const QuizStudentView = () => {
 
   // FINAL 종료 처리 — 채널 해제 후 완전히 다른 경로로 이동(컴포넌트 재마운트 보장)
   const handleFinalExit = useCallback(() => {
+    clearRejoinName(session?.pin_code);
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -350,7 +389,7 @@ const QuizStudentView = () => {
     } else {
       window.location.replace('/quiz');
     }
-  }, [autoJoinName, navigate]);
+  }, [autoJoinName, navigate, session?.pin_code]);
 
   // 선생님이 강제 종료(FINAL)하면 AutoRedirectButton 카운트다운과 별개로 보험용 타이머
   useEffect(() => {
@@ -366,10 +405,10 @@ const QuizStudentView = () => {
     // 서버시간 기준으로 동기화된 타이머가 이미 0이면(모든 학생이 동시에 마감) 더 이상 답변 불가
     if (timer <= 0) return;
 
-    setMyAnswer(optionIdx);
-
     const currentQuestion = questions[session.current_question_index];
-    if (!currentQuestion) return;
+    if (!currentQuestion) { setSubmitNotice('문제를 불러오는 중이에요. 잠시 후 다시 눌러 주세요.'); return; }
+    setMyAnswer(optionIdx);
+    setSubmitNotice('');
 
     const { data: res, error: ansErr } = await supabase.rpc('quiz_submit_answer', {
       p_participant_id: participant.id,
@@ -378,7 +417,10 @@ const QuizStudentView = () => {
     });
     if (ansErr || !res || res.error) {
       // 시간 초과·이미 제출 등 — 화면을 원래 상태로 되돌림
-      if (res?.error !== 'ALREADY_ANSWERED') setMyAnswer(null);
+      if (res?.error !== 'ALREADY_ANSWERED') {
+        setMyAnswer(null);
+        setSubmitNotice(submitFailMessage(ansErr?.message));
+      }
       return;
     }
     setLastResult({ questionType: 'multiple_choice', isCorrect: res.is_correct, score: res.score, correctAnswer: res.correct_answer, pending: false });
@@ -394,10 +436,10 @@ const QuizStudentView = () => {
     const text = shortAnswerText.trim();
     if (!text) return;
 
-    setMyAnswer(-1); // 주관식은 선택지 인덱스가 없으므로 "제출 완료" sentinel
-
     const currentQuestion = questions[session.current_question_index];
-    if (!currentQuestion) return;
+    if (!currentQuestion) { setSubmitNotice('문제를 불러오는 중이에요. 잠시 후 다시 눌러 주세요.'); return; }
+    setMyAnswer(-1); // 주관식은 선택지 인덱스가 없으므로 "제출 완료" sentinel
+    setSubmitNotice('');
 
     setLastResult({ questionType: 'short_answer', isCorrect: false, score: 0, correctAnswer: -1, answerText: text, pending: true });
 
@@ -406,7 +448,12 @@ const QuizStudentView = () => {
       p_question_id: currentQuestion.id,
       p_text: text,
     });
-    if (shortErr || !res || res.error) { setMyAnswer(null); setLastResult(null); return; }
+    if (shortErr || !res || res.error) {
+      if (res?.error === 'ALREADY_ANSWERED') return;
+      setMyAnswer(null); setLastResult(null);
+      setSubmitNotice(submitFailMessage(shortErr?.message));
+      return;
+    }
     pendingAnswerIdRef.current = res.answer_id;
   };
 
@@ -676,6 +723,12 @@ const QuizStudentView = () => {
                         />
                       )}
                     </div>
+
+                    {submitNotice && myAnswer === null && (
+                      <div className="rounded-xl bg-red-500/80 text-white text-sm font-bold text-center px-4 py-3" role="alert">
+                        {submitNotice}
+                      </div>
+                    )}
 
                     {/* 선택지 또는 완료 표시 */}
                     {myAnswer === null ? (
