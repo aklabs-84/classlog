@@ -4,11 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, MessageSquareText, Trash2, Clock, AlertTriangle, Copy, Check, Radio, Archive } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-function genCode() {
-  return Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
-}
+import QuestionForm, { emptyDraft, isDraftValid, type QuestionDraft } from './QuestionForm';
+import ClassPicker, { useMyClassOptions } from './ClassPicker';
+import { createLiveBoard } from './createBoard';
 
 interface LiveBoardMeta {
   id: string;
@@ -19,6 +17,7 @@ interface LiveBoardMeta {
   expires_at: string;
   created_at: string;
   ended_at: string | null;
+  class_id: string | null;
 }
 
 export default function LiveBoardList() {
@@ -27,7 +26,10 @@ export default function LiveBoardList() {
   const [boards, setBoards] = useState<LiveBoardMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [questionInput, setQuestionInput] = useState('');
+  const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());
+  const [draftClassId, setDraftClassId] = useState<string | null>(null);
+  const classOptions = useMyClassOptions();
+  const className = (id: string | null) => (id ? classOptions.find(o => o.value === id)?.name ?? '연결된 클래스' : null);
   const [creating, setCreating] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export default function LiveBoardList() {
     setLoading(true);
     const { data } = await supabase
       .from('live_boards')
-      .select('id, question, code, is_open, is_saved, expires_at, created_at, ended_at')
+      .select('id, question, code, is_open, is_saved, expires_at, created_at, ended_at, class_id')
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false });
     setBoards(data ?? []);
@@ -49,17 +51,14 @@ export default function LiveBoardList() {
   useEffect(() => { loadBoards(); }, [loadBoards]);
 
   const handleCreate = async () => {
-    if (!user || !questionInput.trim() || creating) return;
+    if (!user || !isDraftValid(draft) || creating) return;
     setCreating(true);
-    const { data, error } = await supabase
-      .from('live_boards')
-      .insert({ teacher_id: user.id, question: questionInput.trim(), code: genCode() })
-      .select('id').single();
+    const id = await createLiveBoard(user.id, draft, draftClassId);
     setCreating(false);
-    if (error || !data) return;
+    if (!id) return;
     setShowCreate(false);
-    setQuestionInput('');
-    navigate(`/live-board/${data.id}`);
+    setDraft(emptyDraft());
+    navigate(`/live-board/${id}`);
   };
 
   const handleDeleteConfirm = async (id: string) => {
@@ -109,7 +108,7 @@ export default function LiveBoardList() {
         </div>
         <div style={{ textAlign: 'left' }}>
           <p style={{ color: '#fff', fontWeight: 700, fontSize: 14, margin: 0 }}>새 게시판 만들기</p>
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: 0 }}>질문 입력 → 코드 생성 → 학생들이 실시간으로 답변</p>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: 0 }}>질문 입력 → 코드 생성 → 학생들이 실시간으로 답변·투표</p>
         </div>
       </motion.button>
 
@@ -165,6 +164,11 @@ export default function LiveBoardList() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 3 }}>
                     <Clock size={10} /> {formatDate(board.created_at)}
+                    {className(board.class_id) && (
+                      <span style={{ background: '#ECFDF5', color: '#047857', borderRadius: 4, padding: '1px 5px', fontSize: 10, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {className(board.class_id)}
+                      </span>
+                    )}
                     {board.is_saved && (
                       <span style={{ background: '#EEF2FF', color: '#4338CA', borderRadius: 4, padding: '1px 5px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2, marginLeft: 2 }}>
                         <Archive size={8} /> 저장됨
@@ -241,32 +245,28 @@ export default function LiveBoardList() {
             onClick={e => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420 }}
+            style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box', margin: 16 }}
           >
             <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111', marginBottom: 4 }}>새 실시간 게시판</h3>
-            <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16 }}>학생들에게 물어볼 질문을 입력하세요</p>
-            <textarea
-              autoFocus
-              value={questionInput}
-              onChange={e => setQuestionInput(e.target.value)}
-              placeholder="예: 좋아하는 노래 제목 3개를 적어주세요"
-              rows={3}
-              style={{ width: '100%', border: '2px solid #E5E7EB', borderRadius: 10, padding: '12px', fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }}
-              onFocus={e => (e.target.style.borderColor = '#0EA5E9')}
-              onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
-            />
+            <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16 }}>첫 질문을 만들어요. 게시판을 연 뒤에 질문을 더 추가해서 돌려 쓸 수 있어요.</p>
+            <QuestionForm draft={draft} onChange={setDraft} autoFocus />
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '16px 0 6px' }}>어느 클래스 학생에게 열까요?</p>
+            <ClassPicker value={draftClassId} onChange={setDraftClassId} options={classOptions} />
+            <p style={{ fontSize: 11, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.5 }}>
+              클래스를 고르면 그 반 학생 화면(보드 탭)에 입장 칸이 바로 켜져요. 연결 안 함이면 6자리 코드를 알려 줘야 해요.
+            </p>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 14, color: '#374151' }}>
                 취소
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!questionInput.trim() || creating}
+                disabled={!isDraftValid(draft) || creating}
                 style={{
                   flex: 1, padding: '12px', borderRadius: 10, border: 'none',
-                  background: questionInput.trim() ? '#0EA5E9' : '#E5E7EB',
-                  color: questionInput.trim() ? '#fff' : '#9CA3AF',
-                  cursor: questionInput.trim() ? 'pointer' : 'default', fontSize: 14, fontWeight: 700,
+                  background: isDraftValid(draft) ? '#0EA5E9' : '#E5E7EB',
+                  color: isDraftValid(draft) ? '#fff' : '#9CA3AF',
+                  cursor: isDraftValid(draft) ? 'pointer' : 'default', fontSize: 14, fontWeight: 700,
                 }}
               >
                 {creating ? '만드는 중...' : '만들기'}

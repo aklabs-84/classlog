@@ -115,6 +115,8 @@ import ProjectMaterialsForTeacher from '../components/classroom/ProjectMaterials
 import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
 import ClassProjectSurveyPanel from '../components/classroom/ClassProjectSurveyPanel';
 import ClassProjectQuizPanel from '../components/classroom/ClassProjectQuizPanel';
+import ClassLiveBoardPanel from '../components/classroom/ClassLiveBoardPanel';
+import { ShortcutSection } from '../components/classroom/ShortcutRow';
 import ClassroomGuideTour from '../components/classroom/ClassroomGuideTour';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
@@ -2852,13 +2854,17 @@ const Classroom = () => {
             <InstructorStartGuide schoolProjectId={classInfo.school_project_id} />
           )}
 
-          {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
-            <ClassProjectSurveyPanel classId={classInfo.id} />
-          )}
-
-          {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
-            <ClassProjectQuizPanel classId={classInfo.id} teacherId={user!.id} />
-          )}
+          <ShortcutSection>
+            {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
+              <ClassProjectSurveyPanel classId={classInfo.id} />
+            )}
+            {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
+              <ClassProjectQuizPanel classId={classInfo.id} teacherId={user!.id} />
+            )}
+            {activeTab === 'list' && classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
+              <ClassLiveBoardPanel classId={classInfo.linked_class_id || classInfo.id} teacherId={user!.id} />
+            )}
+          </ShortcutSection>
 
           {classInfo && (
             <ClassroomGuideTour

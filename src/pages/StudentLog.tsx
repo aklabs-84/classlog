@@ -609,6 +609,8 @@ const StudentLog = () => {
 
   // Board Tab States
   const [liveBoardCode, setLiveBoardCode] = useState('');
+  // 선생님이 우리 반에 연결해 연 실시간 참여 게시판 (보드 탭을 보는 동안 10초마다 확인)
+  const [classLiveBoards, setClassLiveBoards] = useState<{ id: string; code: string; question: string; is_open: boolean; kind: string }[]>([]);
   const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
   const [boardSessionAlert, setBoardSessionAlert] = useState<{ id: string; class_name: string; session_code: string; group_count: number } | null>(null);
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
@@ -947,6 +949,20 @@ const StudentLog = () => {
       supabase.removeChannel(channel);
     };
   }, [session?.class_id]);
+
+  // 우리 반에 연결된 실시간 참여 게시판 — 보드 탭을 보는 동안만 10초마다 확인
+  useEffect(() => {
+    if (activeTab !== 'board' || !session?.token) return;
+    let cancelled = false;
+    const load = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const { data, error } = await supabase.rpc('student_active_live_boards', { p_token: session.token });
+      if (!cancelled && !error && Array.isArray(data)) setClassLiveBoards(data);
+    };
+    load();
+    const timer = setInterval(load, 10000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [activeTab, session?.token]);
 
   // 퀴즈 세션 Realtime 구독 — 선생님이 퀴즈 시작 시 팝업 알림
   useEffect(() => {
@@ -5555,6 +5571,42 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 exit={{ opacity: 0, y: -10 }}
                 className="p-6 md:p-8"
               >
+                {/* 우리 반에 연결된 실시간 참여 게시판 */}
+                {classLiveBoards.length > 0 && (
+                  <div className="mb-8">
+                    <div className="mb-4 space-y-0.5">
+                      <p className="text-xs font-black text-emerald-500 uppercase tracking-[0.25em]">Live Response</p>
+                      <h3 className="text-xl font-black">우리 반 실시간 게시판</h3>
+                      <p className="text-sm text-on-surface-variant font-bold">선생님이 연 게시판이에요. 코드 없이 바로 들어갈 수 있어요</p>
+                    </div>
+                    <div className="space-y-3">
+                      {classLiveBoards.map(b => (
+                        <div key={b.id} className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-5 flex items-center gap-4 flex-wrap">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+                            <Radio size={22} className="text-white" />
+                          </div>
+                          <div className="min-w-0 flex-1" style={{ minWidth: 160 }}>
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${b.is_open ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {b.is_open ? '참여 중 🔥' : '잠시 멈춤'}
+                              </span>
+                              {b.kind === 'poll' && <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">투표</span>}
+                            </div>
+                            <p className="font-black text-on-surface text-base leading-snug break-words">{b.question}</p>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/lb-join?code=${b.code}`, { state: { autoJoinName: session?.student_name } })}
+                            className="flex items-center gap-1.5 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl transition-all shrink-0"
+                          >
+                            입장하기 <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <hr className="mt-8 border-surface-container-high" />
+                  </div>
+                )}
+
                 {/* 실시간 참여 게시판 입장 */}
                 <div className="mb-8">
                   <div className="mb-4 space-y-0.5">

@@ -5,9 +5,11 @@ import { supabase } from '../../../lib/supabase';
 export interface LiveBoardResponse {
   id: string;
   board_id: string;
+  question_id: string;
   student_user_id: string;
   nickname: string;
   content: string;
+  choices: number[] | null;
   created_at: string;
 }
 
@@ -17,6 +19,7 @@ interface UseLiveBoardRealtimeOptions {
   onResponseDeleted?: (id: string) => void;
   onToggle?: (isOpen: boolean) => void;
   onEnded?: () => void;
+  onQuestionChanged?: (questionId: string) => void;
 }
 
 export interface UseLiveBoardRealtimeReturn {
@@ -24,12 +27,13 @@ export interface UseLiveBoardRealtimeReturn {
   emitResponseDeleted: (id: string) => void;
   emitToggle: (isOpen: boolean) => void;
   emitEnded: () => void;
+  emitQuestionChanged: (questionId: string) => void;
 }
 
 // 화이트보드와 달리 제출/삭제/토글처럼 드문 이벤트만 오가므로
 // 하트비트·커서·폴링 없이 broadcast 채널 하나로 충분히 저지연을 낸다.
 export function useLiveBoardRealtime({
-  boardId, onResponseAdded, onResponseDeleted, onToggle, onEnded,
+  boardId, onResponseAdded, onResponseDeleted, onToggle, onEnded, onQuestionChanged,
 }: UseLiveBoardRealtimeOptions): UseLiveBoardRealtimeReturn {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -52,6 +56,9 @@ export function useLiveBoardRealtime({
       })
       .on('broadcast', { event: 'board:ended' }, () => {
         onEnded?.();
+      })
+      .on('broadcast', { event: 'question:changed' }, ({ payload }) => {
+        onQuestionChanged?.((payload as { questionId: string }).questionId);
       })
       .subscribe();
 
@@ -82,5 +89,9 @@ export function useLiveBoardRealtime({
     channelRef.current?.send({ type: 'broadcast', event: 'board:ended', payload: {} });
   }, []);
 
-  return { emitResponseAdded, emitResponseDeleted, emitToggle, emitEnded };
+  const emitQuestionChanged = useCallback((questionId: string) => {
+    channelRef.current?.send({ type: 'broadcast', event: 'question:changed', payload: { questionId } });
+  }, []);
+
+  return { emitResponseAdded, emitResponseDeleted, emitToggle, emitEnded, emitQuestionChanged };
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BarChart2, Loader2, Play, StopCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { appToast } from '../../lib/appDialog';
+import { ShortcutRow } from './ShortcutRow';
 
 interface ProjectSurvey {
   id: string;
@@ -34,38 +35,30 @@ export default function ClassProjectSurveyPanel({ classId }: { classId: string }
   };
 
   if (!items || items.length === 0) return null;
-  const anyOpen = items.some(i => i.is_open);
-
   return (
-    <div className={`rounded-2xl border-2 p-4 space-y-3 ${anyOpen ? 'border-red-300 bg-red-50' : 'border-neutral-200 bg-white'}`}>
-      <div className="flex items-center gap-2">
-        <BarChart2 size={18} className={anyOpen ? 'text-red-500' : 'text-neutral-500'} />
-        <h3 className="font-black text-sm">학교 프로젝트 설문</h3>
-        {anyOpen && <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">학생에게 열려 있어요</span>}
-      </div>
-      <p className="text-xs font-bold text-neutral-500 leading-relaxed">
-        "설문 시작"을 누르면 우리 반 학생 화면의 "수업 끝 설문" 칸이 빨갛게 켜져요. 끝나면 "종료"를 눌러 주세요.
-      </p>
-      <div className="space-y-2">
-        {items.map(s => (
-          <div key={s.id} className="flex items-center gap-3 rounded-xl bg-white border border-neutral-200 p-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold truncate">{s.title}</p>
-              <p className="text-[11px] font-bold text-neutral-400 mt-0.5">
-                {[s.scope === 'common' ? '공통' : s.scope === 'school' ? '우리 학교 전용' : '우리 반 전용', s.week_number ? `${s.week_number}주차` : null, s.survey_phase === 'post' ? '사후' : s.survey_phase === 'pre' ? '사전' : null, `우리 반 응답 ${s.response_count}명`].filter(Boolean).join(' · ')}
-              </p>
-            </div>
+    <>
+      {items.map(s => (
+        <ShortcutRow
+          key={s.id}
+          tone="red"
+          icon={<BarChart2 size={16} />}
+          kind="설문"
+          title={s.title}
+          highlight={s.is_open}
+          summary={[s.scope === 'common' ? '공통' : s.scope === 'school' ? '우리 학교 전용' : '우리 반 전용', s.week_number ? `${s.week_number}주차` : null, s.survey_phase === 'post' ? '사후' : s.survey_phase === 'pre' ? '사전' : null, `우리 반 응답 ${s.response_count}명`].filter(Boolean).join(' · ')}
+          help={'"설문 시작"을 누르면 우리 반 학생 화면의 "수업 끝 설문" 칸이 빨갛게 켜져요. 끝나면 "종료"를 눌러 주세요.'}
+          action={
             <button
               onClick={() => toggle(s)}
               disabled={busyId === s.id}
-              className={`shrink-0 flex items-center gap-1 text-xs font-black px-3 py-2 rounded-lg text-white disabled:opacity-50 ${s.is_open ? 'bg-neutral-500' : 'bg-red-500 hover:bg-red-600'}`}
+              className={`flex items-center gap-1 text-xs font-black px-3 py-2 rounded-lg text-white disabled:opacity-50 ${s.is_open ? 'bg-neutral-500' : 'bg-red-500 hover:bg-red-600'}`}
             >
               {busyId === s.id ? <Loader2 size={12} className="animate-spin" /> : s.is_open ? <StopCircle size={12} /> : <Play size={12} />}
               {s.is_open ? '종료' : '설문 시작'}
             </button>
-          </div>
-        ))}
-      </div>
-    </div>
+          }
+        />
+      ))}
+    </>
   );
 }
