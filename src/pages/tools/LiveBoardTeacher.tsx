@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Copy, Check, Users, Radio, Pause, Play,
-  Trash2, Save, Square, Loader2, MessageSquareText, Plus, Vote, Send, X,
+  Trash2, Save, Square, Loader2, MessageSquareText, Plus, Vote, Send, X, Pencil, RotateCcw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { useLiveBoardRealtime, type LiveBoardResponse } from '../../components/live-board/hooks/useLiveBoardRealtime';
 import { useActionToast, ActionToast } from '../../components/ui/LimitToast';
-import QuestionForm, { emptyDraft, isDraftValid, draftToRow, type QuestionDraft } from '../../components/live-board/QuestionForm';
+import QuestionForm, { emptyDraft, isDraftValid, isEditValid, draftToRow, type QuestionDraft } from '../../components/live-board/QuestionForm';
 import ClassPicker, { useMyClassOptions } from '../../components/live-board/ClassPicker';
 import PollBars from '../../components/live-board/PollBars';
 import { QUESTION_COLUMNS, RESPONSE_COLUMNS, type LiveBoardQuestion } from '../../components/live-board/types';
@@ -23,6 +23,7 @@ interface BoardMeta {
   is_open: boolean;
   is_saved: boolean;
   ended_at: string | null;
+  expires_at: string;
   class_id: string | null;
 }
 
@@ -50,6 +51,10 @@ export default function LiveBoardTeacher() {
   const [adding, setAdding] = useState(false);
   const [confirmDeleteQ, setConfirmDeleteQ] = useState<LiveBoardQuestion | null>(null);
   const [deletingQ, setDeletingQ] = useState(false);
+  const [editQ, setEditQ] = useState<LiveBoardQuestion | null>(null);
+  const [editDraft, setEditDraft] = useState<QuestionDraft>(emptyDraft());
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const boardRef = useRef<BoardMeta | null>(null);
   boardRef.current = board;
 
@@ -74,7 +79,7 @@ export default function LiveBoardTeacher() {
     setLoading(true);
     const [{ data: boardData }, { data: resData }, { data: qData }] = await Promise.all([
       supabase.from('live_boards')
-        .select('id, teacher_id, question, current_question_id, code, is_open, is_saved, ended_at, class_id')
+        .select('id, teacher_id, question, current_question_id, code, is_open, is_saved, ended_at, expires_at, class_id')
         .eq('id', boardId).maybeSingle(),
       supabase.from('live_board_responses')
         .select(RESPONSE_COLUMNS)
@@ -138,6 +143,49 @@ export default function LiveBoardTeacher() {
     setBoard(prev => (prev ? { ...prev, is_open: false, ended_at: new Date().toISOString() } : prev));
     emitToggle(false);
     emitEnded();
+  };
+
+  // 종료한 게시판을 다시 연다. 자동 삭제 시간도 새로 늘린다(저장된 게시판은 건드리지 않음)
+  const handleRestart = async () => {
+    if (!board || restarting) return;
+    setRestarting(true);
+    const patch: { is_open: boolean; ended_at: null; expires_at?: string } = { is_open: true, ended_at: null };
+    const fresh = new Date(Date.now() + 8 * 3600 * 1000);
+    if (!board.is_saved && new Date(board.expires_at) < fresh) patch.expires_at = fresh.toISOString();
+    const { error } = await supabase.from('live_boards').update(patch).eq('id', board.id);
+    setRestarting(false);
+    if (error) { showActionToast('다시 시작하지 못했어요. 다시 시도해주세요.'); return; }
+    setBoard(prev => (prev ? { ...prev, is_open: true, ended_at: null, expires_at: patch.expires_at ?? prev.expires_at } : prev));
+    emitToggle(true);
+    showActionToast('게시판을 다시 열었어요. 학생이 다시 참여할 수 있어요.');
+  };
+
+  const openEdit = (q: LiveBoardQuestion) => {
+    setEditQ(q);
+    setEditDraft({ kind: q.kind, question: q.question, options: q.options ? [...q.options] : ['', ''], allowMultiple: q.allow_multiple });
+  };
+
+  // 답이 이미 들어온 질문은 보기 번호가 밀리지 않게 구조 변경을 막는다 (QuestionForm의 locked)
+  const editLockedCount = editQ && responses.some(r => r.question_id === editQ.id) ? (editQ.options?.length ?? 0) : 0;
+  const editLocked = !!editQ && responses.some(r => r.question_id === editQ.id);
+
+  const handleSaveEdit = async () => {
+    if (!board || !editQ || savingEdit || !isEditValid(editDraft, editLockedCount)) return;
+    setSavingEdit(true);
+    const row = draftToRow(editDraft);
+    const { data, error } = await supabase.from('live_board_questions')
+      .update(row).eq('id', editQ.id).select(QUESTION_COLUMNS).single();
+    if (error || !data) { setSavingEdit(false); showActionToast('질문을 고치지 못했어요. 다시 시도해주세요.'); return; }
+    const q = data as LiveBoardQuestion;
+    if (q.id === board.current_question_id) {
+      await supabase.from('live_boards').update({ question: q.question }).eq('id', board.id);
+      setBoard(prev => (prev ? { ...prev, question: q.question } : prev));
+      emitQuestionChanged(q.id); // 학생 화면이 바뀐 내용으로 다시 불러온다
+    }
+    setSavingEdit(false);
+    setQuestions(prev => prev.map(x => (x.id === q.id ? q : x)));
+    setEditQ(null);
+    showActionToast('질문을 고쳤어요.');
   };
 
   // 학생들에게 이 질문을 보낸다(학생 화면이 새로고침 없이 바뀜)
@@ -342,6 +390,20 @@ export default function LiveBoardTeacher() {
               <span style={{ fontSize: 12, color: '#4338CA', fontWeight: 600 }}>✓ 저장됨 (자동삭제 안 됨)</span>
             )}
 
+            {isEnded && (
+              <button
+                onClick={handleRestart}
+                disabled={restarting}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8,
+                  border: 'none', background: '#0EA5E9', color: '#fff',
+                  cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                }}
+              >
+                {restarting ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} 다시 시작
+              </button>
+            )}
+
             {!isEnded && (
               <button
                 onClick={() => setConfirmEnd(true)}
@@ -387,6 +449,13 @@ export default function LiveBoardTeacher() {
                   {isCur && (
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#16A34A', background: '#DCFCE7', borderRadius: 8, padding: '1px 6px' }}>진행 중</span>
                   )}
+                </button>
+                <button
+                  onClick={() => openEdit(q)}
+                  title="이 질문 고치기"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: '0 6px 0 0', display: 'flex' }}
+                >
+                  <Pencil size={12} />
                 </button>
                 {!isCur && !isEnded && (
                   <button
@@ -495,6 +564,36 @@ export default function LiveBoardTeacher() {
           </div>
         )}
       </div>
+
+      {editQ && (
+        <div
+          onClick={() => !savingEdit && setEditQ(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }}
+          >
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111', margin: '0 0 4px' }}>질문 고치기</h3>
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '0 0 16px' }}>
+              {editQ.id === board.current_question_id ? '학생에게 보이는 질문이라, 저장하면 학생 화면도 바로 바뀌어요.' : '저장하면 이 질문 내용이 바뀌어요.'}
+            </p>
+            <QuestionForm draft={editDraft} onChange={setEditDraft} autoFocus locked={editLocked} lockedCount={editLockedCount} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+              <button onClick={() => setEditQ(null)} disabled={savingEdit} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 13, color: '#374151' }}>
+                취소
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={!isEditValid(editDraft, editLockedCount) || savingEdit}
+                style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: isEditValid(editDraft, editLockedCount) ? '#0EA5E9' : '#E5E7EB', color: isEditValid(editDraft, editLockedCount) ? '#fff' : '#9CA3AF', cursor: isEditValid(editDraft, editLockedCount) ? 'pointer' : 'default', fontSize: 13, fontWeight: 700 }}
+              >
+                {savingEdit ? '저장 중...' : '저장하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div

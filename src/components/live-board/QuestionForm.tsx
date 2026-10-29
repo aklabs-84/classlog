@@ -30,10 +30,22 @@ export function draftToRow(d: QuestionDraft) {
   };
 }
 
+// 투표가 이미 들어온 질문을 고칠 때: 앞쪽 보기 칸은 비울 수 없다 (비우면 번호가 밀려 표가 엉뚱한 보기에 붙는다)
+export function isEditValid(d: QuestionDraft, lockedCount: number): boolean {
+  if (!isDraftValid(d)) return false;
+  if (lockedCount > 0 && d.kind === 'poll') {
+    return d.options.slice(0, lockedCount).every(o => o.trim());
+  }
+  return true;
+}
+
 interface Props {
   draft: QuestionDraft;
   onChange: (next: QuestionDraft) => void;
   autoFocus?: boolean;
+  // 이미 답이 들어온 질문이면 true: 종류 바꾸기·보기 삭제를 막고, 보기 글자 고치기·뒤에 추가만 허용
+  locked?: boolean;
+  lockedCount?: number;
 }
 
 const kindButton = (active: boolean): React.CSSProperties => ({
@@ -45,7 +57,7 @@ const kindButton = (active: boolean): React.CSSProperties => ({
   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
 });
 
-export default function QuestionForm({ draft, onChange, autoFocus }: Props) {
+export default function QuestionForm({ draft, onChange, autoFocus, locked, lockedCount = 0 }: Props) {
   const set = (patch: Partial<QuestionDraft>) => onChange({ ...draft, ...patch });
   const isPoll = draft.kind === 'poll';
 
@@ -57,7 +69,12 @@ export default function QuestionForm({ draft, onChange, autoFocus }: Props) {
   return (
     <div>
       <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 6px' }}>학생이 어떻게 답하나요?</p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      {locked && (
+        <p style={{ fontSize: 11, color: '#B45309', background: '#FFFBEB', borderRadius: 8, padding: '6px 10px', margin: '0 0 8px', lineHeight: 1.5 }}>
+          이미 답이 들어온 질문이라 답하는 방식은 바꿀 수 없어요. 질문 문장은 자유롭게 고칠 수 있고{isPoll ? ', 보기는 글자 고치기와 뒤에 추가만 할 수 있어요.' : '.'}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, opacity: locked ? 0.55 : 1, pointerEvents: locked ? 'none' : 'auto' }}>
         <button type="button" onClick={() => set({ kind: 'text' })} style={kindButton(!isPoll)}>
           <MessageSquareText size={18} /> 글로 답하기
           <span style={{ fontSize: 10, fontWeight: 500 }}>생각을 한 줄씩 적어요</span>
@@ -97,7 +114,7 @@ export default function QuestionForm({ draft, onChange, autoFocus }: Props) {
                   placeholder={`보기 ${i + 1}`}
                   style={{ flex: 1, minWidth: 0, border: '1px solid #E5E7EB', borderRadius: 8, padding: '9px 10px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
                 />
-                {draft.options.length > MIN_OPTIONS && (
+                {draft.options.length > MIN_OPTIONS && i >= (locked ? lockedCount : 0) && (
                   <button
                     type="button"
                     onClick={() => removeOption(i)}
