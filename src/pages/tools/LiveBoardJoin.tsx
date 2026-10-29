@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Loader2, GraduationCap, Send, MessageSquareText, PauseCircle, CheckCircle2, Vote, Check } from 'lucide-react';
+import { ArrowRight, Loader2, GraduationCap, Send, MessageSquareText, PauseCircle, CheckCircle2, Vote, Check, Home } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useLiveBoardRealtime, type LiveBoardResponse } from '../../components/live-board/hooks/useLiveBoardRealtime';
 import PollBars from '../../components/live-board/PollBars';
@@ -20,6 +20,9 @@ interface JoinedBoard {
 export default function LiveBoardJoin() {
   const [searchParams] = useSearchParams();
   // 학생 로그 화면의 "우리 반 게시판"으로 들어오면 로그인한 이름으로 바로 입장한다
+  const navigate = useNavigate();
+  // 학생 페이지에서 로그인한 상태(같은 브라우저 탭)면 홈으로 돌아가는 버튼을 보여 준다
+  const hasStudentSession = (() => { try { return !!sessionStorage.getItem('student_session'); } catch { return false; } })();
   const autoJoinName = ((useLocation().state as { autoJoinName?: string } | null)?.autoJoinName ?? '').trim();
   const autoJoinTried = useRef(false);
 
@@ -376,10 +379,24 @@ export default function LiveBoardJoin() {
                 </button>
               </>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#052E16', border: '1px solid #166534', borderRadius: 8, padding: '10px 14px', marginBottom: 4 }}>
-                <CheckCircle2 size={16} color="#4ADE80" />
-                <p style={{ color: '#86EFAC', fontSize: 12, margin: 0 }}>{isPoll ? '투표가 완료되었어요. 아래에서 결과를 볼 수 있어요.' : '답변이 제출되었습니다. 아래에서 다른 친구들의 답변도 볼 수 있어요.'}</p>
-              </div>
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#052E16', border: '1px solid #166534', borderRadius: 8, padding: '10px 14px', marginBottom: 4 }}>
+                  <CheckCircle2 size={16} color="#4ADE80" />
+                  <p style={{ color: '#86EFAC', fontSize: 12, margin: 0 }}>{isPoll ? '투표가 완료되었어요. 아래에서 결과를 볼 수 있어요.' : '답변이 제출되었습니다. 아래에서 다른 친구들의 답변도 볼 수 있어요.'}</p>
+                </div>
+                {hasStudentSession && (
+                  <button
+                    onClick={() => navigate('/student-log')}
+                    style={{
+                      width: '100%', marginTop: 10, padding: '12px', borderRadius: 10, border: '1px solid #475569',
+                      background: '#0F172A', color: '#E2E8F0', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    }}
+                  >
+                    <Home size={16} /> 학생 페이지 홈으로
+                  </button>
+                )}
+              </>
             )}
 
             <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #334155' }}>
