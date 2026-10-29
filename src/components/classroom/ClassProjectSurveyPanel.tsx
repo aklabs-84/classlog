@@ -41,7 +41,6 @@ export default function ClassProjectSurveyPanel({ classId }: { classId: string }
         <ShortcutRow
           key={s.id}
           tone="red"
-          icon={<BarChart2 size={16} />}
           kind="설문"
           title={s.title}
           highlight={s.is_open}

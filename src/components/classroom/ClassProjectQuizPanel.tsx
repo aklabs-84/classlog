@@ -44,7 +44,6 @@ export default function ClassProjectQuizPanel({ classId, teacherId }: { classId:
         <ShortcutRow
           key={q.id}
           tone="violet"
-          icon={<Gamepad2 size={16} />}
           kind="퀴즈"
           title={q.title}
           summary={`문제 ${q.question_count}개${liveSetIds.has(q.id) ? ' · 진행 중인 방이 있어요' : ''}`}

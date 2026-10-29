@@ -54,7 +54,6 @@ export default function ClassLiveBoardPanel({ classId, teacherId }: { classId: s
     <>
       <ShortcutRow
         tone="emerald"
-        icon={<Radio size={16} />}
         kind="게시판"
         title="실시간 참여 게시판"
         summary={boards.length > 0 ? `진행 중 ${boards.length}개` : '글 답하기 · 투표'}
@@ -72,7 +71,6 @@ export default function ClassLiveBoardPanel({ classId, teacherId }: { classId: s
         <ShortcutRow
           key={b.id}
           tone="emerald"
-          icon={<Radio size={16} />}
           kind="게시판"
           title={b.question}
           summary={`${b.is_open ? '입력 중' : '일시정지'} · 코드 ${b.code}`}
