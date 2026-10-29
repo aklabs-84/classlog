@@ -55,6 +55,7 @@ export default function LiveBoardTeacher() {
   const [editDraft, setEditDraft] = useState<QuestionDraft>(emptyDraft());
   const [savingEdit, setSavingEdit] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [editingClass, setEditingClass] = useState(false);
   const boardRef = useRef<BoardMeta | null>(null);
   boardRef.current = board;
 
@@ -349,12 +350,27 @@ export default function LiveBoardTeacher() {
               <Users size={15} color="#0EA5E9" /> 참여 {viewResponses.length}명
             </div>
 
-            {!isEnded && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', fontWeight: 600, minWidth: 0 }}>
-                <span style={{ flexShrink: 0 }}>연결 클래스</span>
-                <ClassPicker compact value={board.class_id} onChange={handleLinkClass} options={classOptions} disabled={linking} />
-              </label>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', fontWeight: 600, minWidth: 0, flexWrap: 'wrap' }}>
+              <span style={{ flexShrink: 0 }}>연결 클래스</span>
+              {editingClass ? (
+                <>
+                  <ClassPicker compact value={board.class_id} onChange={async (id) => { await handleLinkClass(id); setEditingClass(false); }} options={classOptions} disabled={linking} />
+                  <button onClick={() => setEditingClass(false)} disabled={linking} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9CA3AF' }}>취소</button>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: board.class_id ? '#111827' : '#9CA3AF', fontWeight: 700 }}>
+                    {board.class_id ? (classOptions.find(o => o.value === board.class_id)?.name ?? '연결된 클래스') : '연결 안 함'}
+                  </span>
+                  <button
+                    onClick={() => setEditingClass(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '3px 9px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    <Pencil size={11} /> 변경
+                  </button>
+                </>
+              )}
+            </div>
 
             {!isEnded && (
               <button
