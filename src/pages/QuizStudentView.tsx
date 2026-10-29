@@ -424,7 +424,8 @@ const QuizStudentView = () => {
       return;
     }
     setLastResult({ questionType: 'multiple_choice', isCorrect: res.is_correct, score: res.score, correctAnswer: res.correct_answer, pending: false });
-    if (res.score > 0) setParticipant(prev => prev ? { ...prev, score: prev.score + res.score } : prev);
+    // 내 점수 표시는 결과 공개(RESULT) 때 서버가 반영해 주므로 여기서 미리 더하지 않는다
+    // (문제 푸는 중에 점수가 오르면 정답 여부가 옆 친구에게 보임)
   };
 
   // ── 주관식 답변 제출 ──────────────────────────────────────────────────────────

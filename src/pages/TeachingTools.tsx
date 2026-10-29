@@ -665,6 +665,9 @@ const TeachingTools = () => {
   const urlToolId = searchParams.get('tool');
   useEffect(() => {
     if (!urlToolId) {
+      // "이 도구를 열어라"(state.activeToolId)로 막 들어온 경우엔 주소에 tool=이 아직 없어도 목록으로 되돌리지 않는다
+      // (아래 동기화 effect가 곧 tool= 을 채우고 이 신호를 지운다)
+      if ((location.state as { activeToolId?: string } | null)?.activeToolId) return;
       if (activeTool) { pushedToolRef.current = false; setActiveTool(null); }
       return;
     }
