@@ -85,6 +85,8 @@ const withExtraFields = (base: FieldInfo[], keys: Set<string>): FieldInfo[] => {
   return out;
 };
 
+const NOTE_COLORS = ['#FFF2A8', '#CDEFD8', '#FFD6E0', '#CFE6FA', '#FFE0BF'];
+
 const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -281,22 +283,22 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
             const rows = currentStep.fields.filter(f => !f.key.includes('+') || isFilled(valueOf(s.id, f.key)));
             const isNew = fresh[s.id] !== undefined;
             return (
-              <div key={s.id} className={`break-inside-avoid border-t-2 border-[#1d1b18] pt-3 pb-4 mb-3 -mx-2 px-2 transition-colors duration-1000 ${isNew ? 'bg-[#e8e8fb]' : ''}`}>
+              <div key={s.id} style={{ background: NOTE_COLORS[(students.indexOf(s)) % NOTE_COLORS.length], transform: `rotate(${[-0.6, 0.5, -0.3, 0.7][students.indexOf(s) % 4]}deg)` }} className={`break-inside-avoid rounded-sm pt-3 pb-4 mb-5 px-4 shadow-[2px_3px_0_rgba(90,60,20,0.22)] transition-all duration-1000 ${isNew ? 'ring-2 ring-[#B65E12]' : ''}`}>
                 <div className="flex items-baseline gap-3 mb-1">
                   <button onClick={() => goStudent(s.id)} className={`font-bold hover:underline ${big ? 'text-[26px]' : 'text-[21px]'}`}>{s.full_name}</button>
                   <span className="text-sm text-[#6f685c]">{stepFilled(s.id, currentStep)}/{rows.length}칸 작성</span>
-                  {isNew && <span className="text-xs font-bold text-white bg-[#3b3bd6] rounded-sm px-1.5 py-0.5">방금</span>}
+                  {isNew && <span className="text-xs font-bold text-white bg-[#B65E12] rounded-sm px-1.5 py-0.5">방금</span>}
                 </div>
                 {rows.map(f => {
                   const v = valueOf(s.id, f.key);
                   const ok = isFilled(v);
                   const extra = f.key.includes('+');
                   return (
-                    <div key={f.key} className={`py-1.5 ${extra ? 'border-l-[3px] border-[#3b3bd6] pl-3' : ''}`}>
-                      <button onClick={() => goQuestion(f.key)} className={`block text-left leading-snug text-[#6f685c] hover:text-[#3b3bd6] ${big ? 'text-[17px]' : 'text-sm'}`}>
-                        {extra && <b className="text-[#3b3bd6]">추가 </b>}{f.label}
+                    <div key={f.key} className={`py-1.5 ${extra ? 'border-l-[3px] border-[#2F5240] pl-3' : ''}`}>
+                      <button onClick={() => goQuestion(f.key)} className={`block text-left leading-snug text-[#6f685c] hover:text-[#2F5240] ${big ? 'text-[17px]' : 'text-sm'}`}>
+                        {extra && <b className="text-[#2F5240]">추가 </b>}{f.label}
                       </button>
-                      {!ok ? <p className="text-[#b9b0a0] text-[15px]">{f.checkbox ? '체크 안 함' : '아직 안 썼어요'}</p>
+                      {!ok ? <p className="text-[#8a7a55] text-[15px]">{f.checkbox ? '체크 안 함' : '아직 안 썼어요'}</p>
                         : f.checkbox ? <p className="text-[#1f7a4d] font-bold">✔ 체크했어요</p>
                         : <p className={`whitespace-pre-wrap break-words leading-relaxed ${big ? 'text-2xl' : 'text-lg'}`}>{v}</p>}
                     </div>
@@ -307,8 +309,8 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
           })}
         </div>
         {waiting.length > 0 && (
-          <div className="mt-6 border-t-2 border-[#1d1b18] pt-3 text-[#b4531b]">
-            <b>아직 안 쓴 학생 {waiting.length}명</b>
+          <div className="mt-6 rounded-sm bg-[#FFF2A8] px-4 py-3 text-[#7A3410] shadow-[2px_3px_0_rgba(90,60,20,0.22)] w-fit max-w-full">
+            <b>📌 아직 안 쓴 학생 {waiting.length}명</b>
             <p className="mt-1">{waiting.map(s => s.full_name).join(' · ')}</p>
           </div>
         )}
@@ -358,12 +360,12 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       <div className="max-w-[820px]">
         <div className="flex items-center gap-3">
           <h2 className="font-serif text-[28px] font-bold">{currentS.full_name} 학생</h2>
-          <button onClick={() => { setSelectedId(currentS.id); setShowOriginal(true); }} className="flex items-center gap-1 text-sm font-bold text-[#3b3bd6] hover:underline"><Monitor size={15} />학생 화면 그대로 보기</button>
+          <button onClick={() => { setSelectedId(currentS.id); setShowOriginal(true); }} className="flex items-center gap-1 text-sm font-bold text-[#2F5240] hover:underline"><Monitor size={15} />학생 화면 그대로 보기</button>
         </div>
         <p className="text-[#6f685c] mt-1 mb-6"><b className="text-[#1d1b18] text-xl">{A.length}칸</b> 작성 · {E.length}칸 비어 있음</p>
         {A.length === 0 ? <p className="border-t-2 border-[#1d1b18] pt-3 text-[#b4531b]">아직 아무것도 쓰지 않았어요.</p> : A.map(f => (
           <div key={f.key} className="grid grid-cols-[minmax(0,260px)_1fr] gap-5 py-3 border-t border-[#ddd5c6] hover:bg-[#efe9dc] hover:pl-2 transition-all">
-            <button onClick={() => goQuestion(f.key)} className="text-left text-base font-semibold text-[#6f685c] hover:text-[#3b3bd6]">{fields.indexOf(f) + 1}. {f.label}</button>
+            <button onClick={() => goQuestion(f.key)} className="text-left text-base font-semibold text-[#6f685c] hover:text-[#2F5240]">{fields.indexOf(f) + 1}. {f.label}</button>
             {f.checkbox ? <span className="text-[#1f7a4d] font-bold">✔ 체크했어요</span> : <span className="text-xl whitespace-pre-wrap break-words">{valueOf(currentS.id, f.key)}</span>}
           </div>
         ))}
@@ -382,7 +384,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       <p className="text-sm text-[#6f685c] mb-3">누가 어느 칸을 썼는지 한눈에 봐요 · 칸을 누르면 그 문항으로, 이름을 누르면 그 학생으로 이동해요</p>
       <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `auto repeat(${fields.length}, 22px)` }}>
         <div />
-        {fields.map((f, i) => <button key={f.key} title={f.label} onClick={() => goQuestion(f.key)} className="text-[12px] font-semibold text-[#6f685c] hover:text-[#3b3bd6]">{i + 1}</button>)}
+        {fields.map((f, i) => <button key={f.key} title={f.label} onClick={() => goQuestion(f.key)} className="text-[12px] font-semibold text-[#6f685c] hover:text-[#2F5240]">{i + 1}</button>)}
         {students.map(s => (
           <Fragment key={s.id}>
             <button onClick={() => goStudent(s.id)} className="text-sm text-[#6f685c] hover:text-[#1d1b18] text-left pr-3 whitespace-nowrap leading-[22px]">{s.full_name}</button>
@@ -390,13 +392,13 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
               const v = valueOf(s.id, f.key);
               const ok = isFilled(v);
               return <button key={f.key} onClick={() => goQuestion(f.key)} title={`${s.full_name} · ${f.label}${ok && !f.checkbox ? ` : ${v}` : ''}`}
-                className={`h-[22px] rounded-[3px] transition-transform hover:scale-125 ${ok ? (f.checkbox ? 'bg-[#1f7a4d]' : 'bg-[#3b3bd6]') : 'bg-[#e6dccb]'}`} />;
+                className={`h-[22px] rounded-[3px] transition-transform hover:scale-125 ${ok ? (f.checkbox ? 'bg-[#1f7a4d]' : 'bg-[#2F5240]') : 'bg-[#e6dccb]'}`} />;
             })}
           </Fragment>
         ))}
       </div>
       <p className="mt-4 text-sm text-[#6f685c] flex gap-5">
-        <span><i className="inline-block w-3 h-3 rounded-sm bg-[#3b3bd6] mr-1.5" />글로 씀</span>
+        <span><i className="inline-block w-3 h-3 rounded-sm bg-[#2F5240] mr-1.5" />글로 씀</span>
         <span><i className="inline-block w-3 h-3 rounded-sm bg-[#1f7a4d] mr-1.5" />체크함</span>
         <span><i className="inline-block w-3 h-3 rounded-sm bg-[#e6dccb] mr-1.5" />아직 안 씀</span>
       </p>
@@ -408,14 +410,14 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     return (
       <div className="p-8 overflow-auto">
         <label className="flex items-center gap-2 text-base text-[#6f685c] mb-4 cursor-pointer w-fit">
-          <input type="checkbox" checked={showCheck} onChange={e => setShowCheck(e.target.checked)} className="accent-[#3b3bd6]" />체크 문항도 보기 · 붉은 칸은 아직 안 쓴 칸이에요
+          <input type="checkbox" checked={showCheck} onChange={e => setShowCheck(e.target.checked)} className="accent-[#2F5240]" />체크 문항도 보기 · 붉은 칸은 아직 안 쓴 칸이에요
         </label>
         <table className="border-collapse text-base">
           <thead><tr>
             <th className="sticky top-0 left-0 z-20 bg-[#f6f2ea] border-b border-[#ddd5c6] px-3 py-2 text-left min-w-[90px]">학생</th>
             {cols.map(f => (
               <th key={f.key} className="sticky top-0 z-10 bg-[#f6f2ea] border-b border-[#ddd5c6] px-3 py-2 text-left align-top min-w-[160px] max-w-[260px] font-semibold text-sm text-[#6f685c]">
-                <button onClick={() => goQuestion(f.key)} className="text-left hover:text-[#3b3bd6]">{fields.indexOf(f) + 1}. {f.label}<br /><span className="font-normal">{answeredBy(f.key).length}/{students.length}</span></button>
+                <button onClick={() => goQuestion(f.key)} className="text-left hover:text-[#2F5240]">{fields.indexOf(f) + 1}. {f.label}<br /><span className="font-normal">{answeredBy(f.key).length}/{students.length}</span></button>
               </th>
             ))}
           </tr></thead>
@@ -437,10 +439,10 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   };
 
   const listItem = (on: boolean, onClick: () => void, title: React.ReactNode, sub: string, pct: number) => (
-    <button onClick={onClick} className={`block w-full text-left px-7 py-2.5 border-l-[3px] transition-colors hover:bg-[#efe9dc] ${on ? 'bg-[#efe9dc] border-[#3b3bd6]' : 'border-transparent'}`}>
+    <button onClick={onClick} className={`block w-[calc(100%-24px)] mx-3 mb-2 text-left px-4 py-2.5 rounded-xl transition-colors ${on ? 'bg-white border-2 border-[#2F5240]' : 'bg-[#FBF7EC] border border-[#D9CBAA] hover:bg-white'}`}>
       <span className="block text-[17px] leading-snug">{title}</span>
       <span className="text-sm text-[#6f685c]">{sub}</span>
-      <div className="h-1 bg-[#ddd5c6] mt-1.5 relative"><i className="absolute inset-y-0 left-0 bg-[#3b3bd6] transition-all" style={{ width: `${pct}%` }} /></div>
+      <div className="h-1.5 rounded-full bg-[#E5DAC0] mt-1.5 relative overflow-hidden"><i className="absolute inset-y-0 left-0 bg-[#2F5240] transition-all" style={{ width: `${pct}%` }} /></div>
     </button>
   );
 
@@ -448,7 +450,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     if (tab === 'step') {
       return (
         <>
-          <p className="text-sm text-[#6f685c] px-7 pt-5 pb-1.5">단계 {steps.length}개</p>
+          <p className="text-sm text-[#6f685c] px-6 pt-4 pb-2">단계 {steps.length}개</p>
           {steps.map((st, i) => {
             const n = students.filter(s => stepFilled(s.id, st) > 0).length;
             return <Fragment key={`${i}-${st.name}`}>{listItem(currentStep === st, () => setSelStep(st.name), <><span className="text-sm text-[#6f685c] mr-1.5">{i + 1}</span>{st.name || '입력칸'}</>, `${n}/${students.length}명 입력`, (n / Math.max(students.length, 1)) * 100)}</Fragment>;
@@ -460,14 +462,14 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       let g = '\u0000';
       return fields.map((f, i) => (
         <Fragment key={f.key}>
-          {f.group !== g && (g = f.group, true) && <p className="text-sm tracking-wide text-[#6f685c] px-7 pt-5 pb-1.5">{f.group || '입력칸'}</p>}
+          {f.group !== g && (g = f.group, true) && <p className="text-sm tracking-wide text-[#6f685c] px-6 pt-4 pb-2">{f.group || '입력칸'}</p>}
           {listItem(currentQ?.key === f.key, () => setSelQ(f.key), <><span className="text-sm text-[#6f685c] mr-1.5">{i + 1}</span>{f.label}</>, `${answeredBy(f.key).length}/${students.length}명`, (answeredBy(f.key).length / Math.max(students.length, 1)) * 100)}
         </Fragment>
       ));
     }
     return (
       <>
-        <p className="text-sm text-[#6f685c] px-7 pt-5 pb-1.5">학생 {students.length}명</p>
+        <p className="text-sm text-[#6f685c] px-6 pt-4 pb-2">학생 {students.length}명</p>
         {students.map(s => {
           const c = byStudent[s.id]?.filled ?? 0;
           return <Fragment key={s.id}>{listItem(currentS?.id === s.id, () => setSelectedId(s.id), <b>{s.full_name}</b>, c ? `${c}/${fields.length}칸` : '미작성', (c / Math.max(fields.length, 1)) * 100)}</Fragment>;
@@ -483,21 +485,23 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       <div ref={measureRef} aria-hidden style={{ display: 'none' }}>
         <AnswerPreviewMarkdown content={material.content} mdComponents={mdComponents} />
       </div>
-      <header className="flex items-center gap-6 px-8 py-4 border-b border-[#ddd5c6] flex-wrap">
-        <button onClick={onClose} className="flex items-center gap-1.5 text-[#6f685c] hover:text-[#1d1b18]"><ArrowLeft size={18} />나가기</button>
-        <div className="min-w-0">
+      <header className="flex items-end gap-6 px-8 pt-4 bg-[#2F5240] text-[#F4F1E6] flex-wrap">
+        <button onClick={onClose} className="flex items-center gap-1.5 pb-3 text-[#F4F1E6]/80 hover:text-white"><ArrowLeft size={18} />나가기</button>
+        <div className="min-w-0 pb-3">
           <h1 className="font-serif text-2xl font-bold truncate">{material.title}</h1>
           {!loading && !error && (
-            <p className="text-base text-[#6f685c]">{students.length}명 중 <b className="text-[#3b3bd6]">{answeredCount}명</b>이 입력했어요 ·{' '}
-              <span className="text-sm text-[#1f7a4d]"><span className="inline-block w-2 h-2 rounded-full bg-[#1f7a4d] mr-1.5 animate-pulse" />{live ? '실시간' : '5초마다 갱신'}</span></p>
+            <p className="text-base text-[#F4F1E6]/85">{students.length}명 중 <b className="text-[#FFE27A]">{answeredCount}명</b>이 입력했어요 ·{' '}
+              <span className="text-sm text-[#BFE8CC]"><span className="inline-block w-2 h-2 rounded-full bg-[#BFE8CC] mr-1.5 animate-pulse" />{live ? '실시간' : '5초마다 갱신'}</span></p>
           )}
         </div>
-        <nav className="ml-auto flex gap-6">
+        <nav className="ml-auto flex gap-1">
           {tabs.map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)} className={`py-1.5 text-lg font-semibold border-b-[3px] transition-colors ${tab === k ? 'border-[#3b3bd6] text-[#1d1b18]' : 'border-transparent text-[#6f685c] hover:text-[#1d1b18]'}`}>{label}</button>
+            <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-lg font-semibold rounded-t-lg transition-colors ${tab === k ? 'bg-[#f6f2ea] text-[#2F5240]' : 'text-[#F4F1E6]/85 hover:text-white hover:bg-white/10'}`}>{label}</button>
           ))}
         </nav>
       </header>
+      {/* 칠판 아래 나무 틀 */}
+      <div className="h-2 bg-[#9C6B3E] shrink-0" aria-hidden />
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-[#6f685c]"><Loader2 className="animate-spin" size={28} /></div>
       ) : error ? (
@@ -517,11 +521,11 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
                 ))}
               </span>
             </span>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" checked={big} onChange={e => setBig(e.target.checked)} className="accent-[#3b3bd6]" />크게 보기 <span className="text-sm">(칠판에 띄울 때)</span></label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none"><input type="checkbox" checked={big} onChange={e => setBig(e.target.checked)} className="accent-[#2F5240]" />크게 보기 <span className="text-sm">(칠판에 띄울 때)</span></label>
           </div>
         )}
         <div className={`flex-1 min-h-0 grid ${showSide ? 'grid-cols-[340px_1fr]' : 'grid-cols-1'}`}>
-          {showSide && <aside className="border-r border-[#ddd5c6] overflow-y-auto py-3">{sidebar()}</aside>}
+          {showSide && <aside className="border-r border-[#D9CBAA] bg-[#EFE5CE] overflow-y-auto py-3">{sidebar()}</aside>}
           <section className="overflow-y-auto min-h-0">
             {tab === 'step' && <div className="px-12 py-9">{stepPane()}</div>}
             {tab === 'q' && <div className="px-14 py-9">{questionPane()}</div>}
