@@ -61,6 +61,8 @@ interface Props {
   studentView?: boolean;
   /** 선생님 화면에서만 넘기는 협업보드 목록용 클래스 id. teacherTools가 켜져 있고 이 값이 있을 때만 "협업보드" 버튼을 그린다 */
   boardsClassId?: string | null;
+  /** 학생 화면에서만 넘기는 "수업 보드 입장" 동작. 선생님이 수업 보드를 열어 둔 동안만 값이 있고, 있을 때만 버튼을 그린다 */
+  onJoinBoard?: () => void;
   /** 선생님 화면에서만 넘기는 "학생 답변" 열기 동작. teacherTools가 켜져 있고 이 값이 있을 때만 버튼을 그린다(학생 화면에는 넘기지 않음) */
   onShowAnswers?: () => void;
   /** 에디터 미리보기용 — 입력은 써볼 수 있지만 저장되지 않으므로 "저장됨" 표시를 숨긴다 */
@@ -428,7 +430,7 @@ const withSkinComponents = (base: any) => ({
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, studentView = false, boardsClassId, onShowAnswers, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, studentView = false, boardsClassId, onShowAnswers, onJoinBoard, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
   const skin = normalizeViewerStyle(viewerStyle);
   const skinInfo = viewerStyleInfo(skin);
   const skinned = skin !== 'default';
@@ -836,6 +838,14 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
         {teacherTools && <TeacherPageTools scrollRef={scrollRef} />}
         {teacherTools && boardsClassId && <TeacherBoardsButton classId={boardsClassId} />}
         <ActivityLinksButton links={links} dark />
+        {studentView && onJoinBoard && (
+          <button
+            onClick={onJoinBoard}
+            className={`${(links ?? []).some((l) => l.url) ? '' : 'ml-auto '}flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow shrink-0`}
+          >
+            <Layers size={15} /> 수업 보드 입장
+          </button>
+        )}
         <MaterialAttachmentsButton attachments={attachments} dark />
         {/* 선생님 화면: 보기 방식(전체/단계별)과 화면 색(라이트/다크)을 '보기' 메뉴 하나로 합쳤다. 학생 화면은 기존 다크 버튼만 */}
         {!studentView && (canStep || skinned) && (

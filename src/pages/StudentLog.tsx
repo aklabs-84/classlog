@@ -2311,6 +2311,26 @@ const StudentLog = () => {
     }
   };
 
+  // 주소 뒤에 학생 이름·입장 코드를 붙인다 (앱이 어느 반 누구인지 알아야 결과 제출이 된다). 이미 ? 가 있어도 안전
+  const withStudentParams = (url: string) => {
+    try {
+      const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+      if (entryCode) u.searchParams.set('entryCode', entryCode);
+      if (session?.student_name) u.searchParams.set('studentName', session.student_name);
+      return u.toString();
+    } catch { return url; }
+  };
+
+  // 수업 자료 위쪽 연결 링크: AI Service Hub 앱 주소일 때만 학생 정보를 붙인다 (다른 외부 사이트로는 보내지 않음)
+  const decorateActivityLinks = (links?: { url: string; label: string }[]) => {
+    if (!links || session?.is_teacher === true || aiHubApps.length === 0) return links;
+    const key = (raw: string) => {
+      try { const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; } catch { return ''; }
+    };
+    const hubKeys = new Set(aiHubApps.flatMap(a => a.appUrls.map(x => key(x.url))).filter(Boolean));
+    return links.map(l => (l.url && hubKeys.has(key(l.url)) ? { ...l, url: withStudentParams(l.url) } : l));
+  };
+
   const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting' | 'liveboard') => {
     setActiveTab(tab);
     setIsMoreSheetOpen(false);
@@ -2591,7 +2611,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       <StudentMaterialPage
         title={fullscreenMaterial.title}
         content={fullscreenMaterial.content}
-        links={fullscreenMaterial.links}
+        links={decorateActivityLinks(fullscreenMaterial.links)}
         attachments={fullscreenMaterial.attachments}
         mdComponents={MATERIAL_MD_COMPONENTS}
         viewerStyle={fullscreenMaterial.viewerStyle}
@@ -2610,6 +2630,11 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
             const { error } = await supabase.rpc('student_material_answer_save', { p_token: session.token, p_material_id: fullscreenMaterial.id, p_field_key: key, p_value: value });
             if (error) throw error;
           },
+        } : undefined}
+        onJoinBoard={session?.is_teacher !== true && activeBoardSessions.length > 0 ? () => {
+          const bs = activeBoardSessions[0];
+          sessionStorage.setItem('studentLog_returnTab', 'board');
+          navigate(`/wb-join?code=${bs.session_code}&name=${encodeURIComponent(session?.student_name ?? '')}`, { state: { returnTo: '/student-log' } });
         } : undefined}
         relatedMaterials={fullscreenMaterial.week != null
           ? (generalMaterials as any[]).filter(g => (g.week_numbers && g.week_numbers.length > 0) ? g.week_numbers.includes(fullscreenMaterial.week) : g.week_number === fullscreenMaterial.week)
@@ -4311,11 +4336,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   }
 
                   const openExternalTool = (app: AiApp) => {
-                    const url = app.appUrls[0].url;
-                    const qs = new URLSearchParams();
-                    if (entryCode) qs.set('entryCode', entryCode);
-                    if (session?.student_name) qs.set('studentName', session.student_name);
-                    window.open(qs.toString() ? `${url}?${qs.toString()}` : url, '_blank', 'noopener,noreferrer');
+                    window.open(withStudentParams(app.appUrls[0].url), '_blank', 'noopener,noreferrer');
                   };
 
                   return (
