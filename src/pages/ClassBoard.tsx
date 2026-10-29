@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
 import { openFile } from '../lib/fileUtils';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import BoardDownloadButton from '../components/common/BoardDownloadButton';
@@ -31,6 +32,14 @@ const ClassBoard = () => {
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  const [boardFull, setBoardFull] = useState(false);
+  useEffect(() => { setBoardFull(false); }, [selectedPost?.id]);
+  useEffect(() => {
+    if (!boardFull) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setBoardFull(false); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [boardFull]);
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [groupModalInfo, setGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
 
@@ -342,6 +351,7 @@ const ClassBoard = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i, 15) * 0.03 }}
                     onClick={() => setSelectedPost(post)}
+                    style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
                     className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
                       isObs
                         ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:border-violet-300 dark:hover:border-violet-500/60'
@@ -438,7 +448,8 @@ const ClassBoard = () => {
                         </div>
                       )}
                     </div>
-                  </motion.div>
+                  {!isObs && post._submissions?.length > 1 && <MultiSubmitStrip count={post._submissions.length} />}
+                            </motion.div>
                 );
               })}
             </AnimatePresence>
@@ -480,7 +491,7 @@ const ClassBoard = () => {
               >
                 <div
                   onClick={e => e.stopPropagation()}
-                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl border shadow-2xl bg-surface-container-lowest ${
+                  className={`pointer-events-auto ${boardFull ? 'w-full h-[calc(100vh-2rem)] max-w-none' : 'w-full max-w-lg max-h-[85vh]'} overflow-y-auto rounded-3xl border shadow-2xl bg-surface-container-lowest ${
                     isObs ? 'border-violet-200 dark:border-violet-700/50' : 'border-emerald-200 dark:border-emerald-700/50'
                   }`}
                 >
@@ -510,19 +521,20 @@ const ClassBoard = () => {
                         </p>
                       </div>
                     </div>
-                    <button
+                    <div className="flex items-center gap-2 shrink-0"><ExpandToggle full={boardFull} onToggle={() => setBoardFull(v => !v)} /><button
                       onClick={() => setSelectedPost(null)}
                       className="shrink-0 w-9 h-9 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-all text-on-surface-variant"
                     >
                       <X size={16} />
-                    </button>
+                    </button></div>
                   </div>
 
                   {/* 모달 본문 */}
-                  <div className="p-6 space-y-5">
+                  <div className="p-6 space-y-5" style={boardFull ? { zoom: 1.25 } : undefined}>
                     <h2 className="text-lg font-black text-on-surface leading-snug">
                       {isObs ? selectedPost.activity_name : selectedPost.title}
                     </h2>
+                    {!isObs && !boardFull && selectedPost._submissions?.length > 1 && <SubmissionChips subs={selectedPost._submissions} />}
 
                     {/* 조별 제출 정보 */}
                     {!isObs && selectedPost._isGroupSub && (
@@ -560,9 +572,11 @@ const ClassBoard = () => {
                       </div>
                     )}
 
-                    {!isObs && (selectedPost._submissions || [selectedPost]).map((sub: any, idx: number, arr: any[]) => (
+                    {!isObs && (<div className={boardFull && selectedPost._submissions?.length > 1 ? 'grid gap-8 grid-cols-1 md:grid-cols-2 items-start' : 'space-y-5'}>{(selectedPost._submissions || [selectedPost]).map((sub: any, idx: number, arr: any[]) => (
                       <div
                         key={sub.id}
+                        id={`sub-${sub.id}`}
+                        style={boardFull && arr.length > 1 ? { borderTopWidth: 0, paddingTop: 0 } : undefined}
                         className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-surface-container-high' : ''}` : 'space-y-3'}
                       >
                         {arr.length > 1 && (
@@ -625,7 +639,7 @@ const ClassBoard = () => {
                           </button>
                         )}
                       </div>
-                    ))}
+                    ))}</div>)}
                   </div>
                 </div>
               </motion.div>

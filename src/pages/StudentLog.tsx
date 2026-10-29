@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
 import { compressImageForUpload } from '../lib/imageCompress';
@@ -618,6 +619,14 @@ const StudentLog = () => {
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
+  const [boardFull, setBoardFull] = useState(false);
+  useEffect(() => { setBoardFull(false); }, [boardSelectedPost?.id]);
+  useEffect(() => {
+    if (!boardFull) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setBoardFull(false); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [boardFull]);
   const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [boardLikes, setBoardLikes] = useState<Record<string, boolean>>({}); // postId → liked
 
@@ -5842,6 +5851,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             onClick={() => setBoardSelectedPost(post)}
+                    style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
                             className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
                               isMe
                                 ? isObs
@@ -5967,7 +5977,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                 공감
                               </button>
                             </div>
-                          </motion.div>
+                          {!isObs && post._submissions?.length > 1 && <MultiSubmitStrip count={post._submissions.length} />}
+                            </motion.div>
                         );
                       })}
                     </div>
@@ -6960,7 +6971,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
               >
                 <div
                   onClick={e => e.stopPropagation()}
-                  className={`pointer-events-auto w-full max-w-lg max-h-[75vh] overflow-y-auto rounded-2xl border-2 shadow-2xl bg-white ${
+                  className={`pointer-events-auto ${boardFull ? 'w-full h-[calc(100vh-2rem)] max-w-none' : 'w-full max-w-lg max-h-[75vh]'} overflow-y-auto rounded-2xl border-2 shadow-2xl bg-white ${
                     isMe
                       ? isObs ? 'border-violet-200' : 'border-emerald-200'
                       : 'border-slate-200'
@@ -6993,19 +7004,20 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         </p>
                       </div>
                     </div>
-                    <button
+                    <div className="flex items-center gap-2 shrink-0"><ExpandToggle full={boardFull} onToggle={() => setBoardFull(v => !v)} /><button
                       onClick={() => setBoardSelectedPost(null)}
                       className="shrink-0 w-9 h-9 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all"
                     >
                       <X size={16} />
-                    </button>
+                    </button></div>
                   </div>
 
                   {/* 모달 본문 */}
-                  <div className="p-5 space-y-4">
+                  <div className="p-5 space-y-4" style={boardFull ? { zoom: 1.25 } : undefined}>
                     <h2 className="text-base font-black leading-snug">
                       {isObs ? p.activity_name : p.title}
                     </h2>
+                    {!isObs && !boardFull && p._submissions?.length > 1 && <SubmissionChips subs={p._submissions} />}
                     {/* 조별 제출 정보 */}
                     {!isObs && p._isGroupSub && boardGroupModalInfo && (
                       <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-indigo-50 border border-indigo-100">
@@ -7031,8 +7043,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         <p className="text-sm text-on-surface-variant/70 font-bold italic leading-relaxed">💬 {p.feeling}</p>
                       </div>
                     )}
-                    {!isObs && (p._submissions || [p]).map((sub: any, idx: number, arr: any[]) => (
-                      <div key={sub.id} className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-slate-200' : ''}` : 'space-y-3'}>
+                    {!isObs && (<div className={boardFull && p._submissions?.length > 1 ? 'grid gap-8 grid-cols-1 md:grid-cols-2 items-start' : 'space-y-5'}>{(p._submissions || [p]).map((sub: any, idx: number, arr: any[]) => (
+                      <div key={sub.id}
+                        id={`sub-${sub.id}`}
+                        style={boardFull && arr.length > 1 ? { borderTopWidth: 0, paddingTop: 0 } : undefined} className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-slate-200' : ''}` : 'space-y-3'}>
                         {arr.length > 1 && (
                           <p className="text-xs font-black text-on-surface-variant/60 uppercase tracking-widest">
                             {idx + 1}번째 제출 · {new Date(sub.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
@@ -7085,7 +7099,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           </div>
                         )}
                       </div>
-                    ))}
+                    ))}</div>)}
                   </div>
                 </div>
               </motion.div>

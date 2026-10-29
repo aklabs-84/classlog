@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
+import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { resolveEffectivePlan } from '../lib/effectiveWeeklyPlan';
 import { fetchOverrides, forkPlanMaterial, applyOriginUpdate, undoOriginUpdate, dismissOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../lib/planMaterialOverride';
@@ -262,6 +263,14 @@ const Classroom = () => {
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
+  const [boardFull, setBoardFull] = useState(false);
+  useEffect(() => { setBoardFull(false); }, [boardSelectedPost?.id]);
+  useEffect(() => {
+    if (!boardFull) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setBoardFull(false); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [boardFull]);
   const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
@@ -3052,6 +3061,7 @@ const Classroom = () => {
                               initial={{ opacity: 0, scale: 0.95 }}
                               animate={{ opacity: 1, scale: 1 }}
                               onClick={() => setBoardSelectedPost(post)}
+                    style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
                               className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
                                 isObs ? 'bg-violet-50 border-violet-100 hover:border-violet-300 hover:bg-violet-50/80' : 'bg-emerald-50 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50/80'
                               }`}
@@ -3139,6 +3149,7 @@ const Classroom = () => {
                                   </div>
                                 )}
                               </div>
+                            {!isObs && post._submissions?.length > 1 && <MultiSubmitStrip count={post._submissions.length} />}
                             </motion.div>
                           );
                         })}
@@ -5514,7 +5525,7 @@ const Classroom = () => {
               >
                 <div
                   onClick={e => e.stopPropagation()}
-                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border-2 shadow-2xl bg-white ${
+                  className={`pointer-events-auto ${boardFull ? 'w-full h-[calc(100vh-2rem)] max-w-none' : 'w-full max-w-lg max-h-[85vh]'} overflow-y-auto rounded-2xl border-2 shadow-2xl bg-white ${
                     isObs ? 'border-violet-200' : 'border-emerald-200'
                   }`}
                 >
@@ -5540,18 +5551,19 @@ const Classroom = () => {
                         </p>
                       </div>
                     </div>
-                    <button
+                    <div className="flex items-center gap-2 shrink-0"><ExpandToggle full={boardFull} onToggle={() => setBoardFull(v => !v)} /><button
                       onClick={() => setBoardSelectedPost(null)}
                       className="shrink-0 w-9 h-9 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all"
                     >
                       <X size={16} />
-                    </button>
+                    </button></div>
                   </div>
                   {/* 모달 본문 */}
-                  <div className="p-6 space-y-5">
+                  <div className="p-6 space-y-5" style={boardFull ? { zoom: 1.25 } : undefined}>
                     <h2 className="text-lg font-black leading-snug">
                       {isObs ? p.activity_name : p.title}
                     </h2>
+                    {!isObs && !boardFull && p._submissions?.length > 1 && <SubmissionChips subs={p._submissions} />}
                     {/* 조별 제출 정보 */}
                     {!isObs && p._isGroupSub && boardGroupModalInfo && (
                       <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-indigo-50 border border-indigo-100">
@@ -5577,8 +5589,10 @@ const Classroom = () => {
                         <p className="text-sm text-on-surface-variant/70 font-bold italic leading-relaxed">💬 {p.feeling}</p>
                       </div>
                     )}
-                    {!isObs && (p._submissions || [p]).map((sub: any, idx: number, arr: any[]) => (
-                      <div key={sub.id} className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-surface-container-high' : ''}` : 'space-y-3'}>
+                    {!isObs && (<div className={boardFull && p._submissions?.length > 1 ? 'grid gap-8 grid-cols-1 md:grid-cols-2 items-start' : 'space-y-5'}>{(p._submissions || [p]).map((sub: any, idx: number, arr: any[]) => (
+                      <div key={sub.id}
+                        id={`sub-${sub.id}`}
+                        style={boardFull && arr.length > 1 ? { borderTopWidth: 0, paddingTop: 0 } : undefined} className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-surface-container-high' : ''}` : 'space-y-3'}>
                         {arr.length > 1 && (
                           <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
                             {idx + 1}번째 제출 · {new Date(sub.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
@@ -5631,7 +5645,7 @@ const Classroom = () => {
                           </div>
                         )}
                       </div>
-                    ))}
+                    ))}</div>)}
                   </div>
                 </div>
               </motion.div>

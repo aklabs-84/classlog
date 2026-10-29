@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { resolveEffectivePlan } from '../../lib/effectiveWeeklyPlan';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -96,6 +97,13 @@ const SubjectDashboard = ({
     SUBJECT_COL_DEFAULTS
   );
   const [showColDropdown, setShowColDropdown] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<{ src: string; name: string } | null>(null);
+  useEffect(() => {
+    if (!avatarPreview) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAvatarPreview(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [avatarPreview]);
   // 학급별 설정: 번호를 쓰지 않는 학급은 번호 열·배지·"○번" 표기를 모두 숨긴다 (저장된 번호는 그대로 유지)
   const showNum = !!classInfo?.show_student_number;
   const [copyCodeSuccess, setCopyCodeSuccess] = useState(false);
@@ -827,7 +835,7 @@ const SubjectDashboard = ({
                             <div className="flex items-center gap-3 lg:gap-4">
                               <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all overflow-hidden">
                                 {s.avatar ? (
-                                  <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                                  <img src={s.avatar} alt={s.name} title="눌러서 크게 보기" onClick={(e) => { e.stopPropagation(); setAvatarPreview({ src: s.avatar, name: s.name }); }} className="w-full h-full object-cover cursor-zoom-in" />
                                 ) : (
                                   <Users size={18} strokeWidth={2.5} />
                                 )}
@@ -979,7 +987,7 @@ const SubjectDashboard = ({
                       <div className="relative shrink-0">
                         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/15 to-secondary/15 flex items-center justify-center font-black text-primary text-base select-none overflow-hidden">
                           {s.avatar ? (
-                            <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                            <img src={s.avatar} alt={s.name} title="눌러서 크게 보기" onClick={(e) => { e.stopPropagation(); setAvatarPreview({ src: s.avatar, name: s.name }); }} className="w-full h-full object-cover cursor-zoom-in" />
                           ) : (
                             s.name.charAt(0)
                           )}
@@ -1614,6 +1622,18 @@ const SubjectDashboard = ({
         </div>
       )}
     </AnimatePresence>
+    {avatarPreview && createPortal(
+      <div
+        className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 cursor-zoom-out"
+        onClick={() => setAvatarPreview(null)}
+      >
+        <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+          <img src={avatarPreview.src} alt={avatarPreview.name} className="max-w-[90vw] max-h-[80vh] rounded-3xl bg-white shadow-2xl object-contain" />
+          <p className="text-white font-black text-lg">{avatarPreview.name}</p>
+        </div>
+      </div>,
+      document.body
+    )}
     </>
   );
 };
