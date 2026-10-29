@@ -56,8 +56,8 @@ export default function ClassLiveBoardPanel({ classId, teacherId }: { classId: s
         tone="emerald"
         kind="게시판"
         linked={false}
-        title="실시간 참여 게시판"
-        summary={boards.length > 0 ? `진행 중 ${boards.length}개` : '글 답하기 · 투표'}
+        title="새 게시판 만들기"
+        summary="글 답하기 · 투표"
         help={'글로 답하기나 투표 게시판을 열면, 우리 반 학생 화면(보드 탭)에 "입장하기"가 바로 나타나요. 코드를 따로 알려 주지 않아도 돼요.'}
         action={
           <button
@@ -72,7 +72,7 @@ export default function ClassLiveBoardPanel({ classId, teacherId }: { classId: s
         <ShortcutRow
           key={b.id}
           tone="emerald"
-          kind="게시판"
+          kind="진행중"
           title={b.question}
           summary={`${b.is_open ? '입력 중' : '일시정지'} · 코드 ${b.code}`}
           action={

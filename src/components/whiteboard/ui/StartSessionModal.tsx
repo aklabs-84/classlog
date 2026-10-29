@@ -10,7 +10,18 @@ interface ClassItem {
   id: string;
   name: string;
   subject?: string;
+  is_closed?: boolean | null;
+  start_date?: string | null;
+  end_date?: string | null;
 }
+
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+// 클래스룸 화면과 같은 기준: 수동 종료이거나 종료일이 지났으면 '종료'
+const isClosedClass = (c: ClassItem) => !!c.is_closed || (!!c.end_date && c.end_date < todayStr());
+const isUpcomingClass = (c: ClassItem) => !isClosedClass(c) && !!c.start_date && c.start_date > todayStr();
 
 interface ClassGroup {
   id: string;
@@ -38,6 +49,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
   const { user } = useAuth();
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [selectedClassId, setSelectedClassId] = useState('');
+  const [showClosed, setShowClosed] = useState(false);
   const [groupCount, setGroupCount] = useState(6);
   const [groupSize, setGroupSize] = useState(5);
   const [creating, setCreating] = useState(false);
@@ -50,7 +62,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('classes').select('id, name, subject, school_project_id, parent_class_id, assigned_teacher_id').or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`).eq('is_archived', false).order('name')
+    supabase.from('classes').select('id, name, subject, is_closed, start_date, end_date, school_project_id, parent_class_id, assigned_teacher_id').or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`).eq('is_archived', false).order('name')
       .then(({ data }) => setClasses(filterMyTeachingClasses(data, user.id)));
   }, [user]);
 
@@ -113,6 +125,13 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
 
     fetchGroups();
   }, [selectedClassId]);
+
+  // 기본은 진행 중·예정 클래스만 보이고, 종료된 클래스는 접어 둠 (선택된 클래스는 항상 보임)
+  const closedClasses = classes.filter(isClosedClass);
+  const visibleClasses = [
+    ...classes.filter(c => !isClosedClass(c)).sort((x, y) => Number(isUpcomingClass(x)) - Number(isUpcomingClass(y))),
+    ...(showClosed ? closedClasses : closedClasses.filter(c => c.id === selectedClassId)),
+  ];
 
   const handleCreate = async () => {
     if (!user || !selectedClassId || creating) return;
@@ -232,7 +251,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {classes.map(cls => (
+              {visibleClasses.map(cls => (
                 <button
                   key={cls.id}
                   onClick={() => setSelectedClassId(cls.id)}
@@ -246,10 +265,20 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
                   <div>
                     <span style={{ color: '#fff', fontSize: 14 }}>{cls.name}</span>
                     {cls.subject && <span style={{ color: '#93C5FD', fontSize: 11, marginLeft: 8 }}>{cls.subject}</span>}
+                    {isUpcomingClass(cls) && <span style={{ color: '#FCD34D', fontSize: 11, marginLeft: 8 }}>예정{cls.start_date ? ` · ${cls.start_date.slice(5).replace('-', '/')} 시작` : ''}</span>}
+                    {isClosedClass(cls) && <span style={{ color: '#F87171', fontSize: 11, marginLeft: 8 }}>종료</span>}
                   </div>
                   {selectedClassId === cls.id && <Check size={15} color="#93C5FD" />}
                 </button>
               ))}
+              {closedClasses.length > 0 && (
+                <button
+                  onClick={() => setShowClosed(v => !v)}
+                  style={{ padding: '8px 14px', borderRadius: 8, cursor: 'pointer', background: 'transparent', border: '1px dashed #374151', color: '#9CA3AF', fontSize: 12, textAlign: 'center' }}
+                >
+                  {showClosed ? '종료된 클래스 숨기기' : `종료된 클래스 ${closedClasses.length}개 보기`}
+                </button>
+              )}
             </div>
           )}
         </div>
