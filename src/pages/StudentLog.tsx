@@ -136,7 +136,7 @@ const getTourSteps = (multiWeek: boolean): TourStep[] => [
     targetId: 'tour-home-tiles',
     emoji: '🎯',
     title: '수업 시간에 눌러요',
-    description: '수업 자료, 온라인수업, 우리반 보드, 퀴즈, 설문, 단원마무리가 모여 있어요. 선생님이 열면 빨간 "진행 중"이 떠요. 그때 눌러서 들어가요.',
+    description: '수업 자료, 온라인수업, 우리반 보드, 실시간 게시판, 퀴즈, 설문, 단원마무리가 모여 있어요. 선생님이 열면 빨간 "진행 중"이 떠요. 그때 눌러서 들어가요.',
   },
   {
     targetId: 'tour-home-links',
@@ -317,7 +317,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting' | 'liveboard'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   // 데스크탑 사이드바 접기/펼치기 (처음엔 접힘, 학생이 바꾸면 localStorage에 저장)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -950,9 +950,9 @@ const StudentLog = () => {
     };
   }, [session?.class_id]);
 
-  // 우리 반에 연결된 실시간 참여 게시판 — 보드 탭을 보는 동안만 10초마다 확인
+  // 우리 반에 연결된 실시간 참여 게시판 — 홈·실시간 게시판 화면을 보는 동안 10초마다 확인
   useEffect(() => {
-    if (activeTab !== 'board' || !session?.token) return;
+    if ((activeTab !== 'home' && activeTab !== 'liveboard') || !session?.token) return;
     let cancelled = false;
     const load = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -2311,7 +2311,7 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting') => {
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting' | 'liveboard') => {
     setActiveTab(tab);
     setIsMoreSheetOpen(false);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
@@ -2895,6 +2895,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
               const quizLive = activeQuizSessions.length > 0;
               const boardLive = activeBoardSessions.length > 0;
               const surveyLive = activeSurveyForms.length > 0;
+              const liveBoardLive = classLiveBoards.length > 0;
 
               const LiveDot = () => (
                 <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -2906,13 +2907,17 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
               const noPlan = displayWeek === null && !hidden('results');
 
               // 수업 시간에 쓰는 것 (타일)
-              type HomeTile = { key: 'materials' | 'tools' | 'meeting' | 'board' | 'quiz' | 'survey' | 'unit'; label: string; sub: string; Icon: any; live?: boolean; lockable?: boolean; badge?: number; onClick: () => void };
+              type HomeTile = { key: 'materials' | 'tools' | 'meeting' | 'board' | 'liveboard' | 'quiz' | 'survey' | 'unit'; label: string; sub: string; Icon: any; live?: boolean; lockable?: boolean; badge?: number; onClick: () => void };
               const tiles: HomeTile[] = ([
                 { key: 'materials', label: '수업 자료', sub: '이번 주 자료 보기', Icon: BookOpen, onClick: () => handleTabChange('materials') },
                 ...(enabledToolIds.length > 0 ? [{ key: 'tools', label: '학습 도구', sub: '선생님이 열어 둔 앱', Icon: Cpu, onClick: () => handleTabChange('tools') }] : []),
                 { key: 'meeting', label: '온라인수업', sub: meetingLive ? '지금 눌러서 들어가요' : '선생님이 열면 들어가요', Icon: Video, live: meetingLive, lockable: true,
                   onClick: () => (meetingLive ? window.open(activeMeeting.meeting_url, '_blank') : handleTabChange('meeting')) },
                 { key: 'board', label: '우리반 보드', sub: boardLive ? '지금 눌러서 들어가요' : '친구들과 함께 쓰기', Icon: Users2, live: boardLive, onClick: () => handleTabChange('board') },
+                { key: 'liveboard', label: '실시간 게시판', sub: liveBoardLive ? '지금 눌러서 들어가요' : '선생님이 열면 들어가요', Icon: Radio, live: liveBoardLive, lockable: true,
+                  onClick: () => (classLiveBoards.length === 1
+                    ? navigate(`/lb-join?code=${classLiveBoards[0].code}`, { state: { autoJoinName: session?.student_name } })
+                    : handleTabChange('liveboard')) },
                 { key: 'quiz', label: '퀴즈 입장', sub: quizLive ? '지금 눌러서 들어가요' : '선생님이 열면 들어가요', Icon: Gamepad2, live: quizLive, lockable: true, onClick: () => handleTabChange('quiz') },
                 { key: 'survey', label: '수업 끝 설문', sub: surveyLive ? '지금 눌러서 참여해요' : '선생님이 열면 참여해요', Icon: BarChart2, live: surveyLive, lockable: true, onClick: () => handleTabChange('survey') },
                 { key: 'unit', label: '단원마무리', sub: unitPendingCount > 0 ? '풀어야 할 게 남아 있어요' : '단원이 끝나면 풀어요', Icon: ClipboardList, badge: unitPendingCount, onClick: () => handleTabChange('unit') },
@@ -5562,10 +5567,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
               </motion.div>
             )}
 
-            {/* ─── 보드 탭 ─── */}
-            {activeTab === 'board' && (
+            {/* ─── 실시간 게시판 탭 ─── */}
+            {activeTab === 'liveboard' && (
               <motion.div
-                key="board"
+                key="liveboard"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -5603,7 +5608,13 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         </div>
                       ))}
                     </div>
-                    <hr className="mt-8 border-surface-container-high" />
+                                      </div>
+                )}
+
+                {classLiveBoards.length === 0 && (
+                  <div className="mb-8 rounded-2xl border-2 border-dashed border-neutral-300 p-6 text-center">
+                    <p className="text-lg font-black text-neutral-500">아직 열린 게시판이 없어요</p>
+                    <p className="text-sm font-bold text-neutral-400 mt-1">선생님이 열면 여기에 빨간 불이 켜져요. 코드를 받았다면 아래에 입력하세요</p>
                   </div>
                 )}
 
@@ -5639,9 +5650,20 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       입장하기 <ArrowRight size={14} />
                     </button>
                   </div>
-                  <hr className="mt-8 border-surface-container-high" />
-                </div>
+                                  </div>
 
+              </motion.div>
+            )}
+
+            {/* ─── 보드 탭 ─── */}
+            {activeTab === 'board' && (
+              <motion.div
+                key="board"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8"
+              >
                 {/* 활성 수업 보드 세션 */}
                 {activeBoardSessions.length > 0 && (
                   <div className="mb-8">
