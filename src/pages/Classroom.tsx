@@ -5508,7 +5508,7 @@ const Classroom = () => {
           const p = boardSelectedPost;
           const isObs = p._type === 'obs';
           return (
-            <>
+            <BodyPortal>
               <motion.div
                 key="board-backdrop"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -5649,7 +5649,7 @@ const Classroom = () => {
                   </div>
                 </div>
               </motion.div>
-            </>
+            </BodyPortal>
           );
         })()}
 

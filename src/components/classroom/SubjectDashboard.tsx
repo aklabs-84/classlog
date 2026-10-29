@@ -1628,7 +1628,7 @@ const SubjectDashboard = ({
         onClick={() => setAvatarPreview(null)}
       >
         <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
-          <img src={avatarPreview.src} alt={avatarPreview.name} className="max-w-[90vw] max-h-[80vh] rounded-3xl bg-white shadow-2xl object-contain" />
+          <img src={avatarPreview.src} alt={avatarPreview.name} className="w-[min(85vw,70vh,520px)] aspect-square rounded-3xl bg-white shadow-2xl object-contain" />
           <p className="text-white font-black text-lg">{avatarPreview.name}</p>
         </div>
       </div>,
