@@ -55,6 +55,7 @@ export default function ClassLiveBoardPanel({ classId, teacherId }: { classId: s
       <ShortcutRow
         tone="emerald"
         kind="게시판"
+        linked={false}
         title="실시간 참여 게시판"
         summary={boards.length > 0 ? `진행 중 ${boards.length}개` : '글 답하기 · 투표'}
         help={'글로 답하기나 투표 게시판을 열면, 우리 반 학생 화면(보드 탭)에 "입장하기"가 바로 나타나요. 코드를 따로 알려 주지 않아도 돼요.'}

@@ -116,7 +116,7 @@ import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
 import ClassProjectSurveyPanel from '../components/classroom/ClassProjectSurveyPanel';
 import ClassProjectQuizPanel from '../components/classroom/ClassProjectQuizPanel';
 import ClassLiveBoardPanel from '../components/classroom/ClassLiveBoardPanel';
-import { ShortcutSection } from '../components/classroom/ShortcutRow';
+import { ShortcutSection, openActivities } from '../components/classroom/ShortcutRow';
 import ClassroomGuideTour from '../components/classroom/ClassroomGuideTour';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
@@ -271,6 +271,12 @@ const Classroom = () => {
   const newWeekTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [createModalFull, setCreateModalFull] = useState(true); // 새 학급 만들기 모달 전체화면 토글 (기본: 전체화면)
   useEffect(() => { if (isCreateModalOpen) { setCreateModalFull(true); setSelectedNewWeekIdx(0); } }, [isCreateModalOpen]);
+  // 오른쪽 '설문·퀴즈·게시판'을 누르면 목록이 있는 탭으로 돌아온다 (목록 펼치기는 ShortcutSection이 처리)
+  useEffect(() => {
+    const go = () => setActiveTab('list');
+    window.addEventListener('classroom-open-activities', go);
+    return () => window.removeEventListener('classroom-open-activities', go);
+  }, []);
   // 수업 시작 때 자동으로 열 퀴즈 후보 (학급 수정 모달에서 이 반에 만든 퀴즈 세트 목록)
   const [autoQuizOptions, setAutoQuizOptions] = useState<{ id: string; title: string }[]>([]);
   useEffect(() => {
@@ -3670,6 +3676,7 @@ const Classroom = () => {
               lessonStarted={lessonStarted}
               onShowCode={classInfo.class_type !== 'homeroom' ? handleShowEntryCode : undefined}
               onGoRoster={() => setActiveTab('list')}
+              onOpenActivities={openActivities}
               onGoAttendance={() => { markLessonStarted(); setActiveTab('attendance'); }}
               onOpenStudentPreview={() => setIsStudentPreviewOpen(true)}
               onOpenResources={() => {

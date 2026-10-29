@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Check, ChevronDown, ChevronRight, PanelRightClose, PanelRightOpen, Compass, Presentation, ListChecks, Rocket,
-  QrCode, BookOpen, ExternalLink, Share2, Download, Smartphone, Camera,
+  QrCode, Radio, BookOpen, ExternalLink, Share2, Download, Smartphone, Camera,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -31,6 +31,8 @@ interface Props {
   onOpenGallery?: () => void;
   galleryPending?: number;
   onExport?: () => void;
+  /** 설문·퀴즈·게시판 목록을 열어 준다 (연결된 게 없어 숨겨져 있을 때 쓰는 입구) */
+  onOpenActivities?: () => void;
 }
 
 type PanelKey = 'start' | 'guide' | 'quick';
@@ -82,6 +84,7 @@ const ClassroomHelperRail = (p: Props) => {
     : { label: '출석 체크로 가기', run: p.onGoAttendance };
 
   const quick: { key: string; label: string; icon: LucideIcon; run: () => void; badge?: number }[] = [
+    p.onOpenActivities && { key: 'acts', label: '설문·퀴즈·게시판', icon: Radio, run: p.onOpenActivities },
     p.onOpenStudentPreview && { key: 'preview', label: '학생 화면 미리보기', icon: Smartphone, run: p.onOpenStudentPreview },
     p.onShowCode && { key: 'qr', label: '학생 입장 코드 확인', icon: QrCode, run: p.onShowCode },
     p.onOpenResources && { key: 'res', label: '수업 자료실', icon: BookOpen, run: p.onOpenResources },
