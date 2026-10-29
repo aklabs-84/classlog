@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Gamepad2, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { ShortcutRow } from './ShortcutRow';
 

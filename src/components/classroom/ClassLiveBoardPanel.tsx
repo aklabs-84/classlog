@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Radio } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import QuestionForm, { emptyDraft, isDraftValid, type QuestionDraft } from '../live-board/QuestionForm';
 import { createLiveBoard } from '../live-board/createBoard';

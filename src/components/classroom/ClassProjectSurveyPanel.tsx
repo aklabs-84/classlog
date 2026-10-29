@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BarChart2, Loader2, Play, StopCircle } from 'lucide-react';
+import { Loader2, Play, StopCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { appToast } from '../../lib/appDialog';
 import { ShortcutRow } from './ShortcutRow';
