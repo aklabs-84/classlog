@@ -368,7 +368,7 @@ async function resolveProgressTarget(supabaseAdmin: any, entry_code: string) {
 function pageList(v: unknown): number[] {
   if (!Array.isArray(v)) return [];
   const out = new Set<number>();
-  for (const n of v) if (Number.isInteger(n) && n >= 0 && n <= 3) out.add(n);
+  for (const n of v) if (Number.isInteger(n) && n >= 0 && n <= 4) out.add(n);
   return Array.from(out).sort();
 }
 async function handleProgressWrite(req: any, res: any) {
@@ -384,7 +384,7 @@ async function handleProgressWrite(req: any, res: any) {
   const entry_code = cap(body.entry_code, 100);
   const student_id = cap(body.student_id, 100);
   const student_name = cap(body.student_name, 100);
-  const page = int(body.page, 0, 3);
+  const page = int(body.page, 0, 4);
   if (!entry_code || page === null || (!student_id && !student_name)) {
     return res.status(400).json({ error: 'entry_code, page, student_id 또는 student_name은 필수입니다.' });
   }

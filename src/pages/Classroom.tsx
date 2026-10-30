@@ -117,6 +117,7 @@ import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
 import ClassProjectSurveyPanel from '../components/classroom/ClassProjectSurveyPanel';
 import ClassProjectQuizPanel from '../components/classroom/ClassProjectQuizPanel';
 import ClassLiveBoardPanel from '../components/classroom/ClassLiveBoardPanel';
+import ClassStudioProgressPanel from '../components/classroom/ClassStudioProgressPanel';
 import { ShortcutSection, openActivities } from '../components/classroom/ShortcutRow';
 import ClassroomGuideTour from '../components/classroom/ClassroomGuideTour';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
@@ -2878,6 +2879,9 @@ const Classroom = () => {
             )}
             {activeTab === 'list' && classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
               <ClassLiveBoardPanel classId={classInfo.linked_class_id || classInfo.id} teacherId={user!.id} />
+            )}
+            {activeTab === 'list' && classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
+              <ClassStudioProgressPanel classId={classInfo.linked_class_id || classInfo.id} />
             )}
           </ShortcutSection>
 
