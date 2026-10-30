@@ -814,10 +814,10 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
 
   return createPortal(
     <div className={`fixed inset-0 z-[9999] bg-white flex flex-col h-[100dvh] ${skinned ? `mv-skin-${skin}` : ''}`} data-mv-theme={skinned ? theme : undefined}>
-      <div className="mv-header flex items-center gap-3 px-4 sm:px-5 py-3 bg-slate-800 shrink-0">
+      <div className="mv-header flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-slate-800 shrink-0">
         <button
           onClick={onClose}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-slate-800 font-black text-base hover:bg-slate-100 active:scale-95 transition-all shadow shrink-0"
+          className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-white text-slate-800 font-black text-base hover:bg-slate-100 active:scale-95 transition-all shadow shrink-0"
         >
           <ArrowLeft size={17} /> 나가기
         </button>
@@ -825,6 +825,8 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
           <Eye size={17} className="text-white/60 shrink-0" />
           <span className="font-black text-base text-white/90 truncate">{title}</span>
         </div>
+        {/* 폰 너비: 위 줄은 '나가기+제목', 아래 줄에 나머지 버튼을 모아 잘리지 않게 한다 */}
+        <div className="basis-full h-0 sm:hidden" />
         {answers?.save && !previewOnly && status !== 'idle' && (
           <span
             className={`flex items-center gap-1.5 text-sm font-black shrink-0 ${status === 'error' ? 'text-red-300' : status === 'saved' ? 'text-emerald-300' : 'text-white/70'}`}

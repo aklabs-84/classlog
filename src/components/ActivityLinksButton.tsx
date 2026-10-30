@@ -22,9 +22,9 @@ export default function ActivityLinksButton({ links, dark = false }: { links?: A
         href={toHref(valid[0].url)}
         target="_blank"
         rel="noopener noreferrer"
-        className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow shrink-0"
+        className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow shrink-0 max-w-full"
       >
-        <ExternalLink size={15} /> {valid[0].label || '체험해보기'}
+        <ExternalLink size={15} className="shrink-0" /> <span className="truncate">{valid[0].label || '체험해보기'}</span>
       </a>
     );
   }
