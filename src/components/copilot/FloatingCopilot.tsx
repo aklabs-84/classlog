@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { matchPath, useLocation, useNavigate } from 'react-router-dom';
@@ -51,10 +52,30 @@ const ACTION_TITLE: Record<Marker, string> = {
   '[[SP_STUDENT_ADD]]': '학생 명단 등록',
 };
 
+const DOCK_KEY = 'school_copilot_dock_v1';
+const readLS = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+const writeLS = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* 기억 못 해도 화면은 정상 */ } };
+const clampY = (y: number) => Math.min(Math.max(y, 40), window.innerHeight - 40);
+
 const FloatingCopilot = () => {
   const { user, profile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  // 도우미 버튼: 벽(기본 오른쪽)에 붙고, 끌면 위아래·좌우 벽으로 옮길 수 있다 (수업 메모와 같은 방식)
+  const [dock, setDock] = useState<{ side: 'left' | 'right'; y: number }>(() => {
+    try {
+      const v = JSON.parse(readLS(DOCK_KEY) || 'null');
+      if (v && (v.side === 'left' || v.side === 'right') && typeof v.y === 'number') return { side: v.side, y: clampY(v.y) };
+    } catch { /* 기본 자리 사용 */ }
+    return { side: 'right', y: Math.round(window.innerHeight * 0.62) };
+  });
+  const [tabDrag, setTabDrag] = useState<{ x: number; y: number } | null>(null);
+  const tabInfo = useRef<{ sx: number; sy: number; moved: boolean } | null>(null);
+  useEffect(() => {
+    const fit = () => setDock(prev => ({ ...prev, y: clampY(prev.y) }));
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
   const match = matchPath('/school-projects/:projectId/*', location.pathname);
   const projectId = match?.params.projectId && match.params.projectId !== 'new' ? match.params.projectId : null;
 
@@ -186,7 +207,7 @@ const FloatingCopilot = () => {
 
   const panel = open && (
     <div
-      className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-[400px] z-[9996] bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+      className={`fixed bottom-4 right-4 left-4 sm:w-[400px] ${dock.side === 'left' ? 'sm:left-4 sm:right-auto' : 'sm:left-auto'} z-[9996] bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl flex flex-col overflow-hidden`}
       style={{ height: 'min(640px, 80dvh)' }}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-primary/5">
@@ -289,11 +310,39 @@ const FloatingCopilot = () => {
     <>
       {!open && (
         <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-24 right-6 z-[9996] w-14 h-14 rounded-full bg-primary text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+          type="button"
+          onPointerDown={(e: React.PointerEvent) => {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            tabInfo.current = { sx: e.clientX, sy: e.clientY, moved: false };
+          }}
+          onPointerMove={(e: React.PointerEvent) => {
+            const d = tabInfo.current;
+            if (!d) return;
+            if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 6) return;
+            d.moved = true;
+            setTabDrag({ x: e.clientX, y: clampY(e.clientY) });
+          }}
+          onPointerUp={(e: React.PointerEvent) => {
+            const d = tabInfo.current;
+            tabInfo.current = null;
+            if (!d) return;
+            if (!d.moved) { setOpen(true); return; }
+            const next = { side: e.clientX < window.innerWidth / 2 ? 'left' as const : 'right' as const, y: clampY(e.clientY) };
+            setTabDrag(null);
+            setDock(next);
+            writeLS(DOCK_KEY, JSON.stringify(next));
+          }}
+          onPointerCancel={() => { tabInfo.current = null; setTabDrag(null); }}
+          style={{
+            touchAction: 'none',
+            top: tabDrag ? tabDrag.y : dock.y,
+            ...(tabDrag ? { left: tabDrag.x, transform: 'translate(-50%, -50%)' } : dock.side === 'right' ? { right: 0, transform: 'translateY(-50%)' } : { left: 0, transform: 'translateY(-50%)' }),
+          }}
+          className={`fixed z-[9996] h-12 flex items-center justify-center bg-primary text-white shadow-xl ${tabDrag ? 'w-12 rounded-full cursor-grabbing' : `w-11 hover:w-12 transition-[width] cursor-grab ${dock.side === 'right' ? 'rounded-l-2xl' : 'rounded-r-2xl'}`}`}
+          title="사업 도우미 (끌어서 왼쪽·오른쪽 벽에 붙일 수 있어요)"
           aria-label="사업 도우미 열기"
         >
-          <Bot size={26} />
+          <Bot size={22} />
         </button>
       )}
       {panel}

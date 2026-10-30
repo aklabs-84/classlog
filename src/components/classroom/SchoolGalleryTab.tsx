@@ -5,7 +5,7 @@ import PhotoConsentPanel from './PhotoConsentPanel';
 import { supabase } from '../../lib/supabase';
 import { deleteGalleryItem, type GalleryItem } from '../../lib/gallery';
 import {
-  getUploadKey, createOrRotateUploadKey, setUploadKeyActive, setReviewStatus, setFeatured, buildUploadLink,
+  getUploadKey, createOrRotateUploadKey, setUploadKeyActive, setUploadKeyAttendance, setReviewStatus, setFeatured, buildUploadLink,
   type UploadKey, type ReviewStatus,
 } from '../../lib/galleryAssistant';
 import { appConfirm } from '../../lib/appDialog';
@@ -245,6 +245,13 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
                 <RefreshCw className="w-3.5 h-3.5" /> 새 링크로 바꾸기
               </button>
             </div>
+            <label className="flex items-start gap-2 pt-1 cursor-pointer">
+              <input type="checkbox" className="mt-0.5 w-4 h-4 accent-indigo-600" checked={!!key.allow_attendance} disabled={busy}
+                onChange={e => { const on = e.target.checked; run(async () => { await setUploadKeyAttendance(key.id, on); setKey({ ...key, allow_attendance: on }); }); }} />
+              <span className="text-xs text-gray-600">
+                <b className="text-gray-800">보조강사 출석 체크 허용</b> — 켜면 링크를 가진 사람이 오늘 출석을 체크하고, 다른 선생님 화면에도 5초 안에 보여요. 학생 이름이 링크에 보이니 믿을 수 있는 분께만 보내 주세요.
+              </span>
+            </label>
           </div>
         )}
       </div>

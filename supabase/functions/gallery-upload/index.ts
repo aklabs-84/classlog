@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   const { data: key } = await admin
     .from('class_gallery_upload_keys')
-    .select('class_id, teacher_id, is_active')
+    .select('class_id, teacher_id, is_active, allow_attendance')
     .eq('token', token)
     .maybeSingle();
   if (!key || !key.is_active) return json({ error: 'invalid_link' }, 403);
@@ -77,8 +77,37 @@ Deno.serve(async (req) => {
   }
   const isTeacher = teacherId !== null;
 
+  // ── 오늘 출석 (주강사가 '보조강사 출석 허용'을 켠 링크만, 오늘 날짜만) ──
+  if (!form && (body.action === 'att_get' || body.action === 'att_set')) {
+    if (!key.allow_attendance) return json({ error: 'attendance_off' }, 403);
+    if (body.action === 'att_set') {
+      const who = isTeacher ? teacherName! : String(body.name ?? '').trim().slice(0, 30);
+      if (!who) return json({ error: 'name_required' }, 400);
+      const sid = String(body.student_id ?? '');
+      if (!/^[0-9a-f-]{36}$/.test(sid)) return json({ error: 'bad_student' }, 400);
+      const { data: st } = await admin.from('students').select('id').eq('id', sid).eq('class_id', key.class_id).or('registered_via.is.null,registered_via.neq.teacher').maybeSingle();
+      if (!st) return json({ error: 'bad_student' }, 400);
+      const status = body.status === null ? null : String(body.status ?? '');
+      if (status === null) {
+        const { error: dErr } = await admin.from('attendance').delete().eq('class_id', key.class_id).eq('student_id', sid).eq('date', kstDay);
+        if (dErr) return json({ error: 'save_failed' }, 500);
+      } else {
+        if (!['present', 'absent', 'late', 'early_leave', 'excused'].includes(status)) return json({ error: 'bad_status' }, 400);
+        const { error: uErr } = await admin.from('attendance').upsert(
+          { class_id: key.class_id, student_id: sid, date: kstDay, status, teacher_id: key.teacher_id, marked_by: who, marked_at: new Date().toISOString() },
+          { onConflict: 'class_id,student_id,date' });
+        if (uErr) return json({ error: 'save_failed' }, 500);
+      }
+    }
+    const [{ data: sts }, { data: recs }] = await Promise.all([
+      admin.from('students').select('id, full_name').eq('class_id', key.class_id).or('registered_via.is.null,registered_via.neq.teacher').order('full_name'), // 선생님 계정 행은 출석 명단에서 뺀다
+      admin.from('attendance').select('student_id, status, marked_by, marked_at').eq('class_id', key.class_id).eq('date', kstDay),
+    ]);
+    return json({ ok: true, date: kstDay, students: sts ?? [], records: recs ?? [] });
+  }
+
   if (!form && body.video_url === undefined) {
-    return json({ ok: true, class_name: cls.name, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
+    return json({ ok: true, class_name: cls.name, attendance_enabled: !!key.allow_attendance, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
   }
 
   if (!isTeacher && usedToday >= DAILY_LIMIT) return json({ error: 'daily_limit' }, 429);

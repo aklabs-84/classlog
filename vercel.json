@@ -11,6 +11,11 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/gallery-upload/:token",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*(kakaotalk|KAKAOTALK|Kakaotalk|facebookexternalhit|Twitterbot|Slackbot|TelegramBot|Discordbot|WhatsApp|LinkedInBot|Line/).*" }],
+      "destination": "/og/gallery-upload.html"
+    },
+    {
       "source": "/((?!.*\\.[a-zA-Z0-9]{1,5}$).*)",
       "destination": "/index.html"
     }

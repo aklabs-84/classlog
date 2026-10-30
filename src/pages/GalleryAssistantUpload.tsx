@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Camera, CheckCircle2, Loader2, AlertCircle, Link2, UserCheck } from 'lucide-react';
 import { checkUploadLink, uploadViaLink, submitVideoLink, type LinkInfo } from '../lib/galleryAssistant';
 import { plainDrop } from '../hooks/useFileDrop';
+import AssistantAttendance from '../components/classroom/AssistantAttendance';
 
 const NAME_KEY = 'gallery_assistant_name';
 const readName = () => { try { return localStorage.getItem(NAME_KEY) ?? ''; } catch { return ''; } };
@@ -20,6 +21,7 @@ const GalleryAssistantUpload = () => {
   const [failures, setFailures] = useState<string[]>([]);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [tab, setTab] = useState<'photo' | 'video'>('photo');
+  const [mode, setMode] = useState<'upload' | 'attendance'>('upload');
   const [videoUrl, setVideoUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const isTeacher = !!info?.teacher;
@@ -125,6 +127,16 @@ const GalleryAssistantUpload = () => {
               />
             </>
           )}
+          {info?.attendance_enabled && (
+            <div className="grid grid-cols-2 gap-2 bg-indigo-50 rounded-xl p-1">
+              <button type="button" onClick={() => setMode('upload')} className={`rounded-lg py-2.5 text-sm font-bold ${mode === 'upload' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-700'}`}>사진·영상 올리기</button>
+              <button type="button" onClick={() => setMode('attendance')} className={`rounded-lg py-2.5 text-sm font-bold ${mode === 'attendance' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-700'}`}>출석 체크</button>
+            </div>
+          )}
+          {mode === 'attendance' && info?.attendance_enabled ? (
+            <AssistantAttendance token={token} name={name} isTeacher={isTeacher} />
+          ) : (
+          <>
           <div className="grid grid-cols-2 gap-2 bg-gray-100 rounded-xl p-1">
             <button type="button" onClick={() => setTab('photo')} className={`rounded-lg py-2 text-sm font-bold ${tab === 'photo' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}`}>사진</button>
             <button type="button" onClick={() => setTab('video')} className={`rounded-lg py-2 text-sm font-bold ${tab === 'video' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}`}>영상 링크</button>
@@ -170,6 +182,8 @@ const GalleryAssistantUpload = () => {
             {busy ? `올리는 중 ${progress.done}/${progress.total}` : '사진 고르기 또는 끌어다 놓기 (여러 장 가능)'}
           </button>
           <p className="text-xs text-gray-400">화면을 닫지 말고 끝날 때까지 기다려 주세요.</p>
+          </>
+          )}
           </>
           )}
           {!isTeacher && (

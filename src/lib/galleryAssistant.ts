@@ -12,6 +12,7 @@ export interface UploadKey {
   class_id: string;
   token: string;
   is_active: boolean;
+  allow_attendance?: boolean;
 }
 
 export const buildUploadLink = (token: string) => `${window.location.origin}/gallery-upload/${token}`;
@@ -20,7 +21,7 @@ export const buildUploadLink = (token: string) => `${window.location.origin}/gal
 export async function getUploadKey(classId: string): Promise<UploadKey | null> {
   const { data, error } = await supabase
     .from('class_gallery_upload_keys')
-    .select('id, class_id, token, is_active')
+    .select('id, class_id, token, is_active, allow_attendance')
     .eq('class_id', classId)
     .maybeSingle();
   if (error) throw error;
@@ -42,7 +43,7 @@ export async function createOrRotateUploadKey(teacherId: string, classId: string
       .from('class_gallery_upload_keys')
       .update({ token, is_active: true, rotated_at: new Date().toISOString() })
       .eq('id', existing.id)
-      .select('id, class_id, token, is_active')
+      .select('id, class_id, token, is_active, allow_attendance')
       .single();
     if (error) throw error;
     return data;
@@ -50,7 +51,7 @@ export async function createOrRotateUploadKey(teacherId: string, classId: string
   const { data, error } = await supabase
     .from('class_gallery_upload_keys')
     .insert({ teacher_id: teacherId, class_id: classId, token })
-    .select('id, class_id, token, is_active')
+    .select('id, class_id, token, is_active, allow_attendance')
     .single();
   if (error) throw error;
   return data;
@@ -61,6 +62,11 @@ export async function setUploadKeyActive(id: string, isActive: boolean): Promise
   if (error) throw error;
 }
 
+export async function setUploadKeyAttendance(id: string, allow: boolean): Promise<void> {
+  const { error } = await supabase.from('class_gallery_upload_keys').update({ allow_attendance: allow }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function setReviewStatus(ids: string[], status: ReviewStatus): Promise<void> {
   if (ids.length === 0) return;
   const { error } = await supabase.from('class_gallery_items').update({ review_status: status }).in('id', ids);
@@ -68,7 +74,7 @@ export async function setReviewStatus(ids: string[], status: ReviewStatus): Prom
 }
 
 // ── 보조강사(비로그인) 쪽 ──────────────────────────────────────────────
-export interface LinkInfo { class_name: string; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null }
+export interface LinkInfo { class_name: string; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null; attendance_enabled?: boolean }
 
 // 로그인해 있으면 그 정보를 함께 보내 서버가 '주강사'인지 확인하게 한다 (없으면 보조강사로 취급)
 async function buildHeaders(): Promise<Record<string, string>> {
@@ -146,3 +152,35 @@ export async function submitVideoLink(token: string, name: string, videoUrl: str
     throw new Error(UPLOAD_ERRORS[code] ?? '올리지 못했어요. 잠시 뒤 다시 시도해 주세요.');
   }
 }
+
+// ── 보조강사 출석 (오늘 날짜만, 주강사가 허용한 링크만) ─────────────────────
+export type AttStatus = 'present' | 'absent' | 'late' | 'early_leave' | 'excused';
+export interface AttendanceSnapshot {
+  date: string;
+  students: { id: string; full_name: string }[];
+  records: { student_id: string; status: AttStatus; marked_by: string | null; marked_at: string | null }[];
+}
+
+const ATT_ERRORS: Record<string, string> = {
+  attendance_off: '주강사님이 출석 기능을 꺼 두셨어요.',
+  invalid_link: UPLOAD_ERRORS.invalid_link,
+  name_required: UPLOAD_ERRORS.name_required,
+};
+
+async function attCall(token: string, payload: Record<string, unknown>): Promise<AttendanceSnapshot> {
+  const res = await fetch(FN_URL, {
+    method: 'POST',
+    headers: { ...(await buildHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, ...payload }),
+  });
+  if (!res.ok) {
+    let code = '';
+    try { code = (await res.json()).error; } catch { /* noop */ }
+    throw new Error(ATT_ERRORS[code] ?? '처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.');
+  }
+  return await res.json();
+}
+
+export const fetchAttendance = (token: string) => attCall(token, { action: 'att_get' });
+export const markAttendance = (token: string, name: string, studentId: string, status: AttStatus | null) =>
+  attCall(token, { action: 'att_set', name, student_id: studentId, status });

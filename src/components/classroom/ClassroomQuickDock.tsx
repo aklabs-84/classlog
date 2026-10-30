@@ -5,7 +5,7 @@ import { Zap, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // 전체 명단이 아닌 탭에서 도우미 칸 대신 보이는 "바로가기" 작은 버튼.
-// 벽(기본 왼쪽)에 붙어 있고, 끌면 위아래·좌우 벽으로 옮길 수 있다 (FloatingLessonMemo와 같은 방식).
+// 벽(기본 오른쪽)에 붙어 있고, 끌면 위아래·좌우 벽으로 옮길 수 있다 (FloatingLessonMemo와 같은 방식).
 // 누르면 바로가기 메뉴가 작게 펼쳐진다. 자리는 이 브라우저에 기억한다.
 
 export interface QuickItem { key: string; label: string; icon: LucideIcon; run: () => void; badge?: number }
@@ -22,7 +22,7 @@ const ClassroomQuickDock = ({ items }: { items: QuickItem[] }) => {
       const v = JSON.parse(readLS(DOCK_KEY) || 'null');
       if (v && (v.side === 'left' || v.side === 'right') && typeof v.y === 'number') return { side: v.side, y: clampY(v.y) };
     } catch { /* 기본 자리 사용 */ }
-    return { side: 'left', y: Math.round(window.innerHeight * 0.4) };
+    return { side: 'right', y: Math.round(window.innerHeight * 0.4) };
   });
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const info = useRef<{ sx: number; sy: number; moved: boolean } | null>(null);
