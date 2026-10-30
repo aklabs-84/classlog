@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { ShortcutRow } from './ShortcutRow';
 
@@ -13,7 +13,6 @@ interface Student { id: string; full_name: string; student_number: string | null
 const PAGE_NAMES = ['팀 프로필', '아이스브레이킹', '몬스터 스타트업', '기획서', '앱 만들기'];
 const STALE_SEC = 60;
 const LEFT_SEC = 10;
-const RECENT_HOURS = 12;
 
 type St = 'off' | 'done' | 'left' | 'stale' | 'go';
 const ST_LABEL: Record<St, string> = { off: '접속 전', done: '끝', left: '나감', stale: '신호 없음', go: '진행 중' };
@@ -60,28 +59,17 @@ function useProgress(classId: string, active: boolean) {
   return { rows, students, now, ready };
 }
 
-// 클래스룸: 바이브코딩 스튜디오 학생 진행 현황. 학생이 한 명이라도 들어온 반에만 보인다.
+// 클래스룸: 바이브코딩 스튜디오 학생 진행 현황. 바로가기에 항상 보이고, 누르면 현황판이 열린다.
 export default function ClassStudioProgressPanel({ classId }: { classId: string }) {
-  const [hasData, setHasData] = useState(false);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    const since = new Date(Date.now() - RECENT_HOURS * 3600 * 1000).toISOString();
-    supabase.from('studio_progress').select('student_id', { count: 'exact', head: true })
-      .eq('class_id', classId).gte('last_seen', since)
-      .then(({ count }) => { if (alive) setHasData((count ?? 0) > 0); });
-    return () => { alive = false; };
-  }, [classId]);
-
-  if (!hasData && !open) return null;
   return (
     <>
       <ShortcutRow
         tone="violet"
         kind="진행"
         title="바이브코딩 스튜디오 진행 현황"
-        summary="학생들이 지금 어느 단계에 있는지 실시간으로 봐요"
+        summary="학생들이 지금 어느 단계에 있는지 실시간으로 봐요 (학생이 들어오면 채워져요)"
         action={
           <button onClick={() => setOpen(true)}
             className="text-xs font-black px-3 py-2 rounded-lg border border-violet-300 text-violet-700 hover:bg-violet-50 bg-white">
@@ -97,6 +85,8 @@ export default function ClassStudioProgressPanel({ classId }: { classId: string 
 function ProgressBoard({ classId, onClose }: { classId: string; onClose: () => void }) {
   const { rows, students, now, ready } = useProgress(classId, true);
   const [sort, setSort] = useState<'team' | 'name' | 'slow'>('team');
+  const [full, setFull] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const list = useMemo(() => {
     const by = new Map(rows.map(r => [r.student_id, r]));
@@ -117,11 +107,16 @@ function ProgressBoard({ classId, onClose }: { classId: string; onClose: () => v
   const stage = PAGE_NAMES.map((n, i) => ({ n, i, c: list.filter(x => x.r && x.st !== 'done' && x.r.page === i).length }));
 
   return (
-    <div onClick={onClose} className="fixed inset-0 z-[1000] bg-black/50 flex items-center justify-center p-3">
-      <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div onClick={onClose} className={`fixed inset-0 z-[1000] bg-black/50 flex items-center justify-center ${full ? 'p-0' : 'p-3'}`}>
+      <div onClick={e => e.stopPropagation()}
+        className={`bg-white flex flex-col overflow-hidden ${full ? 'w-screen h-screen rounded-none' : 'rounded-2xl w-full max-w-4xl max-h-[92vh]'}`}>
         <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-200">
           <h3 className="flex-1 text-base font-black">바이브코딩 스튜디오 진행 현황</h3>
           <span className="text-xs font-bold text-neutral-400">5초마다 자동 갱신</span>
+          <button onClick={() => setFull(f => !f)} aria-label={full ? '작게 보기' : '전체 화면'}
+            className="flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50">
+            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{full ? '작게 보기' : '전체 화면'}
+          </button>
           <button onClick={onClose} aria-label="닫기" className="p-1 text-neutral-400 hover:text-neutral-700"><X size={20} /></button>
         </div>
         <div className="overflow-y-auto px-5 py-4">
@@ -145,24 +140,27 @@ function ProgressBoard({ classId, onClose }: { classId: string; onClose: () => v
             ))}
           </div>
           {!ready && <p className="text-sm font-bold text-neutral-400 py-6 text-center">불러오는 중…</p>}
-          <ul className="divide-y divide-neutral-100">
+          <ul className={full ? 'grid gap-x-8 grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 divide-y-0' : 'divide-y divide-neutral-100'}>
             {list.map(({ s, r, st }) => {
               const finished = new Set([...(r?.completed_pages || []), ...(r?.submitted_pages || [])]);
               const age = r ? Math.max(0, Math.round((now - Date.parse(r.last_seen)) / 1000)) : 0;
               const frac = r?.step_total ? ` (${r.step_no}/${r.step_total})` : '';
               return (
-                <li key={s.id} className="py-2.5 flex items-center gap-3">
+                <li key={s.id} className={`py-2.5 ${full ? 'border-b border-neutral-100' : ''}`}>
+                  <div className="flex items-center gap-3">
                   <div className="w-28 shrink-0 min-w-0">
                     <p className="text-sm font-black truncate">{s.student_number ? `${s.student_number}번 ` : ''}{s.full_name}</p>
                     {r?.team_name && <p className="text-[11px] font-bold text-neutral-400 truncate">{r.team_name}</p>}
                   </div>
-                  <div className="flex gap-1 shrink-0" aria-hidden>
+                  <button type="button" onClick={() => setOpenId(openId === s.id ? null : s.id)}
+                    aria-label="단계별 진행 보기" title="눌러서 단계별로 보기"
+                    className="flex gap-1 shrink-0 p-1.5 -m-1.5 rounded-md hover:bg-neutral-100">
                     {PAGE_NAMES.map((n, i) => {
                       const cur = !!r && st !== 'done' && r.page === i && !finished.has(i);
                       return <span key={i} title={n}
                         className={`w-4 h-2 rounded-sm ${finished.has(i) ? 'bg-blue-500' : cur ? (st === 'go' ? 'bg-emerald-500' : 'bg-red-400') : 'bg-neutral-200'}`} />;
                     })}
-                  </div>
+                  </button>
                   <p className="flex-1 min-w-0 text-xs font-bold text-neutral-600 truncate">
                     {!r ? '아직 스튜디오에 들어오지 않았어요'
                       : st === 'done' ? '앱 만들기까지 제출 완료'
@@ -170,6 +168,19 @@ function ProgressBoard({ classId, onClose }: { classId: string; onClose: () => v
                   </p>
                   <span className="shrink-0 text-[11px] font-bold text-neutral-400 w-14 text-right">{r && st !== 'done' ? `${age}초 전` : ''}</span>
                   <span className={`shrink-0 text-[11px] font-black px-2 py-1 rounded-md ${ST_COLOR[st]}`}>{ST_LABEL[st]}</span>
+                  </div>
+                  {openId === s.id && (
+                    <div className="mt-2 ml-28 flex flex-wrap gap-1.5">
+                      {PAGE_NAMES.map((n, i) => {
+                        const sub = (r?.submitted_pages || []).includes(i);
+                        const doneP = finished.has(i);
+                        const cur = !!r && st !== 'done' && r.page === i && !doneP;
+                        const mark = doneP ? (sub ? '✅ 제출함' : '✅ 끝냄') : cur ? '▶ 지금 하는 중' : '⬜ 아직';
+                        const cls = doneP ? 'bg-blue-50 text-blue-700' : cur ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500';
+                        return <span key={i} className={`text-[11px] font-black px-2 py-1 rounded-md ${cls}`}>{i}. {n} · {mark}</span>;
+                      })}
+                    </div>
+                  )}
                 </li>
               );
             })}
