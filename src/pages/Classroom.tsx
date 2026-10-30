@@ -554,6 +554,22 @@ const Classroom = () => {
     }
   }, [activeClassId]);
 
+  // 이 반에 연결된 도구 목록은 반을 열 때 바로 가져온다 (수업 활동 탭의 진행 현황 줄이 이걸 보고 나타남)
+  useEffect(() => {
+    if (!activeClassId) return;
+    let alive = true;
+    supabase.from('class_enabled_tools').select('tool_id, is_published, auto_synced').eq('class_id', activeClassId)
+      .then(({ data }) => {
+        if (!alive || !data) return;
+        const toolMap: Record<string, boolean> = {};
+        const autoMap: Record<string, boolean> = {};
+        data.forEach((t: any) => { toolMap[t.tool_id] = t.is_published; if (t.auto_synced) autoMap[t.tool_id] = true; });
+        setEnabledTools(toolMap);
+        setAutoSyncedTools(autoMap);
+      });
+    return () => { alive = false; };
+  }, [activeClassId]);
+
   // activeTab이 바뀔 때마다 URL tab= 파라미터 동기화 → 페이지 재진입 시 탭 복원
   useEffect(() => {
     setSearchParams(prev => {
