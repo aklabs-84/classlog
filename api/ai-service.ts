@@ -355,7 +355,7 @@ async function handleSubmission(req: any, res: any) {
 // resource=progress
 // 바이브코딩 스튜디오 진행 현황. 학생 한 명당 한 줄(studio_progress)을 계속 덮어쓴다.
 // POST: { entry_code, student_id?, student_name?, team_name?, page(0~3), page_label?, step_no?, step_total?, step_label?,
-//         completed_pages?, submitted_pages?, online? }   GET: ?resource=progress&entry_code=... → 교사용 목록
+//         completed_pages?, submitted_pages?, done?, online? }   GET: ?resource=progress&entry_code=... → 교사용 목록
 async function resolveProgressTarget(supabaseAdmin: any, entry_code: string) {
   const { data: klass } = await supabaseAdmin
     .from('classes')
@@ -410,6 +410,7 @@ async function handleProgressWrite(req: any, res: any) {
     completed_pages: pageList(body.completed_pages),
     submitted_pages: pageList(body.submitted_pages),
     online: body.online !== false,
+    done: body.done === true || pageList(body.submitted_pages).includes(4),
     last_seen: now,
     updated_at: now,
   };
@@ -454,6 +455,7 @@ async function handleProgressRead(req: any, res: any) {
       completed_pages: r?.completed_pages ?? [],
       submitted_pages: r?.submitted_pages ?? [],
       online: r?.online ?? false,
+      done: r?.done ?? false,
       last_seen: r?.last_seen ?? null,
     };
   });

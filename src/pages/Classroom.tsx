@@ -65,6 +65,11 @@ import {
   Cpu,
   RotateCcw,
   ArrowLeft,
+  Radio,
+  Smartphone,
+  QrCode,
+  Share2,
+  Camera,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
 import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
@@ -98,6 +103,7 @@ import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import ClassroomHelperRail from '../components/classroom/ClassroomHelperRail';
+import ClassroomQuickDock, { type QuickItem } from '../components/classroom/ClassroomQuickDock';
 import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
 import EntryModeSelect, { StudentNumberToggle, type EntryMode } from '../components/classroom/EntryModeSelect';
 import LiveRosterPanel from '../components/classroom/LiveRosterPanel';
@@ -117,8 +123,9 @@ import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
 import ClassProjectSurveyPanel from '../components/classroom/ClassProjectSurveyPanel';
 import ClassProjectQuizPanel from '../components/classroom/ClassProjectQuizPanel';
 import ClassLiveBoardPanel from '../components/classroom/ClassLiveBoardPanel';
-import ClassStudioProgressPanel from '../components/classroom/ClassStudioProgressPanel';
-import { ShortcutSection, openActivities } from '../components/classroom/ShortcutRow';
+import ClassStudioProgressPanel, { PROGRESS_APP_TAG } from '../components/classroom/ClassStudioProgressPanel';
+import { ActivityProvider, ActivityPanel, ActivityStrip, ActivityTabMark } from '../components/classroom/ActivityHub';
+import { openActivities } from '../components/classroom/ShortcutRow';
 import ClassroomGuideTour from '../components/classroom/ClassroomGuideTour';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
@@ -220,8 +227,8 @@ const Classroom = () => {
   const [breakGenNew, setBreakGenNew] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [breakGenEdit, setBreakGenEdit] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading'>(
-    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading') || 'list'
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading' | 'activities'>(
+    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading' | 'activities') || 'list'
   );
   // 메인 탭바 클릭-드래그 가로 스크롤
   const tabBarRef = useRef<HTMLDivElement>(null);
@@ -281,9 +288,9 @@ const Classroom = () => {
   const newWeekTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [createModalFull, setCreateModalFull] = useState(true); // 새 학급 만들기 모달 전체화면 토글 (기본: 전체화면)
   useEffect(() => { if (isCreateModalOpen) { setCreateModalFull(true); setSelectedNewWeekIdx(0); } }, [isCreateModalOpen]);
-  // 오른쪽 '설문·퀴즈·게시판'을 누르면 목록이 있는 탭으로 돌아온다 (목록 펼치기는 ShortcutSection이 처리)
+  // 오른쪽 '설문·퀴즈·게시판'을 누르면 '수업 활동' 탭으로 이동한다
   useEffect(() => {
-    const go = () => setActiveTab('list');
+    const go = () => setActiveTab('activities');
     window.addEventListener('classroom-open-activities', go);
     return () => window.removeEventListener('classroom-open-activities', go);
   }, []);
@@ -2808,6 +2815,7 @@ const Classroom = () => {
           {/* 2.1 Cohesive Segmented Control - 일반 클래스만 표시 */}
           {!(!loading && !activeClassId && classes.length > 0) && (!classInfo?.school_project_id || classInfo?.parent_class_id) && (
           <>
+          <ActivityProvider>
           <div className="mb-8 md:mb-10 border-b border-slate-200 dark:border-slate-700">
             <div
               ref={tabBarRef}
@@ -2822,6 +2830,7 @@ const Classroom = () => {
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
+                { id: 'activities', label: '수업 활동', icon: Radio },
                 { id: 'teacher_materials', label: '선생님 자료', icon: Lock },
                 { id: 'groups', label: '조 편성', icon: Layers, divider: true },
                 { id: 'board', label: '우리반 보드', icon: Users2 },
@@ -2838,10 +2847,10 @@ const Classroom = () => {
                   <div key={tab.id} className="flex items-stretch shrink-0">
                     {tab.divider && <span aria-hidden className="self-center w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2" />}
                     <button
-                      data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : tab.id === 'attendance' ? 'tab-attendance' : tab.id === 'board' ? 'tab-board' : undefined}
+                      data-tour={tab.id === 'list' ? 'tab-list' : tab.id === 'grading' ? 'tab-grading' : tab.id === 'attendance' ? 'tab-attendance' : tab.id === 'board' ? 'tab-board' : tab.id === 'activities' ? 'tab-activities' : undefined}
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => {
-                        setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading');
+                        setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials' | 'grading' | 'activities');
                         if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
                         if (tab.id === 'notice' && activeClassId) fetchAnnouncements(activeClassId);
                         if (tab.id === 'teacher_materials' && activeClassId) fetchPrivateMaterials(activeClassId);
@@ -2859,6 +2868,7 @@ const Classroom = () => {
                           {pendingBadge}
                         </span>
                       )}
+                      {tab.id === 'activities' && <ActivityTabMark />}
                     </button>
                   </div>
                 );
@@ -2870,20 +2880,25 @@ const Classroom = () => {
             <InstructorStartGuide schoolProjectId={classInfo.school_project_id} />
           )}
 
-          <ShortcutSection>
+          <ActivityStrip onOpenTab={() => setActiveTab('activities')} />
+          <ActivityPanel visible={activeTab === 'activities'}>
             {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
               <ClassProjectSurveyPanel classId={classInfo.id} />
             )}
             {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
               <ClassProjectQuizPanel classId={classInfo.id} teacherId={user!.id} />
             )}
-            {activeTab === 'list' && classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
+            {classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
               <ClassLiveBoardPanel classId={classInfo.linked_class_id || classInfo.id} teacherId={user!.id} />
             )}
-            {activeTab === 'list' && classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
-              <ClassStudioProgressPanel classId={classInfo.linked_class_id || classInfo.id} />
+            {classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
+              <ClassStudioProgressPanel
+                classId={classInfo.linked_class_id || classInfo.id}
+                supported={aiHubApps.some(app => (app.tags || []).includes(PROGRESS_APP_TAG) && Object.prototype.hasOwnProperty.call(enabledTools, `external:${app.id}`))}
+              />
             )}
-          </ShortcutSection>
+          </ActivityPanel>
+          </ActivityProvider>
 
           {classInfo && (
             <ClassroomGuideTour
@@ -3681,7 +3696,7 @@ const Classroom = () => {
             </>
           )}
             </div>
-          {classInfo && (
+          {classInfo && activeTab === 'list' && (
             <ClassroomHelperRail
               userId={user?.id}
               classId={classInfo.id}
@@ -3706,6 +3721,20 @@ const Classroom = () => {
             />
           )}
           </div>
+          {classInfo && activeTab !== 'list' && (
+            <ClassroomQuickDock
+              items={[
+                activeTab !== 'activities' && { key: 'acts', label: '설문·퀴즈·게시판', icon: Radio, run: openActivities },
+                { key: 'preview', label: '학생 화면 미리보기', icon: Smartphone, run: () => setIsStudentPreviewOpen(true) },
+                classInfo.class_type !== 'homeroom' && { key: 'qr', label: '학생 입장 코드 확인', icon: QrCode, run: handleShowEntryCode },
+                { key: 'res', label: '수업 자료실', icon: BookOpen, run: () => { if (activeClassId) fetchResources(activeClassId); setIsResourceModalOpen(true); } },
+                classInfo.entry_code && { key: 'page', label: '학생 페이지 이동', icon: ExternalLink, run: handleOpenStudentPage },
+                { key: 'share', label: '교사용 결과 공유', icon: Share2, run: () => setIsTeacherShareQRModalOpen(true) },
+                classInfo.class_type !== 'homeroom' && user && { key: 'gallery', label: '수업 사진·동의', icon: Camera, run: () => setIsGalleryOpen(true), badge: galleryPending },
+                classInfo.class_type !== 'homeroom' && { key: 'export', label: '내보내기', icon: Download, run: handleExportCSV },
+              ].filter(Boolean) as QuickItem[]}
+            />
+          )}
           </>
           )}
         </div>

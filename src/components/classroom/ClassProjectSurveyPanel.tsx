@@ -44,6 +44,7 @@ export default function ClassProjectSurveyPanel({ classId }: { classId: string }
           kind="설문"
           title={s.title}
           highlight={s.is_open}
+          onEnd={() => toggle(s)}
           summary={[s.scope === 'common' ? '공통' : s.scope === 'school' ? '우리 학교 전용' : '우리 반 전용', s.week_number ? `${s.week_number}주차` : null, s.survey_phase === 'post' ? '사후' : s.survey_phase === 'pre' ? '사전' : null, `우리 반 응답 ${s.response_count}명`].filter(Boolean).join(' · ')}
           help={'"설문 시작"을 누르면 우리 반 학생 화면의 "수업 끝 설문" 칸이 빨갛게 켜져요. 끝나면 "종료"를 눌러 주세요.'}
           action={

@@ -45,6 +45,9 @@ export default function ClassProjectQuizPanel({ classId, teacherId }: { classId:
           key={q.id}
           tone="violet"
           kind="퀴즈"
+          highlight={liveSetIds.has(q.id)}
+          endLabel="이어서 진행"
+          onEnd={() => start(q.id)}
           title={q.title}
           summary={`문제 ${q.question_count}개${liveSetIds.has(q.id) ? ' · 진행 중인 방이 있어요' : ''}`}
           help={'"퀴즈 시작"을 누르면 퀴즈 방이 열리고, 우리 반 학생 화면의 "퀴즈 입장" 칸이 빨갛게 켜져요.'}

@@ -73,6 +73,9 @@ export default function ClassLiveBoardPanel({ classId, teacherId }: { classId: s
           key={b.id}
           tone="emerald"
           kind="진행중"
+          highlight={b.is_open}
+          endLabel="이어서 진행"
+          onEnd={() => navigate(`/live-board/${b.id}`)}
           title={b.question}
           summary={`${b.is_open ? '입력 중' : '일시정지'} · 코드 ${b.code}`}
           action={

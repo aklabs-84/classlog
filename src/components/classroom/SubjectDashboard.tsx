@@ -119,6 +119,15 @@ const SubjectDashboard = ({
   const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
   const [mobileListOpen, setMobileListOpen] = useState(false);
+  // 데스크탑 학생 표 접기/펼치기 (기본 펼침, 고른 상태는 이 브라우저에 기억)
+  const [deskListOpen, setDeskListOpen] = useState(() => {
+    try { return localStorage.getItem('classroom_roster_open_v1') !== '0'; } catch { return true; }
+  });
+  const toggleDeskList = () => setDeskListOpen(o => {
+    const next = !o;
+    try { localStorage.setItem('classroom_roster_open_v1', next ? '1' : '0'); } catch { /* 기억 못 해도 화면은 정상 */ }
+    return next;
+  });
   useEffect(() => { if (searchQuery) setMobileListOpen(true); }, [searchQuery]);
   const [mobileStatusTab, setMobileStatusTab] = useState<'submitted' | 'notSubmitted'>('submitted');
 
@@ -604,6 +613,16 @@ const SubjectDashboard = ({
                 <span className="flex items-center gap-2 text-sm font-black text-on-surface"><Users size={16} className="text-primary" />학생 목록 <span className="text-on-surface-variant/70 font-bold">({filteredStudents.length}명)</span></span>
                 <span className="flex items-center gap-1 text-[13px] font-bold text-primary">{mobileListOpen ? '접기' : '펼치기'}{mobileListOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
               </button>
+              {/* ── 데스크탑: 학생 목록 접기/펼치기 ── */}
+              <button
+                type="button"
+                onClick={toggleDeskList}
+                aria-expanded={deskListOpen}
+                className="hidden md:flex w-full items-center justify-between gap-2 px-4 py-3 mb-3 rounded-xl bg-surface-container-lowest border border-slate-200 dark:border-slate-700 text-left hover:border-primary/40 transition-colors"
+              >
+                <span className="flex items-center gap-2 text-[16px] font-black text-on-surface"><Users size={17} className="text-primary" />학생 목록 <span className="text-on-surface-variant/70 font-bold">({filteredStudents.length}명{selectedIds.length > 0 ? ` · 선택 ${selectedIds.length}명` : ''})</span></span>
+                <span className="flex items-center gap-1 text-[14px] font-bold text-primary">{deskListOpen ? '접기' : '펼치기'}{deskListOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</span>
+              </button>
               {/* ── 모바일 카드 뷰 (md 미만) ── */}
               <div className={`${mobileListOpen ? '' : 'hidden '}md:hidden space-y-3`}>
                 {filteredStudents.length === 0 ? (
@@ -734,7 +753,7 @@ const SubjectDashboard = ({
                 initial={{ opacity: 0, scale: 0.99 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.01 }}
-                className="hidden md:block rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-surface-container-lowest"
+                className={`${deskListOpen ? 'hidden md:block' : 'hidden'} rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-surface-container-lowest`}
               >
                 <div className="overflow-x-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse min-w-[800px]">
