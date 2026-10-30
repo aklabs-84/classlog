@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Camera, Download, Star, Copy, Check, Loader2, Link2, Power, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Camera, Download, Star, Copy, Check, Loader2, Link2, Power, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, X, MoveRight } from 'lucide-react';
 import JSZip from 'jszip';
 import PhotoConsentPanel from './PhotoConsentPanel';
 import { supabase } from '../../lib/supabase';
@@ -33,7 +33,12 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
   const [filter, setFilter] = useState<'all' | ReviewStatus>('all');
   const [viewing, setViewing] = useState<GalleryItem | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [moveTo, setMoveTo] = useState('');
 
+  useEffect(() => { setSelectMode(false); setSelected(new Set()); setMoveTo(''); setNotice(''); }, [classId]);
   useEffect(() => { if (!classId && classes[0]) setClassId(classes[0].id); }, [classes, classId]);
 
   const load = useCallback(async () => {
@@ -92,6 +97,36 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
     setItems(prev => prev.map(i => (i.id === item.id ? { ...i, is_featured: next } : i)));
     setViewing(v => (v && v.id === item.id ? { ...v, is_featured: next } : v));
   });
+
+  const toggleSelect = (id: string) => setSelected(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); setMoveTo(''); };
+  const moveSelected = async () => {
+    const target = classes.find(c => c.id === moveTo);
+    if (!target || selected.size === 0) return;
+    if (!await appConfirm(`선택한 사진 ${selected.size}장을 "${target.name}" 갤러리로 옮길까요?`)) return;
+    const ids = [...selected];
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data, error: err } = await supabase.from('class_gallery_items').update({ class_id: moveTo }).in('id', ids).select('id');
+      if (err) throw err;
+      const movedIds = new Set((data ?? []).map((r: { id: string }) => r.id));
+      setItems(prev => prev.filter(i => !movedIds.has(i.id)));
+      setNotice(movedIds.size === ids.length
+        ? `${movedIds.size}장을 "${target.name}" 갤러리로 옮겼어요.`
+        : `${movedIds.size}장만 옮겨졌어요. 나머지 ${ids.length - movedIds.size}장은 권한이 없어 그대로예요.`);
+      exitSelect();
+    } catch {
+      setError('사진을 옮기지 못했어요. 다시 시도해주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // "사용 가능" 사진만 zip으로 (날짜별 폴더)
   const [zipping, setZipping] = useState(false);
@@ -173,7 +208,7 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
         <button onClick={load} className="p-2 text-gray-500 hover:text-gray-800" aria-label="새로고침"><RefreshCw className="w-4 h-4" /></button>
       </div>
 
-      {classId && <PhotoConsentPanel userId={userId} classId={classId} />}
+      {classId && <PhotoConsentPanel userId={userId} classId={classId} className={classes.find(c => c.id === classId)?.name} />}
 
       {/* 보조강사 올리기 링크 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
@@ -215,6 +250,7 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
+      {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
       {/* 검토 + 사진 목록 */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -227,12 +263,32 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
         <button disabled={zipping} onClick={downloadZip} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 border border-gray-300 rounded-lg px-2.5 py-1.5 disabled:opacity-60">
           {zipping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} 사용 가능 사진 내려받기
         </button>
+        <button onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+          className={`inline-flex items-center gap-1 text-xs font-semibold border rounded-lg px-2.5 py-1.5 ${selectMode ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-700 border-gray-300'}`}>
+          <MoveRight className="w-3.5 h-3.5" /> {selectMode ? '선택 끝내기' : '다른 반으로 옮기기'}
+        </button>
         {pendingCount > 0 && (
           <button disabled={busy} onClick={approveAllPending} className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 border border-emerald-300 rounded-lg px-2.5 py-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" /> 대기 {pendingCount}장 모두 사용 가능으로
           </button>
         )}
       </div>
+
+      {selectMode && (
+        <div className="sticky top-0 z-10 bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-bold text-indigo-900">{selected.size}장 선택됨</span>
+          <button onClick={() => setSelected(new Set(shown.map(i => i.id)))} className="text-xs font-semibold text-indigo-700 underline">보이는 사진 모두 선택</button>
+          {selected.size > 0 && <button onClick={() => setSelected(new Set())} className="text-xs font-semibold text-gray-500 underline">선택 해제</button>}
+          <select value={moveTo} onChange={e => setMoveTo(e.target.value)} className="ml-auto border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+            <option value="">옮길 반 고르기</option>
+            {classes.filter(c => c.id !== classId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button disabled={busy || selected.size === 0 || !moveTo} onClick={moveSelected}
+            className="inline-flex items-center gap-1 bg-indigo-600 text-white text-sm font-semibold rounded-lg px-3 py-1.5 disabled:opacity-50">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoveRight className="w-4 h-4" />} 옮기기
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
@@ -246,7 +302,13 @@ const SchoolGalleryTab = ({ userId, classes }: Props) => {
               {list.map(item => {
                 const st = (item.review_status ?? 'approved') as ReviewStatus;
                 return (
-                  <button key={item.id} onClick={() => setViewing(item)} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                  <button key={item.id} onClick={() => (selectMode ? toggleSelect(item.id) : setViewing(item))}
+                    className={`relative aspect-square rounded-lg overflow-hidden bg-gray-100 border ${selectMode && selected.has(item.id) ? 'border-indigo-600 ring-2 ring-indigo-500' : 'border-gray-200'}`}>
+                    {selectMode && (
+                      <span className={`absolute bottom-1 right-1 z-[1] w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected.has(item.id) ? 'bg-indigo-600 border-indigo-600' : 'bg-white/80 border-gray-400'}`}>
+                        {selected.has(item.id) && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                    )}
                     {item.file_type === 'image'
                       ? <img src={item.file_url} alt="" loading="lazy" className={`w-full h-full object-cover ${st === 'hidden' ? 'opacity-40' : ''}`} />
                       : <span className="text-xs font-bold text-gray-600">🎬 영상</span>}

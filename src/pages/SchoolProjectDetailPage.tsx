@@ -880,7 +880,7 @@ const SchoolProjectDetailPage = () => {
           ) : (
             <div className="surface-card border border-surface-container-high divide-y divide-surface-container-high">
               {classes.map(c => (
-                <div key={c.id} className="flex items-center justify-between px-4 py-3">
+                <div key={c.id} className="flex items-center justify-between gap-2 flex-wrap px-4 py-3">
                   <div>
                     <p className="text-sm font-bold">{c.name}</p>
                     <p className="text-xs text-on-surface-variant mt-0.5">
@@ -897,7 +897,7 @@ const SchoolProjectDetailPage = () => {
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     <span className="text-xs font-bold text-on-surface-variant/70 mr-2">학생 {c.studentCount}명</span>
                     <button
                       onClick={() => navigate(`/school-projects/${projectId}/schools/${schoolId}/classes/${c.id}`)}
@@ -912,6 +912,14 @@ const SchoolProjectDetailPage = () => {
                       title="학생 명단 등록"
                     >
                       <Users size={13} /> 학생 명단
+                    </button>
+                    <button
+                      onClick={() => handleCopyCode(`${window.location.origin}/share/${c.id}`)}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-primary hover:bg-primary/10 transition-all"
+                      title="선생님 공유 화면 링크를 복사해요. 받은 분은 로그인 없이 결과를 볼 수 있어요"
+                    >
+                      {copiedCode === `${window.location.origin}/share/${c.id}` ? <Check size={13} className="text-green-500" /> : <ExternalLink size={13} />}
+                      {copiedCode === `${window.location.origin}/share/${c.id}` ? '복사됨' : '공유 링크'}
                     </button>
                     <button
                       onClick={() => { setClassActionError(''); setAssigningClassId(c.id); }}

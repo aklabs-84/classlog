@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Loader2, Power, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import { Check, Copy, Download, Loader2, Power, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import {
@@ -7,11 +7,12 @@ import {
   type ConsentKey, type ConsentRow,
 } from '../../lib/photoConsent';
 import { appConfirm } from '../../lib/appDialog';
+import { downloadConsentZip } from '../../lib/consentExport';
 
 interface Student { id: string; full_name: string }
 
 // 사진·얼굴 노출 동의 서명 링크 관리 + 학생별 동의 현황
-const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: string }) => {
+const PhotoConsentPanel = ({ userId, classId, className }: { userId: string; classId: string; className?: string }) => {
   const [key, setKey] = useState<ConsentKey | null>(null);
   const [rows, setRows] = useState<ConsentRow[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -20,17 +21,24 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
   const [open, setOpen] = useState(false);
   const [sig, setSig] = useState<ConsentRow | null>(null);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [zipping, setZipping] = useState(false);
 
   const load = useCallback(async () => {
     if (!classId) return;
+    setRefreshing(true);
+    setError('');
     try {
       const [k, r, s] = await Promise.all([
         getConsentKey(classId),
         fetchConsents(classId),
         supabase.from('students').select('id, full_name').eq('class_id', classId).order('full_name'),
       ]);
+      if (s.error) throw s.error;
       setKey(k); setRows(r); setStudents((s.data ?? []) as Student[]);
-    } catch (e: any) { setError(e?.message ?? '불러오지 못했어요.'); }
+      setRefreshedAt(new Date());
+    } catch (e: any) { setError(e?.message ?? '불러오지 못했어요.'); } finally { setRefreshing(false); }
   }, [classId]);
   useEffect(() => { load(); }, [load]);
 
@@ -62,6 +70,16 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
     promo: { t: '홍보까지', c: 'bg-emerald-100 text-emerald-700' },
   };
 
+  const downloadAll = async () => {
+    setZipping(true); setError('');
+    try {
+      await downloadConsentZip(className || '동의서', [
+        ...status.list.map(({ s, r, state }) => ({ name: s.full_name, stateLabel: label[state].t, row: r ?? null })),
+        ...status.unmatched.map(r => ({ name: r.student_name, stateLabel: '명단에 없음', row: r, orphan: true })),
+      ]);
+    } catch { setError('내려받기 파일을 만들지 못했어요. 다시 시도해주세요.'); } finally { setZipping(false); }
+  };
+
   const copy = async () => {
     if (!key) return;
     await navigator.clipboard.writeText(buildConsentLink(key.token));
@@ -74,7 +92,9 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
         <ShieldCheck className="w-4 h-4 text-indigo-600" />
         <p className="text-sm font-bold text-gray-900">사진·얼굴 노출 동의 서명</p>
         {key && <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${key.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>{key.is_active ? '켜짐' : '꺼짐'}</span>}
-        <button onClick={load} className="ml-auto p-1 text-gray-400 hover:text-gray-700" aria-label="새로고침"><RefreshCw className="w-3.5 h-3.5" /></button>
+        <button onClick={load} disabled={refreshing} className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-800" aria-label="새로고침" title="클래스룸 학생 명단과 서명 현황을 다시 불러와요">
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> 새로고침
+        </button>
       </div>
       <p className="text-xs text-gray-500">수업 시간에 이 링크(또는 가정통신문 QR)로 보호자·학생이 휴대폰에서 서명해요. 학생 명단은 서명 화면에 보이지 않아요.</p>
 
@@ -100,12 +120,19 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
               동의가 확인되지 않은 학생 {notOk.length}명이 있어요. 사진을 공유하거나 올리기 전에 이 학생들이 나온 사진인지 확인하세요.
             </p>
           ) : <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">모든 학생의 동의가 확인됐어요.</p>}
-          <button onClick={() => setOpen(o => !o)} className="text-xs text-indigo-600 underline">{open ? '학생별 현황 접기' : `학생별 현황 보기 (${students.length}명)`}</button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button onClick={() => setOpen(o => !o)} className="text-xs text-indigo-600 underline">{open ? '학생별 현황 접기' : `학생별 현황 보기 (${students.length}명)`}</button>
+            <button disabled={zipping} onClick={downloadAll} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 border border-gray-300 rounded-lg px-2.5 py-1.5 disabled:opacity-60">
+              {zipping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} 동의 자료 내려받기 (엑셀+서명)
+            </button>
+            {refreshedAt && <span className="text-[11px] text-gray-400">클래스룸 명단 {students.length}명 · {refreshedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준</span>}
+          </div>
           {open && (
             <ul className="divide-y divide-gray-100 text-sm">
               {status.list.map(({ s, r, state }) => (
                 <li key={s.id} className="flex items-center gap-2 py-1.5">
-                  <span className="flex-1 text-gray-800">{s.full_name}</span>
+                  <button onClick={() => setSig(r ?? { id: '', student_id: s.id, student_name: s.full_name, signer_name: '', signer_relation: 'guardian', consent_record: false, consent_promo: false, signature: '', signed_at: '', withdrawn_at: null })}
+                    className="flex-1 text-left text-gray-800 hover:text-indigo-700 hover:underline" title="눌러서 서명·동의 내용 보기">{s.full_name}</button>
                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${label[state].c}`}>{label[state].t}</span>
                   {r && <button onClick={() => setSig(r)} className="text-xs text-gray-500 underline">서명</button>}
                 </li>
@@ -129,6 +156,9 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
               <p className="font-bold text-gray-900 flex-1">{sig.student_name}</p>
               <button onClick={() => setSig(null)} aria-label="닫기"><X className="w-5 h-5 text-gray-500" /></button>
             </div>
+            {!sig.id ? (
+              <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-4 text-center">아직 서명한 기록이 없어요.<br />동의 서명 링크로 서명하면 여기에 나타나요.</p>
+            ) : (<>
             <p className="text-xs text-gray-500">
               {sig.signer_relation === 'guardian' ? '보호자' : '학생 본인'} {sig.signer_name} · {new Date(sig.signed_at).toLocaleString('ko-KR')}<br />
               수업 기록·보고 {sig.consent_record ? '동의' : '미동의'} / 홍보 {sig.consent_promo ? '동의' : '미동의'}
@@ -139,6 +169,7 @@ const PhotoConsentPanel = ({ userId, classId }: { userId: string; classId: strin
               className="w-full border border-gray-300 text-sm rounded-lg py-2 text-gray-700 inline-flex items-center justify-center gap-1">
               {busy && <Loader2 className="w-4 h-4 animate-spin" />} {sig.withdrawn_at ? '철회 취소' : '동의 철회로 표시'}
             </button>
+            </>)}
           </div>
         </div>, document.body)}
     </div>
