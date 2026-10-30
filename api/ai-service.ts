@@ -351,15 +351,129 @@ async function handleSubmission(req: any, res: any) {
   return res.status(200).json({ ok: true, result_id: inserted.id });
 }
 
+
+// resource=progress
+// 바이브코딩 스튜디오 진행 현황. 학생 한 명당 한 줄(studio_progress)을 계속 덮어쓴다.
+// POST: { entry_code, student_id?, student_name?, team_name?, page(0~3), page_label?, step_no?, step_total?, step_label?,
+//         completed_pages?, submitted_pages?, online? }   GET: ?resource=progress&entry_code=... → 교사용 목록
+async function resolveProgressTarget(supabaseAdmin: any, entry_code: string) {
+  const { data: klass } = await supabaseAdmin
+    .from('classes')
+    .select('id, linked_class_id')
+    .eq('entry_code', entry_code)
+    .maybeSingle();
+  if (!klass) return null;
+  return klass.linked_class_id || klass.id;
+}
+function pageList(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  const out = new Set<number>();
+  for (const n of v) if (Number.isInteger(n) && n >= 0 && n <= 3) out.add(n);
+  return Array.from(out).sort();
+}
+async function handleProgressWrite(req: any, res: any) {
+  if (!checkWebhookSecret(req, res)) return;
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Server configuration error' });
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const cap = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const int = (v: unknown, min: number, max: number): number | null =>
+    Number.isInteger(v) && (v as number) >= min && (v as number) <= max ? (v as number) : null;
+
+  const entry_code = cap(body.entry_code, 100);
+  const student_id = cap(body.student_id, 100);
+  const student_name = cap(body.student_name, 100);
+  const page = int(body.page, 0, 3);
+  if (!entry_code || page === null || (!student_id && !student_name)) {
+    return res.status(400).json({ error: 'entry_code, page, student_id 또는 student_name은 필수입니다.' });
+  }
+
+  const targetClassId = await resolveProgressTarget(supabaseAdmin, entry_code);
+  if (!targetClassId) return res.status(404).json({ error: 'CLASS_NOT_FOUND' });
+
+  let q = supabaseAdmin.from('students').select('id').eq('class_id', targetClassId);
+  q = student_id ? q.eq('id', student_id) : q.eq('full_name', student_name);
+  const { data: student } = await q.maybeSingle();
+  if (!student) return res.status(404).json({ error: 'STUDENT_NOT_FOUND' });
+
+  const now = new Date().toISOString();
+  const row = {
+    student_id: student.id,
+    class_id: targetClassId,
+    team_name: cap(body.team_name, 40) || null,
+    page,
+    page_label: cap(body.page_label, 40) || null,
+    step_no: int(body.step_no, 0, 99),
+    step_total: int(body.step_total, 0, 99),
+    step_label: cap(body.step_label, 60) || null,
+    completed_pages: pageList(body.completed_pages),
+    submitted_pages: pageList(body.submitted_pages),
+    online: body.online !== false,
+    last_seen: now,
+    updated_at: now,
+  };
+  const { error } = await supabaseAdmin.from('studio_progress').upsert(row, { onConflict: 'student_id' });
+  if (error) {
+    console.error('[api/ai-service:progress] upsert failed:', error.message);
+    return res.status(500).json({ error: 'Could not save progress' });
+  }
+  return res.status(200).json({ ok: true });
+}
+async function handleProgressRead(req: any, res: any) {
+  if (!checkWebhookSecret(req, res)) return;
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) return res.status(500).json({ error: 'Server configuration error' });
+
+  const entry_code = typeof req.query.entry_code === 'string' ? req.query.entry_code.trim().slice(0, 100) : '';
+  if (!entry_code) return res.status(400).json({ error: 'entry_code는 필수입니다.' });
+  const targetClassId = await resolveProgressTarget(supabaseAdmin, entry_code);
+  if (!targetClassId) return res.status(404).json({ error: 'CLASS_NOT_FOUND' });
+
+  const [studentsRes, progressRes] = await Promise.all([
+    supabaseAdmin.from('students').select('id, full_name').eq('class_id', targetClassId).limit(500),
+    supabaseAdmin.from('studio_progress').select('*').eq('class_id', targetClassId).limit(500),
+  ]);
+  if (studentsRes.error || progressRes.error) {
+    console.error('[api/ai-service:progress] read failed:', studentsRes.error?.message, progressRes.error?.message);
+    return res.status(500).json({ error: 'Could not read progress' });
+  }
+  const byStudent = new Map<string, any>((progressRes.data ?? []).map((r: any) => [r.student_id, r]));
+  const students = (studentsRes.data ?? []).map((s: any) => {
+    const r = byStudent.get(s.id);
+    return {
+      student_id: s.id,
+      name: s.full_name,
+      started: !!r,
+      team_name: r?.team_name ?? null,
+      page: r?.page ?? null,
+      page_label: r?.page_label ?? null,
+      step_no: r?.step_no ?? null,
+      step_total: r?.step_total ?? null,
+      step_label: r?.step_label ?? null,
+      completed_pages: r?.completed_pages ?? [],
+      submitted_pages: r?.submitted_pages ?? [],
+      online: r?.online ?? false,
+      last_seen: r?.last_seen ?? null,
+    };
+  });
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json({ ok: true, server_time: new Date().toISOString(), students });
+}
+
 async function handlePost(req: any, res: any) {
   const { resource } = req.query;
   if (resource === 'class-sync') return handleClassSync(req, res);
   if (resource === 'submission') return handleSubmission(req, res);
-  return res.status(400).json({ error: 'resource must be "class-sync" or "submission"' });
+  if (resource === 'progress') return handleProgressWrite(req, res);
+  return res.status(400).json({ error: 'resource must be "class-sync", "submission" or "progress"' });
 }
 
 export default async function handler(req: any, res: any) {
-  if (req.method === 'GET') return handleGet(req, res);
+  if (req.method === 'GET') {
+    if (req.query?.resource === 'progress') return handleProgressRead(req, res);
+    return handleGet(req, res);
+  }
   if (req.method === 'POST') return handlePost(req, res);
   return res.status(405).json({ error: 'Method not allowed' });
 }
