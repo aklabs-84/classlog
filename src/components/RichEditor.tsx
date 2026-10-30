@@ -42,6 +42,7 @@ const SLASH_COMMANDS = [
   { icon: '—',  title: '구분선',    description: '슬라이드 구분선',   command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
   { icon: '▶',  title: '토글 블록', description: '접을 수 있는 내용', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'details', attrs: { summary: '토글 제목' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '💡', title: '콜아웃',    description: '강조 박스 (정보/주의/팁/중요)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'info' }, content: [{ type: 'paragraph' }] }).run() },
+  { icon: '🎞️', title: '단계 넘겨 보기', description: '단계마다 그림+글을 한 장씩 넘겨 보는 상자 (### 제목으로 단계 나눔)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'steps' }, content: [{ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '1단계 제목' }] }, { type: 'paragraph', content: [{ type: 'text', text: '🖼 캡처 자리: 이 단계 화면' }] }, { type: 'paragraph', content: [{ type: 'text', text: '이 단계에서 할 일을 한두 문장으로 써요.' }] }, { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '2단계 제목' }] }, { type: 'paragraph', content: [{ type: 'text', text: '🖼 캡처 자리: 이 단계 화면' }] }, { type: 'paragraph', content: [{ type: 'text', text: '할 일을 한두 문장으로 써요.' }] }] }).run() },
   { icon: '🧑‍🏫', title: '강사용 쪽지', description: '강사 화면에서만 보이는 메모 (학생에게는 숨김)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'teacher' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '⊞',  title: '표',       description: '표 삽입 (3×3)',     command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { icon: '▶',  title: '영상 임베드', description: 'YouTube 등 영상 삽입', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).run(); (window as any).__openEmbedDialog?.(); } },
@@ -640,8 +641,10 @@ const CALLOUT_TYPES: Record<string, { icon: string; label: string; classes: stri
   important: { icon: '❗', label: '중요', classes: 'bg-red-50 border-red-300' },
   // 강사 화면에서만 보이고 학생 화면·발표·인쇄에서는 사라진다 (viewer: teacherOnly.tsx)
   teacher: { icon: '🧑‍🏫', label: '강사용 쪽지 (학생에게는 안 보임)', classes: 'bg-violet-50 border-violet-300 border-dashed' },
+  // 안에 `### n단계` 제목 + 그림 + 글을 쓰면 학생 화면에서 한 장씩 넘겨 보는 화면이 된다 (viewer: StepCarousel.tsx)
+  steps: { icon: '🎞️', label: '단계 넘겨 보기 (### 제목마다 한 장)', classes: 'bg-indigo-50 border-indigo-300 border-dashed' },
 };
-const CALLOUT_ORDER = ['info', 'warning', 'tip', 'important', 'teacher'];
+const CALLOUT_ORDER = ['info', 'warning', 'tip', 'important', 'teacher', 'steps'];
 
 const CalloutView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const type = CALLOUT_TYPES[node.attrs.type] ? node.attrs.type : 'info';

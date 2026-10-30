@@ -444,3 +444,106 @@
 .mv-skin-workshop .mv-article h2 { border-top: 0; background: var(--w-card); border: 1px solid var(--w-line); border-left: 8px solid #f2a900; border-radius: 10px; padding: 16px 20px; font-weight: 900; }
 .mv-skin-workshop .mv-article ol > li::before { background: #f2a900; color: #0b1b3a; font-weight: 900; }
 .mv-skin-workshop .mv-article ol { border-radius: 14px; }
+
+/* ── 단계 넘겨 보기 (data-callout="steps") — 기본 모양 + 챌린지형 ───────────────── */
+.mv-steps { margin: 20px 0; outline: none; }
+.mv-steps-dots { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.mv-steps-dot { width: 34px; height: 34px; border-radius: 10px; border: 2px solid #94a3b8; background: #fff; color: #334155; font-weight: 800; font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+.mv-steps-dot:hover { transform: translateY(-2px); }
+.mv-steps-dot.is-on { background: #2b50ff; border-color: #2b50ff; color: #fff; }
+.mv-steps-stage { display: flex; align-items: stretch; gap: 10px; }
+.mv-steps-slides { flex: 1; min-width: 0; }
+.mv-steps-arrow { flex: none; width: 46px; align-self: center; height: 64px; border-radius: 12px; border: 2px solid #94a3b8; background: #fff; color: #334155; display: grid; place-items: center; cursor: pointer; }
+.mv-steps-arrow:disabled { opacity: 0.3; cursor: default; }
+.mv-step { display: none; background: #fff; border: 2px solid #cbd5e1; border-radius: 14px; padding: 18px 20px; }
+.mv-step.is-on { display: block; }
+.mv-step-title { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 1.15em; font-weight: 800; line-height: 1.4; }
+.mv-step-no { flex: none; width: 32px; height: 32px; border-radius: 9px; background: #2b50ff; color: #fff; display: grid; place-items: center; font-size: 16px; }
+.mv-step-media { margin-bottom: 14px; }
+.mv-step-media img { display: block; max-width: 100%; max-height: 52vh; margin: 0 auto; border-radius: 10px; border: 2px solid #cbd5e1; }
+.mv-step-media p { margin: 0; }
+.mv-step-ph { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 220px; border: 3px dashed #94a3b8; border-radius: 12px; background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 12px, #f1f5f9 12px, #f1f5f9 24px); color: #64748b; text-align: center; padding: 16px; }
+.mv-step-ph-icon { font-size: 40px; }
+.mv-step-ph-label { font-weight: 700; font-size: 0.9em; }
+.mv-step-body > :first-child { margin-top: 0; }
+.mv-step-body > :last-child { margin-bottom: 0; }
+.mv-steps-hint { margin: 10px 0 0; text-align: center; font-size: 0.8em; opacity: 0.65; }
+@media (max-width: 640px) {
+  .mv-steps-arrow { width: 36px; height: 52px; }
+  .mv-step { padding: 14px; }
+}
+/* 인쇄·PDF: 넘기기를 풀고 모든 단계를 위에서 아래로 펼친다 */
+@media print {
+  .mv-steps-dots, .mv-steps-arrow, .mv-steps-hint { display: none !important; }
+  .mv-step { display: block !important; break-inside: avoid; margin-bottom: 10px; }
+}
+/* 챌린지형: 굵은 테두리·그림자·검정/파랑 */
+.mv-skin-challenge .mv-steps-dot { border: 3px solid var(--c-edge); background: var(--c-card); color: var(--c-ink); font-family: 'Black Han Sans', sans-serif; font-weight: 400; box-shadow: 3px 3px 0 var(--c-edge); }
+.mv-skin-challenge .mv-steps-dot.is-on { background: var(--c-blue); color: #fff; }
+.mv-skin-challenge .mv-steps-arrow { border: 3px solid var(--c-edge); background: var(--c-card); color: var(--c-ink); box-shadow: 4px 4px 0 var(--c-edge); transition: all 0.1s; }
+.mv-skin-challenge .mv-steps-arrow:hover:not(:disabled) { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--c-edge); }
+.mv-skin-challenge .mv-step { background: var(--c-card); border: 3px solid var(--c-edge); border-radius: 14px; box-shadow: 6px 6px 0 var(--c-edge); }
+.mv-skin-challenge .mv-step-title { font-family: 'Black Han Sans', 'Pretendard Variable', sans-serif; font-weight: 400; font-size: 26px; }
+.mv-skin-challenge .mv-step-no { background: var(--c-blue); font-family: 'Black Han Sans'; border-radius: 9px; }
+.mv-skin-challenge .mv-step-media img { border: 3px solid var(--c-edge); }
+.mv-skin-challenge .mv-step-ph { border: 3px dashed var(--c-edge); background: repeating-linear-gradient(45deg, var(--c-card), var(--c-card) 12px, var(--c-dash) 12px, var(--c-dash) 24px); color: var(--c-sub); }
+.mv-skin-challenge .mv-step-body p { font-size: 20px; line-height: 1.75; }
+.mv-skin-challenge .mv-steps-hint { color: var(--c-sub); }
+
+/* ── 단계 넘겨 보기: 모든 스킨 공통(스킨 변수 사용 → 다크/라이트 자동) + 스킨별 개성 ── */
+[class*='mv-skin-'] .mv-steps-dot { border: 2px solid var(--mv-line); background: var(--mv-card); color: var(--mv-ink); }
+[class*='mv-skin-'] .mv-steps-dot.is-on { background: var(--mv-ac); border-color: var(--mv-ac); color: var(--mv-card); }
+[class*='mv-skin-'] .mv-steps-arrow { border: 2px solid var(--mv-line); background: var(--mv-card); color: var(--mv-ink); }
+[class*='mv-skin-'] .mv-step { background: var(--mv-card); border: 2px solid var(--mv-line); color: var(--mv-ink); }
+[class*='mv-skin-'] .mv-step-no { background: var(--mv-ac); color: var(--mv-card); }
+[class*='mv-skin-'] .mv-step-media img { border: 2px solid var(--mv-line); }
+[class*='mv-skin-'] .mv-step-ph { border: 3px dashed var(--mv-line); background: var(--mv-acbg); color: var(--mv-sub); }
+[class*='mv-skin-'] .mv-steps-hint { color: var(--mv-sub); }
+[class*='mv-skin-'] .mv-step-body p { font-size: 1.05em; line-height: 1.75; }
+
+/* A 미션형: 게임 스테이지 느낌 (네온 민트 테두리, 금색 번호) */
+.mv-skin-mission .mv-step { border-radius: 18px; border-color: var(--m-mint); box-shadow: 0 0 0 4px rgba(77, 224, 176, 0.12), 0 8px 24px rgba(0, 0, 0, 0.25); }
+.mv-skin-mission .mv-step-title { font-family: 'Jua', sans-serif; font-weight: 400; font-size: 26px; color: var(--m-gold); }
+.mv-skin-mission .mv-step-no { background: var(--m-gold); color: var(--m-mint-ink); font-family: 'Jua', sans-serif; border-radius: 12px; }
+.mv-skin-mission .mv-steps-dot { font-family: 'Jua', sans-serif; font-weight: 400; border-radius: 12px; }
+.mv-skin-mission .mv-steps-dot.is-on { background: var(--m-mint); border-color: var(--m-mint); color: var(--m-mint-ink); }
+.mv-skin-mission .mv-steps-arrow { border-radius: 16px; border-color: var(--m-mint); color: var(--m-mint); }
+.mv-skin-mission .mv-step-ph { border-color: var(--m-mint); background: rgba(77, 224, 176, 0.08); }
+
+/* B 동화책형: 책장 넘기기 느낌 (명조 제목, 동그란 번호, 부드러운 종이) */
+.mv-skin-storybook .mv-step { border-radius: 6px 22px 22px 6px; border: 1px solid var(--b-line); border-left: 8px solid var(--b-tc); box-shadow: 0 10px 28px rgba(120, 90, 50, 0.14); }
+.mv-skin-storybook .mv-step-title { font-family: 'Hahmlet', serif; font-weight: 800; font-size: 26px; }
+.mv-skin-storybook .mv-step-no { border-radius: 50%; background: var(--b-tc); font-family: 'Gaegu', cursive; font-size: 22px; }
+.mv-skin-storybook .mv-steps-dot { border-radius: 50%; font-family: 'Gaegu', cursive; font-size: 19px; }
+.mv-skin-storybook .mv-steps-arrow { border-radius: 50%; width: 52px; height: 52px; border-color: var(--b-tc); color: var(--b-tc); }
+.mv-skin-storybook .mv-step-media img { border-radius: 14px; border: 6px solid #fff; box-shadow: 0 4px 14px rgba(120, 90, 50, 0.25); }
+.mv-skin-storybook .mv-step-ph { border-radius: 14px; border-color: var(--b-tc); }
+.mv-skin-storybook .mv-step-body p { font-family: 'Hahmlet', serif; font-size: 19px; }
+
+/* C 노트형: 차분한 한 장짜리 카드 (얇은 선, 고정폭 번호) */
+.mv-skin-note .mv-step { border-width: 1px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+.mv-skin-note .mv-step-title { font-weight: 700; font-size: 1.1em; }
+.mv-skin-note .mv-step-no { border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+.mv-skin-note .mv-steps-dot { border-width: 1px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.mv-skin-note .mv-steps-arrow { border-width: 1px; border-radius: 8px; }
+.mv-skin-note .mv-step-media img { border-width: 1px; border-radius: 8px; }
+.mv-skin-note .mv-step-ph { border-width: 2px; border-radius: 8px; }
+
+/* 매뉴얼형: 또렷한 설명서 (초록 위쪽 띠, 네모 번호) */
+.mv-skin-manual .mv-step { border-width: 1px; border-top: 5px solid var(--e-ac); border-radius: 8px; }
+.mv-skin-manual .mv-step-title { font-weight: 800; letter-spacing: -0.01em; }
+.mv-skin-manual .mv-step-no { border-radius: 4px; }
+.mv-skin-manual .mv-steps-dot { border-radius: 4px; border-width: 1px; }
+.mv-skin-manual .mv-steps-arrow { border-width: 1px; border-radius: 6px; }
+.mv-skin-manual .mv-step-media img { border-width: 1px; border-radius: 6px; }
+.mv-skin-manual .mv-step-ph { border-radius: 6px; }
+
+/* 워크숍형: 진중한 현장 교재 (금색 왼쪽 띠, 굵은 제목) */
+.mv-skin-workshop .mv-step { border-width: 1px; border-left: 6px solid var(--w-ac); border-radius: 6px; }
+.mv-skin-workshop .mv-step-title { font-weight: 800; color: var(--w-ink); }
+.mv-skin-workshop .mv-step-no { border-radius: 6px; background: var(--w-ink); color: #fff; }
+.mv-skin-workshop .mv-steps-dot { border-radius: 6px; border-width: 1px; }
+.mv-skin-workshop .mv-steps-dot.is-on { background: var(--w-ink); border-color: var(--w-ink); color: #fff; }
+.mv-skin-workshop .mv-steps-arrow { border-width: 1px; border-radius: 6px; }
+.mv-skin-workshop .mv-step-media img { border-width: 1px; border-radius: 6px; }
+.mv-skin-workshop .mv-step-ph { border-radius: 6px; }

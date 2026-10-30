@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { TeacherNote } from './teacherOnly';
+import { StepCarousel } from './StepCarousel';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 
@@ -74,6 +75,7 @@ export const renderCallout = (props: any, dark: boolean) => {
   const { children, ...rest } = props;
   const type = rest['data-callout'];
   if (type === 'teacher') return <TeacherNote>{children}</TeacherNote>;
+  if (type === 'steps') return <StepCarousel>{children}</StepCarousel>;
   const style = type ? (dark ? CALLOUT_STYLES_DARK : CALLOUT_STYLES)[type] : undefined;
   if (!style) return <div {...rest}>{children}</div>;
   return (

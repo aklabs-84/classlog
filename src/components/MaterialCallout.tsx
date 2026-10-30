@@ -1,6 +1,7 @@
 // RichEditor의 CalloutExtension이 `<div data-callout="...">`로 저장한 콜아웃을
 // 마크다운 뷰어(자료 에디터 미리보기 외 학생/클래스룸 자료 뷰어)에서 공통으로 렌더링하기 위한 컴포넌트.
 import { TeacherNote } from './teacherOnly';
+import { StepCarousel } from './StepCarousel';
 
 const CALLOUT_STYLES: Record<string, { icon: string; classes: string }> = {
   info: { icon: '💡', classes: 'bg-blue-50 border-blue-200 text-blue-900' },
@@ -13,6 +14,7 @@ export const renderMaterialCallout = (props: any) => {
   const { children, ...rest } = props;
   const type = rest['data-callout'];
   if (type === 'teacher') return <TeacherNote>{children}</TeacherNote>;
+  if (type === 'steps') return <StepCarousel>{children}</StepCarousel>;
   const style = type ? CALLOUT_STYLES[type] : undefined;
   if (!style) return <div {...rest}>{children}</div>;
   return (
