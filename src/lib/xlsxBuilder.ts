@@ -9,12 +9,14 @@
  */
 import JSZip from 'jszip';
 
-export type CellStyle = 'normal' | 'header' | 'section' | 'wrap' | 'title' | 'note' | 'cell' | 'num';
+export type CellStyle = 'normal' | 'header' | 'section' | 'wrap' | 'title' | 'note' | 'cell' | 'num' | 'link';
 
 export interface XCell {
   value: string | number | null;
   style?: CellStyle;
   span?: number; // 열 병합 수
+  /** 있으면 이 칸을 누르면 열리는 주소(바깥 링크) */
+  url?: string;
 }
 
 export interface XSheet {
@@ -44,11 +46,12 @@ function colName(n: number): string {
 // ── 고정 스타일 XML ──────────────────────────────────────────────────────────
 const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="4">
+  <fonts count="5">
     <font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>
     <font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/></font>
     <font><b/><sz val="15"/><color theme="1"/><name val="Calibri"/></font>
     <font><sz val="10"/><color rgb="FF6B7280"/><name val="Calibri"/></font>
+    <font><u/><sz val="11"/><color rgb="FF0563C1"/><name val="Calibri"/></font>
   </fonts>
   <fills count="4">
     <fill><patternFill patternType="none"/></fill>
@@ -67,7 +70,7 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     </border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="8">
+  <cellXfs count="9">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
@@ -76,6 +79,7 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
+    <xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
   </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -89,10 +93,13 @@ const STYLE_IDX: Record<CellStyle, number> = {
   note: 5,
   cell: 6,
   num: 7,
+  link: 8,
 };
 
 // ── 워크시트 XML 생성 ─────────────────────────────────────────────────────────
-function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number, selected: boolean): string {
+function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number, selected: boolean): { xml: string; links: string[] } {
+  const links: string[] = [];
+  const linkXml: string[] = [];
   const colsXml = sheet.colWidths
     .map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`)
     .join('');
@@ -120,6 +127,11 @@ function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number, sele
         cells.push(`<c r="${ref}"${sAttr} t="s"><v>${idx}</v></c>`);
       }
 
+      if (cell.url) {
+        links.push(cell.url);
+        linkXml.push(`<hyperlink ref="${ref}" r:id="rId${links.length}"/>`);
+      }
+
       if (cell.span && cell.span > 1) {
         merges.push(`<mergeCell ref="${ref}:${colName(ci + cell.span - 1)}${rNum}"/>`);
       }
@@ -136,7 +148,9 @@ function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number, sele
     ? `<mergeCells count="${merges.length}">${merges.join('')}</mergeCells>`
     : '';
 
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  const hyperXml = linkXml.length ? `<hyperlinks>${linkXml.join('')}</hyperlinks>` : '';
+
+  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheetViews><sheetView${selected ? ' tabSelected="1"' : ''} workbookViewId="0">${
     sheet.freezeRows ? `<pane ySplit="${sheet.freezeRows}" topLeftCell="A${sheet.freezeRows + 1}" activePane="bottomLeft" state="frozen"/>` : ''
@@ -145,7 +159,9 @@ function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number, sele
   <sheetData>${rowXmls.join('')}</sheetData>
   ${filterXml}
   ${mergeXml}
+  ${hyperXml}
 </worksheet>`;
+  return { xml, links };
 }
 
 // ── 공개 API ─────────────────────────────────────────────────────────────────
@@ -202,7 +218,15 @@ ${strings.map((s) => `<si><t xml:space="preserve">${ESC(s)}</t></si>`).join('')}
   zip.file('xl/_rels/workbook.xml.rels', workbookRels);
   zip.file('xl/styles.xml', STYLES_XML);
   zip.file('xl/sharedStrings.xml', sharedStringsXml);
-  wsXmls.forEach((xml, i) => zip.file(`xl/worksheets/sheet${i + 1}.xml`, xml));
+  wsXmls.forEach(({ xml, links }, i) => {
+    zip.file(`xl/worksheets/sheet${i + 1}.xml`, xml);
+    if (links.length > 0) {
+      zip.file(`xl/worksheets/_rels/sheet${i + 1}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${links.map((u, k) => `<Relationship Id="rId${k + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${ESC(u)}" TargetMode="External"/>`).join('\n')}
+</Relationships>`);
+    }
+  });
 
   return zip.generateAsync({
     type: 'blob',

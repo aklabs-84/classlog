@@ -3,8 +3,7 @@ import { useParams } from 'react-router-dom';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
-import { buildSurveyXlsxRows, buildSurveyCsvRows } from '../lib/surveyExport';
-import type { XCell } from '../lib/xlsxBuilder';
+import { buildShareSheets, exportTodayStr, saveBlob } from '../lib/classExport';
 import { supabase } from '../lib/supabase';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl, isVerticalVideoUrl } from '../lib/gallery';
 import Pagination from '../components/Pagination';
@@ -38,6 +37,7 @@ import {
 } from 'lucide-react';
 import ResultFileActions from '../components/common/ResultFileActions';
 import PercentLoader from '../components/common/PercentLoader';
+import { createPortal } from 'react-dom';
 import FullScreenView from '../components/common/FullScreenView';
 import { computeFinalMarks } from '../lib/finalSubmission';
 import LinkSaveTip from '../components/common/LinkSaveTip';
@@ -171,7 +171,7 @@ const BundleCard = ({ bundle, mark, extraBadges, onZoom }: {
 }) => {
   const { items } = bundle;
   const types = [...new Set(items.map((x) => x.result_type))];
-  const imgs = items.flatMap((x) => x.image_urls || []);
+  const imgs = [...new Set(items.flatMap((x) => x.image_urls || []))];
   const imgNames = imgs.map((_, i) => `${bundle.title || '결과물'}-${i + 1}.webp`);
   return (
     <div className={`bg-white rounded-xl border p-4 ${mark === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${mark === 'older' ? 'opacity-80' : ''}`}>
@@ -338,7 +338,6 @@ const ShareClassView = () => {
   const [evalMap, setEvalMap] = useState<Record<string, EvalRow>>({});
   const [attendanceSummary, setAttendanceSummary] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
   const [surveyResults, setSurveyResults] = useState<{ formTitle: string; phase: string | null; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }[]>([]);
-  const [surveyForms, setSurveyForms] = useState<any[]>([]);
 
   // ── UI 상태 ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
@@ -496,7 +495,6 @@ const ShareClassView = () => {
       if (shared && !forms.some(f => f.title === shared.title && f.response_count === shared.response_count)) {
         forms.unshift({ ...shared, phase: null });
       }
-      setSurveyForms(forms);
       setSurveyResults(forms.map(f => {
         const answersByQuestion: Record<string, SurveyAnswer[]> = {};
         (f.answers || []).forEach((a: any) => {
@@ -598,7 +596,8 @@ const ShareClassView = () => {
     for (const sd of filteredData) {
       for (const r of sd.results) {
         if (!r.is_group_submission || !r.group_id) continue;
-        const dedupeKey = `${r.group_id}_${r.created_at}_${r.result_type}`;
+        // 같은 제출(submission_group)의 조원별 복제 행은 저장 시각이 0.04초쯤 달라서 시각 대신 제출 묶음 번호로 비교
+        const dedupeKey = `${r.group_id}_${r.submission_group || r.created_at}_${r.result_type}_${r.storage_path || r.file_url || r.id}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
         if (!map[r.group_id]) map[r.group_id] = [];
@@ -609,16 +608,31 @@ const ShareClassView = () => {
     return map;
   }, [filteredData]);
 
+  // 제출한 학생·조만 목록에 보여 준다 (미제출 인원은 숫자로만 안내)
+  const submittedData = useMemo(() => filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0), [filteredData]);
+  const submittedGroups = useMemo(
+    () => groupsWithMembers.filter(({ group }) => (groupResultsMap[group.id] || []).length > 0),
+    [groupsWithMembers, groupResultsMap]
+  );
   const totalObs = filteredData.reduce((a, sd) => a + sd.obs.length, 0);
   const totalResults = filteredData.reduce((a, sd) => a + sd.results.length, 0);
   const activeCount = filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0).length;
-  const setechDoneCount = useMemo(() =>
-    studentData.filter((sd) => {
-      const ev = evalMap[sd.student.id];
-      return ev?.status === 'done' || ev?.status === 'final';
-    }).length,
-    [studentData, evalMap]
-  );
+  const totalObsAll = studentData.reduce((a, sd) => a + sd.obs.length, 0);
+
+  // 내용이 있는 탭만 보여 준다 (설문 탭과 같은 규칙)
+  const hasResultsTab = studentData.some((sd) => sd.results.length > 0 || sd.obs.length > 0);
+  const hasSetechTab = studentData.some((sd) => sd.obs.length > 0) || Object.values(evalMap).some((ev) => !!ev?.setech_content);
+  const availableTabs = useMemo(() => {
+    const t: ('results' | 'gallery' | 'setech' | 'survey')[] = [];
+    if (hasResultsTab) t.push('results');
+    t.push('gallery');
+    if (hasSetechTab) t.push('setech');
+    if (surveyResults.length > 0) t.push('survey');
+    return t;
+  }, [hasResultsTab, hasSetechTab, surveyResults.length]);
+  useEffect(() => {
+    if (!dataLoading && !availableTabs.includes(activeTab)) setActiveTab(availableTabs[0]);
+  }, [availableTabs, activeTab, dataLoading]);
 
   const spotlightQuotes = useMemo(() => {
     const byStudent = new Map<string, { student: StudentRow; content: string }[]>();
@@ -714,158 +728,31 @@ const ShareClassView = () => {
   };
 
 
-  // ── XLSX / CSV 다운로드 ────────────────────────────────────────────────────
+  // ── 엑셀 다운로드 (전체 / 결과 / 기록 / 설문 시트) ──────────────────────────
   const downloadXLSX = async () => {
     setDownloading(true);
     try {
       const className = classInfo?.name || '클래스';
-      const sl = (s?: string | null) => (s === 'done' || s === 'final' ? '완료' : s === 'draft' ? '초안' : '미작성');
-
-      // 시트 1: 전체학생
-      const sheet1Rows: XCell[][] = [
-        [
-          { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
-          { value: '활동기록 수', style: 'header' }, { value: '결과물 수', style: 'header' },
-          { value: '성취도', style: 'header' },
-        ],
-        ...studentData.map(({ student, obs, results }) => {
-          const ev = evalMap[student.id];
-          return [
-            { value: student.student_number ?? null },
-            { value: student.full_name },
-            { value: obs.length },
-            { value: results.length },
-            { value: ev?.achievement_level ?? '' },
-          ] as XCell[];
-        }),
-      ];
-
-      // 시트 2~N: 학생별 개별 시트 (1학생 = 1시트)
-      const studentSheets = studentData.map(({ student, obs, results }) => {
-        const sheetName = `${student.student_number ?? '?'}. ${student.full_name}`
-          .replace(/[/\\?*[\]:]/g, '_')
-          .slice(0, 31);
-        const label = `${student.student_number != null ? student.student_number + '번 ' : ''}${student.full_name}`;
-        const rows: (XCell | null)[][] = [];
-
-        // 학생 이름 헤더
-        rows.push([{ value: label, span: 4, style: 'section' }, null, null, null]);
-        rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
-
-        if (obs.length === 0 && results.length === 0) {
-          rows.push([{ value: '제출 없음', span: 4 }, null, null, null]);
-        } else {
-          if (obs.length > 0) {
-            rows.push([{ value: '활동기록', span: 4, style: 'section' }, null, null, null]);
-            rows.push([
-              { value: '주차', style: 'header' }, { value: '활동명', style: 'header' },
-              { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
-            ]);
-            obs.forEach((o) => {
-              rows.push([
-                { value: o.week_number != null ? `${o.week_number}주차` : '' },
-                { value: o.activity_name || '' },
-                { value: o.content, style: 'wrap' },
-                { value: new Date(o.created_at).toLocaleDateString('ko-KR') },
-              ]);
-            });
-            rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
-          }
-          if (results.length > 0) {
-            rows.push([{ value: '결과제출', span: 4, style: 'section' }, null, null, null]);
-            rows.push([
-              { value: '주차', style: 'header' }, { value: '제목', style: 'header' },
-              { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
-            ]);
-            results.forEach((r) => {
-              const ct = r.text_content || (r.link_url ? `링크: ${r.link_url}` : r.file_url ? '파일 첨부' : r.image_url ? '이미지 첨부' : '');
-              rows.push([
-                { value: r.week_number != null ? `${r.week_number}주차` : '' },
-                { value: r.title || '' },
-                { value: ct, style: 'wrap' },
-                { value: new Date(r.created_at).toLocaleDateString('ko-KR') },
-              ]);
-            });
-          }
-        }
-
-        return { name: sheetName, colWidths: [10, 22, 55, 14], rows };
+      const sheets = buildShareSheets({
+        className,
+        students: studentData.map(({ student, obs, results }) => ({
+          id: student.id,
+          student_number: student.student_number ?? null,
+          full_name: student.full_name,
+          obs,
+          results,
+        })),
+        evalMap,
+        surveys: surveyResults,
+        attendance: attendanceSummary,
       });
-
-      // 마지막 시트: 학생 기록 (세특)
-      const sheet3Rows: XCell[][] = [
-        [
-          { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
-          { value: '성취도', style: 'header' }, { value: '상태', style: 'header' },
-          { value: '세특 문장', style: 'header' }, { value: '글자수', style: 'header' },
-        ],
-        ...studentData.map(({ student }) => {
-          const ev = evalMap[student.id];
-          const content = ev?.setech_content || '';
-          return [
-            { value: student.student_number ?? null },
-            { value: student.full_name },
-            { value: ev?.achievement_level ?? '' },
-            { value: sl(ev?.status) },
-            { value: content, style: 'wrap' },
-            { value: content.length },
-          ] as XCell[];
-        }),
-      ];
-
-      const todayStr = new Date()
-        .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
-        .replace(/\. /g, '').replace(/\.$/, '');
-
-      const blob = await buildXlsxBlob([
-        { name: '전체학생', colWidths: [6, 14, 13, 12, 10], rows: sheet1Rows },
-        ...studentSheets,
-        { name: '학생 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
-        ...(surveyForms.length > 0 ? [{ name: '설문 결과', colWidths: [40, 14, 10, 60], rows: buildSurveyXlsxRows(surveyForms) }] : []),
-      ]);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${className}_학생기록_${todayStr}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
+      saveBlob(await buildXlsxBlob(sheets), `${className}_학급기록_${exportTodayStr()}.xlsx`);
     } catch (err) {
       console.error('XLSX 다운로드 오류:', err);
       appToast('엑셀 파일 생성 중 오류가 발생했습니다.');
     } finally {
       setDownloading(false);
     }
-  };
-
-  const downloadCSV = () => {
-    const className = classInfo?.name || '클래스';
-    const headers = ['번호', '이름', '활동기록 수', '결과물 수', '세특 상태', '성취도', '세특 글자수'];
-    const rows = studentData.map(({ student, obs, results }) => {
-      const ev = evalMap[student.id];
-      const sl = ev?.status === 'done' || ev?.status === 'final' ? '완료' : ev?.status === 'draft' ? '초안' : '미작성';
-      return [
-        student.student_number ?? '',
-        student.full_name,
-        obs.length,
-        results.length,
-        sl,
-        ev?.achievement_level ?? '',
-        (ev?.setech_content || '').length,
-      ];
-    });
-    const csvContent = [headers, ...rows, ...buildSurveyCsvRows(surveyForms)]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const todayStr = new Date()
-      .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      .replace(/\. /g, '').replace(/\.$/, '');
-    a.download = `${className}_전체학생_${todayStr}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   // ── 로딩 / 에러 ───────────────────────────────────────────────────────────
@@ -1005,13 +892,13 @@ const ShareClassView = () => {
               const stats = [
                 { key: 'results' as const, label: '학생', value: studentData.length, unit: '명' },
                 { key: 'results' as const, label: `활동 참여 (${activeCount}/${studentData.length}명)`, value: participationRate, unit: '%' },
-                { key: 'results' as const, label: '결과 확인', value: totalResults, unit: '건' },
+                ...(hasResultsTab ? [{ key: 'results' as const, label: '결과 확인', value: totalResults, unit: '건' }] : []),
                 { key: 'gallery' as const, label: '갤러리', value: galleryItems.length, unit: '장' },
-                { key: 'setech' as const, label: '학생 기록', value: setechDoneCount, unit: '건' },
+                ...(hasSetechTab ? [{ key: 'setech' as const, label: '기록', value: totalObsAll, unit: '건' }] : []),
                 ...(surveyResults.length > 0 ? [{ key: 'survey' as const, label: '설문 결과', value: surveyResults.reduce((n, r) => Math.max(n, r.responseCount), 0), unit: '명' }] : []),
               ];
               return (
-                <div className={`grid grid-cols-2 ${stats.length === 6 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} mt-8 border-t border-white/20`}>
+                <div className={`grid grid-cols-2 ${stats.length >= 6 ? 'sm:grid-cols-6' : stats.length === 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} mt-8 border-t border-white/20`}>
                   {stats.map(({ key, label, value, unit }) => (
                     <button key={label} onClick={() => goTo(key)} className="text-left pt-5 pb-2 pr-2 hover:opacity-80 transition-opacity">
                       <span className={`block text-4xl font-black tabular-nums leading-tight ${value > 0 ? 'text-white' : 'text-slate-500'}`}>
@@ -1097,9 +984,9 @@ const ShareClassView = () => {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
               {[
-                { key: 'results', label: '결과 확인', icon: FileText },
+                ...(hasResultsTab ? [{ key: 'results', label: '결과 확인', icon: FileText }] : []),
                 { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
-                { key: 'setech', label: '학생 기록', icon: BookOpen },
+                ...(hasSetechTab ? [{ key: 'setech', label: '기록', icon: BookOpen }] : []),
                 ...(surveyResults.length > 0 ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
               ].map(({ key, label, icon: Icon }) => (
                 <button
@@ -1123,21 +1010,13 @@ const ShareClassView = () => {
                 <RefreshCw size={15} />
               </button>
               <button
-                onClick={downloadCSV}
-                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-base font-black transition-all"
-                title="CSV 다운로드"
-              >
-                <FileText size={15} />
-                <span className="hidden sm:inline">CSV</span>
-              </button>
-              <button
                 onClick={downloadXLSX}
                 disabled={downloading}
                 className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-base font-black transition-all"
                 title="XLSX 엑셀 다운로드"
               >
                 {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                <span className="hidden sm:inline">XLSX</span>
+                <span className="hidden sm:inline">엑셀 다운로드</span>
               </button>
             </div>
           </div>
@@ -1261,11 +1140,11 @@ const ShareClassView = () => {
               )}
 
               {/* 학생별 / 조별 보기 전환 */}
-              {groupsWithMembers.length > 0 && (
+              {submittedGroups.length > 0 && (
                 <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit print:hidden">
                   {[
                     { key: 'student' as const, label: '학생별' },
-                    { key: 'group' as const, label: `조별 (${groupsWithMembers.length})` },
+                    { key: 'group' as const, label: `조별 (${submittedGroups.length})` },
                   ].map(({ key, label }) => (
                     <button
                       key={key}
@@ -1288,7 +1167,7 @@ const ShareClassView = () => {
               {/* 학생 목록 */}
               {resultsViewMode === 'student' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {filteredData.map(({ student, obs, results }, i) => {
+                  {submittedData.map(({ student, obs, results }, i) => {
                     const hasActivity = obs.length > 0 || results.length > 0;
                     const qo = quickOpenOf(results);
                     return (
@@ -1324,19 +1203,23 @@ const ShareClassView = () => {
                 </div>
               )}
 
-              {resultsViewMode === 'student' && filteredData.length === 0 && (
+              {resultsViewMode === 'student' && filteredData.length > submittedData.length && submittedData.length > 0 && (
+                <p className="text-[13px] font-bold text-gray-400">제출 {submittedData.length}명 · 미제출 {filteredData.length - submittedData.length}명</p>
+              )}
+
+              {resultsViewMode === 'student' && submittedData.length === 0 && (
                 <div className="flex flex-col items-center py-20 space-y-3">
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <StickyNote size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-base">등록된 학생이 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">제출한 학생이 아직 없습니다</p>
                 </div>
               )}
 
               {/* 조 목록 */}
               {resultsViewMode === 'group' && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {groupsWithMembers.map(({ group, students }, i) => {
+                  {submittedGroups.map(({ group, students }, i) => {
                     const resultCount = bundleRows(groupResultsMap[group.id] || []).length;
                     const gRes = groupResultsMap[group.id] || [];
                     const gqo = quickOpenOf(gRes);
@@ -1376,12 +1259,12 @@ const ShareClassView = () => {
                 </div>
               )}
 
-              {resultsViewMode === 'group' && groupsWithMembers.length === 0 && (
+              {resultsViewMode === 'group' && submittedGroups.length === 0 && (
                 <div className="flex flex-col items-center py-20 space-y-3">
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <Users size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-base">등록된 조가 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">제출한 조가 아직 없습니다</p>
                 </div>
               )}
             </>
@@ -1476,14 +1359,15 @@ const ShareClassView = () => {
 
           {/* ── 세특 현황 탭 ── */}
           {activeTab === 'setech' && (() => {
-            const setechRows = studentData.map((sd) => ({
-              student: sd.student,
-              eval: evalMap[sd.student.id] ?? null,
-            }));
+            const setechRows = studentData
+              .map((sd) => ({
+                student: sd.student,
+                obs: sd.obs,
+                eval: evalMap[sd.student.id] ?? null,
+              }))
+              .filter((r) => r.obs.length > 0 || !!r.eval?.setech_content);
             const doneCount = setechRows.filter((r) => r.eval?.status === 'done' || r.eval?.status === 'final').length;
-            const draftCount = setechRows.filter((r) => r.eval?.status === 'draft').length;
-            const emptyCount = setechRows.filter((r) => !r.eval?.setech_content).length;
-            const charCounts = setechRows.map((r) => (r.eval?.setech_content || '').length);
+                                    const charCounts = setechRows.map((r) => (r.eval?.setech_content || '').length).filter((n) => n > 0);
             const avgChars = charCounts.length > 0 ? Math.round(charCounts.reduce((a, b) => a + b, 0) / charCounts.length) : 0;
 
             const statusLabel = (s: string | null | undefined) => {
@@ -1503,10 +1387,10 @@ const ShareClassView = () => {
                 {/* 통계 */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: '전체 학생', value: studentData.length, unit: '명', icon: Users },
-                    { label: '완료', value: doneCount, unit: '명', icon: CheckCircle2 },
-                    { label: '초안/미작성', value: draftCount + emptyCount, unit: '명', icon: FileText },
-                    { label: '평균 글자수', value: avgChars, unit: '자', icon: BookOpen },
+                    { label: '기록 있는 학생', value: setechRows.length, unit: '명', icon: Users },
+                    { label: '활동 기록', value: totalObsAll, unit: '건', icon: FileText },
+                    { label: '세특 완료', value: doneCount, unit: '명', icon: CheckCircle2 },
+                    { label: '세특 평균 글자수', value: avgChars, unit: '자', icon: BookOpen },
                   ].map(({ label, value, unit, icon: Icon }) => (
                     <div key={label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                       <div className="flex items-center gap-1.5 mb-2">
@@ -1523,10 +1407,11 @@ const ShareClassView = () => {
 
                 {/* 학생 세특 목록 */}
                 <div className="space-y-2">
-                  {setechRows.map(({ student, eval: ev }) => {
+                  {setechRows.map(({ student, obs: sObs, eval: ev }) => {
                     const isExpanded = expandedIds.has(`setech_${student.id}`);
                     const content = ev?.setech_content || '';
-                    const hasContent = !!content;
+                    const hasSetech = !!content;
+                    const hasContent = hasSetech || sObs.length > 0;
                     const st = statusLabel(ev?.status);
                     return (
                       <div key={student.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1554,18 +1439,37 @@ const ShareClassView = () => {
                                   성취도 {ev.achievement_level}
                                 </span>
                               )}
-                              {hasContent && (
-                                <span className="text-[13px] font-bold text-gray-400">{content.length}자</span>
+                              {sObs.length > 0 && <span className="text-[13px] font-bold text-violet-600">📝 활동 기록 {sObs.length}건</span>}
+                              {hasSetech && (
+                                <span className="text-[13px] font-bold text-gray-400">세특 {content.length}자</span>
                               )}
                             </div>
                           </div>
-                          <span className={`shrink-0 text-[13px] font-black px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
+                          {hasSetech && <span className={`shrink-0 text-[13px] font-black px-2.5 py-1 rounded-full border ${st.cls}`}>세특 {st.label}</span>}
                           {hasContent && <div className="shrink-0 text-gray-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>}
                         </button>
 
                         {isExpanded && (
                           <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
-                            <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                            {sObs.length > 0 && (
+                              <div className="space-y-2 mb-4">
+                                {sObs.map((o) => (
+                                  <div key={o.id} className="bg-white rounded-xl border border-gray-100 p-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}주차</span>}
+                                      {o.activity_name && <span className="text-[13px] font-semibold text-gray-500">{o.activity_name}</span>}
+                                    </div>
+                                    <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {hasSetech && (
+                              <div>
+                                <p className="text-[13px] font-black text-gray-400 mb-1">세특</p>
+                                <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1578,7 +1482,7 @@ const ShareClassView = () => {
                     <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                       <BookOpen size={32} className="text-gray-300" />
                     </div>
-                    <p className="font-black text-gray-400 text-base">등록된 학생이 없습니다</p>
+                    <p className="font-black text-gray-400 text-base">기록이 있는 학생이 아직 없습니다</p>
                   </div>
                 )}
               </>
@@ -1822,7 +1726,7 @@ const ShareClassView = () => {
       </AnimatePresence>
 
       {/* 이미지 라이트박스 */}
-      {lightbox && (
+      {lightbox && createPortal(
         <div className="fixed inset-0 z-[300] bg-black/90 flex items-center justify-center" onClick={() => setLightbox(null)}>
           <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors" onClick={() => setLightbox(null)}>
             <X size={20} />
@@ -1854,7 +1758,8 @@ const ShareClassView = () => {
               {lightbox.index + 1} / {lightbox.urls.length}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appConfirm } from '../lib/appDialog';
+import { useSuggestionRealtime } from '../hooks/useSuggestionRealtime';
 import { filterMyTeachingClasses } from '../lib/projectClassFilter';
 
 type Suggestion = {
@@ -62,24 +63,32 @@ const SuggestionsPage = () => {
   }, [user]);
 
   // 내 이름으로 받은 건의 + 내가 배정받은 반의 건의 (수업 목록 로드 후 조회)
+  const fetchAllSuggestions = useCallback(async (silent = false) => {
+    if (!user) return;
+    if (!silent) setLoading(true);
+    const ids = classes.map(c => c.id);
+    const orFilter = ids.length > 0
+      ? `teacher_id.eq.${user.id},class_id.in.(${ids.join(',')})`
+      : `teacher_id.eq.${user.id}`;
+    const { data } = await supabase
+      .from('student_suggestions')
+      .select('*')
+      .or(orFilter)
+      .order('created_at', { ascending: false });
+    setAllSuggestions((data as Suggestion[]) || []);
+    setLoading(false);
+  }, [user, classes]);
+
   useEffect(() => {
     if (!user || classesLoading) return;
-    const fetchAllSuggestions = async () => {
-      setLoading(true);
-      const ids = classes.map(c => c.id);
-      const orFilter = ids.length > 0
-        ? `teacher_id.eq.${user.id},class_id.in.(${ids.join(',')})`
-        : `teacher_id.eq.${user.id}`;
-      const { data } = await supabase
-        .from('student_suggestions')
-        .select('*')
-        .or(orFilter)
-        .order('created_at', { ascending: false });
-      setAllSuggestions((data as Suggestion[]) || []);
-      setLoading(false);
-    };
     fetchAllSuggestions();
-  }, [user, classes, classesLoading]);
+  }, [user, classesLoading, fetchAllSuggestions]);
+
+  // 학생이 건의를 쓰면 새로고침 없이 목록·숫자 갱신
+  useSuggestionRealtime(() => { if (!classesLoading) fetchAllSuggestions(true); });
+
+  // 반별 미답변 수 (드롭다운 표시용)
+  const pendingByClass = (id: string) => allSuggestions.filter(s => s.class_id === id && !s.teacher_reply).length;
 
   // 드롭다운 선택 = 클라이언트 필터
   const visibleSuggestions = selectedClassId
@@ -167,7 +176,7 @@ const SuggestionsPage = () => {
               <option value="">전체 수업</option>
               {classes.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.name}{c.subject ? ` · ${c.subject}` : ''}
+                  {c.name}{c.subject ? ` · ${c.subject}` : ''}{pendingByClass(c.id) > 0 ? ` 🔴 ${pendingByClass(c.id)}` : ''}
                 </option>
               ))}
             </select>

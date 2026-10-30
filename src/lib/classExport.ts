@@ -256,3 +256,123 @@ export function saveBlob(blob: Blob, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export interface ShareSheetStudent {
+  id: string;
+  student_number: number | null;
+  full_name: string;
+  obs: { week_number: number | null; activity_name: string; content: string; created_at: string }[];
+  results: {
+    week_number: number | null;
+    title: string | null;
+    text_content: string | null;
+    link_url?: string | null;
+    file_url?: string | null;
+    image_url?: string | null;
+    image_urls?: string[];
+    display_name?: string | null;
+    created_at: string;
+  }[];
+}
+
+export interface ShareSheetInput {
+  className: string;
+  students: ShareSheetStudent[];
+  evalMap: Record<string, ExportEval | undefined>;
+  surveys: ExportSurveyForm[];
+  attendance?: { total: number; byStatus: Record<string, number> } | null;
+}
+
+/**
+ * 공유 화면 엑셀: 전체 / 결과 / 기록 / 설문 네 시트.
+ * 내용이 있는 시트만 만든다. 결과·기록·설문은 학생마다 제목 줄(번호+이름)을 두어 구분한다.
+ */
+export function buildShareSheets(input: ShareSheetInput): XSheet[] {
+  const { students, evalMap, surveys, attendance } = input;
+  const sorted = [...students].sort((a, b) => (a.student_number ?? 9999) - (b.student_number ?? 9999) || a.full_name.localeCompare(b.full_name, 'ko'));
+  const label = (s: ShareSheetStudent) => `${s.student_number != null ? `${s.student_number}번 ` : ''}${s.full_name}`;
+  const hasSetech = (s: ShareSheetStudent) => !!evalMap[s.id]?.setech_content;
+
+  // ── 전체 ──
+  const totalObs = sorted.reduce((a, s) => a + s.obs.length, 0);
+  const totalRes = sorted.reduce((a, s) => a + s.results.length, 0);
+  const active = sorted.filter(s => s.obs.length > 0 || s.results.length > 0).length;
+  const all: (XCell | null)[][] = [];
+  all.push([{ value: `${input.className} 전체 현황`, style: 'title', span: 6 }, null, null, null, null, null]);
+  all.push([{ value: `내려받은 날 ${fmtDate(new Date().toISOString())}`, style: 'note', span: 6 }, null, null, null, null, null]);
+  all.push([null, null, null, null, null, null]);
+  all.push([{ value: '한눈에 보기', style: 'section', span: 6 }, null, null, null, null, null]);
+  const kv = (k: string, v: string | number): (XCell | null)[] => [{ value: k, style: 'cell', span: 2 }, null, { value: v, style: 'num', span: 2 }, null, null, null];
+  all.push(kv('전체 학생', sorted.length));
+  all.push(kv('활동 기록(건)', totalObs));
+  all.push(kv('결과물(건)', totalRes));
+  all.push(kv('활동에 참여한 학생', `${active}명 (${sorted.length > 0 ? Math.round((active / sorted.length) * 100) : 0}%)`));
+  if (surveys.length > 0) all.push(kv('설문(개)', surveys.length));
+  if (attendance && attendance.total > 0) {
+    all.push(kv('출석 비율', `${Math.round(((attendance.byStatus.present || 0) / attendance.total) * 100)}%`));
+  }
+  all.push([null, null, null, null, null, null]);
+  all.push([{ value: '학생별 현황', style: 'section', span: 6 }, null, null, null, null, null]);
+  all.push([H('번호'), H('이름'), H('활동 기록'), H('결과물'), H('성취도'), H('세특')]);
+  sorted.forEach(s => {
+    const ev = evalMap[s.id];
+    all.push([N(s.student_number ?? ''), C(s.full_name), N(s.obs.length), N(s.results.length), N(ev?.achievement_level ?? ''), N(ev ? statusText(ev.status) : '미작성')]);
+  });
+  const sheets: XSheet[] = [{ name: '전체', colWidths: [8, 16, 12, 12, 12, 12], rows: all }];
+
+  // ── 결과 ──
+  const resStudents = sorted.filter(s => s.results.length > 0);
+  if (resStudents.length > 0) {
+    const rows: (XCell | null)[][] = [[H('번호'), H('이름'), H('주차'), H('제목'), H('내용'), H('종류'), H('날짜'), H('결과 보기'), H('결과 보기 2'), H('결과 보기 3')]];
+    resStudents.forEach(s => {
+      rows.push([{ value: `${label(s)} · 결과물 ${s.results.length}건`, style: 'section', span: 10 }, null, null, null, null, null, null, null, null, null]);
+      [...s.results]
+        .sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0) || a.created_at.localeCompare(b.created_at))
+        .forEach(r => {
+          const c = resultContent([{
+            result_type: 'text', text_content: r.text_content ?? null, link_url: r.link_url ?? null, file_url: r.file_url ?? null,
+            display_name: r.display_name ?? null, image_url: r.image_url ?? null, image_urls: r.image_urls,
+          }]);
+          const imgs = r.image_urls && r.image_urls.length > 0 ? r.image_urls : r.image_url ? [r.image_url] : [];
+          const links = [
+            ...(r.link_url ? [{ text: '링크 열기', url: r.link_url }] : []),
+            ...(r.file_url ? [{ text: '파일 열기', url: r.file_url }] : []),
+            ...imgs.map((u, i) => ({ text: imgs.length > 1 ? `이미지 ${i + 1} 보기` : '이미지 보기', url: u })),
+          ].filter(l => /^https?:\/\//.test(l.url)).slice(0, 3);
+          const linkCell = (i: number): XCell => (links[i] ? { value: links[i].text, style: 'link', url: links[i].url } : C(''));
+          rows.push([N(s.student_number ?? ''), C(s.full_name), N(weekLabel(r.week_number)), C(r.title || ''), C(c.text), N(c.kind), N(fmtDate(r.created_at)), linkCell(0), linkCell(1), linkCell(2)]);
+        });
+    });
+    sheets.push({ name: '결과', colWidths: [8, 14, 10, 24, 55, 12, 13, 13, 13, 13], freezeRows: 1, rows });
+  }
+
+  // ── 기록 (활동 기록 + 세특) ──
+  const recStudents = sorted.filter(s => s.obs.length > 0 || hasSetech(s));
+  if (recStudents.length > 0) {
+    const rows: (XCell | null)[][] = [[H('번호'), H('이름'), H('구분'), H('주차 / 성취도'), H('활동명'), H('내용'), H('날짜')]];
+    recStudents.forEach(s => {
+      const ev = evalMap[s.id];
+      rows.push([{ value: `${label(s)} · 활동 기록 ${s.obs.length}건${hasSetech(s) ? ' · 세특 있음' : ''}`, style: 'section', span: 7 }, null, null, null, null, null, null]);
+      [...s.obs]
+        .sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0) || a.created_at.localeCompare(b.created_at))
+        .forEach(o => rows.push([N(s.student_number ?? ''), C(s.full_name), N('활동 기록'), N(weekLabel(o.week_number)), C(o.activity_name || ''), C(o.content || ''), N(fmtDate(o.created_at))]));
+      if (hasSetech(s) && ev) {
+        rows.push([N(s.student_number ?? ''), C(s.full_name), N('세특'), N(ev.achievement_level ? `성취도 ${ev.achievement_level}` : ''), C(statusText(ev.status)), C(ev.setech_content), N(`${ev.setech_content.length}자`)]);
+      }
+    });
+    sheets.push({ name: '기록', colWidths: [8, 14, 11, 14, 22, 65, 12], freezeRows: 1, rows });
+  }
+
+  // ── 설문 ──
+  if (surveys.length > 0) {
+    sheets.push({
+      name: '설문', colWidths: [44, 12, 10, 60],
+      rows: [
+        [{ value: '설문 결과 (응답자 구분 없이 질문별 집계)', style: 'title', span: 4 }, null, null, null],
+        [null, null, null, null],
+        ...(buildSurveyXlsxRows(toSurveyForms(surveys)) as (XCell | null)[][]),
+      ],
+    });
+  }
+  return sheets;
+}

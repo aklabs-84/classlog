@@ -530,8 +530,9 @@ async function handleFlaggedSuggestion(req: any, res: any) {
 
   // 학생이 쓴 글이므로 Slack 서식 문자를 무력화
   const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const { student_name, content, link } = req.body ?? {};
+  const { student_name, content, link, flagged } = req.body ?? {};
   if (!content) return res.status(400).json({ error: 'content is required' });
+  const isFlagged = flagged !== false; // 예전 호출(flagged 없음)은 주의 건으로 취급
 
   const origin = 'https://classlog-ai.vercel.app';
   const href = typeof link === 'string' && link.startsWith('/') ? `${origin}${link}` : origin;
@@ -544,7 +545,7 @@ async function handleFlaggedSuggestion(req: any, res: any) {
         blocks: [
           {
             type: 'header',
-            text: { type: 'plain_text', text: '⚠️ 클래스로그 — 건의사항 주의 키워드 감지', emoji: true },
+            text: { type: 'plain_text', text: isFlagged ? '⚠️ 클래스로그 — 건의사항 주의 키워드 감지' : '💬 클래스로그 — 새 질문·건의가 도착했어요', emoji: true },
           },
           {
             type: 'section',
@@ -558,7 +559,7 @@ async function handleFlaggedSuggestion(req: any, res: any) {
             elements: [
               {
                 type: 'mrkdwn',
-                text: `<${href}|해당 학생 화면 열기> | ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`,
+                text: `<${href}|${isFlagged ? '해당 학생 화면 열기' : '건의함 열기'}> | ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`,
               },
             ],
           },

@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility';
+import { useSuggestionRealtime } from '../../hooks/useSuggestionRealtime';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -175,6 +176,15 @@ const HomeroomDashboard = ({
     };
     fetchActivityStats();
   }, [classInfo?.id, students.length]);
+
+  // 학생이 건의를 쓰면 새로고침 없이 숫자 갱신
+  useSuggestionRealtime(async () => {
+    if (students.length === 0) return;
+    const { data } = await supabase.from('student_suggestions').select('student_id').in('student_id', students.map((s: any) => s.id)).is('teacher_reply', null);
+    const counts: Record<string, number> = {};
+    (data || []).forEach((r: { student_id: string }) => { counts[r.student_id] = (counts[r.student_id] || 0) + 1; });
+    setSuggestionCounts(counts);
+  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
