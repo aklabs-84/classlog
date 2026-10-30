@@ -3,16 +3,20 @@ import { FileBarChart, Printer, FileSpreadsheet, Loader2 } from 'lucide-react';
 import {
   fetchProjectSummaryStats,
   fetchProjectCourseStats,
+  fetchProjectClassOverview,
   sumAttendance,
   attendanceRate,
   formatRate,
   type ProjectSummaryStats,
   type SchoolStatRow,
   type ProjectCourseStats,
+  type ProjectClassOverview,
+  type ClassOverviewRow,
 } from '../../lib/projectStats';
 import { fetchProjectSurveyComparisons, type SurveyPairSummary } from '../../lib/surveyCompare';
 import { buildXlsxBlob } from '../../lib/xlsxBuilder';
-import type { XCell } from '../../lib/xlsxBuilder';
+import type { XCell, XSheet } from '../../lib/xlsxBuilder';
+import { saveBlob } from '../../lib/classExport';
 
 interface ProgramLite {
   name: string;
@@ -54,20 +58,46 @@ function fmtPct(v: number | null): string {
   return v === null ? '-' : `${v}%`;
 }
 
+function BigNum({ label, value, unit, sub }: { label: string; value: number | string; unit?: string; sub?: string }) {
+  return (
+    <div className="px-3 first:pl-0">
+      <div className="text-[11px] text-on-surface-variant/60">{label}</div>
+      <div className="text-3xl font-black tabular-nums leading-tight">
+        {value}{unit && typeof value === 'number' ? <span className="text-sm font-bold ml-0.5">{unit}</span> : null}
+      </div>
+      {sub && <div className="text-[10px] text-on-surface-variant/60 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+// 제출 건수가 많을수록 진한 색 (0건은 연한 회색)
+function heatClass(cnt: number, max: number): string {
+  if (cnt === 0) return 'bg-surface-container-high/60 text-on-surface-variant/50';
+  const r = cnt / max;
+  if (r > 0.66) return 'bg-primary text-white';
+  if (r > 0.33) return 'bg-primary/60 text-white';
+  return 'bg-primary/25 text-on-surface';
+}
+
 export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick, schoolId = null, activityStats = null }: Props) {
   const [stats, setStats] = useState<ProjectSummaryStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyPairSummary[] | null>(null);
   const [courseStats, setCourseStats] = useState<ProjectCourseStats | null>(null);
+  const [overview, setOverview] = useState<ProjectClassOverview | null>(null);
   const [failed, setFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
-    setStats(null); setSurveys(null); setCourseStats(null);
+    setStats(null); setSurveys(null); setCourseStats(null); setOverview(null);
     Promise.all([fetchProjectSummaryStats(projectId, schoolId), fetchProjectSurveyComparisons(projectId, schoolId)])
       .then(([s, sv]) => { if (!cancelled) { setStats(s); setSurveys(sv); } })
       .catch(() => { if (!cancelled) { setStats({ schools: [], weekly: [] }); setSurveys([]); setFailed(true); } });
+    // 반별 표·색칠표·설문 요약도 부가 정보라 실패해도 나머지는 그대로 보여 준다.
+    fetchProjectClassOverview(projectId, schoolId)
+      .then(o => { if (!cancelled) setOverview(o); })
+      .catch(() => { if (!cancelled) setOverview({ classes: [], surveys: [] }); });
     // 과목별 합산은 부가 정보라 실패해도 나머지 화면에는 영향 없게 따로 불러온다.
     (schoolId ? Promise.resolve(null) : fetchProjectCourseStats(projectId))
       .then(c => { if (!cancelled) setCourseStats(c); })
@@ -95,91 +125,132 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
     ? (resultStudentTotal / totals.studentCount) * 100
     : null;
 
-  const weekly = stats?.weekly ?? [];
-  const maxWeeklyCnt = Math.max(1, ...weekly.map(w => w.cnt));
+
+  const surveyResponseTotal = useMemo(
+    () => (overview?.surveys ?? []).reduce((a, f) => a + f.response_count, 0),
+    [overview],
+  );
+  const multiSchool = !schoolId && new Set((overview?.classes ?? []).map(k => k.school_id)).size > 1;
+  const classLabel = (k: { school_name: string; class_name: string }) => (multiSchool ? `${k.school_name} · ${k.class_name}` : k.class_name);
+  const weekCols = useMemo(() => {
+    const mx = Math.max(1, ...(overview?.classes ?? []).flatMap(k => k.weekly.map(w => w.week)));
+    return Array.from({ length: mx }, (_, i) => i + 1);
+  }, [overview]);
+  const maxHeat = Math.max(1, ...(overview?.classes ?? []).flatMap(k => k.weekly.map(w => w.cnt)));
 
   const handlePrint = () => window.print();
 
   const handleExcel = async () => {
     setExporting(true);
     try {
-      const overviewRows: (XCell | null)[][] = [
-        [{ value: '사업 개요', style: 'header', span: 2 }, null],
-        [{ value: '사업명' }, { value: program?.name ?? '-' }],
-        [{ value: '학교/기관' }, { value: program?.school_name ?? `학교 ${totals.schoolCount}곳` }],
-        [{ value: '기간' }, { value: `${fmtDate(program?.start_date ?? null)} ~ ${fmtDate(program?.end_date ?? null)}` }],
-        [{ value: '참여 학교 수' }, { value: totals.schoolCount }],
-        [{ value: '참여 강사 수' }, { value: totals.teacherCount }],
-        [{ value: '참여자 수' }, { value: totals.studentCount }],
-        [null, null],
-        [{ value: '출석 현황', style: 'header', span: 2 }, null],
-        [{ value: '출석' }, { value: attendanceTotal.present }],
-        [{ value: '결석' }, { value: attendanceTotal.absent }],
-        [{ value: '지각' }, { value: attendanceTotal.late }],
-        [{ value: '조퇴' }, { value: attendanceTotal.early_leave }],
-        [{ value: '공결(분모 제외)' }, { value: attendanceTotal.excused }],
-        [{ value: '출석률' }, { value: formatRate(attendanceRateValue) }],
-        [null, null],
-        [{ value: '결과물 제출 현황', style: 'header', span: 2 }, null],
-        [{ value: '총 제출 건수' }, { value: resultTotal }],
-        [{ value: '제출 참여자 수' }, { value: resultStudentTotal }],
-        [{ value: '참여율' }, { value: formatRate(participationRate) }],
-        ...(activityStats ? [
-          [null, null] as (XCell | null)[],
-          [{ value: '활동 기록 제출 현황', style: 'header', span: 2 }, null] as (XCell | null)[],
-          [{ value: '총 제출 건수' }, { value: activityStats.total }] as (XCell | null)[],
-          [{ value: '제출 참여자 수' }, { value: activityStats.students }] as (XCell | null)[],
-          [{ value: '참여율' }, { value: formatRate(totals.studentCount > 0 ? (activityStats.students / totals.studentCount) * 100 : 0) }] as (XCell | null)[],
-        ] : []),
+      const H = (v: string): XCell => ({ value: v, style: 'header' });
+      const C = (v: string | number | null, style: 'cell' | 'num' = 'cell'): XCell => ({ value: v, style });
+      const classes = overview?.classes ?? [];
+      const surveyForms = overview?.surveys ?? [];
+      const periodText = `${fmtDate(program?.start_date ?? null)} ~ ${fmtDate(program?.end_date ?? null)}`;
+      const todayText = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const rateText = (r: ClassOverviewRow) => { const v = attendanceRate(r); return v === null ? '체크 전' : formatRate(v); };
+
+      // 1) 표지·요약
+      const coverRows: (XCell | null)[][] = [
+        [{ value: `${program?.name ?? '사업'} 결과 요약`, style: 'title', span: 4 }, null, null, null],
+        [{ value: `${program?.school_name ?? `학교 ${totals.schoolCount}곳`} · 기준일 ${todayText}`, style: 'note', span: 4 }, null, null, null],
+        [null, null, null, null],
+        [{ value: '사업 개요', style: 'section', span: 4 }, null, null, null],
+        [C('사업명'), { value: program?.name ?? '-', style: 'cell', span: 3 }, null, null],
+        [C('학교/기관'), { value: program?.school_name ?? `학교 ${totals.schoolCount}곳`, style: 'cell', span: 3 }, null, null],
+        [C('기간'), { value: periodText, style: 'cell', span: 3 }, null, null],
+        [C('참여 학교 / 강사'), { value: `학교 ${totals.schoolCount}곳 · 강사 ${totals.teacherCount}명`, style: 'cell', span: 3 }, null, null],
+        [null, null, null, null],
+        [{ value: '한눈에 보기', style: 'section', span: 4 }, null, null, null],
+        [H('항목'), H('값'), H('참여'), H('참여율')],
+        [C('학생'), C(totals.studentCount, 'num'), C('-'), C('-')],
+        [C('결과물 제출(건)'), C(resultTotal, 'num'), C(`${resultStudentTotal}명`), C(formatRate(participationRate))],
+        ...(activityStats ? [[
+          C('활동 기록(건)'), C(activityStats.total, 'num'), C(`${activityStats.students}명`),
+          C(formatRate(totals.studentCount > 0 ? (activityStats.students / totals.studentCount) * 100 : 0)),
+        ] as (XCell | null)[]] : []),
+        [C('설문 응답(건)'), C(surveyResponseTotal, 'num'), C(`설문 ${surveyForms.length}종`), C('-')],
+        [C('출석률'), C(attendanceRateValue === null ? '체크 전' : formatRate(attendanceRateValue), 'num'),
+          C(`출석 ${attendanceTotal.present} · 결석 ${attendanceTotal.absent} · 지각 ${attendanceTotal.late} · 조퇴 ${attendanceTotal.early_leave}`), C('공결은 분모 제외')],
       ];
 
-      const schoolSheetRows: (XCell | null)[][] = [
-        [
-          { value: '학교', style: 'header' }, { value: '반', style: 'header' },
-          { value: '참가자', style: 'header' }, { value: '출석', style: 'header' },
-          { value: '결석', style: 'header' }, { value: '지각', style: 'header' },
-          { value: '조퇴', style: 'header' }, { value: '공결', style: 'header' },
-          { value: '출석률', style: 'header' }, { value: '결과물', style: 'header' },
-        ],
-        ...schoolRows.map(s => [
-          { value: s.school_name },
-          { value: s.class_count },
-          { value: s.student_count },
-          { value: s.present },
-          { value: s.absent },
-          { value: s.late },
-          { value: s.early_leave },
-          { value: s.excused },
-          { value: formatRate(attendanceRate(s)) },
-          { value: s.result_count },
+      // 2) 반별 비교
+      const classRows: (XCell | null)[][] = [
+        [H('학교'), H('반'), H('학생'), H('출석률'), H('활동 기록'), H('활동 기록 참여'), H('결과물'), H('결과물 참여'), H('1인당 결과물'), H('설문 응답')],
+        ...classes.map(k => [
+          C(k.school_name), C(k.class_name), C(k.student_count, 'num'), C(rateText(k), 'num'),
+          C(k.activity_count, 'num'), C(k.activity_student_count, 'num'),
+          C(k.result_count, 'num'), C(k.result_student_count, 'num'),
+          C(k.student_count > 0 ? Number((k.result_count / k.student_count).toFixed(1)) : null, 'num'),
+          C(k.survey_response_count, 'num'),
         ] as (XCell | null)[]),
       ];
 
-      const surveySheetRows: (XCell | null)[][] = [
-        [
-          { value: '설문 쌍', style: 'header' }, { value: '문항', style: 'header' },
-          { value: '유형', style: 'header' }, { value: '사전', style: 'header' }, { value: '사후', style: 'header' },
-        ],
+      // 3) 주차별 결과물
+      const rowsByWeek: (XCell | null)[][] = [
+        [H('학교'), H('반'), ...weekCols.map(w => H(`${w}주차`)), H('합계')],
+        ...classes.map(k => [
+          C(k.school_name), C(k.class_name),
+          ...weekCols.map(w => C(k.weekly.find(x => x.week === w)?.cnt ?? 0, 'num')),
+          C(k.result_count, 'num'),
+        ] as (XCell | null)[]),
+      ];
+
+      // 4) 출석
+      const attRows: (XCell | null)[][] = [
+        [H('학교'), H('반'), H('출석'), H('결석'), H('지각'), H('조퇴'), H('공결'), H('출석률')],
+        ...classes.map(k => [
+          C(k.school_name), C(k.class_name), C(k.present, 'num'), C(k.absent, 'num'),
+          C(k.late, 'num'), C(k.early_leave, 'num'), C(k.excused, 'num'), C(rateText(k), 'num'),
+        ] as (XCell | null)[]),
+      ];
+
+      // 5) 설문 (전체 설문의 문항별 집계)
+      const surveyRows: (XCell | null)[][] = [
+        [H('설문'), H('구분'), H('응답 수'), H('문항'), H('유형'), H('결과')],
+        ...surveyForms.flatMap(f => {
+          const phase = f.phase === 'pre' ? '사전' : f.phase === 'post' ? '사후' : '-';
+          if (f.questions.length === 0) return [[C(f.title), C(phase), C(f.response_count, 'num'), C('(점수·예/아니오 문항 없음)'), C('-'), C('-')] as (XCell | null)[]];
+          return f.questions.map(q => [
+            C(f.title), C(phase), C(f.response_count, 'num'), C(q.text),
+            C(q.type === 'yes_no' ? '예/아니오' : '점수'),
+            C(q.type === 'yes_no' ? `“예” ${fmtPct(q.pct)}` : `평균 ${fmtAvg(q.avg === null ? null : Number(q.avg))}`, 'num'),
+          ] as (XCell | null)[]);
+        }),
+      ];
+
+      // 6) 사전·사후 비교
+      const pairRows: (XCell | null)[][] = [
+        [H('설문 쌍'), H('문항'), H('유형'), H('사전'), H('사후')],
         ...(surveys ?? []).flatMap(pair => pair.rows.map(r => [
-          { value: `${pair.preForm.title} → ${pair.postForm.title}` },
-          { value: r.text },
-          { value: r.type === 'yes_no' ? '예/아니오' : '점수' },
-          { value: r.type === 'yes_no' ? fmtPct(r.prePct) : fmtAvg(r.preAvg) },
-          { value: r.type === 'yes_no' ? fmtPct(r.postPct) : fmtAvg(r.postAvg) },
+          C(`${pair.preForm.title} → ${pair.postForm.title}`), C(r.text), C(r.type === 'yes_no' ? '예/아니오' : '점수'),
+          C(r.type === 'yes_no' ? fmtPct(r.prePct) : fmtAvg(r.preAvg), 'num'),
+          C(r.type === 'yes_no' ? fmtPct(r.postPct) : fmtAvg(r.postAvg), 'num'),
         ] as (XCell | null)[])),
       ];
 
-      const blob = await buildXlsxBlob([
-        { name: '사업 개요', colWidths: [16, 30], rows: overviewRows },
-        { name: '학교별 비교', colWidths: [16, 8, 8, 8, 8, 8, 8, 8, 10, 8], rows: schoolSheetRows },
-        ...(surveySheetRows.length > 1 ? [{ name: '사전사후 설문', colWidths: [24, 30, 10, 10, 10], rows: surveySheetRows }] : []),
-      ]);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${program?.name || '사업'}_결과요약.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const sheets: XSheet[] = [
+        { name: '표지·요약', colWidths: [20, 22, 34, 18], rows: coverRows },
+        ...(classes.length > 0 ? [
+          { name: '반별 비교', colWidths: [18, 22, 8, 10, 10, 12, 9, 12, 12, 10], rows: classRows, freezeRows: 1, filterRow: 1 },
+          { name: '주차별 결과물', colWidths: [18, 22, ...weekCols.map(() => 9), 9], rows: rowsByWeek, freezeRows: 1, filterRow: 1 },
+          { name: '출석', colWidths: [18, 22, 8, 8, 8, 8, 8, 10], rows: attRows, freezeRows: 1, filterRow: 1 },
+        ] : []),
+        ...(surveyForms.length > 0 ? [{ name: '설문', colWidths: [26, 8, 9, 40, 11, 14], rows: surveyRows, freezeRows: 1, filterRow: 1 }] : []),
+        ...(pairRows.length > 1 ? [{ name: '사전사후 비교', colWidths: [30, 36, 11, 10, 10], rows: pairRows, freezeRows: 1, filterRow: 1 }] : []),
+        ...(!schoolId && schoolRows.length > 1 ? [{
+          name: '학교별 비교', colWidths: [20, 8, 9, 10, 10],
+          rows: [
+            [H('학교'), H('반'), H('참가자'), H('출석률'), H('결과물')],
+            ...schoolRows.map(sc => [C(sc.school_name), C(sc.class_count, 'num'), C(sc.student_count, 'num'), C(formatRate(attendanceRate(sc)), 'num'), C(sc.result_count, 'num')] as (XCell | null)[]),
+          ],
+          freezeRows: 1, filterRow: 1,
+        }] : []),
+      ];
+
+      const blob = await buildXlsxBlob(sheets);
+      saveBlob(blob, `${program?.name || '사업'}_결과요약_${todayText.replace(/\D/g, '')}.xlsx`);
     } finally {
       setExporting(false);
     }
@@ -200,9 +271,24 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
           #project-result-summary-print, #project-result-summary-print * { visibility: visible; }
           #project-result-summary-print { position: absolute; left: 0; top: 0; width: 100%; padding: 12px; }
           #project-result-summary-print .no-print { display: none !important; }
-          @page { size: A4; margin: 12mm; }
+          #project-result-summary-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          #project-result-summary-print .print-avoid-break { break-inside: avoid; }
+          #project-result-summary-print .print-only { display: block !important; }
+          #project-result-summary-print > div { break-inside: avoid; }
+          #project-result-summary-print table { break-inside: auto; }
+          #project-result-summary-print tr { break-inside: avoid; }
+          @page { size: A4; margin: 16mm 14mm 18mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #666; } }
         }
+        .print-only { display: none; }
       `}</style>
+
+      {/* 인쇄할 때만 보이는 보고서 머리글 */}
+      <div className="print-only" style={{ borderBottom: '2px solid #111', paddingBottom: 8, marginBottom: 12 }}>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>{program?.name ?? '사업'} 결과 요약</div>
+        <div style={{ fontSize: 11, color: '#444', marginTop: 4 }}>
+          {program?.school_name ?? `학교 ${totals.schoolCount}곳`} · 기간 {fmtDate(program?.start_date ?? null)} ~ {fmtDate(program?.end_date ?? null)} · 작성일 {new Date().toLocaleDateString('ko-KR')}
+        </div>
+      </div>
 
       <div className="flex items-center justify-between gap-2 no-print">
         <span className="text-sm font-bold flex items-center gap-1.5">
@@ -251,57 +337,150 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
         </div>
       </div>
 
-      {/* 출석 현황 */}
+      {/* 큰 숫자 한눈에 */}
       <div className="surface-card border border-surface-container-high p-4">
-        <h3 className="text-sm font-black mb-1">출석 현황</h3>
-        <p className="text-[11px] text-on-surface-variant/60 mb-3">출석률 = (출석+지각+조퇴) ÷ (출석+결석+지각+조퇴) · 공결은 분모에서 제외</p>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-sm">
-          <div><div className="text-[11px] text-on-surface-variant/60">출석</div><div className="font-bold tabular-nums">{attendanceTotal.present}</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">결석</div><div className="font-bold tabular-nums">{attendanceTotal.absent}</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">지각</div><div className="font-bold tabular-nums">{attendanceTotal.late}</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">조퇴</div><div className="font-bold tabular-nums">{attendanceTotal.early_leave}</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">공결</div><div className="font-bold tabular-nums">{attendanceTotal.excused}</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">출석률</div><div className="font-bold tabular-nums text-primary">{formatRate(attendanceRateValue)}</div></div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-y-4">
+          <BigNum label="학생" value={totals.studentCount} unit="명" />
+          <BigNum label="결과물 제출" value={resultTotal} unit="건" sub={`참여 ${resultStudentTotal}명 · ${formatRate(participationRate)}`} />
+          {activityStats && (
+            <BigNum label="활동 기록" value={activityStats.total} unit="건"
+              sub={`참여 ${activityStats.students}명 · ${formatRate(totals.studentCount > 0 ? (activityStats.students / totals.studentCount) * 100 : 0)}`} />
+          )}
+          <BigNum label="설문 응답" value={surveyResponseTotal} unit="건" sub={`설문 ${overview?.surveys.length ?? 0}종`} />
+          <BigNum label="출석률" value={attendanceRateValue === null ? '체크 전' : formatRate(attendanceRateValue)}
+            sub={attendanceRateValue === null ? undefined : `출석 ${attendanceTotal.present} · 결석 ${attendanceTotal.absent} · 지각 ${attendanceTotal.late} · 조퇴 ${attendanceTotal.early_leave}`} />
         </div>
+        {attendanceRateValue === null && (
+          <p className="mt-3 text-[11px] px-3 py-2 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+            출석은 아직 체크 전입니다. 출석 체크를 시작하면 이 자리에 출석률이 나타납니다.
+          </p>
+        )}
+        {attendanceRateValue !== null && (
+          <p className="mt-2 text-[10px] text-on-surface-variant/50">출석률 = (출석+지각+조퇴) ÷ (출석+결석+지각+조퇴) · 공결은 분모에서 제외</p>
+        )}
       </div>
 
-      {/* 활동 기록 제출 현황 */}
-      {activityStats && (
-        <div className="surface-card border border-surface-container-high p-4">
-          <h3 className="text-sm font-black mb-3">활동 기록 제출 현황</h3>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <div><div className="text-[11px] text-on-surface-variant/60">총 제출 건수</div><div className="font-bold tabular-nums">{activityStats.total}건</div></div>
-            <div><div className="text-[11px] text-on-surface-variant/60">제출 참여자</div><div className="font-bold tabular-nums">{activityStats.students}명</div></div>
-            <div><div className="text-[11px] text-on-surface-variant/60">참여율</div><div className="font-bold tabular-nums text-primary">{formatRate(totals.studentCount > 0 ? (activityStats.students / totals.studentCount) * 100 : 0)}</div></div>
+      {/* 반별 한눈에 보기 */}
+      {overview && overview.classes.length > 0 && (
+        <div className="surface-card border border-surface-container-high overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-surface-container-high">
+            <span className="text-sm font-black">반별 한눈에 보기</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-on-surface text-left text-on-surface-variant/70">
+                  <th className="px-3 py-2 font-bold whitespace-nowrap">반</th>
+                  <th className="px-3 py-2 font-bold text-right whitespace-nowrap">학생</th>
+                  <th className="px-3 py-2 font-bold text-right whitespace-nowrap">출석률</th>
+                  <th className="px-3 py-2 font-bold text-right whitespace-nowrap">활동 기록</th>
+                  <th className="px-3 py-2 font-bold text-right whitespace-nowrap">결과물</th>
+                  <th className="px-3 py-2 font-bold text-right whitespace-nowrap">1인당 결과물</th>
+                  <th className="px-3 py-2 font-bold text-right whitespace-nowrap">설문 응답</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.classes.map(k => {
+                  const rate = attendanceRate(k);
+                  return (
+                    <tr key={k.class_id} className="border-b border-surface-container-high hover:bg-surface-container-low/60">
+                      <td className="px-3 py-2.5 whitespace-nowrap font-bold">{classLabel(k)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{k.student_count}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{rate === null ? <span className="text-on-surface-variant/50">체크 전</span> : formatRate(rate)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{k.activity_count}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-bold">{k.result_count}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{k.student_count > 0 ? (k.result_count / k.student_count).toFixed(1) : '-'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{k.survey_response_count}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="font-black bg-surface-container-low/40">
+                  <td className="px-3 py-2.5">합계</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{overview.classes.reduce((a, k) => a + k.student_count, 0)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{attendanceRateValue === null ? '-' : formatRate(attendanceRateValue)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{overview.classes.reduce((a, k) => a + k.activity_count, 0)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{overview.classes.reduce((a, k) => a + k.result_count, 0)}</td>
+                  <td className="px-3 py-2.5" />
+                  <td className="px-3 py-2.5 text-right tabular-nums">{surveyResponseTotal}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* 결과물 제출 현황 */}
-      <div className="surface-card border border-surface-container-high p-4">
-        <h3 className="text-sm font-black mb-3">결과물 제출 현황</h3>
-        <div className="grid grid-cols-3 gap-3 text-sm mb-3">
-          <div><div className="text-[11px] text-on-surface-variant/60">총 제출 건수</div><div className="font-bold tabular-nums">{resultTotal}건</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">제출 참여자</div><div className="font-bold tabular-nums">{resultStudentTotal}명</div></div>
-          <div><div className="text-[11px] text-on-surface-variant/60">참여율</div><div className="font-bold tabular-nums text-primary">{formatRate(participationRate)}</div></div>
-        </div>
-        {weekly.length > 0 && (
-          <div>
-            <div className="text-[11px] text-on-surface-variant/60 mb-1.5">주차별 제출 추이</div>
-            <div className="space-y-1">
-              {weekly.map(w => (
-                <div key={w.week_number} className="flex items-center gap-2 text-xs">
-                  <span className="w-10 shrink-0 text-on-surface-variant/70">{w.week_number}주차</span>
-                  <div className="flex-1 h-3 bg-surface-container-high rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${(w.cnt / maxWeeklyCnt) * 100}%` }} />
-                  </div>
-                  <span className="w-8 text-right tabular-nums font-bold">{w.cnt}</span>
-                </div>
-              ))}
-            </div>
+      {/* 반 × 주차 색칠표 */}
+      {overview && overview.classes.length > 0 && (
+        <div className="surface-card border border-surface-container-high p-4">
+          <h3 className="text-sm font-black mb-1">주차별 결과물 제출</h3>
+          <p className="text-[11px] text-on-surface-variant/60 mb-3">칸의 숫자 = 그 주에 제출된 결과물 수 · 연한 회색 = 아직 제출 없음 · 진할수록 많이 제출</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-separate border-spacing-1">
+              <thead>
+                <tr className="text-on-surface-variant/70">
+                  <th className="text-left font-bold px-1 py-1 whitespace-nowrap">반</th>
+                  {weekCols.map(w => <th key={w} className="font-bold px-1 py-1 text-center whitespace-nowrap">{w}주차</th>)}
+                  <th className="font-bold px-1 py-1 text-right whitespace-nowrap">합계</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.classes.map(k => (
+                  <tr key={k.class_id}>
+                    <td className="px-1 py-1 font-bold whitespace-nowrap">{classLabel(k)}</td>
+                    {weekCols.map(w => {
+                      const cnt = k.weekly.find(x => x.week === w)?.cnt ?? 0;
+                      return (
+                        <td key={w} className="p-0">
+                          <div
+                            className={`heat-cell h-9 min-w-[44px] rounded-sm flex items-center justify-center font-bold tabular-nums transition-transform hover:scale-105 ${heatClass(cnt, maxHeat)}`}
+                            title={`${classLabel(k)} ${w}주차 ${cnt}건`}
+                          >
+                            {cnt === 0 ? <span className="font-normal text-[10px]">–</span> : cnt}
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="px-1 py-1 text-right tabular-nums font-bold">{k.result_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* 설문 요약 (사전·사후 짝이 아닌 설문까지 모두) */}
+      {overview && overview.surveys.length > 0 && (
+        <div className="surface-card border border-surface-container-high p-4">
+          <h3 className="text-sm font-black mb-3">설문 요약</h3>
+          <div className="space-y-4">
+            {overview.surveys.map(f => (
+              <div key={f.id} className="print-avoid-break">
+                <div className="flex items-baseline justify-between gap-2 border-b border-on-surface pb-1 mb-1">
+                  <span className="text-xs font-bold">{f.title}{f.phase ? ` · ${f.phase === 'pre' ? '사전' : f.phase === 'post' ? '사후' : f.phase}` : ''}</span>
+                  <span className="text-[11px] text-on-surface-variant/60 tabular-nums">응답 {f.response_count}명</span>
+                </div>
+                {f.questions.length === 0 ? (
+                  <p className="text-[11px] text-on-surface-variant/50 py-1">점수·예/아니오 문항이 없어 숫자 요약은 없습니다.</p>
+                ) : (
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {f.questions.map((q, i) => (
+                        <tr key={i} className="border-b border-surface-container-high last:border-0">
+                          <td className="py-1.5 pr-2">{q.text}</td>
+                          <td className="py-1.5 text-right tabular-nums font-bold whitespace-nowrap">
+                            {q.type === 'yes_no' ? `“예” ${fmtPct(q.pct)}` : `평균 ${fmtAvg(q.avg === null ? null : Number(q.avg))}`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 과목별 합산 */}
       {hasCourses && courseStats && (

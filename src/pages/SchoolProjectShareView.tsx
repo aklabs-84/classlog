@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { GALLERY_PAGE_SIZE, parseVideoUrl } from '../lib/gallery';
 import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
-import type { XCell } from '../lib/xlsxBuilder';
+import { buildClassSheets, saveBlob, exportTodayStr } from '../lib/classExport';
 import { BANNER_THEMES } from '../components/classroom/SchoolProjectModal';
 import {
   School, Users, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ExternalLink,
@@ -279,6 +279,10 @@ const SchoolProjectShareView = () => {
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [exportMenu, setExportMenu] = useState<{ classId: string } | null>(null);
+  const [exportIncludeNames, setExportIncludeNames] = useState<boolean>(() => {
+    try { return localStorage.getItem('share-export-include-names') !== '0'; } catch { return true; }
+  });
   const reduceMotion = useReducedMotion();
 
   useEffect(() => { setSpotlightIndex(0); }, [spotlightQuotes.length]);
@@ -1290,7 +1294,6 @@ const SchoolProjectShareView = () => {
                     const galleryImgs = filteredGallery.filter(g => g.file_type === 'image');
                     const galleryImgUrls = galleryImgs.map(g => g.file_url);
 
-                    const statusLabelText = (s?: string | null) => (s === 'done' || s === 'final' ? '완료' : s === 'draft' ? '초안' : '미작성');
                     const statusLabelStyle = (s?: string | null) => {
                       if (s === 'final' || s === 'done') return { label: '완료', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
                       if (s === 'draft') return { label: '초안', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
@@ -1303,127 +1306,25 @@ const SchoolProjectShareView = () => {
                       return 'bg-gray-100 text-gray-400';
                     };
 
-                    const downloadCSV = () => {
-                      const className = cls.name || '학급';
-                      const headers = ['번호', '이름', '활동기록 수', '결과물 수', '세특 상태', '성취도', '세특 글자수'];
-                      const rows = students.map(s => {
-                        const ev = evalMap[s.id];
-                        return [
-                          s.student_number ?? '', s.full_name, s.observations.length, s.resultGroups.length,
-                          statusLabelText(ev?.status), ev?.achievement_level ?? '', (ev?.setech_content || '').length,
-                        ];
-                      });
-                      const csvContent = [headers, ...rows]
-                        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-                        .join('\n');
-                      const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      const todayStr = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace(/\.$/, '');
-                      a.download = `${project?.name || ''}_${className}_전체학생_${todayStr}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    };
+                    const buildExportInput = (includeNames: boolean) => ({
+                      orgName: project?.name || '',
+                      className: cls.name || '학급',
+                      students: students as any,
+                      evalMap: evalMap as any,
+                      surveys: classSurveyIds(cls).map(fid => surveyDataByForm[fid]),
+                      attendance: cls.show_attendance_summary ? attendanceByClass[cls.id] : null,
+                      includeNames,
+                    });
+                    const exportFileBase = () => `${project?.name || ''}${project?.name ? '_' : ''}${cls.name || '학급'}`;
 
-                    const downloadXLSX = async () => {
+                    const runExport = async () => {
+                      setExportMenu(null);
+                      const input = buildExportInput(exportIncludeNames);
+                      const suffix = `${exportIncludeNames ? '' : '_익명'}_${exportTodayStr()}`;
                       setDownloading(true);
                       try {
-                        const className = cls.name || '학급';
-                        const sheet1Rows: XCell[][] = [
-                          [
-                            { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
-                            { value: '활동기록 수', style: 'header' }, { value: '결과물 수', style: 'header' },
-                            { value: '성취도', style: 'header' },
-                          ],
-                          ...students.map(s => {
-                            const ev = evalMap[s.id];
-                            return [
-                              { value: s.student_number ?? null }, { value: s.full_name },
-                              { value: s.observations.length }, { value: s.resultGroups.length },
-                              { value: ev?.achievement_level ?? '' },
-                            ] as XCell[];
-                          }),
-                        ];
-
-                        const studentSheets = students.map(s => {
-                          const sheetName = `${s.student_number ?? '?'}. ${s.full_name}`.replace(/[/\\?*[\]:]/g, '_').slice(0, 31);
-                          const label = `${s.student_number != null ? s.student_number + '번 ' : ''}${s.full_name}`;
-                          const rows: (XCell | null)[][] = [];
-                          rows.push([{ value: label, span: 4, style: 'section' }, null, null, null]);
-                          rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
-
-                          if (s.observations.length === 0 && s.resultGroups.length === 0) {
-                            rows.push([{ value: '제출 없음', span: 4 }, null, null, null]);
-                          } else {
-                            if (s.observations.length > 0) {
-                              rows.push([{ value: '활동기록', span: 4, style: 'section' }, null, null, null]);
-                              rows.push([
-                                { value: '주차', style: 'header' }, { value: '활동명', style: 'header' },
-                                { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
-                              ]);
-                              s.observations.forEach(o => {
-                                rows.push([
-                                  { value: o.week_number != null ? `${o.week_number}주차` : '' },
-                                  { value: o.activity_name || '' },
-                                  { value: o.content, style: 'wrap' },
-                                  { value: new Date(o.created_at).toLocaleDateString('ko-KR') },
-                                ]);
-                              });
-                              rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
-                            }
-                            if (s.resultGroups.length > 0) {
-                              rows.push([{ value: '결과제출', span: 4, style: 'section' }, null, null, null]);
-                              rows.push([
-                                { value: '주차', style: 'header' }, { value: '제목', style: 'header' },
-                                { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
-                              ]);
-                              s.resultGroups.forEach(group => {
-                                const textItem = group.items.find(r => r.result_type === 'text');
-                                const linkItem = group.items.find(r => r.result_type === 'link');
-                                const fileItem = group.items.find(r => r.result_type === 'file');
-                                const ct = textItem?.text_content || (linkItem?.link_url ? `링크: ${linkItem.link_url}` : fileItem ? '파일 첨부' : (group.items.find(r => r.image_url) ? '이미지 첨부' : ''));
-                                rows.push([
-                                  { value: group.week_number != null ? `${group.week_number}주차` : '' },
-                                  { value: group.title || '' },
-                                  { value: ct, style: 'wrap' },
-                                  { value: new Date(group.created_at).toLocaleDateString('ko-KR') },
-                                ]);
-                              });
-                            }
-                          }
-                          return { name: sheetName, colWidths: [10, 22, 55, 14], rows };
-                        });
-
-                        const sheet3Rows: XCell[][] = [
-                          [
-                            { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
-                            { value: '성취도', style: 'header' }, { value: '상태', style: 'header' },
-                            { value: '세특 문장', style: 'header' }, { value: '글자수', style: 'header' },
-                          ],
-                          ...students.map(s => {
-                            const ev = evalMap[s.id];
-                            const content = ev?.setech_content || '';
-                            return [
-                              { value: s.student_number ?? null }, { value: s.full_name },
-                              { value: ev?.achievement_level ?? '' }, { value: statusLabelText(ev?.status) },
-                              { value: content, style: 'wrap' }, { value: content.length },
-                            ] as XCell[];
-                          }),
-                        ];
-
-                        const todayStr = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '').replace(/\.$/, '');
-                        const blob = await buildXlsxBlob([
-                          { name: '전체학생', colWidths: [6, 14, 13, 12, 10], rows: sheet1Rows },
-                          ...studentSheets,
-                          { name: '학급 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
-                        ]);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${project?.name || ''}${project?.name ? '_' : ''}${className}_학생기록_${todayStr}.xlsx`;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                        const blob = await buildXlsxBlob(buildClassSheets(input));
+                        saveBlob(blob, `${exportFileBase()}_결과${suffix}.xlsx`);
                       } catch (err) {
                         console.error('XLSX 다운로드 오류:', err);
                         appToast('엑셀 파일 생성 중 오류가 발생했습니다.');
@@ -1561,16 +1462,32 @@ const SchoolProjectShareView = () => {
                               </button>
                             ))}
                           </div>
-                          <div className="ml-auto flex items-center gap-1.5 pb-2">
+                          <div className="ml-auto flex items-center gap-1.5 pb-2 relative">
                             <button onClick={() => handleRefreshClass(cls.id)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-all" title="새로고침">
                               <RefreshCw size={13} />
                             </button>
-                            <button onClick={downloadCSV} className="flex items-center gap-1.5 px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-black transition-all" title="CSV 다운로드">
-                              <FileText size={13} /><span className="hidden sm:inline">CSV</span>
-                            </button>
-                            <button onClick={downloadXLSX} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 hover:opacity-90 disabled:opacity-40 text-white rounded-lg text-sm font-black transition-all" style={{ background: '#0e1a33' }} title="XLSX 엑셀 다운로드">
+                            <button onClick={() => setExportMenu(exportMenu !== null && exportMenu.classId === cls.id ? null : { classId: cls.id })} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 hover:opacity-90 disabled:opacity-40 text-white rounded-lg text-sm font-black transition-all" style={{ background: '#0e1a33' }} title="XLSX 엑셀 다운로드">
                               {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}<span className="hidden sm:inline">XLSX</span>
                             </button>
+                            {exportMenu !== null && exportMenu.classId === cls.id && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setExportMenu(null)} />
+                                <div className="absolute right-0 top-full mt-1 z-40 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-slate-200 shadow-xl p-4 space-y-3">
+                                  <p className="text-base font-black text-slate-900">엑셀로 내려받기</p>
+                                  <p className="text-sm text-slate-500 leading-relaxed">활동 기록·결과물{classSurveyIds(cls).length > 0 ? '·설문' : ''}이 한 파일에 정리돼요. 학생 이름을 넣을지 골라 주세요.</p>
+                                  <div className="space-y-1.5">
+                                    {[{ v: true, label: '학생 이름 포함', hint: '번호와 이름이 모두 나와요' }, { v: false, label: '이름 없이 (번호만)', hint: '"학생 3"처럼 표시돼요' }].map(o => (
+                                      <label key={String(o.v)} className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer ${exportIncludeNames === o.v ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}>
+                                        <input type="radio" name={`export-names-${cls.id}`} checked={exportIncludeNames === o.v} onChange={() => { setExportIncludeNames(o.v); try { localStorage.setItem('share-export-include-names', o.v ? '1' : '0'); } catch { /* 저장 실패는 무시 */ } }} className="mt-1" />
+                                        <span><span className="block text-sm font-black text-slate-900">{o.label}</span><span className="block text-xs text-slate-500">{o.hint}</span></span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                  {!exportIncludeNames && <p className="text-xs text-amber-600 leading-relaxed">학생이 직접 쓴 글 안에 이름이 있으면 그대로 나올 수 있어요.</p>}
+                                  <button onClick={() => runExport()} className="w-full py-2.5 rounded-lg text-white text-sm font-black hover:opacity-90" style={{ background: '#0e1a33' }}>내려받기</button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 

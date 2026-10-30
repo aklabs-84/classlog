@@ -9,7 +9,7 @@
  */
 import JSZip from 'jszip';
 
-export type CellStyle = 'normal' | 'header' | 'section' | 'wrap';
+export type CellStyle = 'normal' | 'header' | 'section' | 'wrap' | 'title' | 'note' | 'cell' | 'num';
 
 export interface XCell {
   value: string | number | null;
@@ -21,6 +21,10 @@ export interface XSheet {
   name: string;
   colWidths: number[];
   rows: (XCell | null)[][];
+  /** 위에서부터 이 줄 수만큼 스크롤해도 고정 (1 = 첫 줄) */
+  freezeRows?: number;
+  /** 이 줄(1부터)을 머리글로 보고 필터 버튼을 붙인다 */
+  filterRow?: number;
 }
 
 // ── XML 특수문자 이스케이프 ───────────────────────────────────────────────────
@@ -40,9 +44,11 @@ function colName(n: number): string {
 // ── 고정 스타일 XML ──────────────────────────────────────────────────────────
 const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="2">
+  <fonts count="4">
     <font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>
     <font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/></font>
+    <font><b/><sz val="15"/><color theme="1"/><name val="Calibri"/></font>
+    <font><sz val="10"/><color rgb="FF6B7280"/><name val="Calibri"/></font>
   </fonts>
   <fills count="4">
     <fill><patternFill patternType="none"/></fill>
@@ -61,11 +67,15 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     </border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="4">
+  <cellXfs count="8">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
+    <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>
   </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -75,10 +85,14 @@ const STYLE_IDX: Record<CellStyle, number> = {
   header: 1,
   section: 2,
   wrap: 3,
+  title: 4,
+  note: 5,
+  cell: 6,
+  num: 7,
 };
 
 // ── 워크시트 XML 생성 ─────────────────────────────────────────────────────────
-function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number): string {
+function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number, selected: boolean): string {
   const colsXml = sheet.colWidths
     .map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`)
     .join('');
@@ -114,15 +128,22 @@ function buildWorksheetXml(sheet: XSheet, ssIndexOf: (s: string) => number): str
     rowXmls.push(`<row r="${rNum}">${cells.join('')}</row>`);
   });
 
+  const lastCol = colName(Math.max(0, sheet.colWidths.length - 1));
+  const filterXml = sheet.filterRow
+    ? `<autoFilter ref="A${sheet.filterRow}:${lastCol}${Math.max(sheet.filterRow, sheet.rows.length)}"/>`
+    : '';
   const mergeXml = merges.length
     ? `<mergeCells count="${merges.length}">${merges.join('')}</mergeCells>`
     : '';
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews>
+  <sheetViews><sheetView${selected ? ' tabSelected="1"' : ''} workbookViewId="0">${
+    sheet.freezeRows ? `<pane ySplit="${sheet.freezeRows}" topLeftCell="A${sheet.freezeRows + 1}" activePane="bottomLeft" state="frozen"/>` : ''
+  }</sheetView></sheetViews>
   <cols>${colsXml}</cols>
   <sheetData>${rowXmls.join('')}</sheetData>
+  ${filterXml}
   ${mergeXml}
 </worksheet>`;
 }
@@ -137,7 +158,7 @@ export async function buildXlsxBlob(sheets: XSheet[]): Promise<Blob> {
   };
 
   // 워크시트 XML 생성 (이 과정에서 공유 문자열 테이블이 채워진다)
-  const wsXmls = sheets.map((s) => buildWorksheetXml(s, ssIndexOf));
+  const wsXmls = sheets.map((s, i) => buildWorksheetXml(s, ssIndexOf, i === 0));
 
   const sharedStringsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strings.length}" uniqueCount="${strings.length}">

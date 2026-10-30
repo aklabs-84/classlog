@@ -171,3 +171,47 @@ export function teacherStatus(
   const todayStart = Math.floor((now + KST_MS) / DAY_MS) * DAY_MS - KST_MS;
   return todayStart - last <= ACTIVE_WINDOW_DAYS * DAY_MS ? 'ok' : 'warn';
 }
+
+// ── 반별 한눈에 보기 + 전체 설문 요약 (get_project_class_overview) ──
+// 이름·개별 응답 없이 숫자 집계만 온다. 관리자 권한 검사는 서버에서 한다.
+
+export interface ClassOverviewRow extends AttendanceCounts {
+  class_id: string;
+  school_id: string;
+  school_name: string;
+  class_name: string;
+  student_count: number;
+  activity_count: number;
+  activity_student_count: number;
+  result_count: number;
+  result_student_count: number;
+  survey_response_count: number;
+  weekly: { week: number; cnt: number }[];
+}
+
+export interface SurveyOverviewQuestion {
+  text: string;
+  type: 'star_rating' | 'opinion_scale' | 'yes_no';
+  avg: number | null;
+  pct: number | null;
+}
+
+export interface SurveyOverviewForm {
+  id: string;
+  title: string;
+  phase: string | null;
+  response_count: number;
+  questions: SurveyOverviewQuestion[];
+}
+
+export interface ProjectClassOverview {
+  classes: ClassOverviewRow[];
+  surveys: SurveyOverviewForm[];
+}
+
+export async function fetchProjectClassOverview(projectId: string, schoolId: string | null = null): Promise<ProjectClassOverview> {
+  const { data, error } = await supabase.rpc('get_project_class_overview', { p_project_id: projectId, p_school_id: schoolId });
+  if (error) throw error;
+  const d = (data ?? {}) as Partial<ProjectClassOverview>;
+  return { classes: d.classes ?? [], surveys: d.surveys ?? [] };
+}
