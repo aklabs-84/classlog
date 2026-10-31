@@ -74,7 +74,7 @@ export async function setReviewStatus(ids: string[], status: ReviewStatus): Prom
 }
 
 // ── 보조강사(비로그인) 쪽 ──────────────────────────────────────────────
-export interface LinkInfo { class_name: string; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null; attendance_enabled?: boolean }
+export interface LinkInfo { class_name: string; weeks?: number[]; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null; attendance_enabled?: boolean }
 
 // 로그인해 있으면 그 정보를 함께 보내 서버가 '주강사'인지 확인하게 한다 (없으면 보조강사로 취급)
 async function buildHeaders(): Promise<Record<string, string>> {
@@ -140,11 +140,11 @@ export async function setFeatured(id: string, featured: boolean): Promise<void> 
 }
 
 // 영상 링크 한 개를 전한다. 실패하면 Error(사용자용 문구)
-export async function submitVideoLink(token: string, name: string, videoUrl: string): Promise<void> {
+export async function submitVideoLink(token: string, name: string, videoUrl: string, weekNumber?: number | null): Promise<void> {
   const res = await fetch(FN_URL, {
     method: 'POST',
     headers: { ...(await buildHeaders()), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, name, video_url: videoUrl }),
+    body: JSON.stringify({ token, name, video_url: videoUrl, week_number: weekNumber ?? undefined }),
   });
   if (!res.ok) {
     let code = '';

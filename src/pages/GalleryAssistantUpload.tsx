@@ -23,6 +23,7 @@ const GalleryAssistantUpload = () => {
   const [tab, setTab] = useState<'photo' | 'video'>('photo');
   const [mode, setMode] = useState<'upload' | 'attendance'>('upload');
   const [videoUrl, setVideoUrl] = useState('');
+  const [week, setWeek] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isTeacher = !!info?.teacher;
 
@@ -45,7 +46,7 @@ const GalleryAssistantUpload = () => {
     let ok = 0;
     for (const f of list) {
       try {
-        await uploadViaLink(token, trimmed, f);
+        await uploadViaLink(token, trimmed, f, week);
         ok++;
       } catch (e: any) {
         errs.push(e?.message ?? '올리지 못했어요.');
@@ -71,7 +72,7 @@ const GalleryAssistantUpload = () => {
     setBusy(true);
     setFailures([]);
     try {
-      await submitVideoLink(token, trimmed, videoUrl.trim());
+      await submitVideoLink(token, trimmed, videoUrl.trim(), week);
       setDoneCount(c => c + 1);
       setVideoUrl('');
       setToast({ ok: true, msg: '✅ 영상 링크를 전했어요' });
@@ -126,6 +127,19 @@ const GalleryAssistantUpload = () => {
                 className="w-full border border-gray-300 rounded-xl px-3 py-3 text-base outline-none focus:border-indigo-500"
               />
             </>
+          )}
+          {mode === 'upload' && (info?.weeks?.length ?? 0) > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">몇 주차 사진인가요?</label>
+              <select
+                value={week ?? ''}
+                onChange={e => setWeek(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-gray-300 rounded-xl px-3 py-3 text-base bg-white outline-none focus:border-indigo-500"
+              >
+                <option value="">주차 없음 (하루짜리 수업이에요)</option>
+                {info!.weeks!.map(w => <option key={w} value={w}>{w}주차</option>)}
+              </select>
+            </div>
           )}
           {info?.attendance_enabled && (
             <div className="grid grid-cols-2 gap-2 bg-indigo-50 rounded-xl p-1">

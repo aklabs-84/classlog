@@ -567,9 +567,15 @@ const ShareClassView = () => {
     [studentData, weekFilter]
   );
 
+  // 갤러리 주차 버튼은 사진에 실제로 붙은 주차만 (하루짜리 수업처럼 없으면 '전체'만 보임)
+  const galleryWeeks = useMemo(() =>
+    Array.from(new Set(galleryItems.map((g) => g.week_number).filter(Boolean) as number[])).sort((a, b) => a - b),
+    [galleryItems]
+  );
+  const galleryFilter: number | 'all' = weekFilter !== 'all' && galleryWeeks.includes(weekFilter) ? weekFilter : 'all';
   const filteredGallery = useMemo(() =>
-    weekFilter === 'all' ? galleryItems : galleryItems.filter((g) => g.week_number === weekFilter),
-    [galleryItems, weekFilter]
+    galleryFilter === 'all' ? galleryItems : galleryItems.filter((g) => g.week_number === galleryFilter),
+    [galleryItems, galleryFilter]
   );
 
   const studentById = useMemo(() => {
@@ -1275,18 +1281,18 @@ const ShareClassView = () => {
             <>
               {/* 주차 필터 + ZIP 다운로드 */}
               <div className="flex items-center gap-2 flex-wrap">
-                {allWeeks.length > 0 && (
+                {galleryWeeks.length > 0 && (
                   <>
                     <span className="text-[13px] font-black text-gray-500 mr-1">주차:</span>
                     <button
                       onClick={() => setWeekFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${galleryFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                     >
                       전체
                     </button>
-                    {allWeeks.map((w) => (
+                    {galleryWeeks.map((w) => (
                       <button key={w} onClick={() => setWeekFilter(w)}
-                        className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
+                        className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${galleryFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                       >
                         {w}주차
                       </button>

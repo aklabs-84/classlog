@@ -1286,7 +1286,10 @@ const SchoolProjectShareView = () => {
                       .map(s => ({ ...s, resultGroups: s.resultGroups.filter(rg => { const gid = isBundled(s.id, rg); return !(gid && bundledByGroup.has(gid)); }) }))
                       .filter(s => s.observations.length > 0 || s.resultGroups.length > 0
                         || !filteredStudents.find(o => o.id === s.id)!.resultGroups.some(rg => { const gid = isBundled(s.id, rg); return gid && bundledByGroup.has(gid); }));
-                    const filteredGallery = weekFilter === 'all' ? gallery : gallery.filter(g => g.week_number === weekFilter);
+                    // 갤러리 주차 버튼은 사진에 실제로 붙은 주차만 (하루짜리 수업처럼 없으면 '전체'만 보임)
+                    const galleryWeeks = Array.from(new Set(gallery.map(g => g.week_number).filter(Boolean) as number[])).sort((a, b) => a - b);
+                    const galleryFilter: number | 'all' = weekFilter !== 'all' && galleryWeeks.includes(weekFilter) ? weekFilter : 'all';
+                    const filteredGallery = galleryFilter === 'all' ? gallery : gallery.filter(g => g.week_number === galleryFilter);
 
                     const totalObsF = filteredStudents.reduce((a, s) => a + s.observations.length, 0);
                     const totalResultsF = filteredStudents.reduce((a, s) => a + s.resultGroups.length, 0);
@@ -1606,12 +1609,12 @@ const SchoolProjectShareView = () => {
                           {activeTab === 'gallery' && (
                             <>
                               <div className="flex items-center gap-2 flex-wrap">
-                                {allWeeks.length > 0 && (
+                                {galleryWeeks.length > 0 && (
                                   <>
                                     <span className="text-base font-black text-slate-600 mr-1">주차:</span>
-                                    <button onClick={() => setWeekFilter('all')} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === 'all' ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>전체</button>
-                                    {allWeeks.map(w => (
-                                      <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${weekFilter === w ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>{w}주차</button>
+                                    <button onClick={() => setWeekFilter('all')} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${galleryFilter === 'all' ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>전체</button>
+                                    {galleryWeeks.map(w => (
+                                      <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-sm font-black transition-all ${galleryFilter === w ? 'bg-[#0e1a33] text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-900'}`}>{w}주차</button>
                                     ))}
                                   </>
                                 )}
