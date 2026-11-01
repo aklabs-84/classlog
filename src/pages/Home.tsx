@@ -262,16 +262,16 @@ export default function Home() {
         </div>
       )}
 
-      <nav aria-label="수업 준비 한 길" className="home-rise -mt-6 mb-10 flex flex-wrap items-center gap-x-2 gap-y-2 text-[15px]">
-        <span className="font-bold text-on-surface-variant mr-1">수업 준비 한 길</span>
+      <nav aria-label="수업 준비 한 길" className="home-rise -mt-6 mb-10 grid grid-cols-4 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-2 text-[15px]">
+        <span className="col-span-4 font-bold text-on-surface-variant sm:mr-1">수업 준비 한 길</span>
         {FLOW_STEPS.map((st, i) => (
-          <span key={st.label} className="flex items-center gap-2">
+          <span key={st.label} className="flex items-center gap-2 min-w-0">
             <button onClick={() => navigate(st.to, { state: { fromHome: true } })}
-              className="flex items-center gap-1.5 bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-full pl-2 pr-3.5 py-1.5 text-on-surface hover:border-primary hover:text-primary transition-colors">
-              <span className="w-5 h-5 grid place-items-center rounded-full bg-primary-container text-primary text-[13px] font-bold">{i + 1}</span>
-              {st.label}
+              className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-1 sm:gap-1.5 bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-2xl sm:rounded-full px-1 sm:pl-2 sm:pr-3.5 py-2.5 sm:py-1.5 text-on-surface text-center sm:text-left text-[14px] sm:text-[15px] leading-tight hover:border-primary hover:text-primary transition-colors">
+              <span className="w-6 h-6 sm:w-5 sm:h-5 shrink-0 grid place-items-center rounded-full bg-primary-container text-primary text-[13px] font-bold">{i + 1}</span>
+              <span className="[word-break:keep-all]">{st.label}</span>
             </button>
-            {i < FLOW_STEPS.length - 1 && <ArrowRight size={16} className="text-on-surface-variant" />}
+            {i < FLOW_STEPS.length - 1 && <ArrowRight size={16} className="hidden sm:block text-on-surface-variant" />}
           </span>
         ))}
       </nav>
