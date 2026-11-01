@@ -682,9 +682,9 @@ const SchoolProjectShareView = () => {
             const finalGroup = modalStudent.resultGroups.find(g => marks.get(g.items[0].id) === 'final');
             const orderedGroups = [...modalStudent.resultGroups].sort((a, b) => (marks.get(b.items[0].id) === 'final' ? 1 : 0) - (marks.get(a.items[0].id) === 'final' ? 1 : 0));
             return (
-            <div className="grid gap-3 md:grid-cols-2 items-start">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 items-start">
               {finalGroup && (
-                <div className="md:col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
+                <div className="md:col-span-2 min-w-0 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900 [overflow-wrap:anywhere]">
                   ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(finalGroup.created_at)}</b> 제출입니다. 맨 앞(왼쪽 위) 카드이고, 나머지는 「이전 제출」이에요.
                 </div>
               )}
@@ -710,7 +710,7 @@ const SchoolProjectShareView = () => {
                 return (
                   <div key={group.groupId}
                     onClick={() => setDetailGroup({ group, studentName: modalStudent.full_name, mark, finalGroup: mark === 'older' ? finalGroup : undefined })}
-                    className={`bg-white rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all group ${mark === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : mark === 'older' ? 'border-gray-200 opacity-70' : 'border-emerald-100 hover:border-emerald-300'}`}>
+                    className={`min-w-0 bg-white rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all group ${mark === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : mark === 'older' ? 'border-gray-200 opacity-70' : 'border-emerald-100 hover:border-emerald-300'}`}>
                     <div className="flex items-center gap-1.5 flex-wrap mb-3">
                       {mark === 'final' && <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-white">⭐ 최종 제출</span>}
                       {mark === 'older' && <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">이전 제출</span>}
@@ -1783,7 +1783,7 @@ const SchoolProjectShareView = () => {
                                         onKeyDown={e => { if (has && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setModalStudent(c); } }}
                                         className={`flex items-center gap-2 px-4 py-3 ${has ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'}`}
                                       >
-                                        <div className="w-24 sm:w-40 shrink-0 min-w-0">
+                                        <div className="flex-1 min-w-0 sm:flex-none sm:w-40 sm:shrink-0">
                                           <p className="font-black text-slate-900 text-lg truncate">{isGroup ? `👥 ${c.full_name}` : c.full_name}</p>
                                           {isGroup && c.memberNames && c.memberNames.length > 0 && (
                                             <p className="text-[13px] font-bold text-slate-400 truncate">{c.memberNames.join(' · ')}</p>
@@ -1791,7 +1791,7 @@ const SchoolProjectShareView = () => {
                                           {fresh && <span className="inline-block text-[13px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white">🆕 방금</span>}
                                           {!has && <span className="text-[13px] font-bold text-slate-400">미제출</span>}
                                         </div>
-                                        <div className="flex-1 min-w-0 flex flex-wrap gap-1.5">
+                                        <div className="flex-1 min-w-0 hidden sm:flex flex-wrap gap-1.5">
                                           {[...kinds.entries()].map(([t, n]) => (
                                             <span key={t} className={`text-[13px] font-bold px-2.5 py-1 rounded-lg ${BADGE[t]?.color || 'text-slate-600 bg-slate-100'}`}>{BADGE[t]?.icon} {BADGE[t]?.label || t} {n}</span>
                                           ))}
@@ -1805,7 +1805,7 @@ const SchoolProjectShareView = () => {
                                           </div>
                                         )}
                                         <span className={`w-10 text-right shrink-0 text-lg font-black ${has ? 'text-slate-800' : 'text-slate-300'}`}>{total}</span>
-                                        <span className="shrink-0 w-[5.5rem] flex justify-end print:hidden" onClick={e => e.stopPropagation()}>
+                                        <span className="shrink-0 w-[8rem] flex justify-end print:hidden" onClick={e => e.stopPropagation()}>
                                           <QuickOpenLink target={quickOpenFor(c)} compact />
                                         </span>
                                         <ChevronRight size={18} className={`shrink-0 ${has ? 'text-slate-400' : 'text-transparent'}`} />
@@ -1817,14 +1817,13 @@ const SchoolProjectShareView = () => {
                                   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                                     {allWeeks.length > 0 && (
                                       <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[13px] font-black text-slate-500">
-                                        <span className="w-24 sm:w-40 shrink-0">학생·조</span>
+                                        <span className="flex-1 min-w-0 sm:flex-none sm:w-40 sm:shrink-0">학생·조</span>
                                         <span className="flex-1 min-w-0 hidden sm:block">낸 작품</span>
-                                        <span className="flex-1 sm:hidden" />
                                         <div className="hidden sm:flex gap-1 shrink-0">
                                           {allWeeks.map(w => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                                         </div>
                                         <span className="w-10 text-right shrink-0">합계</span>
-                                        <span className="w-[5.5rem] shrink-0 print:hidden" />
+                                        <span className="w-[8rem] shrink-0 print:hidden" />
                                         <span className="w-[18px] shrink-0" />
                                       </div>
                                     )}

@@ -41,8 +41,8 @@ const FullScreenView = ({ title, subtitle, icon, onClose, z = 60, onBackToList, 
           {subtitle && <p className="text-[13px] text-gray-500 truncate">{subtitle}</p>}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-4">{children}</div>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-4 min-w-0">{children}</div>
       </div>
     </div>,
     document.body

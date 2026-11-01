@@ -1151,15 +1151,15 @@ const Dashboard = () => {
         {/* 학교 프로젝트 섹션 - Pro/School/Admin 요금제만 표시 */}
         {['pro', 'school', 'admin'].includes(profile?.plan ?? 'free') && (
         <div className="col-span-12 space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-2">
-              <School size={20} className="text-primary" />
-              <h2 className="text-[26px] font-bold text-on-surface">학교 프로젝트</h2>
-              <span className="text-[13px] font-semibold bg-primary-container text-primary px-2.5 py-0.5 rounded-full">PRO</span>
+          <div className="flex items-center justify-between gap-2 px-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <School size={20} className="text-primary shrink-0" />
+              <h2 className="text-[22px] sm:text-[26px] font-bold text-on-surface whitespace-nowrap">학교 프로젝트</h2>
+              <span className="text-[13px] font-semibold bg-primary-container text-primary px-2.5 py-0.5 rounded-full shrink-0">PRO</span>
             </div>
             <button
               onClick={() => navigate('/school-projects/new')}
-              className="flex items-center gap-1.5 text-[14px] font-semibold text-primary bg-primary-container hover:bg-primary-container/70 px-3.5 py-2 rounded-lg transition-colors"
+              className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-[14px] font-semibold text-primary bg-primary-container hover:bg-primary-container/70 px-3.5 py-2 rounded-lg transition-colors"
             >
               <Plus size={14} /> 새 프로젝트
             </button>

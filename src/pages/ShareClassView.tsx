@@ -1973,12 +1973,12 @@ const ShareClassView = () => {
                   )}
 
                   {subTab === 'results' && stFinal && (
-                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900 [overflow-wrap:anywhere]">
                       ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(stFinal.created_at)}</b> 제출입니다. 맨 앞(왼쪽 위) 카드이고, 나머지는 「이전 제출」이에요.
                     </div>
                   )}
                   {subTab === 'results' && (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-start">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-start">
                   {pagedResults.map((bd) => (
                     <BundleCard
                       key={bd.id}
@@ -2047,11 +2047,11 @@ const ShareClassView = () => {
                     <p className="text-[13px] font-black uppercase tracking-widest text-gray-400 mb-2">📁 조별 결과물 {gBundles.length}건</p>
                     {gBundles.length === 0 && <p className="text-[13px] font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
                     {(() => { const gf = gBundles.find((x) => finalMarks.get(x.id) === 'final'); return gf ? (
-                      <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
+                      <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900 [overflow-wrap:anywhere]">
                         ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(gf.created_at)}</b> 제출입니다. 맨 앞(왼쪽 위) 카드이고, 나머지는 「이전 제출」이에요.
                       </div>
                     ) : null; })()}
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-start">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-start">
                       {[...gBundles].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((bd) => (
                         <BundleCard
                           key={bd.id}
