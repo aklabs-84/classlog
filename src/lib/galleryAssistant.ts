@@ -124,7 +124,9 @@ export async function uploadViaLink(token: string, name: string, file: File, wee
   form.append('token', token);
   form.append('name', name);
   if (weekNumber != null) form.append('week_number', String(weekNumber));
-  form.append('file', new File([blob], src.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' }));
+  const outType = blob.type === 'image/jpeg' || blob.type === 'image/png' ? blob.type : 'image/webp';
+  const outExt = outType === 'image/jpeg' ? '.jpg' : outType === 'image/png' ? '.png' : '.webp';
+  form.append('file', new File([blob], src.name.replace(/\.\w+$/, '') + outExt, { type: outType }));
 
   const res = await fetch(FN_URL, { method: 'POST', headers: await buildHeaders(), body: form });
   if (!res.ok) {

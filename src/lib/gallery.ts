@@ -319,18 +319,18 @@ export function driveItemToPublicGalleryItem(item: DriveFolderApiItem): PublicGa
   };
 }
 
-// ── 이미지 → WebP 변환 + 리사이즈 (최대 1920x1080) ────────────────────────
+// ── 이미지 → WebP 변환 + 리사이즈 (긴 변 최대 1920 — 가로·세로 사진 모두 같은 선명도) ──
 export async function compressImage(file: File, quality = 0.85): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const MAX_W = 1920;
-      const MAX_H = 1080;
+      const MAX_SIDE = 1920;
       let { width, height } = img;
-      if (width > MAX_W || height > MAX_H) {
-        const ratio = Math.min(MAX_W / width, MAX_H / height);
+      const resized = Math.max(width, height) > MAX_SIDE;
+      if (resized) {
+        const ratio = MAX_SIDE / Math.max(width, height);
         width = Math.round(width * ratio);
         height = Math.round(height * ratio);
       }
@@ -343,6 +343,10 @@ export async function compressImage(file: File, quality = 0.85): Promise<Blob> {
       canvas.toBlob(
         (blob) => {
           if (!blob) return reject(new Error('Compression failed'));
+          // 줄이지 않았는데 오히려 커졌다면 원본(웹에서 바로 쓰는 형식일 때만)을 그대로 쓴다
+          if (!resized && blob.size >= file.size && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            return resolve(file);
+          }
           resolve(blob);
         },
         'image/webp',
@@ -371,12 +375,14 @@ export async function uploadGalleryItem(
 
   if (!sourceFile.type.startsWith('image/')) throw new Error('이미지 파일만 업로드할 수 있습니다.');
 
-  const path = `${teacherId}/${classId}/${Date.now()}.webp`;
   const uploadBlob = await compressImage(sourceFile);
+  const ext = uploadBlob.type === 'image/jpeg' ? 'jpg' : uploadBlob.type === 'image/png' ? 'png' : 'webp';
+  const path = `${teacherId}/${classId}/${Date.now()}.${ext}`;
 
+  // 파일 이름이 매번 새로 만들어져 내용이 바뀌지 않으므로 브라우저가 1년간 기억해도 안전 (재다운로드 = 데이터 사용량 절감)
   const { error: uploadError } = await supabase.storage
     .from('class-gallery')
-    .upload(path, uploadBlob, { contentType: 'image/webp' });
+    .upload(path, uploadBlob, { contentType: uploadBlob.type || 'image/webp', cacheControl: '31536000' });
   if (uploadError) throw uploadError;
 
   const { data: urlData } = supabase.storage.from('class-gallery').getPublicUrl(path);

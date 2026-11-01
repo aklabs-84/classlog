@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import JSZip from 'jszip';
@@ -34,19 +34,21 @@ import {
   File as FileIcon,
   Sparkles,
   BarChart2,
+  Home,
 } from 'lucide-react';
 import ResultFileActions from '../components/common/ResultFileActions';
 import PercentLoader from '../components/common/PercentLoader';
 import { createPortal } from 'react-dom';
 import FullScreenView from '../components/common/FullScreenView';
 import { computeFinalMarks } from '../lib/finalSubmission';
-import LinkSaveTip from '../components/common/LinkSaveTip';
+import ResultLinks from '../components/common/ResultLinks';
+import { BoardSearchBox } from '../components/board/BoardLiveBits';
+import { RECENT_MS, useNow, agoLabel } from '../lib/boardLive';
 import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
-import ResultThumb, { pickThumb } from '../components/common/ResultThumb';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
-  AttendanceDonutChart, MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
+  MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
 } from '../components/share/ShareCharts';
 import { appToast } from '../lib/appDialog';
 
@@ -134,6 +136,13 @@ const bundleRows = (rows: ResultRow[]): ResultBundle[] => {
   })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };
 
+/** 제출 묶음을 종류별 개수로 요약 (글 2 · 사진 3 …) */
+const kindCounts = (bundles: ResultBundle[]): [string, number][] => {
+  const m = new Map<string, number>();
+  bundles.forEach((b) => b.items.forEach((x) => { if (x.result_type) m.set(x.result_type, (m.get(x.result_type) || 0) + 1); }));
+  return [...m.entries()];
+};
+
 const bundleMarks = (bundles: ResultBundle[]) =>
   computeFinalMarks(bundles.map((b) => ({ id: b.id, week: b.week_number, title: b.title, created_at: b.created_at })));
 
@@ -156,25 +165,63 @@ const quickOpenOf = (rows: ResultRow[]) => {
   return pickQuickOpen(sources, marks);
 };
 
-/** 목록 카드의 결과 미리보기 (사진 또는 HTML 파일) */
-const thumbOf = (rows: ResultRow[]) => {
-  const { sources, marks } = markedSources(rows);
-  return pickThumb(sources, marks);
-};
-
 /** 제출 1건을 카드 한 장으로 보여준다 (글 + 사진 + 링크 + 파일 모두) */
-const BundleCard = ({ bundle, mark, extraBadges, onZoom }: {
+type BundleCardProps = {
   bundle: ResultBundle;
   mark?: 'final' | 'older';
   extraBadges?: ReactNode;
   onZoom: (urls: string[], names: string[]) => void;
+};
+
+/** 목록에서는 긴 글을 앞부분만 보여 카드 높이를 맞추고, 누르면 큰 창에서 전체를 보여 준다 */
+const BundleCard = (props: BundleCardProps) => {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+  return (
+    <>
+      <BundleCardBody {...props} onOpenFull={() => setOpen(true)} />
+      {open && createPortal(
+        <div className="fixed inset-0 z-[250] bg-black/50 flex items-center justify-center p-3 sm:p-6" onClick={() => setOpen(false)}>
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex justify-end bg-white/95 px-3 pt-3">
+              <button type="button" onClick={() => setOpen(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-sm">
+                <X size={16} /> 닫기
+              </button>
+            </div>
+            <div className="px-3 pb-3">
+              <BundleCardBody {...props} expanded />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
+const BundleCardBody = ({ bundle, mark, extraBadges, onZoom, expanded, onOpenFull }: BundleCardProps & {
+  expanded?: boolean;
+  onOpenFull?: () => void;
 }) => {
   const { items } = bundle;
+  const textRef = useRef<HTMLDivElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el || expanded) return;
+    setClipped(el.scrollHeight > el.clientHeight + 2);
+  }, [bundle, expanded]);
   const types = [...new Set(items.map((x) => x.result_type))];
   const imgs = [...new Set(items.flatMap((x) => x.image_urls || []))];
   const imgNames = imgs.map((_, i) => `${bundle.title || '결과물'}-${i + 1}.webp`);
+  const linkUrls = items.map((x) => x.link_url).filter(Boolean) as string[];
   return (
-    <div className={`bg-white rounded-xl border p-4 ${mark === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${mark === 'older' ? 'opacity-80' : ''}`}>
+    <div className={`min-w-0 bg-white rounded-xl border p-4 ${mark === 'final' ? 'border-amber-300 ring-2 ring-amber-200' : 'border-emerald-100'} ${mark === 'older' ? 'opacity-80' : ''}`}>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-[13px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
         {mark === 'final' && <span className="text-[13px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
@@ -191,9 +238,24 @@ const BundleCard = ({ bundle, mark, extraBadges, onZoom }: {
         <span className="text-[13px] font-bold text-gray-400 ml-auto">{fmtTime(bundle.created_at)}</span>
       </div>
       {bundle.title && <p className="text-base font-black text-gray-800 mb-1.5">{bundle.title}</p>}
-      {items.filter((x) => x.text_content && x.result_type !== 'link' && x.result_type !== 'file').map((x) => (
-        <p key={`t${x.id}`} className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{x.text_content}</p>
-      ))}
+      <div className="relative">
+        <div ref={textRef} className={expanded ? '' : 'max-h-52 overflow-hidden'}>
+          {items.filter((x) => x.text_content && x.result_type !== 'link' && x.result_type !== 'file' && !linkUrls.includes(x.text_content.trim())).map((x) => (
+            <p key={`t${x.id}`} className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{x.text_content}</p>
+          ))}
+        </div>
+        {!expanded && clipped && (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white to-transparent" />
+            <button type="button" onClick={onOpenFull} className="absolute inset-0 cursor-pointer" aria-label="전체 내용 보기" />
+          </>
+        )}
+      </div>
+      {!expanded && clipped && (
+        <button type="button" onClick={onOpenFull} className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 py-2 text-[13px] font-black text-gray-600">
+          📖 전체 내용 보기
+        </button>
+      )}
       {imgs.length > 0 && (
         <div className="mt-2 relative group cursor-pointer" onClick={() => onZoom(imgs, imgNames)}>
           <img src={imgs[0]} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
@@ -205,14 +267,7 @@ const BundleCard = ({ bundle, mark, extraBadges, onZoom }: {
           </div>
         </div>
       )}
-      {items.filter((x) => x.link_url).map((x) => (
-        <div key={`l${x.id}`}>
-          <a href={x.link_url as string} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-base font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-            <ExternalLink size={14} /> 링크 열기
-          </a>
-          <LinkSaveTip />
-        </div>
-      ))}
+      <ResultLinks urls={linkUrls} />
       {items.filter((x) => x.file_url).map((x) => (
         <ResultFileActions key={`f${x.id}`} url={x.file_url as string} displayName={x.display_name} storagePath={x.storage_path} tone="emerald" size="sm" />
       ))}
@@ -271,6 +326,8 @@ interface StudentData {
   obs: ObsRow[];
   results: ResultRow[];
 }
+
+type TabKey = 'overview' | 'results' | 'gallery' | 'setech' | 'survey';
 
 interface GalleryItem {
   id: string;
@@ -340,17 +397,19 @@ const ShareClassView = () => {
   const [surveyResults, setSurveyResults] = useState<{ formTitle: string; phase: string | null; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }[]>([]);
 
   // ── UI 상태 ────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [modalStudentId, setModalStudentId] = useState<string | null>(null);
   const [studentSubTab, setStudentSubTab] = useState<Record<string, 'obs' | 'results'>>({});
   const [obsPageByStudent, setObsPageByStudent] = useState<Record<string, number>>({});
   const [resultsPageByStudent, setResultsPageByStudent] = useState<Record<string, number>>({});
   const OBS_PAGE_SIZE = 1;
-  const RESULTS_PAGE_SIZE = 1;
+  const RESULTS_PAGE_SIZE = 6; // 한 줄 3장 × 2줄
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [resultsViewMode, setResultsViewMode] = useState<'student' | 'group'>('student');
+  const [resultSearch, setResultSearch] = useState('');
   const [modalGroupId, setModalGroupId] = useState<string | null>(null);
+  const [galleryShown, setGalleryShown] = useState(40);
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
 
   // 확대 보기: 키보드 ←/→ 로 사진 넘기기, Esc 로 닫기
@@ -615,13 +674,69 @@ const ShareClassView = () => {
   }, [filteredData]);
 
   // 제출한 학생·조만 목록에 보여 준다 (미제출 인원은 숫자로만 안내)
-  const submittedData = useMemo(() => filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0), [filteredData]);
-  const submittedGroups = useMemo(
-    () => groupsWithMembers.filter(({ group }) => (groupResultsMap[group.id] || []).length > 0),
-    [groupsWithMembers, groupResultsMap]
+  // 검색어: 띄어쓰기는 무시하고, 여러 단어는 모두 들어 있어야 찾아진다 (이름·조 이름·제목·내용)
+  const searchWords = useMemo(
+    () => resultSearch.trim().split(/\s+/).map((w) => w.replace(/\s+/g, '').toLowerCase()).filter(Boolean),
+    [resultSearch]
   );
+  const matchesSearch = useCallback((parts: (string | null | undefined)[]) => {
+    if (searchWords.length === 0) return true;
+    const text = parts.filter(Boolean).join(' ').replace(/\s+/g, '').toLowerCase();
+    return searchWords.every((w) => text.includes(w));
+  }, [searchWords]);
+  const resultTextParts = (r: ResultRow) => [r.title, r.text_content, r.display_name, r.link_url];
+  // 이름이 맞는 사람(조)이 있으면 그들만, 없을 때만 제목·내용에서 찾는다
+  const submittedData = useMemo(() => {
+    const has = filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0);
+    if (searchWords.length === 0) return has;
+    const byName = has.filter((sd) => matchesSearch([sd.student.full_name]));
+    if (byName.length > 0) return byName;
+    return has.filter((sd) => matchesSearch([
+      ...sd.obs.flatMap((o) => [o.activity_name, o.content]),
+      ...sd.results.flatMap(resultTextParts),
+    ]));
+  }, [filteredData, matchesSearch, searchWords]);
+  const submittedGroups = useMemo(() => {
+    const has = groupsWithMembers.filter(({ group }) => (groupResultsMap[group.id] || []).length > 0);
+    if (searchWords.length === 0) return has;
+    const byName = has.filter(({ group, students }) => matchesSearch([group.name, ...students.map((st) => st.full_name)]));
+    if (byName.length > 0) return byName;
+    return has.filter(({ group }) => matchesSearch((groupResultsMap[group.id] || []).flatMap(resultTextParts)));
+  }, [groupsWithMembers, groupResultsMap, matchesSearch, searchWords]);
+  // 명단 + 주차 표: 미제출 학생도 흐리게 함께 보여 준다 (검색은 이름 먼저, 없으면 제출 내용에서)
+  const nowTick = useNow();
+  const rosterRows = useMemo(() => {
+    let base = filteredData;
+    if (searchWords.length > 0) {
+      const byName = filteredData.filter((sd) => matchesSearch([sd.student.full_name]));
+      base = byName.length > 0 ? byName : submittedData;
+    }
+    return base.map((sd) => {
+      const bundles = bundleRows(sd.results);
+      const latest = [...sd.obs.map((o) => o.created_at), ...bundles.map((b) => b.created_at)].sort().pop() || '';
+      const perWeek: Record<number, number> = {};
+      bundles.forEach((b) => { if (b.week_number) perWeek[b.week_number] = (perWeek[b.week_number] || 0) + 1; });
+      sd.obs.forEach((o) => { if (o.week_number) perWeek[o.week_number] = (perWeek[o.week_number] || 0) + 1; });
+      return { ...sd, bundles, latest, perWeek, total: bundles.length + sd.obs.length };
+    });
+  }, [filteredData, searchWords, matchesSearch, submittedData]);
+  const groupRows = useMemo(() => {
+    let base = groupsWithMembers;
+    if (searchWords.length > 0) {
+      const byName = groupsWithMembers.filter(({ group, students }) => matchesSearch([group.name, ...students.map((st) => st.full_name)]));
+      base = byName.length > 0 ? byName : submittedGroups;
+    }
+    return base.map(({ group, students }) => {
+      const results = groupResultsMap[group.id] || [];
+      const bundles = bundleRows(results);
+      const latest = bundles.map((b) => b.created_at).sort().pop() || '';
+      const perWeek: Record<number, number> = {};
+      bundles.forEach((b) => { if (b.week_number) perWeek[b.week_number] = (perWeek[b.week_number] || 0) + 1; });
+      return { group, students, results, bundles, latest, perWeek, total: bundles.length };
+    });
+  }, [groupsWithMembers, groupResultsMap, submittedGroups, searchWords, matchesSearch]);
   const totalObs = filteredData.reduce((a, sd) => a + sd.obs.length, 0);
-  const totalResults = filteredData.reduce((a, sd) => a + sd.results.length, 0);
+  const totalResults =filteredData.reduce((a, sd) => a + sd.results.length, 0);
   const activeCount = filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0).length;
   const totalObsAll = studentData.reduce((a, sd) => a + sd.obs.length, 0);
 
@@ -629,7 +744,7 @@ const ShareClassView = () => {
   const hasResultsTab = studentData.some((sd) => sd.results.length > 0 || sd.obs.length > 0);
   const hasSetechTab = studentData.some((sd) => sd.obs.length > 0) || Object.values(evalMap).some((ev) => !!ev?.setech_content);
   const availableTabs = useMemo(() => {
-    const t: ('results' | 'gallery' | 'setech' | 'survey')[] = [];
+    const t: TabKey[] = ['overview'];
     if (hasResultsTab) t.push('results');
     t.push('gallery');
     if (hasSetechTab) t.push('setech');
@@ -639,6 +754,50 @@ const ShareClassView = () => {
   useEffect(() => {
     if (!dataLoading && !availableTabs.includes(activeTab)) setActiveTab(availableTabs[0]);
   }, [availableTabs, activeTab, dataLoading]);
+
+  const jumpTab = (key: TabKey) => {
+    setActiveTab(key);
+    document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  };
+  // 한눈에 보기: 이미 받아 둔 데이터로만 계산 (새 요청 없음)
+  const overview = useMemo(() => {
+    const weekMap = new Map<number, { count: number; people: Set<string> }>();
+    let lastAt = '';
+    let submitters = 0;
+    const recent: { id: string; name: string; at: string }[] = [];
+    const now = Date.now();
+    for (const sd of studentData) {
+      const bundles = bundleRows(sd.results);
+      let latest = '';
+      const bump = (iso: string) => { if (iso > latest) latest = iso; };
+      bundles.forEach((b) => {
+        bump(b.created_at);
+        if (b.week_number) {
+          const w = weekMap.get(b.week_number) ?? { count: 0, people: new Set<string>() };
+          w.count += 1; w.people.add(sd.student.id); weekMap.set(b.week_number, w);
+        }
+      });
+      sd.obs.forEach((o) => {
+        bump(o.created_at);
+        if (o.week_number) {
+          const w = weekMap.get(o.week_number) ?? { count: 0, people: new Set<string>() };
+          w.count += 1; w.people.add(sd.student.id); weekMap.set(o.week_number, w);
+        }
+      });
+      if (latest) {
+        submitters += 1;
+        if (latest > lastAt) lastAt = latest;
+        if (now - new Date(latest).getTime() < RECENT_MS) recent.push({ id: sd.student.id, name: sd.student.full_name, at: latest });
+      }
+    }
+    recent.sort((x, y) => (x.at < y.at ? 1 : -1));
+    const weeks = [...weekMap.entries()].sort((x, y) => x[0] - y[0]).map(([w, v]) => ({ week: w, count: v.count, people: v.people.size }));
+    return { weeks, lastAt, submitters, recent };
+  }, [studentData, nowTick]);
+  const overviewImgs = useMemo(
+    () => galleryItems.filter((g) => g.file_type === 'image').sort((x, y) => (x.created_at < y.created_at ? 1 : -1)),
+    [galleryItems]
+  );
 
   const spotlightQuotes = useMemo(() => {
     const byStudent = new Map<string, { student: StudentRow; content: string }[]>();
@@ -988,8 +1147,9 @@ const ShareClassView = () => {
         {/* 탭 바 + 다운로드 */}
         <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-2xl p-1" role="tablist">
               {[
+                { key: 'overview', label: '한눈에 보기', icon: Home },
                 ...(hasResultsTab ? [{ key: 'results', label: '결과 확인', icon: FileText }] : []),
                 { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
                 ...(hasSetechTab ? [{ key: 'setech', label: '기록', icon: BookOpen }] : []),
@@ -997,12 +1157,14 @@ const ShareClassView = () => {
               ].map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
-                  onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech' | 'survey')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
-                    activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                  onClick={() => setActiveTab(key as TabKey)}
+                  role="tab"
+                  aria-selected={activeTab === key}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[15px] font-black whitespace-nowrap transition-all ${
+                    activeTab === key ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-800 hover:bg-white'
                   }`}
                 >
-                  <Icon size={13} />
+                  <Icon size={16} />
                   {label}
                 </button>
               ))}
@@ -1036,39 +1198,93 @@ const ShareClassView = () => {
       ) : (
         <main id="main-content" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-          {/* ── 결과 확인 탭 ── */}
-          {activeTab === 'results' && (
+          {/* ── 한눈에 보기 탭 ── */}
+          {activeTab === 'overview' && (
             <>
+              {/* 한 줄 현황 */}
+              <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-[17px] font-black text-gray-900">
+                  {studentData.length}명 중 <span className="text-indigo-600">{overview.submitters}명</span>이 <span className="text-indigo-600">{totalResults + totalObsAll}건</span>을 제출했어요
+                </p>
+                {overview.lastAt && <span className="text-[14px] font-bold text-gray-500">마지막 제출 {agoLabel(overview.lastAt, nowTick)}</span>}
+              </div>
+
+              {/* 방금 제출한 친구 */}
+              {overview.recent.length > 0 && (
+                <div className="rounded-2xl border-2 border-rose-200 bg-rose-50 px-4 py-3 print:hidden">
+                  <p className="text-[14px] font-black text-rose-700 mb-2">🆕 방금 제출한 친구 {overview.recent.length}명 · 눌러서 바로 보기</p>
+                  <div className="flex flex-wrap gap-2">
+                    {overview.recent.slice(0, 12).map((r) => (
+                      <button key={r.id} type="button" onClick={() => setModalStudentId(r.id)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-rose-200 text-[14px] font-bold text-gray-700 hover:border-rose-400 hover:bg-rose-100/60 transition-colors">
+                        <span className="font-black">{r.name}</span>
+                        <span className="text-rose-600">{agoLabel(r.at, nowTick)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 주차별 제출 */}
+              {overview.weeks.length > 0 && (() => {
+                const max = Math.max(...overview.weeks.map((w) => w.count), 1);
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[15px] font-black text-gray-900">주차별 제출</p>
+                      <button onClick={() => jumpTab('results')} className="text-[14px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                        결과 자세히 보기 <ArrowRight size={14} />
+                      </button>
+                    </div>
+                    <ul className="space-y-2">
+                      {overview.weeks.map((w) => (
+                        <li key={w.week} className="flex items-center gap-3">
+                          <span className="w-12 text-[14px] font-black text-gray-600 shrink-0">{w.week}주차</span>
+                          <div className="flex-1 h-3 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${(w.count / max) * 100}%` }} />
+                          </div>
+                          <span className="w-28 text-right text-[14px] font-bold text-gray-600 tabular-nums shrink-0">
+                            <b className="text-gray-900">{w.count}건</b> · {w.people}명
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+
               {/* 결과물 스냅샷 카드 (랜덤 3개 스포트라이트 슬라이드) */}
               {snapshotResults.length > 0 && (() => {
                 const { student, result: r } = snapshotResults[snapshotIndex];
                 const url = r.link_url || r.image_url || r.file_url || null;
+                const excerpt = (r.text_content || '').trim();
+                const heading = r.title || (excerpt ? excerpt.slice(0, 40) : '제목 없는 결과물');
+                const badge = RESULT_TYPE_BADGE[r.result_type];
                 const cardInner = (
                   <>
-                    <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-white/70 border border-indigo-100 flex items-center justify-center shrink-0">
                       {r.image_url
-                        ? <ImageIcon size={18} className="text-violet-500" />
+                        ? <img src={r.image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
                         : r.link_url
-                          ? <Link2 size={18} className="text-violet-500" />
+                          ? <Link2 size={26} className="text-indigo-400" />
                           : r.file_url
-                            ? <FileIcon size={18} className="text-violet-500" />
-                            : <AlignLeft size={18} className="text-violet-500" />}
+                            ? <FileIcon size={26} className="text-indigo-400" />
+                            : <AlignLeft size={26} className="text-indigo-400" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-gray-900 text-base truncate">{r.title || '제목 없음'}</p>
-                      <p className="text-[13px] text-gray-400 font-semibold truncate">
-                        {student.full_name} · {new Date(r.created_at).toLocaleDateString('ko-KR')}
+                      <p className="text-[13px] font-black text-indigo-500 mb-0.5">✨ 이런 결과가 올라왔어요</p>
+                      <p className="font-black text-gray-900 text-lg truncate">{heading}</p>
+                      {excerpt && r.title && <p className="text-[14px] text-gray-500 font-semibold line-clamp-1">{excerpt}</p>}
+                      <p className="text-[13px] text-gray-400 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span className="text-gray-600">{student.full_name}</span>
+                        <span>{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                        {badge && <span className={`flex items-center gap-1 font-black px-2 py-0.5 rounded-full ${badge.color}`}>{badge.icon}{badge.label}</span>}
                       </p>
                     </div>
-                    {RESULT_TYPE_BADGE[r.result_type] && (
-                      <span className={`shrink-0 flex items-center gap-1 text-[13px] font-black px-2.5 py-1 rounded-full ${RESULT_TYPE_BADGE[r.result_type].color}`}>
-                        {RESULT_TYPE_BADGE[r.result_type].icon}
-                        {RESULT_TYPE_BADGE[r.result_type].label}
-                      </span>
-                    )}
-                    {url && <ExternalLink size={14} className="text-gray-300 shrink-0" />}
+                    {url && <ExternalLink size={16} className="text-indigo-300 shrink-0" />}
                   </>
                 );
+                const shell = 'flex items-center gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-white p-4';
                 return (
                   <div className="print:hidden">
                     <AnimatePresence mode="wait">
@@ -1080,18 +1296,11 @@ const ShareClassView = () => {
                         transition={{ duration: 0.4, ease: 'easeOut' }}
                       >
                         {url ? (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 hover:border-violet-200 hover:shadow-sm transition-all"
-                          >
+                          <a href={url} target="_blank" rel="noopener noreferrer" className={`${shell} hover:border-indigo-300 hover:shadow-sm transition-all`}>
                             {cardInner}
                           </a>
                         ) : (
-                          <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4">
-                            {cardInner}
-                          </div>
+                          <div className={shell}>{cardInner}</div>
                         )}
                       </motion.div>
                     </AnimatePresence>
@@ -1102,7 +1311,7 @@ const ShareClassView = () => {
                             key={i}
                             onClick={() => setSnapshotIndex(i)}
                             aria-label={`${i + 1}번째 결과물 보기`}
-                            className={`h-1.5 rounded-full transition-all ${i === snapshotIndex ? 'w-6 bg-violet-500' : 'w-1.5 bg-violet-200 hover:bg-violet-300'}`}
+                            className={`h-1.5 rounded-full transition-all ${i === snapshotIndex ? 'w-6 bg-indigo-500' : 'w-1.5 bg-indigo-200 hover:bg-indigo-300'}`}
                           />
                         ))}
                       </div>
@@ -1112,13 +1321,74 @@ const ShareClassView = () => {
               })()}
 
               {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
-              {attendanceSummary && attendanceSummary.total > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 print:hidden">
-                  <p className="text-[13px] font-black text-gray-500 uppercase tracking-widest mb-3">출석 요약</p>
-                  <AttendanceDonutChart total={attendanceSummary.total} byStatus={attendanceSummary.byStatus} />
+              {attendanceSummary && attendanceSummary.total > 0 && (() => {
+                const META: [string, string, string][] = [
+                  ['present', '출석', '#10b981'], ['late', '지각', '#f59e0b'], ['early_leave', '조퇴', '#f97316'],
+                  ['excused', '공결', '#8b5cf6'], ['absent', '결석', '#f43f5e'],
+                ];
+                const { total, byStatus } = attendanceSummary;
+                const rate = Math.round(((byStatus.present || 0) / total) * 100);
+                const parts = META.filter(([k]) => byStatus[k]);
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 print:hidden">
+                    <div className="flex items-end justify-between gap-3 mb-3">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[13px] font-black text-gray-500">출석률</span>
+                        <span className="text-3xl font-black text-gray-900 tabular-nums">{rate}%</span>
+                      </div>
+                      <span className="text-[13px] font-bold text-gray-400">출석 기록 {total}건 기준</span>
+                    </div>
+                    <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100" role="img" aria-label={`출석률 ${rate}%`}>
+                      {parts.map(([k, , c]) => <div key={k} style={{ width: `${(byStatus[k] / total) * 100}%`, background: c }} />)}
+                    </div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+                      {parts.map(([k, label, c]) => (
+                        <span key={k} className="flex items-center gap-1.5 text-[14px] font-bold text-gray-600">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
+                          {label} <b className="text-gray-900 tabular-nums">{byStatus[k]}</b>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 갤러리 미리보기 (사진 6장만 지연 로딩) */}
+              {overviewImgs.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[15px] font-black text-gray-900">갤러리 미리보기</p>
+                    <button onClick={() => jumpTab('gallery')} className="text-[14px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                      전체 {galleryItems.length}장 보기 <ArrowRight size={14} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {overviewImgs.slice(0, 6).map((g, i) => (
+                      <button key={g.id} type="button"
+                        onClick={() => setLightbox({ urls: overviewImgs.map((x) => x.file_url), names: overviewImgs.map((x, k) => x.file_name || `image_${k + 1}.webp`), index: i })}
+                        className="aspect-square rounded-xl overflow-hidden bg-gray-100 hover:opacity-90 transition-opacity">
+                        <img src={g.file_url} alt={g.caption || g.file_name || '갤러리'} loading="lazy" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
+              {/* 설문 한 줄 요약 */}
+              {surveyResults.length > 0 && (
+                <button onClick={() => jumpTab('survey')} className="w-full text-left bg-white rounded-2xl border border-gray-100 px-5 py-4 flex items-center justify-between gap-3 hover:border-indigo-300 transition-colors">
+                  <span className="text-[15px] font-black text-gray-900">
+                    📊 설문 {surveyResults.length}개 · 최대 {surveyResults.reduce((n, r) => Math.max(n, r.responseCount), 0)}명 응답
+                  </span>
+                  <span className="text-[14px] font-black text-indigo-600 flex items-center gap-1 shrink-0">자세히 보기 <ArrowRight size={14} /></span>
+                </button>
+              )}
+            </>
+          )}
+
+          {/* ── 결과 확인 탭 ── */}
+          {activeTab === 'results' && (
+            <>
               {/* 주차 필터 */}
               {allWeeks.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap print:hidden">
@@ -1145,18 +1415,21 @@ const ShareClassView = () => {
                 </div>
               )}
 
-              {/* 학생별 / 조별 보기 전환 */}
-              {submittedGroups.length > 0 && (
-                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit print:hidden">
+              {/* 검색 + 학생별 / 조별 보기 전환 */}
+              <div className="flex items-center gap-3 flex-wrap print:hidden">
+              <BoardSearchBox value={resultSearch} onChange={setResultSearch} />
+              {(submittedGroups.length > 0 || groups.length > 0) && (
+                <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-2xl p-1 w-fit print:hidden" role="group" aria-label="보기 방식">
                   {[
-                    { key: 'student' as const, label: '학생별' },
-                    { key: 'group' as const, label: `조별 (${submittedGroups.length})` },
+                    { key: 'student' as const, label: `👤 학생별 (${activeCount})` },
+                    { key: 'group' as const, label: `👥 조별 (${submittedGroups.length})` },
                   ].map(({ key, label }) => (
                     <button
                       key={key}
                       onClick={() => setResultsViewMode(key)}
-                      className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
-                        resultsViewMode === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                      aria-pressed={resultsViewMode === key}
+                      className={`px-4 py-2 rounded-xl text-[15px] font-black whitespace-nowrap transition-all ${
+                        resultsViewMode === key ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-800 hover:bg-white'
                       }`}
                     >
                       {label}
@@ -1164,113 +1437,165 @@ const ShareClassView = () => {
                   ))}
                 </div>
               )}
-
-              <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3 text-base text-indigo-900 leading-relaxed print:hidden">
-                <b>결과는 이렇게 찾아보세요</b><br />
-                ① 학생(또는 조) 카드를 누르면 제출한 결과 목록이 열려요. ② 같은 결과를 여러 번 냈다면 <b>⭐ 최종 제출</b>이 맨 앞에 나와요. ③ 카드 아래 <b>「바로 열기」</b> 버튼을 누르면 목록을 거치지 않고 새 탭에서 곧바로 열려요.
               </div>
 
-              {/* 학생 목록 */}
-              {resultsViewMode === 'student' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {submittedData.map(({ student, obs, results }, i) => {
-                    const hasActivity = obs.length > 0 || results.length > 0;
-                    const qo = quickOpenOf(results);
-                    return (
-                      <div key={student.id} className="flex flex-col gap-1.5">
-                      <motion.button
-                        onClick={() => hasActivity && setModalStudentId(student.id)}
-                        disabled={!hasActivity}
-                        initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-                        whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                        viewport={{ once: true, margin: '-40px' }}
-                        transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
-                        whileHover={hasActivity && !reduceMotion ? { y: -4 } : undefined}
-                        className={`text-left flex-1 bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
-                            <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
-                          </div>
-                          {hasActivity && <ChevronRight size={15} className="text-gray-300" />}
-                        </div>
-                        <ResultThumb target={thumbOf(results)} className="mb-3" />
-                        <p className="font-black text-gray-900 text-base truncate mb-1.5">{student.full_name}</p>
-                        <div className="flex flex-col gap-1">
-                          {obs.length > 0 && <span className="text-[13px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
-                          {results.length > 0 && <span className="text-[13px] font-bold text-emerald-600">📁 결과물 {bundleRows(results).length}건</span>}
-                          {!hasActivity && <span className="text-[13px] font-bold text-gray-400">미제출</span>}
-                        </div>
-                      </motion.button>
-                      <QuickOpenLink target={qo} />
+              <p className="text-[14px] font-bold text-gray-500 print:hidden">💡 학생(조) 줄을 누르면 결과가 열려요. <b className="text-gray-700">바로 열기</b>는 ⭐ 최종 제출을 새 탭에서 곧바로 열어요.</p>
+
+              {/* 학생 명단 + 주차 표: 이름·제목·개수만 먼저 보이고, 사진·본문은 이름을 눌러야 열린다 */}
+              {resultsViewMode === 'student' && rosterRows.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  {allWeeks.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[13px] font-black text-gray-500">
+                      <span className="w-24 sm:w-32 shrink-0">학생</span>
+                      <span className="flex-1 min-w-0 hidden sm:block">낸 작품</span>
+                      <span className="flex-1 sm:hidden" />
+                      <div className="hidden sm:flex gap-1 shrink-0">
+                        {allWeeks.map((w) => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                       </div>
-                    );
-                  })}
+                      <span className="w-10 text-right shrink-0">합계</span>
+                    </div>
+                  )}
+                  <ul className="divide-y divide-gray-100">
+                    {rosterRows.map(({ student, results, bundles, obs, latest, perWeek, total }) => {
+                      const has = total > 0;
+                      const fresh = has && latest && nowTick - new Date(latest).getTime() < RECENT_MS;
+                      const qo = quickOpenOf(results);
+                      return (
+                        <li key={student.id} className={`${has ? '' : 'opacity-45'} ${fresh ? 'bg-rose-50/60' : ''}`}>
+                          <div
+                            role={has ? 'button' : undefined}
+                            tabIndex={has ? 0 : undefined}
+                            onClick={() => has && setModalStudentId(student.id)}
+                            onKeyDown={(e) => { if (has && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setModalStudentId(student.id); } }}
+                            className={`flex items-center gap-2 px-4 py-3 ${has ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default'}`}
+                          >
+                            <div className="w-24 sm:w-32 shrink-0 min-w-0">
+                              <p className="font-black text-gray-900 text-lg truncate">{student.full_name}</p>
+                              {fresh && <span className="inline-block text-[13px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white">🆕 방금</span>}
+                              {!has && <span className="text-[13px] font-bold text-gray-400">미제출</span>}
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-wrap gap-1.5">
+                              {kindCounts(bundles.filter((b) => !b.isGroup)).map(([t, n]) => (
+                                <span key={t} className={`flex items-center gap-1 text-[13px] font-bold px-2.5 py-1 rounded-lg ${RESULT_TYPE_BADGE[t]?.color || 'text-gray-600 bg-gray-100'}`}>
+                                  {RESULT_TYPE_BADGE[t]?.icon} {RESULT_TYPE_BADGE[t]?.label || t} {n}
+                                </span>
+                              ))}
+                              {bundles.some((b) => b.isGroup) && (
+                                <span className="text-[13px] font-bold px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-100 text-violet-700">👥 조 제출 {bundles.filter((b) => b.isGroup).length}</span>
+                              )}
+                              {obs.length > 0 && <span className="text-[13px] font-bold px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-100 text-violet-600">📝 활동 기록 {obs.length}</span>}
+                            </div>
+                            {allWeeks.length > 0 && (
+                              <div className="hidden sm:flex gap-1 shrink-0">
+                                {allWeeks.map((w) => (
+                                  <span key={w} className={`w-8 sm:w-10 h-8 rounded-lg flex items-center justify-center text-[14px] font-black ${perWeek[w] ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-300'}`}>
+                                    {perWeek[w] || '·'}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <span className={`w-10 text-right shrink-0 text-lg font-black ${has ? 'text-gray-800' : 'text-gray-300'}`}>{total}</span>
+                            <span className="shrink-0 w-[5.5rem] flex justify-end" onClick={(e) => e.stopPropagation()}>
+                              <QuickOpenLink target={qo} compact />
+                            </span>
+                            <ChevronRight size={18} className={`shrink-0 ${has ? 'text-gray-400' : 'text-transparent'}`} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
               )}
 
-              {resultsViewMode === 'student' && filteredData.length > submittedData.length && submittedData.length > 0 && (
-                <p className="text-[13px] font-bold text-gray-400">제출 {submittedData.length}명 · 미제출 {filteredData.length - submittedData.length}명</p>
+              {resultsViewMode === 'student' && rosterRows.length > 0 && (
+                <p className="text-[13px] font-bold text-gray-400">제출 {rosterRows.filter((r) => r.total > 0).length}명 · 미제출 {rosterRows.filter((r) => r.total === 0).length}명 · 이름을 누르면 사진·본문이 열려요</p>
               )}
 
-              {resultsViewMode === 'student' && submittedData.length === 0 && (
+              {resultsViewMode === 'student' && rosterRows.length === 0 && (
                 <div className="flex flex-col items-center py-20 space-y-3">
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <StickyNote size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-base">제출한 학생이 아직 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">{searchWords.length > 0 ? `"${resultSearch.trim()}"에 맞는 학생이 없어요` : '제출한 학생이 아직 없습니다'}</p>
                 </div>
               )}
 
-              {/* 조 목록 */}
-              {resultsViewMode === 'group' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {submittedGroups.map(({ group, students }, i) => {
-                    const resultCount = bundleRows(groupResultsMap[group.id] || []).length;
-                    const gRes = groupResultsMap[group.id] || [];
-                    const gqo = quickOpenOf(gRes);
-                    return (
-                      <div key={group.id} className="flex flex-col gap-1.5">
-                      <motion.button
-                        onClick={() => setModalGroupId(group.id)}
-                        initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-                        whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                        viewport={{ once: true, margin: '-40px' }}
-                        transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
-                        whileHover={!reduceMotion ? { y: -4 } : undefined}
-                        className="text-left flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: group.color + '18' }}>
-                            <Users size={16} style={{ color: group.color }} />
-                          </div>
-                          <ChevronRight size={15} className="text-gray-300" />
-                        </div>
-                        <ResultThumb target={thumbOf(gRes)} className="mb-3" />
-                        <p className="font-black text-gray-900 text-base truncate mb-1.5">{group.name}</p>
-                        <p className="text-[13px] font-bold text-gray-400 truncate mb-1.5">
-                          {students.length > 0 ? students.map((s) => s.full_name).join(' · ') : '조원 없음'}
-                        </p>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[13px] font-bold text-gray-400">👥 조원 {students.length}명</span>
-                          {resultCount > 0
-                            ? <span className="text-[13px] font-bold text-emerald-600">📁 조별 결과물 {resultCount}건</span>
-                            : <span className="text-[13px] font-bold text-gray-400">조별 제출 없음</span>}
-                        </div>
-                      </motion.button>
-                      <QuickOpenLink target={gqo} />
+              {/* 조 명단: 학생별 보기와 같은 한 줄 모양 */}
+              {resultsViewMode === 'group' && groupRows.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  {allWeeks.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[13px] font-black text-gray-500">
+                      <span className="w-28 sm:w-44 shrink-0">조</span>
+                      <span className="flex-1 min-w-0 hidden sm:block">낸 작품</span>
+                      <span className="flex-1 sm:hidden" />
+                      <div className="hidden sm:flex gap-1 shrink-0">
+                        {allWeeks.map((w) => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                       </div>
-                    );
-                  })}
+                      <span className="w-10 text-right shrink-0">합계</span>
+                      <span className="w-[5.5rem] shrink-0" />
+                      <span className="w-[18px] shrink-0" />
+                    </div>
+                  )}
+                  <ul className="divide-y divide-gray-100">
+                    {groupRows.map(({ group, students, results, bundles, latest, perWeek, total }) => {
+                      const has = total > 0;
+                      const fresh = has && latest && nowTick - new Date(latest).getTime() < RECENT_MS;
+                      const qo = quickOpenOf(results);
+                      return (
+                        <li key={group.id} className={`${has ? '' : 'opacity-45'} ${fresh ? 'bg-rose-50/60' : ''}`}>
+                          <div
+                            role={has ? 'button' : undefined}
+                            tabIndex={has ? 0 : undefined}
+                            onClick={() => has && setModalGroupId(group.id)}
+                            onKeyDown={(e) => { if (has && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setModalGroupId(group.id); } }}
+                            className={`flex items-center gap-2 px-4 py-3 ${has ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default'}`}
+                          >
+                            <div className="w-28 sm:w-44 shrink-0 min-w-0">
+                              <p className="font-black text-gray-900 text-lg truncate flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
+                                <span className="truncate">{group.name}</span>
+                              </p>
+                              <p className="text-[13px] font-bold text-gray-400 truncate">
+                                {students.length > 0 ? students.map((st) => st.full_name).join(' · ') : '조원 없음'}
+                              </p>
+                              {fresh && <span className="inline-block text-[13px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white">🆕 방금</span>}
+                              {!has && <span className="text-[13px] font-bold text-gray-400">미제출</span>}
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-wrap gap-1.5">
+                              {kindCounts(bundles).map(([t, n]) => (
+                                <span key={t} className={`flex items-center gap-1 text-[13px] font-bold px-2.5 py-1 rounded-lg ${RESULT_TYPE_BADGE[t]?.color || 'text-gray-600 bg-gray-100'}`}>
+                                  {RESULT_TYPE_BADGE[t]?.icon} {RESULT_TYPE_BADGE[t]?.label || t} {n}
+                                </span>
+                              ))}
+                            </div>
+                            {allWeeks.length > 0 && (
+                              <div className="hidden sm:flex gap-1 shrink-0">
+                                {allWeeks.map((w) => (
+                                  <span key={w} className={`w-8 sm:w-10 h-8 rounded-lg flex items-center justify-center text-[14px] font-black ${perWeek[w] ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-300'}`}>
+                                    {perWeek[w] || '·'}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <span className={`w-10 text-right shrink-0 text-lg font-black ${has ? 'text-gray-800' : 'text-gray-300'}`}>{total}</span>
+                            <span className="shrink-0 w-[5.5rem] flex justify-end" onClick={(e) => e.stopPropagation()}>
+                              <QuickOpenLink target={qo} compact />
+                            </span>
+                            <ChevronRight size={18} className={`shrink-0 ${has ? 'text-gray-400' : 'text-transparent'}`} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
               )}
 
-              {resultsViewMode === 'group' && submittedGroups.length === 0 && (
+              {resultsViewMode === 'group' && groupRows.length === 0 && (
                 <div className="flex flex-col items-center py-20 space-y-3">
                   <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                     <Users size={32} className="text-gray-300" />
                   </div>
-                  <p className="font-black text-gray-400 text-base">제출한 조가 아직 없습니다</p>
+                  <p className="font-black text-gray-400 text-base">{searchWords.length > 0 ? `"${resultSearch.trim()}"에 맞는 조가 없어요` : '제출한 조가 아직 없습니다'}</p>
                 </div>
               )}
             </>
@@ -1328,7 +1653,7 @@ const ShareClassView = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {filteredGallery.map((item) =>
+                  {filteredGallery.slice(0, galleryShown).map((item) =>
                     item.file_type === 'video' ? (
                       <ShareGalleryVideo key={item.id} item={item} />
                     ) : (
@@ -1358,6 +1683,13 @@ const ShareClassView = () => {
                       </div>
                     )
                   )}
+                </div>
+              )}
+              {filteredGallery.length > galleryShown && (
+                <div className="flex justify-center pt-2">
+                  <button onClick={() => setGalleryShown((n) => n + 40)} className="px-6 py-3 rounded-xl bg-white border border-gray-200 hover:border-indigo-300 text-[15px] font-black text-gray-700 transition-colors">
+                    사진 더 보기 ({galleryShown}/{filteredGallery.length})
+                  </button>
                 </div>
               )}
             </>
@@ -1641,10 +1973,12 @@ const ShareClassView = () => {
 
                   {subTab === 'results' && stFinal && (
                     <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
-                      ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(stFinal.created_at)}</b> 제출입니다. 1쪽에 있고, 나머지는 「이전 제출」이에요.
+                      ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(stFinal.created_at)}</b> 제출입니다. 맨 앞(왼쪽 위) 카드이고, 나머지는 「이전 제출」이에요.
                     </div>
                   )}
-                  {subTab === 'results' && pagedResults.map((bd) => (
+                  {subTab === 'results' && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-start">
+                  {pagedResults.map((bd) => (
                     <BundleCard
                       key={bd.id}
                       bundle={bd}
@@ -1656,6 +1990,8 @@ const ShareClassView = () => {
                       ) : null}
                     />
                   ))}
+                  </div>
+                  )}
                   {subTab === 'results' && (
                     <Pagination
                       page={resultsSafePage}
@@ -1711,10 +2047,10 @@ const ShareClassView = () => {
                     {gBundles.length === 0 && <p className="text-[13px] font-semibold text-gray-400">조별로 제출된 결과물이 없습니다</p>}
                     {(() => { const gf = gBundles.find((x) => finalMarks.get(x.id) === 'final'); return gf ? (
                       <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-900">
-                        ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(gf.created_at)}</b> 제출입니다. 맨 위 카드이고, 나머지는 「이전 제출」이에요.
+                        ⭐ <b>최종 제출</b>은 가장 마지막에 올린 <b>{fmtTime(gf.created_at)}</b> 제출입니다. 맨 앞(왼쪽 위) 카드이고, 나머지는 「이전 제출」이에요.
                       </div>
                     ) : null; })()}
-                    <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-start">
                       {[...gBundles].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((bd) => (
                         <BundleCard
                           key={bd.id}

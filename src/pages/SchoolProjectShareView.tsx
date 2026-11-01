@@ -13,14 +13,15 @@ import {
   FileText, Loader2, AlertCircle, Lock, Calendar,
   Images, Download, ZoomIn, X, BookOpen,
   AlignLeft, Link2, ImageIcon, File as FileIcon,
-  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, BarChart2,
+  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, BarChart2, Home,
 } from 'lucide-react';
 import FullScreenView from '../components/common/FullScreenView';
 import PercentLoader from '../components/common/PercentLoader';
 import { computeFinalMarks } from '../lib/finalSubmission';
 import LinkSaveTip from '../components/common/LinkSaveTip';
 import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
-import ResultThumb, { pickThumb } from '../components/common/ResultThumb';
+import { BoardSearchBox } from '../components/board/BoardLiveBits';
+import { RECENT_MS, useNow, agoLabel } from '../lib/boardLive';
 import ResultFileActions from '../components/common/ResultFileActions';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
@@ -143,12 +144,6 @@ function quickOpenFor(student: { resultGroups: ResultGroup[] }) {
   return pickQuickOpen(sources, marks);
 }
 
-/** 카드 미리보기 (사진 또는 HTML 파일) */
-function thumbFor(student: { resultGroups: ResultGroup[] }) {
-  const { sources, marks } = markedSourcesFor(student);
-  return pickThumb(sources, marks);
-}
-
 interface ResultRow {
   id: string;
   student_id: string;
@@ -268,7 +263,7 @@ const SchoolProjectShareView = () => {
   // 학생 상세 모달 (활동 기록 + 결과물 목록)
   const [modalStudent, setModalStudent] = useState<StudentWithData | null>(null);
   // 학습 여정 / 결과 확인 / 갤러리 / 학급 기록 탭
-  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
+  const [activeTab, setActiveTab] = useState<'overview' | 'results' | 'gallery' | 'setech' | 'survey'>('overview');
   type MainTab = 'overview' | 'weeks' | 'moments' | 'details';
   const [mainTab, setMainTab] = useState<MainTab>(() => {
     try {
@@ -277,6 +272,7 @@ const SchoolProjectShareView = () => {
     } catch { return 'overview'; }
   });
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
+  const [resultSearch, setResultSearch] = useState('');
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [exportMenu, setExportMenu] = useState<{ classId: string } | null>(null);
@@ -284,6 +280,8 @@ const SchoolProjectShareView = () => {
     try { return localStorage.getItem('share-export-include-names') !== '0'; } catch { return true; }
   });
   const reduceMotion = useReducedMotion();
+  const nowTick = useNow();
+  const [snapshotIdx, setSnapshotIdx] = useState(0);
 
   useEffect(() => { setSpotlightIndex(0); }, [spotlightQuotes.length]);
   useEffect(() => {
@@ -549,7 +547,8 @@ const SchoolProjectShareView = () => {
       setActiveClassId(null);
       return;
     }
-    setActiveTab('results');
+    setActiveTab('overview');
+    setSnapshotIdx(0);
     setWeekFilter('all');
     setExpandedStudents(new Set());
     if (classStudents[classId]) {
@@ -1271,7 +1270,7 @@ const SchoolProjectShareView = () => {
                       if (!m.has(key)) m.set(key, rg);
                       bundledByGroup.set(gid, m);
                     }));
-                    const groupCards: StudentWithData[] = classGroups
+                    const groupCardsAll: StudentWithData[] = classGroups
                       .filter(g => bundledByGroup.has(g.id))
                       .map(g => {
                         const names = g.memberIds.map(id => students.find(s => s.id === id)).filter(Boolean)
@@ -1282,10 +1281,25 @@ const SchoolProjectShareView = () => {
                           resultGroups: [...bundledByGroup.get(g.id)!.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
                         };
                       });
-                    const individualStudents = filteredStudents
+                    const individualAll = filteredStudents
                       .map(s => ({ ...s, resultGroups: s.resultGroups.filter(rg => { const gid = isBundled(s.id, rg); return !(gid && bundledByGroup.has(gid)); }) }))
                       .filter(s => s.observations.length > 0 || s.resultGroups.length > 0
                         || !filteredStudents.find(o => o.id === s.id)!.resultGroups.some(rg => { const gid = isBundled(s.id, rg); return gid && bundledByGroup.has(gid); }));
+                    // 검색: 띄어쓰기 무시, 여러 단어는 모두 들어 있어야 함 (이름·조 이름·조원·제목·내용)
+                    const searchWords = resultSearch.trim().split(/\s+/).map(w => w.toLowerCase()).filter(Boolean);
+                    const matchWith = (c: StudentWithData, nameOnly: boolean) => {
+                      if (searchWords.length === 0) return true;
+                      const text = (nameOnly ? [c.full_name, ...(c.memberNames || [])] : [
+                        ...c.observations.flatMap(o => [o.activity_name, o.content]),
+                        ...c.resultGroups.flatMap(rg => [rg.title, ...rg.items.flatMap(it => [it.title, it.text_content, it.display_name, it.link_url])]),
+                      ]).filter(Boolean).join(' ').replace(/\s+/g, '').toLowerCase();
+                      return searchWords.every(w => text.includes(w));
+                    };
+                    // 이름이 맞는 카드가 있으면 그것만, 없을 때만 제목·내용에서 찾는다
+                    const nameHit = searchWords.length > 0 && [...groupCardsAll, ...individualAll].some(c => matchWith(c, true));
+                    const matchCard = (c: StudentWithData) => matchWith(c, nameHit);
+                    const groupCards = groupCardsAll.filter(matchCard);
+                    const individualStudents = individualAll.filter(matchCard);
                     // 갤러리 주차 버튼은 사진에 실제로 붙은 주차만 (하루짜리 수업처럼 없으면 '전체'만 보임)
                     const galleryWeeks = Array.from(new Set(gallery.map(g => g.week_number).filter(Boolean) as number[])).sort((a, b) => a - b);
                     const galleryFilter: number | 'all' = weekFilter !== 'all' && galleryWeeks.includes(weekFilter) ? weekFilter : 'all';
@@ -1295,6 +1309,46 @@ const SchoolProjectShareView = () => {
                     const totalResultsF = filteredStudents.reduce((a, s) => a + s.resultGroups.length, 0);
                     const activeCountF = filteredStudents.filter(s => s.observations.length > 0 || s.resultGroups.length > 0).length;
                     const galleryImgs = filteredGallery.filter(g => g.file_type === 'image');
+                    // 한눈에 보기: 이미 받아 둔 데이터로만 계산 (새 요청 없음)
+                    const ov = (() => {
+                      const weekMap = new Map<number, { count: number; people: Set<string> }>();
+                      let lastAt = '';
+                      let submitters = 0;
+                      let total = 0;
+                      const recent: { student: StudentWithData; at: string }[] = [];
+                      const snaps: { student: StudentWithData; group: ResultGroup }[] = [];
+                      const now = Date.now();
+                      for (const st of students) {
+                        let latest = '';
+                        const bump = (iso: string) => { if (iso > latest) latest = iso; };
+                        const add = (w: number | null, iso: string) => {
+                          total += 1; bump(iso);
+                          if (!w) return;
+                          const e = weekMap.get(w) ?? { count: 0, people: new Set<string>() };
+                          e.count += 1; e.people.add(st.id); weekMap.set(w, e);
+                        };
+                        st.observations.forEach(o => add(o.week_number, o.created_at));
+                        st.resultGroups.forEach(g => { add(g.week_number, g.created_at); snaps.push({ student: st, group: g }); });
+                        if (latest) {
+                          submitters += 1;
+                          if (latest > lastAt) lastAt = latest;
+                          if (now - new Date(latest).getTime() < RECENT_MS) recent.push({ student: st, at: latest });
+                        }
+                      }
+                      recent.sort((x, y) => (x.at < y.at ? 1 : -1));
+                      const weeks = [...weekMap.entries()].sort((x, y) => x[0] - y[0]).map(([w, v]) => ({ week: w, count: v.count, people: v.people.size }));
+                      // 스냅샷: 내용이 있는 최근 결과 3개 (조별 제출은 조원 수만큼 복제돼 있어 같은 시각·제목이면 한 번만)
+                      const seen = new Set<string>();
+                      const snapshots = snaps
+                        .filter(x => x.group.items.length > 0)
+                        .sort((x, y) => (x.group.created_at < y.group.created_at ? 1 : -1))
+                        .filter(x => { const k = `${x.group.created_at}|${x.group.title}|${x.group.isGroupSubmission ? 'g' : x.student.id}`; if (seen.has(k)) return false; seen.add(k); return true; })
+                        .slice(0, 3);
+                      return { weeks, lastAt, submitters, total, recent, snapshots };
+                    })();
+                    const ovImgs = gallery.filter(g => g.file_type === 'image');
+                    const ovSurveys = classSurveyIds(cls).map(fid => surveyDataByForm[fid]).filter(Boolean);
+                    const att = cls.show_attendance_summary ? attendanceByClass[cls.id] : null;
                     const galleryImgUrls = galleryImgs.map(g => g.file_url);
 
                     const statusLabelStyle = (s?: string | null) => {
@@ -1451,6 +1505,7 @@ const SchoolProjectShareView = () => {
                         <div id={`results-${cls.id}`} style={{ scrollMarginTop: 56 }} className="px-6 pt-4 flex items-center gap-2 flex-wrap border-b border-slate-200">
                           <div className="flex items-center gap-5 flex-wrap">
                             {[
+                              { key: 'overview', label: '한눈에 보기', icon: Home },
                               { key: 'results', label: '결과 확인', icon: FileText },
                               { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
                               { key: 'setech', label: '학급 기록', icon: BookOpen },
@@ -1458,7 +1513,7 @@ const SchoolProjectShareView = () => {
                             ].map(({ key, label, icon: Icon }) => (
                               <button
                                 key={key}
-                                onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech' | 'survey')}
+                                onClick={() => setActiveTab(key as 'overview' | 'results' | 'gallery' | 'setech' | 'survey')}
                                 className={`flex items-center gap-1.5 pb-3 -mb-px border-b-2 text-base font-black transition-all ${activeTab === key ? 'text-slate-900 border-[#e8412c]' : 'text-slate-400 border-transparent hover:text-slate-700'}`}
                               >
                                 <Icon size={15} />{label}
@@ -1495,6 +1550,143 @@ const SchoolProjectShareView = () => {
                         </div>
 
                         <div className="px-6 py-5 space-y-5">
+                          {/* ── 한눈에 보기 탭 ── */}
+                          {activeTab === 'overview' && (
+                            <>
+                              <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+                                <p className="text-[17px] font-black text-slate-900">
+                                  {students.length}명 중 <span style={{ color: '#e8412c' }}>{ov.submitters}명</span>이 <span style={{ color: '#e8412c' }}>{ov.total}건</span>을 제출했어요
+                                </p>
+                                {ov.lastAt && <span className="text-[14px] font-bold text-slate-500">마지막 제출 {agoLabel(ov.lastAt, nowTick)}</span>}
+                              </div>
+
+                              {ov.recent.length > 0 && (
+                                <div className="rounded-xl border-2 border-rose-200 bg-rose-50 px-4 py-3 print:hidden">
+                                  <p className="text-[14px] font-black text-rose-700 mb-2">🆕 방금 제출한 친구 {ov.recent.length}명 · 눌러서 바로 보기</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {ov.recent.slice(0, 12).map(r => (
+                                      <button key={r.student.id} type="button" onClick={() => setModalStudent(r.student)}
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-rose-200 text-[14px] font-bold text-slate-700 hover:border-rose-400 hover:bg-rose-100/60 transition-colors">
+                                        <span className="font-black">{r.student.full_name}</span>
+                                        <span className="text-rose-600">{agoLabel(r.at, nowTick)}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {ov.weeks.length > 0 && (() => {
+                                const max = Math.max(...ov.weeks.map(w => w.count), 1);
+                                return (
+                                  <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <p className="text-[15px] font-black text-slate-900">주차별 제출</p>
+                                      <button onClick={() => setActiveTab('results')} className="text-[14px] font-black flex items-center gap-1 hover:underline" style={{ color: '#e8412c' }}>
+                                        결과 자세히 보기 <ArrowRight size={14} />
+                                      </button>
+                                    </div>
+                                    <ul className="space-y-2">
+                                      {ov.weeks.map(w => (
+                                        <li key={w.week} className="flex items-center gap-3">
+                                          <span className="w-12 text-[14px] font-black text-slate-600 shrink-0">{w.week}주차</span>
+                                          <div className="flex-1 h-3 rounded-full bg-slate-100 overflow-hidden">
+                                            <div className="h-full rounded-full" style={{ width: `${(w.count / max) * 100}%`, background: '#e8412c' }} />
+                                          </div>
+                                          <span className="w-28 text-right text-[14px] font-bold text-slate-600 tabular-nums shrink-0">
+                                            <b className="text-slate-900">{w.count}건</b> · {w.people}명
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                );
+                              })()}
+
+                              {ov.snapshots.length > 0 && (() => {
+                                const snap = ov.snapshots[Math.min(snapshotIdx, ov.snapshots.length - 1)];
+                                const r = snap.group.items.find(it => it.link_url || (it.image_urls && it.image_urls.length) || it.file_url || it.text_content) || snap.group.items[0];
+                                const imgUrl = r.image_urls?.[0] || null;
+                                const url = r.link_url || imgUrl || r.file_url || null;
+                                const excerpt = (r.text_content || '').trim();
+                                const heading = snap.group.title || r.title || (excerpt ? excerpt.slice(0, 40) : '제목 없는 결과물');
+                                const who = snap.group.isGroupSubmission ? '👥 조별 제출' : snap.student.full_name;
+                                const inner = (
+                                  <>
+                                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                      {imgUrl
+                                        ? <img src={imgUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                        : r.link_url ? <Link2 size={26} className="text-slate-400" />
+                                        : r.file_url ? <FileIcon size={26} className="text-slate-400" />
+                                        : <AlignLeft size={26} className="text-slate-400" />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[13px] font-black mb-0.5" style={{ color: '#e8412c' }}>✨ 이런 결과가 올라왔어요</p>
+                                      <p className="font-black text-slate-900 text-lg truncate">{heading}</p>
+                                      {excerpt && (snap.group.title || r.title) && <p className="text-[14px] text-slate-500 font-semibold line-clamp-1">{excerpt}</p>}
+                                      <p className="text-[13px] text-slate-400 font-bold mt-0.5 flex items-center gap-2 flex-wrap">
+                                        <span className="text-slate-600">{who}</span>
+                                        <span>{new Date(snap.group.created_at).toLocaleDateString('ko-KR')}</span>
+                                      </p>
+                                    </div>
+                                    {url && <ExternalLink size={16} className="text-slate-300 shrink-0" />}
+                                  </>
+                                );
+                                const shell = 'flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4';
+                                return (
+                                  <div className="print:hidden">
+                                    {url
+                                      ? <a href={url} target="_blank" rel="noopener noreferrer" className={`${shell} hover:border-slate-400 transition-colors`}>{inner}</a>
+                                      : <div className={shell}>{inner}</div>}
+                                    {ov.snapshots.length > 1 && (
+                                      <div className="flex items-center gap-1.5 mt-2.5 px-1">
+                                        {ov.snapshots.map((_, i) => (
+                                          <button key={i} onClick={() => setSnapshotIdx(i)} aria-label={`${i + 1}번째 결과물 보기`}
+                                            className={`h-1.5 rounded-full transition-all ${i === snapshotIdx ? 'w-6' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`}
+                                            style={i === snapshotIdx ? { background: '#e8412c' } : undefined} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+
+                              {att && att.total > 0 && (
+                                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                                  <p className="text-lg font-black text-slate-900 mb-3">출석 요약</p>
+                                  <AttendanceDonutChart total={att.total} byStatus={att.byStatus} />
+                                </div>
+                              )}
+
+                              {ovImgs.length > 0 && (
+                                <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[15px] font-black text-slate-900">갤러리 미리보기</p>
+                                    <button onClick={() => setActiveTab('gallery')} className="text-[14px] font-black flex items-center gap-1 hover:underline" style={{ color: '#e8412c' }}>
+                                      {classGalleryHasMore[cls.id] ? '전체 보기' : `전체 ${gallery.length}장 보기`} <ArrowRight size={14} />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                    {ovImgs.slice(0, 6).map((g, i) => (
+                                      <button key={g.id} type="button" onClick={() => setLightbox({ urls: ovImgs.map(x => x.file_url), index: i })}
+                                        className="aspect-square rounded-lg overflow-hidden bg-slate-100 hover:opacity-90 transition-opacity">
+                                        <img src={g.file_url} alt={g.caption || g.file_name || '갤러리'} loading="lazy" className="w-full h-full object-cover" />
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {ovSurveys.length > 0 && (
+                                <button onClick={() => setActiveTab('survey')} className="w-full text-left bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center justify-between gap-3 hover:border-slate-400 transition-colors">
+                                  <span className="text-[15px] font-black text-slate-900">
+                                    📊 설문 {ovSurveys.length}개 · 최대 {ovSurveys.reduce((n, r) => Math.max(n, r.responseCount), 0)}명 응답
+                                  </span>
+                                  <span className="text-[14px] font-black flex items-center gap-1 shrink-0" style={{ color: '#e8412c' }}>자세히 보기 <ArrowRight size={14} /></span>
+                                </button>
+                              )}
+                            </>
+                          )}
+
                           {/* ── 결과 확인 탭 ── */}
                           {activeTab === 'results' && (
                             <>
@@ -1518,14 +1710,6 @@ const SchoolProjectShareView = () => {
                                 ))}
                               </div>
 
-                              {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
-                              {cls.show_attendance_summary && attendanceByClass[cls.id] && attendanceByClass[cls.id].total > 0 && (
-                                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                                  <p className="text-lg font-black text-slate-900 mb-3">출석 요약</p>
-                                  <AttendanceDonutChart total={attendanceByClass[cls.id].total} byStatus={attendanceByClass[cls.id].byStatus} />
-                                </div>
-                              )}
-
                               {allWeeks.length > 0 && (
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-base font-black text-slate-600 mr-1">주차:</span>
@@ -1536,65 +1720,97 @@ const SchoolProjectShareView = () => {
                                 </div>
                               )}
 
-                              {groupCards.length > 0 && (
-                                <p className="flex items-center gap-2 text-lg font-black text-slate-900">
-                                  <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
-                                  <span>{groupCards.length}개 조</span>
-                                </p>
+                              <div className="print:hidden"><BoardSearchBox value={resultSearch} onChange={setResultSearch} /></div>
+                              {searchWords.length > 0 && groupCards.length === 0 && individualStudents.length === 0 && (
+                                <div className="flex flex-col items-center py-12 space-y-1 text-center">
+                                  <p className="text-lg font-black text-slate-600">"{resultSearch.trim()}"에 맞는 결과가 없어요</p>
+                                  <p className="text-sm font-bold text-slate-500">이름 일부만 써도 찾아져요. 다른 글자로 다시 찾아보세요.</p>
+                                </div>
                               )}
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                                {groupCards.map(card => (
-                                  <div key={card.id} className="flex flex-col gap-1.5">
-                                  <button
-                                    onClick={() => setModalStudent(card)}
-                                    className="text-left flex-1 bg-white rounded-xl border border-violet-200 hover:border-violet-500 p-3.5 transition-all cursor-pointer"
-                                  >
-                                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                                      <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
-                                      <span className="text-base font-bold text-slate-700">결과물 {card.resultGroups.length}건</span>
-                                    </div>
-                                    <ResultThumb target={thumbFor(card)} className="mb-2.5" />
-                                    <p className="font-bold text-base text-slate-900 mb-1">{card.full_name}</p>
-                                    {card.memberNames && card.memberNames.length > 0 && (
-                                      <p className="text-sm text-slate-500 leading-relaxed">조원: {card.memberNames.join(', ')}</p>
-                                    )}
-                                  </button>
-                                  <QuickOpenLink target={quickOpenFor(card)} />
-                                  </div>
-                                ))}
-                              </div>
-                              {groupCards.length > 0 && individualStudents.length > 0 && (
-                                <p className="flex items-center gap-2 text-lg font-black text-slate-900 pt-2">
-                                  <span className="text-[13px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">🙋 개인 제출</span>
-                                  <span>{individualStudents.length}명</span>
-                                </p>
-                              )}
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                                {individualStudents.map(student => {
-                                  const hasData = student.observations.length > 0 || student.resultGroups.length > 0;
+                              <p className="text-[14px] font-bold text-slate-500 print:hidden">💡 학생(조) 줄을 누르면 결과가 열려요. <b className="text-slate-700">바로 열기</b>는 ⭐ 최종 제출을 새 탭에서 곧바로 열어요.</p>
+                              {(() => {
+                                const BADGE: Record<string, { icon: string; label: string; color: string }> = {
+                                  text: { icon: '📝', label: '텍스트', color: 'text-slate-700 bg-slate-100' },
+                                  link: { icon: '🔗', label: '링크', color: 'text-blue-600 bg-blue-50' },
+                                  image: { icon: '🖼️', label: '이미지', color: 'text-emerald-600 bg-emerald-50' },
+                                  file: { icon: '📎', label: '파일', color: 'text-amber-600 bg-amber-50' },
+                                };
+                                const rows = [
+                                  ...groupCards.map(c => ({ c, isGroup: true })),
+                                  ...individualStudents.map(c => ({ c, isGroup: false })),
+                                ];
+                                if (rows.length === 0) return null;
+                                const renderRow = ({ c, isGroup }: { c: StudentWithData; isGroup: boolean }) => {
+                                  const total = c.observations.length + c.resultGroups.length;
+                                  const has = total > 0;
+                                  const perWeek: Record<number, number> = {};
+                                  c.resultGroups.forEach(g => { if (g.week_number) perWeek[g.week_number] = (perWeek[g.week_number] || 0) + 1; });
+                                  c.observations.forEach(o => { if (o.week_number) perWeek[o.week_number] = (perWeek[o.week_number] || 0) + 1; });
+                                  const latest = [...c.observations.map(o => o.created_at), ...c.resultGroups.map(g => g.created_at)].sort().pop() || '';
+                                  const fresh = has && latest && nowTick - new Date(latest).getTime() < RECENT_MS;
+                                  const kinds = new Map<string, number>();
+                                  c.resultGroups.forEach(g => g.types.forEach(t => kinds.set(t, (kinds.get(t) || 0) + 1)));
                                   return (
-                                    <div key={student.id} className="flex flex-col gap-1.5">
-                                    <button
-                                      onClick={() => hasData && setModalStudent(student)}
-                                      disabled={!hasData}
-                                      className={`text-left flex-1 bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-slate-200 hover:border-slate-900 cursor-pointer' : 'border-slate-200 opacity-50 cursor-default'}`}
-                                    >
-                                      <div className="w-8 h-8 rounded-full overflow-hidden mb-2.5 bg-gray-100">
-                                        <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
+                                    <li key={c.id} className={`${has ? '' : 'opacity-45'} ${fresh ? 'bg-rose-50/60' : ''}`}>
+                                      <div
+                                        role={has ? 'button' : undefined}
+                                        tabIndex={has ? 0 : undefined}
+                                        onClick={() => has && setModalStudent(c)}
+                                        onKeyDown={e => { if (has && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setModalStudent(c); } }}
+                                        className={`flex items-center gap-2 px-4 py-3 ${has ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'}`}
+                                      >
+                                        <div className="w-24 sm:w-40 shrink-0 min-w-0">
+                                          <p className="font-black text-slate-900 text-lg truncate">{isGroup ? `👥 ${c.full_name}` : c.full_name}</p>
+                                          {isGroup && c.memberNames && c.memberNames.length > 0 && (
+                                            <p className="text-[13px] font-bold text-slate-400 truncate">{c.memberNames.join(' · ')}</p>
+                                          )}
+                                          {fresh && <span className="inline-block text-[13px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white">🆕 방금</span>}
+                                          {!has && <span className="text-[13px] font-bold text-slate-400">미제출</span>}
+                                        </div>
+                                        <div className="flex-1 min-w-0 flex flex-wrap gap-1.5">
+                                          {[...kinds.entries()].map(([t, n]) => (
+                                            <span key={t} className={`text-[13px] font-bold px-2.5 py-1 rounded-lg ${BADGE[t]?.color || 'text-slate-600 bg-slate-100'}`}>{BADGE[t]?.icon} {BADGE[t]?.label || t} {n}</span>
+                                          ))}
+                                          {c.observations.length > 0 && <span className="text-[13px] font-bold px-2.5 py-1 rounded-lg bg-violet-50 text-violet-600">📝 활동 기록 {c.observations.length}</span>}
+                                        </div>
+                                        {allWeeks.length > 0 && (
+                                          <div className="hidden sm:flex gap-1 shrink-0">
+                                            {allWeeks.map(w => (
+                                              <span key={w} className={`w-8 sm:w-10 h-8 rounded-lg flex items-center justify-center text-[14px] font-black ${perWeek[w] ? 'bg-slate-200 text-slate-800' : 'bg-slate-50 text-slate-300'}`}>{perWeek[w] || '·'}</span>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <span className={`w-10 text-right shrink-0 text-lg font-black ${has ? 'text-slate-800' : 'text-slate-300'}`}>{total}</span>
+                                        <span className="shrink-0 w-[5.5rem] flex justify-end print:hidden" onClick={e => e.stopPropagation()}>
+                                          <QuickOpenLink target={quickOpenFor(c)} compact />
+                                        </span>
+                                        <ChevronRight size={18} className={`shrink-0 ${has ? 'text-slate-400' : 'text-transparent'}`} />
                                       </div>
-                                      <ResultThumb target={thumbFor(student)} className="mb-2.5" />
-                                      <p className="font-bold text-base truncate mb-1">{student.full_name}</p>
-                                      <div className="flex flex-col gap-1">
-                                        {student.observations.length > 0 && <span className="text-base font-bold text-slate-700">활동기록 {student.observations.length}건</span>}
-                                        {student.resultGroups.length > 0 && <span className="text-base font-bold text-slate-700">결과물 {student.resultGroups.length}건</span>}
-                                        {!hasData && <span className="text-base text-slate-400">기록 없음</span>}
-                                      </div>
-                                    </button>
-                                    <QuickOpenLink target={quickOpenFor(student)} />
-                                    </div>
+                                    </li>
                                   );
-                                })}
-                              </div>
+                                };
+                                return (
+                                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                    {allWeeks.length > 0 && (
+                                      <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[13px] font-black text-slate-500">
+                                        <span className="w-24 sm:w-40 shrink-0">학생·조</span>
+                                        <span className="flex-1 min-w-0 hidden sm:block">낸 작품</span>
+                                        <span className="flex-1 sm:hidden" />
+                                        <div className="hidden sm:flex gap-1 shrink-0">
+                                          {allWeeks.map(w => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
+                                        </div>
+                                        <span className="w-10 text-right shrink-0">합계</span>
+                                        <span className="w-[5.5rem] shrink-0 print:hidden" />
+                                        <span className="w-[18px] shrink-0" />
+                                      </div>
+                                    )}
+                                    <ul className="divide-y divide-slate-100">{rows.map(renderRow)}</ul>
+                                  </div>
+                                );
+                              })()}
+                              {(groupCards.length > 0 || individualStudents.length > 0) && (
+                                <p className="text-[13px] font-bold text-slate-400">제출 {individualStudents.filter(s => s.observations.length + s.resultGroups.length > 0).length + groupCards.length}곳 · 미제출 {individualStudents.filter(s => s.observations.length + s.resultGroups.length === 0).length}명 · 줄을 누르면 사진·본문이 열려요</p>
+                              )}
 
                               {filteredStudents.length === 0 && (
                                 <div className="flex flex-col items-center py-16 space-y-2">

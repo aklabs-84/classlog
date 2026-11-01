@@ -8,7 +8,7 @@ import { ChevronRight, Files, Maximize2, Minimize2 } from 'lucide-react';
 export const stackedCardStyle = (multi: boolean): CSSProperties | undefined =>
   multi
     ? {
-        boxShadow: '5px 5px 0 0 rgba(52,211,153,0.5), 10px 10px 0 0 rgba(52,211,153,0.25)',
+        boxShadow: '3px 3px 0 0 rgba(52,211,153,0.35), 6px 6px 0 0 rgba(52,211,153,0.15)',
         marginRight: 10,
         marginBottom: 12,
       }

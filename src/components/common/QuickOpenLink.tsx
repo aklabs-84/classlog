@@ -43,15 +43,16 @@ export const pickQuickOpen = (
 };
 
 /** 카드 아래에 붙는 "바로 열기" 버튼 (카드를 열지 않고 새 탭에서 바로 연다) */
-const QuickOpenLink = ({ target, className = '' }: { target: QuickOpenTarget | null; className?: string }) => {
+const QuickOpenLink = ({ target, className = '', compact = false }: { target: QuickOpenTarget | null; className?: string; compact?: boolean }) => {
   if (!target) return null;
-  const base = `w-full flex items-center justify-center gap-1.5 text-[13px] font-black rounded-xl px-3 py-2 transition-colors ${
+  const size = compact ? 'whitespace-nowrap px-3 py-1.5' : 'w-full px-3 py-2';
+  const base = `flex items-center justify-center gap-1.5 text-[13px] font-black rounded-xl transition-colors ${size} ${
     target.isFinal ? 'bg-amber-400 hover:bg-amber-500 text-white' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
   } ${className}`;
   if (target.kind === 'link') {
     return (
-      <a href={target.url} target="_blank" rel="noopener noreferrer" className={base}>
-        <ExternalLink size={14} /> {target.isFinal ? '⭐ 최종 링크 바로 열기' : '링크 바로 열기'}
+      <a href={target.url} target="_blank" rel="noopener noreferrer" className={base} title={target.isFinal ? '최종 제출 링크를 새 탭에서 바로 열어요' : '링크를 새 탭에서 바로 열어요'}>
+        <ExternalLink size={14} /> {compact ? (target.isFinal ? '⭐ 바로 열기' : '바로 열기') : target.isFinal ? '⭐ 최종 링크 바로 열기' : '링크 바로 열기'}
       </a>
     );
   }
@@ -60,8 +61,9 @@ const QuickOpenLink = ({ target, className = '' }: { target: QuickOpenTarget | n
       type="button"
       onClick={() => window.open(`/result-view?url=${encodeURIComponent(target.url)}&name=${encodeURIComponent(target.name)}`, '_blank', 'noopener')}
       className={base}
+      title={target.isFinal ? '최종 제출 결과를 새 탭에서 바로 열어요' : '가장 최근 결과를 새 탭에서 바로 열어요'}
     >
-      <Eye size={14} /> {target.isFinal ? '⭐ 최종 결과 바로 열기' : '최근 결과 바로 열기'}
+      <Eye size={14} /> {compact ? (target.isFinal ? '⭐ 바로 열기' : '바로 열기') : target.isFinal ? '⭐ 최종 결과 바로 열기' : '최근 결과 바로 열기'}
     </button>
   );
 };

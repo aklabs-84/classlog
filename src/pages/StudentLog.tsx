@@ -2,6 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import {
+  mergeDaySubmissions, boardMemberInfo, attachGroupNames, sortBoardPosts,
+  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, authorLabel, agoLabel, postKey, postLatestAt,
+  useNow, useBoardLiveRefresh, useNewArrivals, type BoardViewMode,
+} from '../lib/boardLive';
+import {
+  BoardNameTiles, BoardMoreButton, RecentBadge, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, freshCardClass,
+} from '../components/board/BoardLiveBits';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
 import { compressImageForUpload } from '../lib/imageCompress';
@@ -616,11 +624,29 @@ const StudentLog = () => {
   const [boardSessionAlert, setBoardSessionAlert] = useState<{ id: string; class_name: string; session_code: string; group_count: number } | null>(null);
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
+  const [boardConnError, setBoardConnError] = useState(false);
+  const boardCountRef = useRef(0); // 지금 화면에 있는 게시물 수 (갑자기 비는 걸 막는 용도)
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
   const [boardFull, setBoardFull] = useState(false);
   useEffect(() => { setBoardFull(false); }, [boardSelectedPost?.id]);
+  const [boardView, setBoardView] = useState<BoardViewMode>('all');
+  const [boardSearch, setBoardSearch] = useState('');
+  const paging = useBoardPaging(`${boardView}|${boardSearch}|${boardTypeFilter}|${boardWeekFilter}`);
+  const boardNow = useNow();
+  const { freshKeys: boardFreshKeys, newCount: boardNewCount, dismiss: dismissBoardNew } = useNewArrivals(boardPosts, session?.class_id);
+  // 보드 탭을 보는 동안 5초마다 "새 제출 있나?"만 아주 작게 확인 (전용 창구가 없으면 조용히 쉼 → 새로고침 버튼으로 확인)
+  useBoardLiveRefresh({
+    classId: session?.class_id,
+    active: activeTab === 'board',
+    refetch: () => { fetchBoard(true); },
+    getSignature: async () => {
+      if (!session?.token) return null;
+      const { data, error } = await supabase.rpc('student_class_board_signature', { p_token: session.token });
+      return error || typeof data !== 'string' ? null : data;
+    },
+  });
   useEffect(() => {
     if (!boardFull) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setBoardFull(false); } };
@@ -2052,14 +2078,18 @@ const StudentLog = () => {
     }
   };
 
-  const fetchBoard = async () => {
+  const fetchBoard = async (silent = false, isRetry = false) => {
     if (!session?.class_id) return;
-    setBoardLoading(true);
+    if (silent !== true) setBoardLoading(true); // 자동 새로고침은 로딩 화면 없이 조용히
     try {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
       // 1. 학생 목록 조회
-      const { data: studentList } = await supabase.rpc('student_class_names', { p_token: session.token });
+      const { data: studentList, error: studentErr } = await supabase.rpc('student_class_names', { p_token: session.token });
+      // 오류가 났거나, 보던 게시물이 있는데 갑자기 학생 목록이 비면 화면을 지우지 않는다
+      if (studentErr || ((studentList || []).length === 0 && boardCountRef.current > 0)) {
+        throw new Error('board-connection');
+      }
       const studentIds = (studentList || []).map((s: any) => s.id);
       const nameMap: Record<string, string> = Object.fromEntries(
         (studentList || []).map((s: any) => [s.id, s.full_name])
@@ -2071,13 +2101,16 @@ const StudentLog = () => {
         if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
       });
 
-      if (studentIds.length === 0) { setBoardPosts([]); setBoardLoading(false); return; }
+      if (studentIds.length === 0) { boardCountRef.current = 0; setBoardPosts([]); setBoardConnError(false); setBoardLoading(false); return; }
 
       // 2. 관찰기록 + 결과 병렬 조회 (최신 100건씩 제한 — 학생 뷰)
-      const [{ data: obs }, { data: results }] = await Promise.all([
+      const [{ data: obs, error: obsErr }, { data: results, error: resErr }] = await Promise.all([
         supabase.rpc('student_class_approved_observations', { p_token: session.token }),
         supabase.rpc('student_class_approved_results', { p_token: session.token }),
       ]);
+      if (obsErr || resErr || ((obs || []).length === 0 && (results || []).length === 0 && boardCountRef.current > 0)) {
+        throw new Error('board-connection');
+      }
 
       // 3. student_name 매핑 + 이미지 URL 변환(썸네일) + 관찰기록에 week_number 부여
       const obsPosts = (obs || []).map((o: any) => ({
@@ -2152,6 +2185,7 @@ const StudentLog = () => {
           _group: group,
           _types: [...new Set(group.map((r: any) => r.result_type))] as string[],
           _isGroupSub: group.some((r: any) => r.is_group_submission) || new Set(group.map((r: any) => r.student_id)).size > 1,
+          ...boardMemberInfo(group, nameMap),
         };
       });
 
@@ -2165,16 +2199,28 @@ const StudentLog = () => {
         if (!dayMergeMap[key]) dayMergeMap[key] = [];
         dayMergeMap[key].push(post);
       });
-      const mergedResultPosts = Object.values(dayMergeMap).map((subs: any[]) => {
-        const sorted = [...subs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        return { ...sorted[0], _submissions: sorted };
-      });
+      const mergedResultPosts = Object.values(dayMergeMap).map((subs: any[]) => mergeDaySubmissions(subs));
 
-      setBoardPosts([...obsPosts, ...mergedResultPosts].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ));
+      // 조 이름: 학생은 class_groups를 직접 못 읽으니, 이미 있는 안전 창구(group_public_info)로 조별 제출의 조만 한 번씩 조회
+      const groupIds = [...new Set(mergedResultPosts.filter((p: any) => p._isGroupSub && p._groupId).map((p: any) => p._groupId))] as string[];
+      const groupNames: Record<string, string> = {};
+      await Promise.all(groupIds.map(async (gid) => {
+        try {
+          const { data } = await supabase.rpc('group_public_info', { p_group_id: gid });
+          const row = Array.isArray(data) ? data[0] : data;
+          if (row?.name) groupNames[gid] = row.name;
+        } catch { /* 조 이름을 못 가져오면 조원 이름으로 대신 보여 줌 */ }
+      }));
+
+      const nextPosts = sortBoardPosts(attachGroupNames([...obsPosts, ...mergedResultPosts], groupNames));
+      boardCountRef.current = nextPosts.length;
+      setBoardPosts(nextPosts);
+      setBoardConnError(false);
     } catch (err) {
       console.error('fetchBoard error:', err);
+      // 보던 게시물은 그대로 두고 안내만 띄운 뒤, 한 번만 조용히 다시 시도
+      setBoardConnError(true);
+      if (!isRetry) setTimeout(() => fetchBoard(true, true), 4000);
     } finally {
       setBoardLoading(false);
     }
@@ -5754,7 +5800,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     <p className="text-sm text-on-surface-variant font-bold ml-10">승인된 활동 기록·결과를 함께 봐요</p>
                   </div>
                   <button
-                    onClick={fetchBoard}
+                    onClick={() => fetchBoard()}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-black text-sm hover:bg-indigo-100 transition-all"
                   >
                     <RefreshCw size={12} /> 새로고침
@@ -5812,17 +5858,30 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   </div>
                 </div>
 
+                {/* 보기 방식(전체/개인별/조별) + 검색 */}
+                <div className="flex items-center gap-3 mb-6 flex-wrap">
+                  <BoardViewToggle value={boardView} onChange={setBoardView} />
+                  <BoardSearchBox value={boardSearch} onChange={setBoardSearch} />
+                </div>
+
+                <NewArrivalToast count={boardNewCount} onClose={dismissBoardNew} />
+                <BoardConnBanner show={boardConnError} onRetry={() => fetchBoard()} />
+
                 {/* 보드 콘텐츠 */}
                 {boardLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <Loader2 size={28} className="animate-spin text-indigo-500" />
                   </div>
                 ) : (() => {
-                  const filtered = boardPosts.filter(p => {
-                    if (boardTypeFilter !== 'all' && p._type !== boardTypeFilter) return false;
-                    if (boardWeekFilter !== 'all' && p.week_number !== boardWeekFilter) return false;
-                    return true;
-                  });
+                  const filtered = filterBoardPosts(boardPosts, { type: boardTypeFilter, week: boardWeekFilter, query: boardSearch });
+                  const sections = buildBoardSections(filtered, boardView);
+                  const tilesMode = boardView === 'tiles';
+                  const paged = limitSections(sections, paging.limit);
+                  const shownSections = tilesMode ? sections.filter((s) => s.key === paging.openTile) : paged.sections;
+
+                  if (boardPosts.length > 0 && (filtered.length === 0 || sections.length === 0)) {
+                    return <BoardNoMatch query={boardSearch} mode={boardView} />;
+                  }
 
                   if (filtered.length === 0) {
                     return (
@@ -5839,20 +5898,26 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   }
 
                   return (
+                    <>
+                    <RecentStrip posts={filtered} now={boardNow} onOpen={setBoardSelectedPost} />
+                    {tilesMode && <BoardNameTiles sections={sections} now={boardNow} openKey={paging.openTile} onToggle={paging.toggleTile} />}
+                    {shownSections.map((section) => (
+                    <div key={section.key} className="mb-10">
+                    <BoardSectionHeader section={section} />
                     <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
-                      {filtered.map((post) => {
+                      {section.posts.map((post) => {
                         const isObs = post._type === 'obs';
                         const isMe = post.student_id === session?.student_id;
                         const liked = !!boardLikes[post.id];
 
                         return (
                           <motion.div
-                            key={`${post._type}-${post.id}`}
+                            key={`${section.key}-${postKey(post)}`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             onClick={() => setBoardSelectedPost(post)}
                     style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
-                            className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                            className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${freshCardClass(boardFreshKeys.has(postKey(post)))} ${
                               isMe
                                 ? isObs
                                   ? 'bg-violet-50 border-violet-200 hover:border-violet-300'
@@ -5870,22 +5935,18 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                 </div>
                                 <div className="min-w-0">
                                   <p className="text-sm font-black truncate">
-                                    {post.student_name}
-                                    {isMe && <span className="ml-1 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
+                                    {authorLabel(post)}
+                                    {(isMe || (post._memberIds || []).includes(session?.student_id)) && <span className="ml-1 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
                                   </p>
                                   <p className="text-xs text-on-surface-variant font-bold">
-                                    {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
+                                    {post.week_number ? `${post.week_number}주차 · ` : ''}{agoLabel(postLatestAt(post), boardNow)}
                                   </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                <RecentBadge post={post} now={boardNow} />
                                 {!isObs && post._isGroupSub && (
                                   <span className="text-sm font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">조별</span>
-                                )}
-                                {!isObs && post._submissions?.length > 1 && (
-                                  <span className="text-sm font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
-                                    총 {post._submissions.length}회 제출
-                                  </span>
                                 )}
                                 <span className={`text-sm font-black px-2.5 py-1 rounded-full ${
                                   isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
@@ -5922,7 +5983,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                       <img
                                         src={post.image_url}
                                         alt="결과 이미지"
-                                        className="w-full rounded-xl object-cover max-h-40"
+                                        className="w-full rounded-xl object-contain bg-white/70 max-h-64"
                                         loading="lazy"
                                         onError={e => {
                                           if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
@@ -5982,6 +6043,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         );
                       })}
                     </div>
+                    </div>
+                    ))}
+                    {!tilesMode && <BoardMoreButton shown={paged.shown} total={paged.total} onMore={paging.more} />}
+                    </>
                   );
                 })()}
               </motion.div>

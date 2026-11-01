@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
   const week = weekRaw && /^\d{1,3}$/.test(String(weekRaw)) ? Number(weekRaw) : null;
 
   const path = `${key.teacher_id}/${key.class_id}/a-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
-  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type });
+  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type, cacheControl: '31536000' });
   if (upErr) return json({ error: 'upload_failed' }, 500);
 
   const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(path);

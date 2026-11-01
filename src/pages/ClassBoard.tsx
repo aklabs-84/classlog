@@ -1,7 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import {
+  mergeDaySubmissions, boardMemberInfo, fetchGroupNameMap, attachGroupNames, sortBoardPosts,
+  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, authorLabel, agoLabel, postKey, postLatestAt,
+  useNow, useBoardLiveRefresh, useNewArrivals, type BoardViewMode,
+} from '../lib/boardLive';
+import {
+  BoardNameTiles, BoardMoreButton, RecentBadge, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, freshCardClass,
+} from '../components/board/BoardLiveBits';
 import { openFile } from '../lib/fileUtils';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import BoardDownloadButton from '../components/common/BoardDownloadButton';
@@ -43,16 +51,29 @@ const ClassBoard = () => {
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [groupModalInfo, setGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const [boardView, setBoardView] = useState<BoardViewMode>('all');
+  const [search, setSearch] = useState('');
+  const now = useNow();
+  const paging = useBoardPaging(`${boardView}|${search}|${typeFilter}|${weekFilter}`);
+  const { freshKeys, newCount, dismiss: dismissNew } = useNewArrivals(posts, classId);
+
+  const [connError, setConnError] = useState(false);
+  const postsCountRef = useRef(0); // 지금 화면에 있는 게시물 수 (갑자기 비는 걸 막는 용도)
+
+  const fetchData = useCallback(async (silent?: boolean, isRetry?: boolean) => {
     if (!classId) return;
-    setLoading(true);
+    if (silent !== true) setLoading(true); // 자동 새로고침은 로딩 화면 없이 조용히
     try {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
-      const [{ data: classInfo }, { data: studentList }] = await Promise.all([
+      const [{ data: classInfo, error: classErr }, { data: studentList, error: studentErr }] = await Promise.all([
         supabase.from('classes').select('name, subject, weekly_plan').eq('id', classId).single(),
         supabase.from('students').select('id, full_name').eq('class_id', classId),
       ]);
+      // 오류가 났거나, 보던 게시물이 있는데 갑자기 학생 목록이 비면(로그인 만료 등) 화면을 지우지 않는다
+      if (classErr || studentErr || ((studentList || []).length === 0 && postsCountRef.current > 0)) {
+        throw new Error('board-connection');
+      }
       if (classInfo) setClassName(`${classInfo.name}${classInfo.subject ? ` · ${classInfo.subject}` : ''}`);
 
       const studentIds = (studentList || []).map((s: any) => s.id);
@@ -67,9 +88,9 @@ const ClassBoard = () => {
         if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
       });
 
-      if (studentIds.length === 0) { setPosts([]); setLoading(false); return; }
+      if (studentIds.length === 0) { postsCountRef.current = 0; setPosts([]); setConnError(false); setLoading(false); return; }
 
-      const [{ data: obs }, { data: results }] = await Promise.all([
+      const [{ data: obs, error: obsErr }, { data: results, error: resErr }] = await Promise.all([
         supabase
           .from('observations')
           .select('id, student_id, activity_name, content, created_at, status')
@@ -85,6 +106,10 @@ const ClassBoard = () => {
           .order('created_at', { ascending: false })
           .limit(300),
       ]);
+
+      if (obsErr || resErr || ((obs || []).length === 0 && (results || []).length === 0 && postsCountRef.current > 0)) {
+        throw new Error('board-connection');
+      }
 
       const obsPosts = (obs || []).map((o: any) => ({
         ...o,
@@ -162,6 +187,7 @@ const ClassBoard = () => {
             _group: group,
             _types: [...new Set(group.map((r: any) => r.result_type))] as string[],
             _isGroupSub: isGroupSub,
+            ...boardMemberInfo(group, nameMap),
           };
         })
       );
@@ -176,18 +202,19 @@ const ClassBoard = () => {
         if (!dayMergeMap[key]) dayMergeMap[key] = [];
         dayMergeMap[key].push(post);
       });
-      const mergedResultPosts = Object.values(dayMergeMap).map((subs: any[]) => {
-        const sorted = [...subs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        return { ...sorted[0], _submissions: sorted };
-      });
+      const mergedResultPosts = Object.values(dayMergeMap).map((subs: any[]) => mergeDaySubmissions(subs));
+      const groupNames = await fetchGroupNameMap(results || []);
 
-      const all = [...obsPosts, ...mergedResultPosts].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      const all = sortBoardPosts(attachGroupNames([...obsPosts, ...mergedResultPosts], groupNames));
+      postsCountRef.current = all.length;
       setPosts(all);
+      setConnError(false);
       setLastUpdated(new Date());
     } catch (e) {
       console.error(e);
+      // 보던 게시물은 그대로 두고 안내만 띄운 뒤, 한 번만 조용히 다시 시도
+      setConnError(true);
+      if (!isRetry) setTimeout(() => { fetchData(true, true); }, 4000);
     } finally {
       setLoading(false);
     }
@@ -195,11 +222,8 @@ const ClassBoard = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // 30초 자동 새로고침
-  useEffect(() => {
-    const id = setInterval(fetchData, 30_000);
-    return () => clearInterval(id);
-  }, [fetchData]);
+  // 5초마다 "새 제출 있나?"만 아주 작게 확인 → 바뀐 때만 조용히 다시 불러오기 (화면이 안 보이면 쉼)
+  useBoardLiveRefresh({ classId, active: true, refetch: () => { fetchData(true); } });
 
   // 조별 제출 모달 열릴 때 그룹 정보 fetch
   useEffect(() => {
@@ -219,11 +243,14 @@ const ClassBoard = () => {
     fetchGroupInfo();
   }, [selectedPost, nameMap]);
 
-  const filtered = useMemo(() => posts.filter(p => {
-    if (typeFilter !== 'all' && p._type !== typeFilter) return false;
-    if (weekFilter !== 'all' && p.week_number !== weekFilter) return false;
-    return true;
-  }), [posts, typeFilter, weekFilter]);
+  const filtered = useMemo(
+    () => filterBoardPosts(posts, { type: typeFilter, week: weekFilter, query: search }),
+    [posts, typeFilter, weekFilter, search]
+  );
+  const sections = useMemo(() => buildBoardSections(filtered, boardView), [filtered, boardView]);
+  const tilesMode = boardView === 'tiles';
+  const paged = limitSections(sections, paging.limit);
+  const shownSections = tilesMode ? sections.filter((s) => s.key === paging.openTile) : paged.sections;
 
   const weekList = useMemo(
     () => Array.from(new Set(posts.map(p => p.week_number).filter(Boolean))).sort((a, b) => a - b),
@@ -252,7 +279,7 @@ const ClassBoard = () => {
             </span>
           )}
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all border border-surface-container-high"
           >
             <RefreshCw size={13} /> 새로고침
@@ -319,6 +346,9 @@ const ClassBoard = () => {
           ))}
         </div>
 
+        <BoardViewToggle value={boardView} onChange={setBoardView} />
+        <BoardSearchBox value={search} onChange={setSearch} />
+
         <span className="ml-auto text-[11px] text-on-surface-variant font-black hidden sm:block">
           {filtered.length}개 게시물
         </span>
@@ -331,6 +361,8 @@ const ClassBoard = () => {
           <div className="flex items-center justify-center py-32">
             <Loader2 size={36} className="animate-spin text-indigo-500" />
           </div>
+        ) : posts.length > 0 && (filtered.length === 0 || sections.length === 0) ? (
+          <BoardNoMatch query={search} mode={boardView} />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-32 space-y-4">
             <div className="w-24 h-24 rounded-3xl bg-surface-container flex items-center justify-center">
@@ -340,19 +372,27 @@ const ClassBoard = () => {
             <p className="text-sm text-on-surface-variant/60 font-bold">학생 제출물을 승인하면 이 보드에 나타납니다</p>
           </div>
         ) : (
+          <>
+          <NewArrivalToast count={newCount} onClose={dismissNew} />
+          <BoardConnBanner show={connError} onRetry={() => fetchData()} />
+          <RecentStrip posts={filtered} now={now} onOpen={setSelectedPost} />
+          {tilesMode && <BoardNameTiles sections={sections} now={now} openKey={paging.openTile} onToggle={paging.toggleTile} />}
+          {shownSections.map((section) => (
+          <div key={section.key} className="mb-10">
+          <BoardSectionHeader section={section} />
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4 space-y-4">
             <AnimatePresence>
-              {filtered.map((post, i) => {
+              {section.posts.map((post, i) => {
                 const isObs = post._type === 'obs';
                 return (
                   <motion.div
-                    key={`${post._type}-${post.id}`}
+                    key={`${section.key}-${postKey(post)}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i, 15) * 0.03 }}
                     onClick={() => setSelectedPost(post)}
                     style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
-                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
+                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${freshCardClass(freshKeys.has(postKey(post)))} ${
                       isObs
                         ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:border-violet-300 dark:hover:border-violet-500/60'
                         : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:border-emerald-300 dark:hover:border-emerald-500/60'
@@ -369,22 +409,18 @@ const ClassBoard = () => {
                           {isObs ? '📝' : '📁'}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-black truncate text-on-surface">{post.student_name}</p>
-                          <p className="text-[10px] text-on-surface-variant font-bold truncate">
+                          <p className="text-sm font-black truncate text-on-surface">{authorLabel(post)}</p>
+                          <p className="text-[11px] text-on-surface-variant font-bold truncate">
                             {post.week_number ? `${post.week_number}주차 · ` : ''}
-                            {new Date(post.created_at).toLocaleDateString('ko-KR')}
+                            {agoLabel(postLatestAt(post), now)}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        <RecentBadge post={post} now={now} />
                         {!isObs && post._isGroupSub && (
                           <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
                             조별
-                          </span>
-                        )}
-                        {!isObs && post._submissions?.length > 1 && (
-                          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-                            총 {post._submissions.length}회 제출
                           </span>
                         )}
                         <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
@@ -418,7 +454,7 @@ const ClassBoard = () => {
                               <img
                                 src={post.image_url}
                                 alt=""
-                                className="w-full rounded-xl object-cover max-h-48"
+                                className="w-full rounded-xl object-contain bg-white/70 dark:bg-slate-800/60 max-h-72"
                                 loading="lazy"
                                 onError={e => {
                                   if (post.image_original_url) {
@@ -454,6 +490,10 @@ const ClassBoard = () => {
               })}
             </AnimatePresence>
           </div>
+          </div>
+          ))}
+          {!tilesMode && <BoardMoreButton shown={paged.shown} total={paged.total} onMore={paging.more} />}
+          </>
         )}
       </main>
 
