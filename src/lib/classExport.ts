@@ -91,6 +91,7 @@ interface Tables {
   overviewHeader: string[];
   obsRows: (string | number)[][];
   resRows: (string | number)[][];
+  resLinks: { text: string; url: string }[][];
   weeklyRows: (string | number)[][];
   setechRows: (string | number)[][];
 }
@@ -114,6 +115,7 @@ function buildTables(input: ClassExportInput): Tables {
 
   const obsRows: (string | number)[][] = [];
   const resRows: (string | number)[][] = [];
+  const resLinks: { text: string; url: string }[][] = [];
   sorted.forEach((s, i) => {
     const w = who(s, i);
     [...s.observations]
@@ -124,6 +126,8 @@ function buildTables(input: ClassExportInput): Tables {
       .forEach(g => {
         const c = resultContent(g.items);
         resRows.push([w.num, w.name, weekLabel(g.week_number), g.isGroupSubmission ? '조별' : '개인', g.title || '', c.text, c.kind, fmtDate(g.created_at)]);
+        const imgUrls = g.items.flatMap(it => (it.image_urls && it.image_urls.length > 0 ? it.image_urls : it.image_url ? [it.image_url] : []));
+        resLinks.push(imgUrls.filter(u => /^https?:\/\//.test(u)).map((u, i) => ({ text: imgUrls.length > 1 ? `이미지 ${i + 1} 보기` : '이미지 보기', url: u })));
       });
   });
 
@@ -147,7 +151,7 @@ function buildTables(input: ClassExportInput): Tables {
     setechRows.push([w.num, w.name, ev.achievement_level ?? '', statusText(ev.status), ev.setech_content, ev.setech_content.length]);
   });
 
-  return { who, overview, overviewHeader, obsRows, resRows, weeklyRows, setechRows };
+  return { who, overview, overviewHeader, obsRows, resRows, resLinks, weeklyRows, setechRows };
 }
 
 const toSurveyForms = (surveys: ExportSurveyForm[]) => surveys.map(f => ({
@@ -199,31 +203,44 @@ export function buildClassSheets(input: ClassExportInput): XSheet[] {
     t.weeklyRows.forEach(r => sum.push([C(r[0]), N(r[1]), N(r[2]), N(r[3])]));
   }
 
-  const sheets: XSheet[] = [
-    { name: '요약', colWidths: [22, 14, 14, 14], rows: sum },
-    {
-      name: '학생별 현황', colWidths: [8, 16, 14, 12, 10, 12], freezeRows: 1, filterRow: 1,
-      rows: [t.overviewHeader.map(H), ...t.overview.map(r => r.map((v, i) => (i === 1 ? C(v) : N(v))))],
-    },
-    {
+  const sheets: XSheet[] = [{ name: '요약', colWidths: [22, 14, 14, 14], rows: sum }];
+
+  const hasSetechAny = t.setechRows.length > 0;
+  const hasAnyRecord = totalObs > 0 || totalRes > 0 || hasSetechAny;
+  if (hasAnyRecord) {
+    // 세특이 하나도 없으면 "세특 상태" 열을 뺀다 (마지막 열)
+    const ovCols = hasSetechAny ? 6 : 5;
+    sheets.push({
+      name: '학생별 현황', colWidths: [8, 16, 14, 12, 10, 12].slice(0, ovCols), freezeRows: 1, filterRow: 1,
+      rows: [t.overviewHeader.slice(0, ovCols).map(H), ...t.overview.map(r => r.slice(0, ovCols).map((v, i) => (i === 1 ? C(v) : N(v))))],
+    });
+  }
+  if (t.obsRows.length > 0) {
+    sheets.push({
       name: '활동 기록', colWidths: [8, 16, 10, 22, 60, 13], freezeRows: 1, filterRow: 1,
       rows: [
         [H('번호'), H(t.overviewHeader[1]), H('주차'), H('활동명'), H('내용'), H('날짜')],
-        ...(t.obsRows.length > 0
-          ? t.obsRows.map(r => r.map((v, i) => (i === 3 || i === 4 || i === 1 ? C(v) : N(v))))
-          : [[C('제출된 활동 기록이 없습니다.'), null, null, null, null, null] as (XCell | null)[]]),
+        ...t.obsRows.map(r => r.map((v, i) => (i === 3 || i === 4 || i === 1 ? C(v) : N(v)))),
       ],
-    },
-    {
-      name: '결과물', colWidths: [8, 16, 10, 9, 24, 60, 12, 13], freezeRows: 1, filterRow: 1,
+    });
+  }
+  if (t.resRows.length > 0) {
+    const maxLinks = Math.min(3, Math.max(0, ...t.resLinks.map(l => l.length)));
+    const linkHeads = ['이미지 보기', '이미지 보기 2', '이미지 보기 3'].slice(0, maxLinks);
+    sheets.push({
+      name: '결과물', colWidths: [8, 16, 10, 9, 24, 60, 12, 13, ...linkHeads.map(() => 14)], freezeRows: 1, filterRow: 1,
       rows: [
-        [H('번호'), H(t.overviewHeader[1]), H('주차'), H('구분'), H('제목'), H('내용'), H('종류'), H('날짜')],
-        ...(t.resRows.length > 0
-          ? t.resRows.map(r => r.map((v, i) => (i === 4 || i === 5 || i === 1 ? C(v) : N(v))))
-          : [[C('제출된 결과물이 없습니다.'), null, null, null, null, null, null, null] as (XCell | null)[]]),
+        [H('번호'), H(t.overviewHeader[1]), H('주차'), H('구분'), H('제목'), H('내용'), H('종류'), H('날짜'), ...linkHeads.map(h => H(h))],
+        ...t.resRows.map((r, ri) => [
+          ...r.map((v, i) => (i === 4 || i === 5 || i === 1 ? C(v) : N(v))),
+          ...linkHeads.map((_, k): XCell => {
+            const l = t.resLinks[ri]?.[k];
+            return l ? { value: l.text, style: 'link', url: l.url } : C('');
+          }),
+        ]),
       ],
-    },
-  ];
+    });
+  }
 
   if (surveys.length > 0) {
     sheets.push({
@@ -297,11 +314,13 @@ export function buildShareSheets(input: ShareSheetInput): XSheet[] {
   const totalObs = sorted.reduce((a, s) => a + s.obs.length, 0);
   const totalRes = sorted.reduce((a, s) => a + s.results.length, 0);
   const active = sorted.filter(s => s.obs.length > 0 || s.results.length > 0).length;
+  const anySetech = sorted.some(hasSetech);
+  const allSpan = anySetech ? 6 : 5;
   const all: (XCell | null)[][] = [];
-  all.push([{ value: `${input.className} 전체 현황`, style: 'title', span: 6 }, null, null, null, null, null]);
-  all.push([{ value: `내려받은 날 ${fmtDate(new Date().toISOString())}`, style: 'note', span: 6 }, null, null, null, null, null]);
+  all.push([{ value: `${input.className} 전체 현황`, style: 'title', span: allSpan }, null, null, null, null, null]);
+  all.push([{ value: `내려받은 날 ${fmtDate(new Date().toISOString())}`, style: 'note', span: allSpan }, null, null, null, null, null]);
   all.push([null, null, null, null, null, null]);
-  all.push([{ value: '한눈에 보기', style: 'section', span: 6 }, null, null, null, null, null]);
+  all.push([{ value: '한눈에 보기', style: 'section', span: allSpan }, null, null, null, null, null]);
   const kv = (k: string, v: string | number): (XCell | null)[] => [{ value: k, style: 'cell', span: 2 }, null, { value: v, style: 'num', span: 2 }, null, null, null];
   all.push(kv('전체 학생', sorted.length));
   all.push(kv('활동 기록(건)', totalObs));
@@ -312,13 +331,13 @@ export function buildShareSheets(input: ShareSheetInput): XSheet[] {
     all.push(kv('출석 비율', `${Math.round(((attendance.byStatus.present || 0) / attendance.total) * 100)}%`));
   }
   all.push([null, null, null, null, null, null]);
-  all.push([{ value: '학생별 현황', style: 'section', span: 6 }, null, null, null, null, null]);
-  all.push([H('번호'), H('이름'), H('활동 기록'), H('결과물'), H('성취도'), H('세특')]);
+  all.push([{ value: '학생별 현황', style: 'section', span: allSpan }, null, null, null, null, null]);
+  all.push([H('번호'), H('이름'), H('활동 기록'), H('결과물'), H('성취도'), ...(anySetech ? [H('세특')] : [])]);
   sorted.forEach(s => {
     const ev = evalMap[s.id];
-    all.push([N(s.student_number ?? ''), C(s.full_name), N(s.obs.length), N(s.results.length), N(ev?.achievement_level ?? ''), N(ev ? statusText(ev.status) : '미작성')]);
+    all.push([N(s.student_number ?? ''), C(s.full_name), N(s.obs.length), N(s.results.length), N(ev?.achievement_level ?? ''), ...(anySetech ? [N(ev ? statusText(ev.status) : '미작성')] : [])]);
   });
-  const sheets: XSheet[] = [{ name: '전체', colWidths: [8, 16, 12, 12, 12, 12], rows: all }];
+  const sheets: XSheet[] = [{ name: '전체', colWidths: anySetech ? [8, 16, 12, 12, 12, 12] : [8, 16, 12, 12, 12], rows: all }];
 
   // ── 결과 ──
   const resStudents = sorted.filter(s => s.results.length > 0);

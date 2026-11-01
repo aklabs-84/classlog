@@ -599,7 +599,7 @@ const ClassBoard = () => {
                     {isObs && selectedPost.content && (
                       <div className="space-y-1.5">
                         <p className="text-[10px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest">관찰 내용</p>
-                        <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap">
+                        <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                           {selectedPost.content}
                         </p>
                       </div>
@@ -627,7 +627,7 @@ const ClassBoard = () => {
                         {sub.text_content && (
                           <div className="space-y-1.5">
                             <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">내용</p>
-                            <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap">
+                            <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                               {sub.text_content}
                             </p>
                           </div>

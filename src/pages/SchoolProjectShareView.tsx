@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import JSZip from 'jszip';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -13,7 +14,7 @@ import {
   FileText, Loader2, AlertCircle, Lock, Calendar,
   Images, Download, ZoomIn, X, BookOpen,
   AlignLeft, Link2, ImageIcon, File as FileIcon,
-  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, BarChart2, Home,
+  Sparkles, ArrowRight, ArrowLeft, CheckCircle2, FolderOpen, RefreshCw, BarChart2, Home,
 } from 'lucide-react';
 import FullScreenView from '../components/common/FullScreenView';
 import PercentLoader from '../components/common/PercentLoader';
@@ -263,7 +264,7 @@ const SchoolProjectShareView = () => {
   // 학생 상세 모달 (활동 기록 + 결과물 목록)
   const [modalStudent, setModalStudent] = useState<StudentWithData | null>(null);
   // 학습 여정 / 결과 확인 / 갤러리 / 학급 기록 탭
-  const [activeTab, setActiveTab] = useState<'overview' | 'results' | 'gallery' | 'setech' | 'survey'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'journey' | 'results' | 'gallery' | 'setech' | 'survey'>('overview');
   type MainTab = 'overview' | 'weeks' | 'moments' | 'details';
   const [mainTab, setMainTab] = useState<MainTab>(() => {
     try {
@@ -542,6 +543,18 @@ const SchoolProjectShareView = () => {
     window.print();
   };
 
+  // 학급 결과는 전체 화면으로 열고, 폰·브라우저 뒤로가기도 목록으로 돌아가게 한다
+  useEffect(() => {
+    if (!activeClassId) return;
+    window.history.pushState({ spClass: activeClassId }, '');
+    const onPop = () => setActiveClassId(null);
+    window.addEventListener('popstate', onPop);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('popstate', onPop); document.body.style.overflow = prev; };
+  }, [activeClassId]);
+  const closeClassView = () => { if (window.history.state?.spClass) window.history.back(); else setActiveClassId(null); };
+
   const handleToggleClass = (classId: string) => {
     if (activeClassId === classId) {
       setActiveClassId(null);
@@ -683,7 +696,7 @@ const SchoolProjectShareView = () => {
                     <span className="text-[13px] text-gray-400 ml-auto">{new Date(obs.created_at).toLocaleDateString('ko-KR')}</span>
                   </div>
                   {obs.activity_name && <p className="text-[13px] font-semibold text-gray-500 mb-1.5">{obs.activity_name}</p>}
-                  <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{obs.content}</p>
+                  <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{obs.content}</p>
                 </div>
               ))}
 
@@ -810,7 +823,7 @@ const SchoolProjectShareView = () => {
                     {textItem?.text_content && (
                       <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
                         <p className="text-[13px] font-black text-blue-500 mb-2 flex items-center gap-1"><AlignLeft size={12} />텍스트</p>
-                        <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{textItem.text_content}</p>
+                        <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{textItem.text_content}</p>
                       </div>
                     )}
                     {/* 링크 */}
@@ -1216,9 +1229,9 @@ const SchoolProjectShareView = () => {
                     </div>
                   )}
                   <span className="inline-flex items-center gap-1 text-sm font-black px-3 py-2 rounded-lg text-white whitespace-nowrap"
-                    style={{ background: isExpanded ? '#64748b' : theme.from }}>
-                    {isLoading ? <Loader2 size={15} className="animate-spin" /> : isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                    {isExpanded ? '접기' : '결과 보기'}
+                    style={{ background: theme.from }}>
+                    {isLoading ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
+                    결과 보기
                   </span>
                 </div>
               </button>
@@ -1231,7 +1244,6 @@ const SchoolProjectShareView = () => {
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="border-t border-violet-100 overflow-hidden"
                 >
                   {isLoading && students.length === 0 ? (
                     <div className="py-10 flex justify-center"><PercentLoader label="학생 기록 불러오는 중" /></div>
@@ -1416,11 +1428,69 @@ const SchoolProjectShareView = () => {
                       }
                     };
 
-                    return (
-                      <>
-                        {/* ── 학습 여정 타임라인 (탭과 무관하게 항상 상단에 고정 노출) ── */}
-                        {cls.show_learning_journey && (
-                          <div className="px-6 pt-5 pb-1">
+                    return createPortal(
+                      <div className="fixed inset-0 z-[55] bg-slate-50 flex flex-col print:hidden" role="dialog" aria-label={`${cls.name} 결과`}>
+                        <div className="shrink-0 bg-white border-b border-slate-200 flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3">
+                          <button onClick={closeClassView} className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl text-white font-black text-sm sm:text-base shrink-0 hover:opacity-90 transition-opacity" style={{ background: '#0e1a33' }}>
+                            <ArrowLeft size={18} /><span className="hidden min-[430px]:inline">학교 목록으로</span><span className="min-[430px]:hidden">목록</span>
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-black text-slate-900 text-base sm:text-lg truncate">{cls.name}</p>
+                            <p className="text-[13px] text-slate-500 truncate">{[project?.name, `${students.length}명`].filter(Boolean).join(' · ')}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 relative">
+                            <button onClick={() => handleRefreshClass(cls.id)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-all" title="새로고침">
+                              <RefreshCw size={13} />
+                            </button>
+                            <button onClick={() => setExportMenu(exportMenu !== null && exportMenu.classId === cls.id ? null : { classId: cls.id })} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 hover:opacity-90 disabled:opacity-40 text-white rounded-lg text-sm font-black transition-all" style={{ background: '#0e1a33' }} title="XLSX 엑셀 다운로드">
+                              {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}<span className="hidden sm:inline">XLSX</span>
+                            </button>
+                            {exportMenu !== null && exportMenu.classId === cls.id && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setExportMenu(null)} />
+                                <div className="absolute right-0 top-full mt-1 z-40 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-slate-200 shadow-xl p-4 space-y-3">
+                                  <p className="text-base font-black text-slate-900">엑셀로 내려받기</p>
+                                  <p className="text-sm text-slate-500 leading-relaxed">활동 기록·결과물{classSurveyIds(cls).length > 0 ? '·설문' : ''}이 한 파일에 정리돼요. 학생 이름을 넣을지 골라 주세요.</p>
+                                  <div className="space-y-1.5">
+                                    {[{ v: true, label: '학생 이름 포함', hint: '번호와 이름이 모두 나와요' }, { v: false, label: '이름 없이 (번호만)', hint: '"학생 3"처럼 표시돼요' }].map(o => (
+                                      <label key={String(o.v)} className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer ${exportIncludeNames === o.v ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}>
+                                        <input type="radio" name={`export-names-${cls.id}`} checked={exportIncludeNames === o.v} onChange={() => { setExportIncludeNames(o.v); try { localStorage.setItem('share-export-include-names', o.v ? '1' : '0'); } catch { /* 저장 실패는 무시 */ } }} className="mt-1" />
+                                        <span><span className="block text-sm font-black text-slate-900">{o.label}</span><span className="block text-xs text-slate-500">{o.hint}</span></span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                  {!exportIncludeNames && <p className="text-xs text-amber-600 leading-relaxed">학생이 직접 쓴 글 안에 이름이 있으면 그대로 나올 수 있어요.</p>}
+                                  <button onClick={() => runExport()} className="w-full py-2.5 rounded-lg text-white text-sm font-black hover:opacity-90" style={{ background: '#0e1a33' }}>내려받기</button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 bg-white border-b border-slate-200 px-3 sm:px-6 overflow-x-auto">
+                          <div className="flex items-center gap-5 pt-3 min-w-max">
+                            {[
+                              { key: 'overview', label: '한눈에 보기', icon: Home },
+                              ...(cls.show_learning_journey ? [{ key: 'journey', label: '학습 여정', icon: Sparkles }] : []),
+                              { key: 'results', label: '결과 확인', icon: FileText },
+                              { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
+                              ...(students.some(s => evalMap[s.id]?.setech_content) ? [{ key: 'setech', label: '학급 기록', icon: BookOpen }] : []),
+                              ...(classSurveyIds(cls).length > 0 ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
+                            ].map(({ key, label, icon: Icon }) => (
+                              <button
+                                key={key}
+                                onClick={() => setActiveTab(key as 'overview' | 'journey' | 'results' | 'gallery' | 'setech' | 'survey')}
+                                className={`flex items-center gap-1.5 pb-3 whitespace-nowrap shrink-0 border-b-2 text-base font-black transition-all ${activeTab === key ? 'text-slate-900 border-[#e8412c]' : 'text-slate-400 border-transparent hover:text-slate-700'}`}
+                              >
+                                <Icon size={15} />{label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                        <div id={`results-${cls.id}`} className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+                        {/* ── 학습 여정 탭 ── */}
+                        {activeTab === 'journey' && cls.show_learning_journey && (
+                          <div>
                             {weeklyJourney.length === 0 ? (
                               <div className="flex flex-col items-center py-10 space-y-2">
                                 <Sparkles size={24} className="text-gray-300" />
@@ -1501,55 +1571,6 @@ const SchoolProjectShareView = () => {
                           </div>
                         )}
 
-                        {/* 탭 바 + 다운로드 */}
-                        <div id={`results-${cls.id}`} style={{ scrollMarginTop: 56 }} className="px-6 pt-4 flex items-center gap-2 flex-wrap border-b border-slate-200">
-                          <div className="flex items-center gap-5 flex-wrap">
-                            {[
-                              { key: 'overview', label: '한눈에 보기', icon: Home },
-                              { key: 'results', label: '결과 확인', icon: FileText },
-                              { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
-                              { key: 'setech', label: '학급 기록', icon: BookOpen },
-                              ...(classSurveyIds(cls).length > 0 ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
-                            ].map(({ key, label, icon: Icon }) => (
-                              <button
-                                key={key}
-                                onClick={() => setActiveTab(key as 'overview' | 'results' | 'gallery' | 'setech' | 'survey')}
-                                className={`flex items-center gap-1.5 pb-3 -mb-px border-b-2 text-base font-black transition-all ${activeTab === key ? 'text-slate-900 border-[#e8412c]' : 'text-slate-400 border-transparent hover:text-slate-700'}`}
-                              >
-                                <Icon size={15} />{label}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="ml-auto flex items-center gap-1.5 pb-2 relative">
-                            <button onClick={() => handleRefreshClass(cls.id)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-all" title="새로고침">
-                              <RefreshCw size={13} />
-                            </button>
-                            <button onClick={() => setExportMenu(exportMenu !== null && exportMenu.classId === cls.id ? null : { classId: cls.id })} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 hover:opacity-90 disabled:opacity-40 text-white rounded-lg text-sm font-black transition-all" style={{ background: '#0e1a33' }} title="XLSX 엑셀 다운로드">
-                              {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}<span className="hidden sm:inline">XLSX</span>
-                            </button>
-                            {exportMenu !== null && exportMenu.classId === cls.id && (
-                              <>
-                                <div className="fixed inset-0 z-30" onClick={() => setExportMenu(null)} />
-                                <div className="absolute right-0 top-full mt-1 z-40 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-slate-200 shadow-xl p-4 space-y-3">
-                                  <p className="text-base font-black text-slate-900">엑셀로 내려받기</p>
-                                  <p className="text-sm text-slate-500 leading-relaxed">활동 기록·결과물{classSurveyIds(cls).length > 0 ? '·설문' : ''}이 한 파일에 정리돼요. 학생 이름을 넣을지 골라 주세요.</p>
-                                  <div className="space-y-1.5">
-                                    {[{ v: true, label: '학생 이름 포함', hint: '번호와 이름이 모두 나와요' }, { v: false, label: '이름 없이 (번호만)', hint: '"학생 3"처럼 표시돼요' }].map(o => (
-                                      <label key={String(o.v)} className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer ${exportIncludeNames === o.v ? 'border-slate-900 bg-slate-50' : 'border-slate-200'}`}>
-                                        <input type="radio" name={`export-names-${cls.id}`} checked={exportIncludeNames === o.v} onChange={() => { setExportIncludeNames(o.v); try { localStorage.setItem('share-export-include-names', o.v ? '1' : '0'); } catch { /* 저장 실패는 무시 */ } }} className="mt-1" />
-                                        <span><span className="block text-sm font-black text-slate-900">{o.label}</span><span className="block text-xs text-slate-500">{o.hint}</span></span>
-                                      </label>
-                                    ))}
-                                  </div>
-                                  {!exportIncludeNames && <p className="text-xs text-amber-600 leading-relaxed">학생이 직접 쓴 글 안에 이름이 있으면 그대로 나올 수 있어요.</p>}
-                                  <button onClick={() => runExport()} className="w-full py-2.5 rounded-lg text-white text-sm font-black hover:opacity-90" style={{ background: '#0e1a33' }}>내려받기</button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="px-6 py-5 space-y-5">
                           {/* ── 한눈에 보기 탭 ── */}
                           {activeTab === 'overview' && (
                             <>
@@ -1575,10 +1596,12 @@ const SchoolProjectShareView = () => {
                                 </div>
                               )}
 
+                              {(ov.weeks.length > 0 || (att && att.total > 0)) && (
+                                <div className={`grid gap-4 items-stretch ${ov.weeks.length > 0 && att && att.total > 0 ? 'md:grid-cols-[minmax(0,1fr)_270px]' : ''}`}>
                               {ov.weeks.length > 0 && (() => {
                                 const max = Math.max(...ov.weeks.map(w => w.count), 1);
                                 return (
-                                  <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
+                                  <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 h-full">
                                     <div className="flex items-center justify-between mb-3">
                                       <p className="text-[15px] font-black text-slate-900">주차별 제출</p>
                                       <button onClick={() => setActiveTab('results')} className="text-[14px] font-black flex items-center gap-1 hover:underline" style={{ color: '#e8412c' }}>
@@ -1601,6 +1624,14 @@ const SchoolProjectShareView = () => {
                                   </div>
                                 );
                               })()}
+                                  {att && att.total > 0 && (
+                                    <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 h-full">
+                                      <p className="text-[15px] font-black text-slate-900 mb-3">출석 요약</p>
+                                      <AttendanceDonutChart compact total={att.total} byStatus={att.byStatus} />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
 
                               {ov.snapshots.length > 0 && (() => {
                                 const snap = ov.snapshots[Math.min(snapshotIdx, ov.snapshots.length - 1)];
@@ -1649,13 +1680,6 @@ const SchoolProjectShareView = () => {
                                   </div>
                                 );
                               })()}
-
-                              {att && att.total > 0 && (
-                                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                                  <p className="text-lg font-black text-slate-900 mb-3">출석 요약</p>
-                                  <AttendanceDonutChart total={att.total} byStatus={att.byStatus} />
-                                </div>
-                              )}
 
                               {ovImgs.length > 0 && (
                                 <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
@@ -1978,7 +2002,7 @@ const SchoolProjectShareView = () => {
                                         </button>
                                         {isExpandedSetech && (
                                           <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
-                                            <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                                            <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{content}</p>
                                           </div>
                                         )}
                                       </div>
@@ -2039,7 +2063,9 @@ const SchoolProjectShareView = () => {
                             <ExternalLink size={12} /> 학급 상세 페이지 →
                           </a>
                         </div>
-                      </>
+                        </div>
+                      </div>,
+                      document.body
                     );
                   })()}
                 </motion.div>

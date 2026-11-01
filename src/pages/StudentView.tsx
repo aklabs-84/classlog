@@ -1248,7 +1248,7 @@ const StudentView = () => {
                             </div>
                           </div>
 
-                          <div className="p-6 bg-neutral-50 rounded-2xl border border-neutral-100/50 text-sm font-medium text-on-surface/80 leading-relaxed group-hover:bg-primary/[0.02] group-hover:border-primary/10 transition-colors whitespace-pre-wrap">
+                          <div className="p-6 bg-neutral-50 rounded-2xl border border-neutral-100/50 text-sm font-medium text-on-surface/80 leading-relaxed group-hover:bg-primary/[0.02] group-hover:border-primary/10 transition-colors whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {obs.content}
                           </div>
 
@@ -1345,7 +1345,7 @@ const StudentView = () => {
                                   <p className="text-[11px] font-bold text-neutral-400">
                                     {new Date(p.created_at).toLocaleDateString('ko-KR')} · {p.status === 'rejected' ? '반려됨' : p.status === 'pending' ? '승인 대기' : '승인 완료'}
                                   </p>
-                                  <p className="text-xs text-neutral-600 whitespace-pre-wrap line-clamp-3">{p.content}</p>
+                                  <p className="text-xs text-neutral-600 whitespace-pre-wrap [overflow-wrap:anywhere] line-clamp-3">{p.content}</p>
                                   {p.teacher_feedback && p.status === 'rejected' && (
                                     <p className="text-[11px] font-bold text-red-500 mt-1">💬 {p.teacher_feedback}</p>
                                   )}
@@ -1522,7 +1522,7 @@ const StudentView = () => {
                       {textItem?.text_content && (
                         <div className="flex items-start gap-2">
                           <AlignLeft size={12} className="text-primary shrink-0 mt-0.5" />
-                          <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-2 whitespace-pre-wrap">
+                          <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-2 whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {textItem.text_content}
                           </p>
                         </div>
@@ -1823,7 +1823,7 @@ const StudentView = () => {
                       {sub.performance_record && (
                         <div className="space-y-2">
                           <p className="text-[10px] font-black text-primary uppercase tracking-widest">수행평가 활동 기술</p>
-                          <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                          <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {sub.performance_record}
                           </div>
                           <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{sub.performance_record.length}자</p>
@@ -1832,7 +1832,7 @@ const StudentView = () => {
                       {sub.inquiry_reflection && (
                         <div className="space-y-2">
                           <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">탐구소감문</p>
-                          <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                          <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {sub.inquiry_reflection}
                           </div>
                           <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{sub.inquiry_reflection.length}자</p>
@@ -1841,7 +1841,7 @@ const StudentView = () => {
                       {sub.self_eval && (
                         <div className="space-y-2">
                           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">자기평가서</p>
-                          <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                          <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {sub.self_eval}
                           </div>
                           <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{sub.self_eval.length}자</p>
@@ -1858,7 +1858,7 @@ const StudentView = () => {
                               )}
                             </div>
                             {sub.reading_record_reflection && (
-                              <p className="text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap pt-2 border-t border-amber-100">
+                              <p className="text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] pt-2 border-t border-amber-100">
                                 {sub.reading_record_reflection}
                               </p>
                             )}
@@ -2215,7 +2215,7 @@ const StudentView = () => {
                       {textItem?.text_content && (
                         <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-100">
                           <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest mb-2">텍스트</p>
-                          <p className="text-sm font-medium text-on-surface leading-relaxed whitespace-pre-wrap">
+                          <p className="text-sm font-medium text-on-surface leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                             {textItem.text_content}
                           </p>
                         </div>

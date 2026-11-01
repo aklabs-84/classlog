@@ -1147,7 +1147,7 @@ const SchoolShareView = () => {
                                 <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                               </div>
                               {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
-                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{o.content}</p>
                             </div>
                           ))}
 
@@ -1166,7 +1166,7 @@ const SchoolShareView = () => {
                                 </div>
                                 {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
                                 {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
-                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
+                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{r.text_content}</p>
                                 )}
                                 {r.image_urls && r.image_urls.length > 0 && (
                                   <div
@@ -1409,7 +1409,7 @@ const SchoolShareView = () => {
 
                         {isExpanded && (
                           <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
-                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{content}</p>
                           </div>
                         )}
                       </div>

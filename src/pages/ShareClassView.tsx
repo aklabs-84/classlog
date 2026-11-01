@@ -1225,11 +1225,12 @@ const ShareClassView = () => {
                 </div>
               )}
 
+              <div className={`grid gap-4 items-stretch ${overview.weeks.length > 0 && attendanceSummary && attendanceSummary.total > 0 ? 'md:grid-cols-[minmax(0,1fr)_270px]' : ''}`}>
               {/* 주차별 제출 */}
               {overview.weeks.length > 0 && (() => {
                 const max = Math.max(...overview.weeks.map((w) => w.count), 1);
                 return (
-                  <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4">
+                  <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 h-full">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[15px] font-black text-gray-900">주차별 제출</p>
                       <button onClick={() => jumpTab('results')} className="text-[14px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
@@ -1252,6 +1253,39 @@ const ShareClassView = () => {
                   </div>
                 );
               })()}
+              {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
+              {attendanceSummary && attendanceSummary.total > 0 && (() => {
+                const META: [string, string, string][] = [
+                  ['present', '출석', '#10b981'], ['late', '지각', '#f59e0b'], ['early_leave', '조퇴', '#f97316'],
+                  ['excused', '공결', '#8b5cf6'], ['absent', '결석', '#f43f5e'],
+                ];
+                const { total, byStatus } = attendanceSummary;
+                const rate = Math.round(((byStatus.present || 0) / total) * 100);
+                const parts = META.filter(([k]) => byStatus[k]);
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 h-full print:hidden">
+                    <div className="flex items-end justify-between gap-x-3 gap-y-1 flex-wrap mb-3">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[13px] font-black text-gray-500">출석률</span>
+                        <span className="text-3xl font-black text-gray-900 tabular-nums">{rate}%</span>
+                      </div>
+                      <span className="text-[13px] font-bold text-gray-400">출석 기록 {total}건 기준</span>
+                    </div>
+                    <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100" role="img" aria-label={`출석률 ${rate}%`}>
+                      {parts.map(([k, , c]) => <div key={k} style={{ width: `${(byStatus[k] / total) * 100}%`, background: c }} />)}
+                    </div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+                      {parts.map(([k, label, c]) => (
+                        <span key={k} className="flex items-center gap-1.5 text-[14px] font-bold text-gray-600">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
+                          {label} <b className="text-gray-900 tabular-nums">{byStatus[k]}</b>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              </div>
 
               {/* 결과물 스냅샷 카드 (랜덤 3개 스포트라이트 슬라이드) */}
               {snapshotResults.length > 0 && (() => {
@@ -1316,39 +1350,6 @@ const ShareClassView = () => {
                         ))}
                       </div>
                     )}
-                  </div>
-                );
-              })()}
-
-              {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
-              {attendanceSummary && attendanceSummary.total > 0 && (() => {
-                const META: [string, string, string][] = [
-                  ['present', '출석', '#10b981'], ['late', '지각', '#f59e0b'], ['early_leave', '조퇴', '#f97316'],
-                  ['excused', '공결', '#8b5cf6'], ['absent', '결석', '#f43f5e'],
-                ];
-                const { total, byStatus } = attendanceSummary;
-                const rate = Math.round(((byStatus.present || 0) / total) * 100);
-                const parts = META.filter(([k]) => byStatus[k]);
-                return (
-                  <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 print:hidden">
-                    <div className="flex items-end justify-between gap-3 mb-3">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[13px] font-black text-gray-500">출석률</span>
-                        <span className="text-3xl font-black text-gray-900 tabular-nums">{rate}%</span>
-                      </div>
-                      <span className="text-[13px] font-bold text-gray-400">출석 기록 {total}건 기준</span>
-                    </div>
-                    <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100" role="img" aria-label={`출석률 ${rate}%`}>
-                      {parts.map(([k, , c]) => <div key={k} style={{ width: `${(byStatus[k] / total) * 100}%`, background: c }} />)}
-                    </div>
-                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
-                      {parts.map(([k, label, c]) => (
-                        <span key={k} className="flex items-center gap-1.5 text-[14px] font-bold text-gray-600">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
-                          {label} <b className="text-gray-900 tabular-nums">{byStatus[k]}</b>
-                        </span>
-                      ))}
-                    </div>
                   </div>
                 );
               })()}
@@ -1797,7 +1798,7 @@ const ShareClassView = () => {
                                       {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}주차</span>}
                                       {o.activity_name && <span className="text-[13px] font-semibold text-gray-500">{o.activity_name}</span>}
                                     </div>
-                                    <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                                    <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{o.content}</p>
                                   </div>
                                 ))}
                               </div>
@@ -1805,7 +1806,7 @@ const ShareClassView = () => {
                             {hasSetech && (
                               <div>
                                 <p className="text-[13px] font-black text-gray-400 mb-1">세특</p>
-                                <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                                <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{content}</p>
                               </div>
                             )}
                           </div>
@@ -1960,7 +1961,7 @@ const ShareClassView = () => {
                         <span className="text-[13px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
                       {o.activity_name && <p className="text-[13px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
-                      <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                      <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{o.content}</p>
                     </div>
                   ))}
                   {subTab === 'obs' && (
@@ -2177,7 +2178,7 @@ const ShareClassView = () => {
                         {o.activity_name && <span className="text-[13px] text-gray-500 font-semibold">{o.activity_name}</span>}
                         <span className="text-[13px] text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
-                      <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                      <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{o.content}</p>
                     </div>
                   ))}
                   {results.map((r) => (
@@ -2188,7 +2189,7 @@ const ShareClassView = () => {
                         {r.title && <span className="text-[13px] text-gray-600 font-black">{r.title}</span>}
                         <span className="text-[13px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
-                      {r.text_content && <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
+                      {r.text_content && <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{r.text_content}</p>}
                       {r.image_urls && r.image_urls.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           {r.image_urls.map((u, i) => (
@@ -2266,7 +2267,7 @@ const ShareClassView = () => {
                     </div>
                     {content && (
                       <div className="px-4 py-3">
-                        <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                        <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{content}</p>
                       </div>
                     )}
                   </div>

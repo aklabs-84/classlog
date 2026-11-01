@@ -18,12 +18,39 @@ const tooltipStyle = {
   labelStyle: { fontWeight: 900, marginBottom: 2 },
 };
 
-export function AttendanceDonutChart({ total, byStatus }: { total: number; byStatus: Record<string, number> }) {
+export function AttendanceDonutChart({ total, byStatus, compact = false }: { total: number; byStatus: Record<string, number>; compact?: boolean }) {
   const presentCount = byStatus.present || 0;
   const rate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
   const data = Object.keys(ATTENDANCE_META)
     .filter((key) => byStatus[key])
     .map((key) => ({ key, name: ATTENDANCE_META[key].label, value: byStatus[key], color: ATTENDANCE_META[key].color }));
+
+  if (compact) {
+    const others = data.filter((d) => d.key !== 'present');
+    return (
+      <div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{rate}<span className="text-xl">%</span></span>
+          <span className="text-[13px] font-bold text-gray-400">출석률 · 총 {total}건</span>
+        </div>
+        <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 mt-3" role="img" aria-label={`출석률 ${rate}%`}>
+          {data.map((d) => <div key={d.key} style={{ width: `${(d.value / total) * 100}%`, background: d.color }} />)}
+        </div>
+        {others.length === 0 ? (
+          <p className="mt-2.5 text-[14px] font-black" style={{ color: ATTENDANCE_META.present.color }}>✓ 전원 출석</p>
+        ) : (
+          <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1">
+            {data.map((d) => (
+              <span key={d.key} className="flex items-center gap-1.5 text-[13px] font-bold text-gray-500">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />{d.name}
+                <span className="font-black text-gray-900 tabular-nums">{d.value}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-4 sm:gap-6">

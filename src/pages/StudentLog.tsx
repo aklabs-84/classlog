@@ -3865,7 +3865,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                           <p className="text-xs font-bold text-slate-400">
                                             {new Date(p.created_at).toLocaleDateString('ko-KR')} · {p.status === 'rejected' ? '반려됨' : p.status === 'pending' ? '승인 대기' : '승인 완료'}
                                           </p>
-                                          <p className="text-sm text-slate-600 whitespace-pre-wrap line-clamp-3">{p.content}</p>
+                                          <p className="text-sm text-slate-600 whitespace-pre-wrap [overflow-wrap:anywhere] line-clamp-3">{p.content}</p>
                                           {p.teacher_feedback && p.status === 'rejected' && (
                                             <p className="text-xs font-bold text-red-500 mt-1">선생님 피드백: {p.teacher_feedback}</p>
                                           )}
@@ -6794,7 +6794,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       )}
                       <div className="space-y-1">
                         <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">활동 내용</p>
-                        <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{detailItem.content || '내용 없음'}</p>
+                        <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{detailItem.content || '내용 없음'}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">상태</p>
@@ -6827,7 +6827,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                               {groupRows.find((r: any) => r.result_type === 'text')?.text_content && (
                                 <div className="space-y-1">
                                   <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
-                                  <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">
+                                  <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] bg-surface-container rounded-2xl px-5 py-4">
                                     {groupRows.find((r: any) => r.result_type === 'text').text_content}
                                   </p>
                                 </div>
@@ -6895,7 +6895,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           {(detailItem.result_type === 'text' || detailItem.submission_type === 'text') && detailItem.text_content && (
                             <div className="space-y-1">
                               <p className="text-xs font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
-                              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">{detailItem.text_content}</p>
+                              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] bg-surface-container rounded-2xl px-5 py-4">{detailItem.text_content}</p>
                             </div>
                           )}
                           {(detailItem.result_type === 'link' || detailItem.submission_type === 'link') && detailItem.link_url && (
@@ -7100,7 +7100,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     {isObs && p.content && (
                       <div className="space-y-1">
                         <p className="text-xs font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
-                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.content}</p>
+                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{p.content}</p>
                       </div>
                     )}
                     {isObs && p.feeling && (
@@ -7120,7 +7120,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         {sub.text_content && (
                           <div className="space-y-1">
                             <p className="text-xs font-black text-emerald-600 uppercase tracking-widest">내용</p>
-                            <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{sub.text_content}</p>
+                            <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{sub.text_content}</p>
                           </div>
                         )}
                         {sub.image_urls?.length > 0 && (

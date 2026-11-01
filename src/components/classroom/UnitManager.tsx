@@ -404,7 +404,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                 {detailModal.sub.performance_record && (
                   <div className="space-y-2">
                     <p className="text-[14px] font-bold text-primary ">수행평가 활동 기술</p>
-                    <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                    <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                       {detailModal.sub.performance_record}
                     </div>
                     <p className="text-[14px] font-bold text-on-surface-variant text-right">{detailModal.sub.performance_record.length}자</p>
@@ -413,7 +413,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                 {detailModal.sub.inquiry_reflection && (
                   <div className="space-y-2">
                     <p className="text-[14px] font-bold text-violet-600 ">탐구소감문</p>
-                    <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                    <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                       {detailModal.sub.inquiry_reflection}
                     </div>
                     <p className="text-[14px] font-bold text-on-surface-variant text-right">{detailModal.sub.inquiry_reflection.length}자</p>
@@ -422,7 +422,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                 {detailModal.sub.self_eval && (
                   <div className="space-y-2">
                     <p className="text-[14px] font-bold text-emerald-600 ">자기평가서</p>
-                    <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                    <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                       {detailModal.sub.self_eval}
                     </div>
                     <p className="text-[14px] font-bold text-on-surface-variant text-right">{detailModal.sub.self_eval.length}자</p>
@@ -439,7 +439,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                         )}
                       </div>
                       {detailModal.sub.reading_record_reflection && (
-                        <p className="text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap pt-2 border-t border-amber-100">
+                        <p className="text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] pt-2 border-t border-amber-100">
                           {detailModal.sub.reading_record_reflection}
                         </p>
                       )}

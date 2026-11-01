@@ -30,6 +30,23 @@ const getViewerKind = (fileName: string): ViewerKind => {
 
 const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: SubmissionViewerModalProps) => {
   const kind = getViewerKind(fileName);
+  const [headerPinned, setHeaderPinned] = useState<boolean>(() => {
+    try { return localStorage.getItem('viewerHeaderPinned') === '1'; } catch { return false; }
+  });
+  const togglePin = () => setHeaderPinned(v => {
+    try { localStorage.setItem('viewerHeaderPinned', v ? '0' : '1'); } catch { /* 저장 못 해도 동작 */ }
+    return !v;
+  });
+  const [appBg, setAppBg] = useState<string | null>(null);
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
+      const c = e.data && e.data.__viewerBg;
+      if (typeof c === 'string' && /^(rgb|rgba|#)[0-9a-f(),.\s%]*$/i.test(c)) setAppBg(c);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [loadPercent, setLoadPercent] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +100,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
         try {
           const res = await fetchWithProgress(fileUrl, setLoadPercent);
           const text = await res.text();
-          const htmlBlob = new Blob([text], { type: 'text/html;charset=utf-8' });
+          const htmlBlob = new Blob([withBgReport(text)], { type: 'text/html;charset=utf-8' });
           const htmlUrl = URL.createObjectURL(htmlBlob);
           objectUrlsRef.current.push(htmlUrl);
           setHtmlBlobUrl(htmlUrl);
@@ -158,7 +175,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
             const r = resolve(baseDirForHtml, ref);
             return r ? `${attr}=${q}${r}${q}` : m;
           });
-          const htmlBlob = new Blob([html], { type: mimeMap.html });
+          const htmlBlob = new Blob([withBgReport(html)], { type: mimeMap.html });
           const htmlUrl = track(htmlBlob);
           setZipEntryUrl(htmlUrl);
           setLoading(false);
@@ -281,17 +298,40 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     setPyOutput(prev => prev + '\n[중단됨] 실행을 중지했습니다.');
   };
 
+  const isApp = kind === 'web-html' || kind === 'web-zip';
+
   if (!isOpen) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[200] bg-white">
       <div className="w-full h-full flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
+        {/* 웹 앱(HTML/ZIP)은 위 막대를 숨겨 두고, 마우스를 올리거나 📌 고정할 때만 보여요. 자리는 그대로 둬서 화면이 위로 쏠리지 않아요 */}
+        <div className={`shrink-0 relative group ${isApp ? `z-10 ${headerPinned ? 'bg-white' : 'bg-neutral-50'}` : 'bg-white'}`} style={isApp && !headerPinned && appBg ? { backgroundColor: appBg } : undefined}>
+        {isApp && !headerPinned && (
+          <button
+            onClick={togglePin}
+            title="상단 막대 계속 보이게 고정"
+            className="absolute right-3 top-1.5 z-20 group-hover:hidden h-6 px-2.5 rounded-full bg-white/80 border border-neutral-200 text-[11px] font-black text-neutral-500 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            📌 고정
+          </button>
+        )}
+        <div className={`transition-opacity duration-200 ${isApp && !headerPinned ? 'opacity-0 group-hover:opacity-100 focus-within:opacity-100' : ''}`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0 bg-white">
           <div className="min-w-0">
             <p className="text-sm font-black text-on-surface truncate">{fileName}</p>
             <p className="text-[10px] font-bold text-on-surface-variant">제출한 파일 그대로 보기 (보안 격리 화면)</p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            {isApp && (
+              <button
+                onClick={togglePin}
+                title={headerPinned ? '고정 풀기(마우스 올릴 때만 보임)' : '상단 막대 계속 보이게 고정'}
+                className={`h-8 px-2.5 rounded-lg border flex items-center gap-1.5 text-xs font-black ${headerPinned ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50'}`}
+              >
+                📌 <span className="hidden sm:inline">{headerPinned ? '고정됨' : '고정'}</span>
+              </button>
+            )}
             <button
               onClick={() => downloadFile(fileUrl, fileName)}
               title="파일을 내 컴퓨터에 받아서 직접 열기"
@@ -306,6 +346,14 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
               <X size={18} />
             </button>
           </div>
+        </div>
+
+        {isApp && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
+            🔊 열자마자 소리(음성 안내)가 날 수 있어요. 저장·다른 페이지 이동 등이 다르게 보이면 오른쪽 위 「파일 받아서 열기」로 받아서 열어 보세요.
+          </div>
+        )}
+        </div>
         </div>
 
         <div className="flex-1 min-h-0 relative bg-neutral-50">
@@ -326,9 +374,6 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                 </div>
               ) : htmlBlobUrl && (
                 <div className="w-full h-full flex flex-col">
-                                <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
-                  🔊 열자마자 소리(음성 안내)가 날 수 있어요. 저장·다른 페이지 이동 등이 다르게 보이면 오른쪽 위 「파일 받아서 열기」로 받아서 열어 보세요.
-                </div>
                 <iframe
                   ref={iframeRef}
                   src={htmlBlobUrl}
@@ -350,10 +395,8 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
                 </div>
               ) : zipEntryUrl && (
                 <div className="w-full h-full flex flex-col">
-                <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
-                  🔊 열자마자 소리(음성 안내)가 날 수 있어요. 저장·다른 페이지 이동 등이 다르게 보이면 오른쪽 위 「파일 받아서 열기」로 받아서 열어 보세요.
-                </div>
                 <iframe
+                  ref={iframeRef}
                   src={zipEntryUrl}
                   sandbox="allow-scripts allow-forms allow-popups allow-modals"
                   className="w-full flex-1 min-h-0 border-0"
@@ -509,6 +552,10 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
     document.body
   );
 };
+
+/** 학생 앱 맨 위 왼쪽 위 배경색을 부모 화면에 알려 주는 작은 스크립트 (상단 막대 숨김 때 색을 맞추려고) */
+const BG_REPORT_SCRIPT = `<script>(function(){function ok(c){return c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)'}function g(){try{var e=document.elementFromPoint(2,2);while(e){var c=getComputedStyle(e).backgroundColor;if(ok(c))return c;e=e.parentElement}}catch(x){}return ''}function s(){try{parent.postMessage({__viewerBg:g()},'*')}catch(x){}}addEventListener('load',function(){s();setTimeout(s,600);setTimeout(s,2000)})})();</script>`;
+const withBgReport = (html: string) => (/<\/body>/i.test(html) ? html.replace(/<\/body>/i, BG_REPORT_SCRIPT + '</body>') : html + BG_REPORT_SCRIPT);
 
 export default SubmissionViewerModal;
 export { getViewerKind };

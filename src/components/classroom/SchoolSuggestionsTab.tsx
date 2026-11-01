@@ -76,9 +76,9 @@ const SchoolSuggestionsTab = ({ classes }: Props) => {
                     ? <span className="flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle2 size={14} /> 답변함</span>
                     : <span className="flex items-center gap-1 text-amber-600 font-bold"><Clock size={14} /> 답변 대기</span>}
                 </div>
-                <p className="text-base text-slate-800 whitespace-pre-wrap leading-relaxed">{r.content}</p>
+                <p className="text-base text-slate-800 whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed">{r.content}</p>
                 {r.teacher_reply && (
-                  <p className="mt-2 text-base text-slate-600 bg-slate-50 rounded-lg p-3 whitespace-pre-wrap leading-relaxed">↳ {r.teacher_reply}</p>
+                  <p className="mt-2 text-base text-slate-600 bg-slate-50 rounded-lg p-3 whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed">↳ {r.teacher_reply}</p>
                 )}
               </div>
             );
