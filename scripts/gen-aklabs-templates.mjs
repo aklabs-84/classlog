@@ -22,6 +22,8 @@ const T = getTemplate(id);
 const S = 1280 / 1920;
 const r1 = (n) => Math.round(n * S * 10) / 10;
 const mc = makeMascot(SKILL);
+// 템플릿 글꼴: Pretendard 계열이면 앱 기본 문구 그대로, 전용 글꼴(chalk·kids·bootcamp)이면 그 글꼴을 앞에 둔다
+const FONT_FAMILY = T.font && T.font !== 'Pretendard' ? `'${T.font}', ${T.fontFallback}` : "'Pretendard Variable', Pretendard, sans-serif";
 
 // ── 샘플 내용: 레이아웃마다 한 장씩 (실제 수업에서 쓸 법한 내용) ──
 const deck = JSON.parse(fs.readFileSync(path.join(SKILL, 'examples/vibe-coding-90.deck.json'), 'utf8'));
@@ -53,6 +55,22 @@ if (id === 'mint') {
 }
 if (id === 'calm' || id === 'shark') {
   SAMPLES.push({ key: 'cta', label: '다음 안내(버튼)', s: { type: 'wrapup', variant: 'cta', title: '오늘 만든 기획서, 이제 직접 써 볼까요?', button: '클래스로그 AI 열기', guide: '검색창에 "클래스로그 AI"를 입력해요', brandbox: { name: 'ClassLog AI', ko: '클래스로그 AI', sub: '수업 준비를 한 길로' } } });
+}
+
+// 새 7종(chalk·workshop·bootcamp·swiss·ted·pitch·kids): 그 템플릿 예시 덱의 장면을 그대로 쓴다
+const NEW7 = ['chalk', 'workshop', 'bootcamp', 'swiss', 'ted', 'pitch', 'kids'];
+const TYPE_LABEL = { cover: '표지', checklist: '점검 목록', roadmap: '오늘의 흐름(목차)', steps: '단계 설명', section: '파트 시작', compare: '비교', prompt: '입력 글 그대로 보여주기', mixed: '글+화면 함께', screen: '화면 보여주기', examples: '예시 모음', handoff: '종이에서 화면으로', rules: '규칙 안내', spotlight: '한 문장 강조', wrapup: '마무리' };
+if (NEW7.includes(id)) {
+  const nd = JSON.parse(fs.readFileSync(path.join(SKILL, `examples/${id}-sample.deck.json`), 'utf8'));
+  const seen = {};
+  SAMPLES.length = 0;
+  nd.slides.forEach((sl) => {
+    const n = (seen[sl.type] = (seen[sl.type] || 0) + 1);
+    // 웹 편집기 기본 구성(표지→cover, 개념 설명→concept)이 이어지도록 첫 steps 장은 concept 키를 쓴다
+    const key = sl.type === 'steps' && n === 1 ? 'concept' : n === 1 ? sl.type : `${sl.type}_${n}`;
+    const label = (sl.type === 'steps' && n === 1 ? '개념 설명(단계)' : TYPE_LABEL[sl.type] || sl.type) + (n > 1 ? ` ${n}` : '');
+    SAMPLES.push({ key, label, s: sl });
+  });
 }
 
 // ── 요소 → SlideObject 변환 ──
@@ -90,7 +108,7 @@ function convert(els) {
         style: {
           fontSize: r1(e.size), color: e.color, align: e.align, bold: e.weight >= 600,
           lineHeight: e.lh, valign: e.valign, ...(e.ls ? { letterSpacing: r1(e.ls) } : {}),
-          fontFamily: "'Pretendard Variable', Pretendard, sans-serif",
+          fontFamily: FONT_FAMILY,
         },
       });
     } else if (e.k === 'icon') {
@@ -135,9 +153,9 @@ const slides = [];
 const used = new Set();
 // 캐릭터 정책(render.mjs와 같음): bright·shark 기본 켬, mint는 핵심 장면만, calm은 없음
 const MINT_KEY = new Set(['cover', 'section', 'wrapup', 'spotlight', 'prompt']);
-const mascotOn = id !== 'calm';
+const mascotOn = id !== 'calm' && !NEW7.includes(id);
 SAMPLES.forEach(({ key, label, s }, i) => {
-  const keyScene = id !== 'mint' || (MINT_KEY.has(s.type) && !(s.type === 'section' && s.segments));
+  const keyScene = (id !== 'mint' && !NEW7.includes(id)) || (MINT_KEY.has(s.type) && !(s.type === 'section' && s.segments));
   const mood = mascotOn && keyScene ? mc.pick(s, i) : null;
   const ctx = { page: i + 1, warn: (m) => console.warn('⚠', key, m), char: (t) => (mood && t.char ? mc.file(mood) : null), pose: () => (mood ? mc.file(mood) : null), asset: (p) => p };
   let els = buildSlide(s, T, ctx);

@@ -5,6 +5,13 @@ import { BRIGHT_SHOWCASE } from './aklabs/bright';
 import { MINT_SHOWCASE } from './aklabs/mint';
 import { CALM_SHOWCASE } from './aklabs/calm';
 import { SHARK_SHOWCASE } from './aklabs/shark';
+import { CHALK_SHOWCASE } from './aklabs/chalk';
+import { WORKSHOP_SHOWCASE } from './aklabs/workshop';
+import { BOOTCAMP_SHOWCASE } from './aklabs/bootcamp';
+import { SWISS_SHOWCASE } from './aklabs/swiss';
+import { TED_SHOWCASE } from './aklabs/ted';
+import { PITCH_SHOWCASE } from './aklabs/pitch';
+import { KIDS_SHOWCASE } from './aklabs/kids';
 
 // 4개 템플릿 — 수업/학원 학습활동에서 실제로 쓰는 발표 목적별로 구성.
 // 색상/폰트뿐 아니라 오브젝트 구성 자체(코드블록, 이미지 프레임, 스텝 배지 등)가 서로 다르다.
@@ -588,10 +595,17 @@ const AKLABS_TEMPLATES: SlideTemplate[] = [
   aklabsTemplate(MINT_SHOWCASE, '초록빛 수업형 · 큰 아이콘과 넉넉한 여백, 17가지 구성'),
   aklabsTemplate(CALM_SHOWCASE, '차분한 발표형 · 글이 또렷한 정돈된 분위기, 15가지 구성'),
   aklabsTemplate(SHARK_SHOWCASE, '친근한 캐릭터와 함께하는 수업형 · 15가지 구성'),
+  aklabsTemplate(CHALK_SHOWCASE, '분필 칠판 교실형 · 칠판 느낌의 손글씨 수업, 14가지 구성'),
+  aklabsTemplate(WORKSHOP_SHOWCASE, '실습 워크숍형 · 따라 하며 배우는 또렷한 구성, 14가지 구성'),
+  aklabsTemplate(BOOTCAMP_SHOWCASE, '코딩 부트캠프형 · 터미널 느낌의 개발 수업, 15가지 구성'),
+  aklabsTemplate(SWISS_SHOWCASE, '스위스 스타일 · 격자와 큰 글씨의 깔끔한 발표형, 15가지 구성'),
+  aklabsTemplate(TED_SHOWCASE, 'TED 발표형 · 한 장에 한 메시지, 13가지 구성'),
+  aklabsTemplate(PITCH_SHOWCASE, '피치 발표형 · 숫자와 핵심 한 줄로 설득, 11가지 구성'),
+  aklabsTemplate(KIDS_SHOWCASE, '키즈 클래스 · 말풍선·스티커 놀이책 느낌, 15가지 구성'),
 ];
 
 const AKLABS_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = Object.fromEntries(
-  [BRIGHT_SHOWCASE, MINT_SHOWCASE, CALM_SHOWCASE, SHARK_SHOWCASE].map(sc => {
+  [BRIGHT_SHOWCASE, MINT_SHOWCASE, CALM_SHOWCASE, SHARK_SHOWCASE, CHALK_SHOWCASE, WORKSHOP_SHOWCASE, BOOTCAMP_SHOWCASE, SWISS_SHOWCASE, TED_SHOWCASE, PITCH_SHOWCASE, KIDS_SHOWCASE].map(sc => {
     const cover = sc.slides.find(s => s.key === 'cover')!.fills;
     const concept = sc.slides.find(s => s.key === 'concept')!.fills;
     return [`aklabs-${sc.id}`, { title: cover, textOnly: concept, textImage1: concept, textImagesMany: concept }];

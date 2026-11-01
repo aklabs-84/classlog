@@ -2,6 +2,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+/* 슬라이드 템플릿 전용 글꼴 (chalk·kids·bootcamp) — 해당 템플릿을 쓸 때만 내려받는다 */
+@font-face { font-family: 'BM JUA_OTF'; src: url('/fonts/BMJUA.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'BM HANNA 11yrs old OTF'; src: url('/fonts/BMHANNA11.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'D2Coding'; font-weight: 400; src: url('/fonts/D2Coding-Regular.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'D2Coding'; font-weight: 700; src: url('/fonts/D2Coding-Bold.woff2') format('woff2'); font-display: swap; }
+
 
 @theme {
   --font-manrope: "Manrope", sans-serif;

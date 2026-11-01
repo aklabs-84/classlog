@@ -90,6 +90,8 @@ export default defineConfig({
           },
         ],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // 코딩 글꼴(D2Coding)은 무거워서 미리 내려받지 않고, 부트캠프 템플릿을 쓸 때만 받는다
+        globIgnores: ['**/fonts/D2Coding*'],
       },
     }),
   ],
