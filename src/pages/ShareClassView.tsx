@@ -1447,9 +1447,8 @@ const ShareClassView = () => {
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   {allWeeks.length > 0 && (
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[13px] font-black text-gray-500">
-                      <span className="w-24 sm:w-32 shrink-0">학생</span>
+                      <span className="flex-1 sm:flex-none sm:w-32 sm:shrink-0">학생</span>
                       <span className="flex-1 min-w-0 hidden sm:block">낸 작품</span>
-                      <span className="flex-1 sm:hidden" />
                       <div className="hidden sm:flex gap-1 shrink-0">
                         {allWeeks.map((w) => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                       </div>
@@ -1472,12 +1471,12 @@ const ShareClassView = () => {
                             onKeyDown={(e) => { if (has && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setModalStudentId(student.id); } }}
                             className={`flex items-center gap-2 px-4 py-3 ${has ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default'}`}
                           >
-                            <div className="w-24 sm:w-32 shrink-0 min-w-0">
+                            <div className="flex-1 min-w-0 sm:flex-none sm:w-32 sm:shrink-0">
                               <p className="font-black text-gray-900 text-lg truncate">{student.full_name}</p>
                               {fresh && <span className="inline-block text-[13px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white">🆕 방금</span>}
                               {!has && <span className="text-[13px] font-bold text-gray-400">미제출</span>}
                             </div>
-                            <div className="flex-1 min-w-0 flex flex-wrap gap-1.5">
+                            <div className="flex-1 min-w-0 hidden sm:flex flex-wrap gap-1.5">
                               {kindCounts(bundles.filter((b) => !b.isGroup)).map(([t, n]) => (
                                 <span key={t} className={`flex items-center gap-1 text-[13px] font-bold px-2.5 py-1 rounded-lg ${RESULT_TYPE_BADGE[t]?.color || 'text-gray-600 bg-gray-100'}`}>
                                   {RESULT_TYPE_BADGE[t]?.icon} {RESULT_TYPE_BADGE[t]?.label || t} {n}
@@ -1528,9 +1527,8 @@ const ShareClassView = () => {
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   {allWeeks.length > 0 && (
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[13px] font-black text-gray-500">
-                      <span className="w-28 sm:w-44 shrink-0">조</span>
+                      <span className="flex-1 sm:flex-none sm:w-44 sm:shrink-0">조</span>
                       <span className="flex-1 min-w-0 hidden sm:block">낸 작품</span>
-                      <span className="flex-1 sm:hidden" />
                       <div className="hidden sm:flex gap-1 shrink-0">
                         {allWeeks.map((w) => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                       </div>
@@ -1553,7 +1551,7 @@ const ShareClassView = () => {
                             onKeyDown={(e) => { if (has && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setModalGroupId(group.id); } }}
                             className={`flex items-center gap-2 px-4 py-3 ${has ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default'}`}
                           >
-                            <div className="w-28 sm:w-44 shrink-0 min-w-0">
+                            <div className="flex-1 min-w-0 sm:flex-none sm:w-44 sm:shrink-0">
                               <p className="font-black text-gray-900 text-lg truncate flex items-center gap-1.5">
                                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
                                 <span className="truncate">{group.name}</span>
@@ -1564,7 +1562,7 @@ const ShareClassView = () => {
                               {fresh && <span className="inline-block text-[13px] font-black px-2 py-0.5 rounded-full bg-rose-500 text-white">🆕 방금</span>}
                               {!has && <span className="text-[13px] font-bold text-gray-400">미제출</span>}
                             </div>
-                            <div className="flex-1 min-w-0 flex flex-wrap gap-1.5">
+                            <div className="flex-1 min-w-0 hidden sm:flex flex-wrap gap-1.5">
                               {kindCounts(bundles).map(([t, n]) => (
                                 <span key={t} className={`flex items-center gap-1 text-[13px] font-bold px-2.5 py-1 rounded-lg ${RESULT_TYPE_BADGE[t]?.color || 'text-gray-600 bg-gray-100'}`}>
                                   {RESULT_TYPE_BADGE[t]?.icon} {RESULT_TYPE_BADGE[t]?.label || t} {n}
