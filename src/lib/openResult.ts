@@ -21,9 +21,9 @@ export const openResultFile = (
     const w = window.open(
       `/result-view?url=${encodeURIComponent(file.url)}&name=${encodeURIComponent(file.name)}`,
       '_blank',
-      'noopener',
     );
-    if (w) return;
+    // 'noopener' 옵션을 쓰면 열렸어도 항상 null이 돌아와 열림 여부를 알 수 없어서, 열린 뒤에 연결만 끊는다
+    if (w) { try { w.opener = null; } catch { /* 무시 */ } return; }
   }
   openInPlace(file);
 };
