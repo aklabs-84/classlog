@@ -128,15 +128,18 @@ export const StepCarousel = ({ children }: { children: ReactNode }) => {
       }}
     >
       <div className="mv-steps-dots" role="tablist">
+        <button type="button" className="mv-steps-dot is-nav" aria-label="이전 단계" disabled={idx === 0} onClick={() => go(idx - 1)}>
+          <ChevronLeft size={18} />
+        </button>
         {steps.map((_, i) => (
           <button key={i} type="button" role="tab" aria-selected={i === idx} aria-label={`${i + 1}단계`}
             className={`mv-steps-dot ${i === idx ? 'is-on' : ''}`} onClick={() => go(i)}>{i + 1}</button>
         ))}
+        <button type="button" className="mv-steps-dot is-nav" aria-label="다음 단계" disabled={idx === total - 1} onClick={() => go(idx + 1)}>
+          <ChevronRight size={18} />
+        </button>
       </div>
       <div className="mv-steps-stage">
-        <button type="button" className="mv-steps-arrow" aria-label="이전 단계" disabled={idx === 0} onClick={() => go(idx - 1)}>
-          <ChevronLeft size={26} />
-        </button>
         <div className="mv-steps-slides">
           {steps.map((s, i) => (
             <section key={i} className={`mv-step ${i === idx ? 'is-on' : ''}`} aria-hidden={i !== idx}>
@@ -146,11 +149,8 @@ export const StepCarousel = ({ children }: { children: ReactNode }) => {
             </section>
           ))}
         </div>
-        <button type="button" className="mv-steps-arrow" aria-label="다음 단계" disabled={idx === total - 1} onClick={() => go(idx + 1)}>
-          <ChevronRight size={26} />
-        </button>
       </div>
-      <p className="mv-steps-hint">{idx + 1} / {total} · ← → 키나 화살표로 넘겨 보세요 · 그림을 누르면 크게 봐요</p>
+      <p className="mv-steps-hint">{idx + 1} / {total} · ← → 키나 위쪽 화살표 버튼, 화면 밀기로 넘겨 보세요 · 그림을 누르면 크게 봐요</p>
       {zoom && createPortal(
         <div className="mv-zoom" role="dialog" aria-modal="true" aria-label="그림 크게 보기" onClick={() => setZoom(null)}>
           <button type="button" className="mv-zoom-close" aria-label="닫기" onClick={() => setZoom(null)}><X size={26} /></button>

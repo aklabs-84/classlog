@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
 import {
   mergeDaySubmissions, boardMemberInfo, fetchGroupNameMap, attachGroupNames, sortBoardPosts,
-  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, authorLabel, agoLabel, postKey, postLatestAt,
+  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging,
   useNow, useBoardLiveRefresh, useNewArrivals, type BoardViewMode,
 } from '../lib/boardLive';
 import {
-  BoardNameTiles, BoardMoreButton, RecentBadge, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, freshCardClass,
+  BoardNameTiles, BoardMoreButton, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner,
 } from '../components/board/BoardLiveBits';
 import { openFile } from '../lib/fileUtils';
+import { BoardSectionPosts } from '../components/board/BoardPostCards';
 import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import BoardDownloadButton from '../components/common/BoardDownloadButton';
 import { useTheme } from '../hooks/useTheme';
@@ -380,116 +381,8 @@ const ClassBoard = () => {
           {shownSections.map((section) => (
           <div key={section.key} className="mb-10">
           <BoardSectionHeader section={section} />
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4 space-y-4">
-            <AnimatePresence>
-              {section.posts.map((post, i) => {
-                const isObs = post._type === 'obs';
-                return (
-                  <motion.div
-                    key={`${section.key}-${postKey(post)}`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(i, 15) * 0.03 }}
-                    onClick={() => setSelectedPost(post)}
-                    style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
-                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${freshCardClass(freshKeys.has(postKey(post)))} ${
-                      isObs
-                        ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:border-violet-300 dark:hover:border-violet-500/60'
-                        : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:border-emerald-300 dark:hover:border-emerald-500/60'
-                    }`}
-                  >
-                    {/* 카드 헤더 */}
-                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[12px] shrink-0 ${
-                          isObs
-                            ? 'bg-violet-100 dark:bg-violet-700/40'
-                            : 'bg-emerald-100 dark:bg-emerald-700/40'
-                        }`}>
-                          {isObs ? '📝' : '📁'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black truncate text-on-surface">{authorLabel(post)}</p>
-                          <p className="text-[11px] text-on-surface-variant font-bold truncate">
-                            {post.week_number ? `${post.week_number}주차 · ` : ''}
-                            {agoLabel(postLatestAt(post), now)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <RecentBadge post={post} now={now} />
-                        {!isObs && post._isGroupSub && (
-                          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
-                            조별
-                          </span>
-                        )}
-                        <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
-                          isObs
-                            ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
-                            : 'bg-emerald-100 dark:bg-emerald-700/40 text-emerald-700 dark:text-emerald-300'
-                        }`}>
-                          {isObs ? '활동 기록' : '결과'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 카드 내용 */}
-                    <div className="space-y-2">
-                      <p className="text-sm font-black text-on-surface leading-snug line-clamp-2">
-                        {isObs ? post.activity_name : post.title}
-                      </p>
-                      {isObs && post.content && (
-                        <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-5">{post.content}</p>
-                      )}
-                      {isObs && post.feeling && (
-                        <p className="text-[11px] text-on-surface-variant font-bold italic line-clamp-2">💬 {post.feeling}</p>
-                      )}
-                      {!isObs && (
-                        <div className="space-y-2">
-                          {post.text_content && (
-                            <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-5">{post.text_content}</p>
-                          )}
-                          {post.image_url && (
-                            <div className="relative">
-                              <img
-                                src={post.image_url}
-                                alt=""
-                                className="w-full rounded-xl object-contain bg-white/70 dark:bg-slate-800/60 max-h-72"
-                                loading="lazy"
-                                onError={e => {
-                                  if (post.image_original_url) {
-                                    (e.target as HTMLImageElement).src = post.image_original_url;
-                                  }
-                                }}
-                              />
-                              {post.image_urls?.length > 1 && (
-                                <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                  1/{post.image_urls.length}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {post.link_url && (
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
-                              <ExternalLink size={11} className="shrink-0" />
-                              <span className="truncate">{post.link_url}</span>
-                            </div>
-                          )}
-                          {post.file_url && (
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant">
-                              <File size={11} className="shrink-0" />
-                              <span className="truncate">{post.display_name || '파일'}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  {!isObs && post._submissions?.length > 1 && <MultiSubmitStrip count={post._submissions.length} />}
-                            </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
+          <BoardSectionPosts section={section} variant="teacher"
+            ctx={{ now, freshKeys, onOpen: setSelectedPost, onOpenFile: (f) => openFile(f.url, f.name) }} />
           </div>
           ))}
           {!tilesMode && <BoardMoreButton shown={paged.shown} total={paged.total} onMore={paging.more} />}

@@ -450,6 +450,8 @@
 .mv-steps-dots { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .mv-steps-dot { width: 34px; height: 34px; border-radius: 10px; border: 2px solid #94a3b8; background: #fff; color: #334155; font-weight: 800; font-size: 15px; cursor: pointer; transition: transform 0.1s; }
 .mv-steps-dot:hover { transform: translateY(-2px); }
+.mv-steps-dot.is-nav { display: grid; place-items: center; padding: 0; }
+.mv-steps-dot.is-nav:disabled { opacity: 0.3; cursor: default; transform: none; }
 .mv-steps-dot.is-on { background: #2b50ff; border-color: #2b50ff; color: #fff; }
 .mv-steps-stage { display: flex; align-items: stretch; gap: 10px; }
 .mv-steps-slides { flex: 1; min-width: 0; }
