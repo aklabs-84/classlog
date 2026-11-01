@@ -79,6 +79,7 @@ import {
   Share2,
   Camera,
 } from 'lucide-react';
+import { openResultFile } from '../lib/openResult';
 import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
 import { collectClassResultPaths, collectStudentResultPaths, removeStoragePaths, toStorageUploadError, isStorageQuotaError } from '../lib/storageCleanup';
 import { validateTeacherPrompt, validateStudentGuidePrompt, generateLessonRecap } from '../lib/gemini';
@@ -3229,7 +3230,7 @@ const Classroom = () => {
                                   <div
                                     onClick={e => {
                                       e.stopPropagation();
-                                      setViewerFile({ url: post.file_url, name: post.display_name || '파일' });
+                                      openResultFile({ url: post.file_url, name: post.display_name || '파일' }, setViewerFile);
                                     }}
                                     className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl hover:bg-amber-100 transition-colors cursor-pointer"
                                   >
@@ -5752,7 +5753,7 @@ const Classroom = () => {
                             <span className="text-sm font-black text-amber-700 truncate flex-1">{sub.display_name || '첨부 파일'}</span>
                             {getViewerKind(sub.display_name || '') !== 'unsupported' && (
                               <button
-                                onClick={() => setViewerFile({ url: sub.file_url, name: sub.display_name || '첨부파일' })}
+                                onClick={() => openResultFile({ url: sub.file_url, name: sub.display_name || '첨부파일' }, setViewerFile)}
                                 title="미리보기"
                                 className="w-8 h-8 rounded-lg hover:bg-amber-100 flex items-center justify-center text-amber-500 hover:text-amber-700 transition-colors shrink-0"
                               >

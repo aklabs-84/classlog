@@ -350,7 +350,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
 
         {isApp && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
-            🔊 열자마자 소리(음성 안내)가 날 수 있어요. 저장·다른 페이지 이동 등이 다르게 보이면 오른쪽 위 「파일 받아서 열기」로 받아서 열어 보세요.
+            🔊 열자마자 소리(음성 안내)가 날 수 있어요. 이 화면에서 Ctrl+S(Cmd+S)를 누르면 학생 앱만이 아니라 이 화면 전체가 저장돼요. 학생 파일 그대로 저장하려면 오른쪽 위 「파일 받아서 열기」를 눌러 주세요.
           </div>
         )}
         </div>

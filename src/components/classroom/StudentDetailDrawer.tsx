@@ -14,6 +14,7 @@ import { collapseObservationsByActivity, prevSubmissionLabel } from '../../lib/l
 import { ImageCarousel, getResultImagePublicUrls } from '../common/ImageCarousel';
 import StudentPreviewModal from './StudentPreviewModal';
 import SubmissionViewerModal, { getViewerKind } from './SubmissionViewerModal';
+import { openResultFile } from '../../lib/openResult';
 
 interface StudentDetailDrawerProps {
   isOpen: boolean;
@@ -717,7 +718,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                           <button
                                             onClick={() => {
                                               const { data } = supabase.storage.from('student-attachments').getPublicUrl(fileItem.storage_path);
-                                              setViewerFile({ url: data.publicUrl, name: fileItem.display_name || 'file' });
+                                              openResultFile({ url: data.publicUrl, name: fileItem.display_name || 'file' }, setViewerFile);
                                             }}
                                             title="미리보기"
                                             className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-colors"

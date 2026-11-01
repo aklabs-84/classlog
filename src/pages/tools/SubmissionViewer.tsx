@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { downloadFile } from '../../lib/fileUtils';
 import SubmissionViewerModal, { getViewerKind } from '../../components/classroom/SubmissionViewerModal';
+import { openResultFile } from '../../lib/openResult';
 
 interface FileResult {
   id: string;
@@ -139,7 +140,7 @@ export default function SubmissionViewer() {
                 <div className="flex items-center gap-1 shrink-0">
                   {kind !== 'unsupported' && (
                     <button
-                      onClick={() => setViewerFile({ url: getPublicUrl(item.storage_path), name: item.display_name || 'file' })}
+                      onClick={() => openResultFile({ url: getPublicUrl(item.storage_path), name: item.display_name || 'file' }, setViewerFile)}
                       title="미리보기"
                       className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-colors"
                     >

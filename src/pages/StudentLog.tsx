@@ -78,6 +78,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { openResultFile } from '../lib/openResult';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
 import { renderMaterialCallout } from '../components/MaterialCallout';
@@ -1734,7 +1735,7 @@ const StudentLog = () => {
 
   const handlePreviewResult = (result: any) => {
     const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
-    setViewerFile({ url: data.publicUrl, name: result.display_name || '파일' });
+    openResultFile({ url: data.publicUrl, name: result.display_name || '파일' }, setViewerFile);
   };
 
   const handleDeleteResult = async (result: any) => {
@@ -6012,7 +6013,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                     <div
                                       onClick={e => {
                                         e.stopPropagation();
-                                        setViewerFile({ url: post.file_url, name: post.display_name || '파일' });
+                                        openResultFile({ url: post.file_url, name: post.display_name || '파일' }, setViewerFile);
                                       }}
                                       className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-primary cursor-pointer"
                                     >
@@ -7147,7 +7148,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                             <span className="text-sm font-black text-amber-700 truncate flex-1">{sub.display_name || '첨부 파일'}</span>
                             {getViewerKind(sub.display_name || '') !== 'unsupported' && (
                               <button
-                                onClick={() => setViewerFile({ url: sub.file_url, name: sub.display_name || '첨부파일' })}
+                                onClick={() => openResultFile({ url: sub.file_url, name: sub.display_name || '첨부파일' }, setViewerFile)}
                                 title="미리보기"
                                 className="w-8 h-8 rounded-lg hover:bg-amber-100 flex items-center justify-center text-amber-500 hover:text-amber-700 transition-colors shrink-0"
                               >
