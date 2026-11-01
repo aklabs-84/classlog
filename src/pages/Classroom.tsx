@@ -1352,6 +1352,7 @@ const Classroom = () => {
           created_at,
           memo,
           pin,
+          registered_via,
           observations(id, student_id, content, activity_name, created_at, teacher_id, status, is_student_record),
           reports(is_published)
         `)
@@ -1376,6 +1377,7 @@ const Classroom = () => {
             tag: s.tag === '일반' ? '학생' : (s.tag || '학생'),
             memo: s.memo || '',
             pin: s.pin || null,
+            pending: s.registered_via === 'assistant_pending',
             avatar: s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.full_name)}&background=random`,
             activity: latestObs ? latestObs.activity_name : '기록 없음',
             time: latestObs ? new Date(latestObs.created_at).toLocaleDateString('ko-KR') : '-',
@@ -1756,6 +1758,16 @@ const Classroom = () => {
       showToast('PIN이 초기화되었습니다. 🔑');
     } catch (err) {
       showToast('PIN 초기화 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleConfirmPendingStudent = async (studentId: string) => {
+    try {
+      const { error } = await supabase.from('students').update({ registered_via: 'teacher_roster' }).eq('id', studentId);
+      if (error) throw error;
+      fetchStudents(activeClassId!);
+    } catch (err) {
+      console.error('Error confirming pending student:', err);
     }
   };
 
@@ -3690,6 +3702,22 @@ const Classroom = () => {
                   </div>
                 ) : null;
               })()}
+
+              {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && students.some((st: any) => st.pending) && (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-black text-amber-800">임시 학생 {students.filter((st: any) => st.pending).length}명, 확정할까요?</p>
+                  <p className="text-xs font-bold text-amber-700/80 mt-0.5">보조 선생님이 수업 중에 넣은 친구예요. 확정하면 정식 학생이 되고, 지우면 출석 기록도 함께 사라져요.</p>
+                  <ul className="mt-3 space-y-2">
+                    {students.filter((st: any) => st.pending).map((st: any) => (
+                      <li key={st.id} className="flex items-center gap-2 bg-white border border-amber-100 rounded-xl px-3 py-2">
+                        <span className="flex-1 min-w-0 text-sm font-bold text-gray-800 [overflow-wrap:anywhere]">{st.name}{st.number !== '-' && <span className="ml-1.5 text-xs text-gray-400">{st.number}번</span>}</span>
+                        <button type="button" onClick={() => handleConfirmPendingStudent(st.id)} className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black">확정</button>
+                        <button type="button" onClick={() => handleDeleteStudent(st.id, st.name)} className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-bold">삭제</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {activeTab === 'list' && (
                 classInfo?.class_type === 'homeroom' ? (

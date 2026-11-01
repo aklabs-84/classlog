@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   const { data: key } = await admin
     .from('class_gallery_upload_keys')
-    .select('class_id, teacher_id, is_active, allow_attendance')
+    .select('class_id, teacher_id, is_active, allow_attendance, allow_student_add')
     .eq('token', token)
     .maybeSingle();
   if (!key || !key.is_active) return json({ error: 'invalid_link' }, 403);
@@ -78,8 +78,30 @@ Deno.serve(async (req) => {
   const isTeacher = teacherId !== null;
 
   // ── 오늘 출석 (주강사가 '보조강사 출석 허용'을 켠 링크만, 오늘 날짜만) ──
-  if (!form && (body.action === 'att_get' || body.action === 'att_set')) {
+  if (!form && (body.action === 'att_get' || body.action === 'att_set' || body.action === 'student_add')) {
     if (!key.allow_attendance) return json({ error: 'attendance_off' }, 403);
+    let addResult: { added?: boolean; duplicate?: boolean; student_id?: string } = {};
+    if (body.action === 'student_add') {
+      // 현장 임시 등록: 스위치가 켜진 링크만, 반마다 확정 전 임시 학생 20명까지, 같은 이름은 새로 만들지 않는다
+      if (!key.allow_student_add) return json({ error: 'student_add_off' }, 403);
+      const sname = String(body.student_name ?? '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim();
+      if (sname.length < 1 || sname.length > 20) return json({ error: 'bad_student_name' }, 400);
+      const snum = String(body.student_number ?? '').replace(/[^0-9A-Za-z-]/g, '').slice(0, 10);
+      const { data: exist } = await admin.from('students').select('id, full_name').eq('class_id', key.class_id).or('registered_via.is.null,registered_via.neq.teacher');
+      const norm = (v: string) => v.replace(/\s+/g, '');
+      const dup = (exist ?? []).find((e: { full_name: string }) => norm(e.full_name) === norm(sname));
+      if (dup) {
+        addResult = { duplicate: true, student_id: dup.id };
+      } else {
+        const { count: pendingCount } = await admin.from('students').select('id', { count: 'exact', head: true }).eq('class_id', key.class_id).eq('registered_via', 'assistant_pending');
+        if ((pendingCount ?? 0) >= 20) return json({ error: 'student_limit' }, 429);
+        const { data: ins, error: iErr } = await admin.from('students').insert({
+          class_id: key.class_id, full_name: sname, student_number: snum || null, registered_via: 'assistant_pending',
+        }).select('id').single();
+        if (iErr || !ins) return json({ error: 'save_failed' }, 500);
+        addResult = { added: true, student_id: ins.id };
+      }
+    }
     if (body.action === 'att_set') {
       const who = isTeacher ? teacherName! : String(body.name ?? '').trim().slice(0, 30);
       if (!who) return json({ error: 'name_required' }, 400);
@@ -100,10 +122,11 @@ Deno.serve(async (req) => {
       }
     }
     const [{ data: sts }, { data: recs }] = await Promise.all([
-      admin.from('students').select('id, full_name').eq('class_id', key.class_id).or('registered_via.is.null,registered_via.neq.teacher').order('full_name'), // 선생님 계정 행은 출석 명단에서 뺀다
+      admin.from('students').select('id, full_name, registered_via').eq('class_id', key.class_id).or('registered_via.is.null,registered_via.neq.teacher').order('full_name'), // 선생님 계정 행은 출석 명단에서 뺀다
       admin.from('attendance').select('student_id, status, marked_by, marked_at').eq('class_id', key.class_id).eq('date', kstDay),
     ]);
-    return json({ ok: true, date: kstDay, students: sts ?? [], records: recs ?? [] });
+    const students = (sts ?? []).map((x: { id: string; full_name: string; registered_via: string | null }) => ({ id: x.id, full_name: x.full_name, pending: x.registered_via === 'assistant_pending' }));
+    return json({ ok: true, date: kstDay, students, records: recs ?? [], ...addResult });
   }
 
   if (!form && body.video_url === undefined) {
@@ -111,7 +134,7 @@ Deno.serve(async (req) => {
     const weeks = Array.from(new Set((Array.isArray(cls.weekly_plan) ? cls.weekly_plan : [])
       .map((p: { week?: unknown }) => Number(p?.week))
       .filter((w: number) => Number.isInteger(w) && w > 0 && w < 1000))).sort((a, b) => a - b);
-    return json({ ok: true, class_name: cls.name, weeks, attendance_enabled: !!key.allow_attendance, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
+    return json({ ok: true, class_name: cls.name, weeks, attendance_enabled: !!key.allow_attendance, student_add_enabled: !!key.allow_attendance && !!key.allow_student_add, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
   }
 
   if (!isTeacher && usedToday >= DAILY_LIMIT) return json({ error: 'daily_limit' }, 429);

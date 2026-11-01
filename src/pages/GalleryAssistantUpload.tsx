@@ -148,7 +148,7 @@ const GalleryAssistantUpload = () => {
             </div>
           )}
           {mode === 'attendance' && info?.attendance_enabled ? (
-            <AssistantAttendance token={token} name={name} isTeacher={isTeacher} />
+            <AssistantAttendance token={token} name={name} isTeacher={isTeacher} canAddStudent={!!info?.student_add_enabled} />
           ) : (
           <>
           <div className="grid grid-cols-2 gap-2 bg-gray-100 rounded-xl p-1">
