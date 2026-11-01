@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { BoardSectionPosts } from '../components/board/BoardPostCards';
 import {
   mergeDaySubmissions, boardMemberInfo, attachGroupNames, sortBoardPosts,
-  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, authorLabel, agoLabel, postKey, postLatestAt,
+  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, 
   useNow, useBoardLiveRefresh, useNewArrivals, type BoardViewMode,
 } from '../lib/boardLive';
 import {
-  BoardNameTiles, BoardMoreButton, RecentBadge, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, freshCardClass,
+  BoardNameTiles, BoardMoreButton, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, 
 } from '../components/board/BoardLiveBits';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
@@ -57,7 +58,6 @@ import {
   MoreHorizontal,
   Users2,
   StickyNote,
-  Heart,
   Download,
   BarChart2,
   Maximize2,
@@ -5905,145 +5905,19 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     {shownSections.map((section) => (
                     <div key={section.key} className="mb-10">
                     <BoardSectionHeader section={section} />
-                    <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
-                      {section.posts.map((post) => {
-                        const isObs = post._type === 'obs';
-                        const isMe = post.student_id === session?.student_id;
-                        const liked = !!boardLikes[post.id];
-
-                        return (
-                          <motion.div
-                            key={`${section.key}-${postKey(post)}`}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            onClick={() => setBoardSelectedPost(post)}
-                    style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
-                            className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${freshCardClass(boardFreshKeys.has(postKey(post)))} ${
-                              isMe
-                                ? isObs
-                                  ? 'bg-violet-50 border-violet-200 hover:border-violet-300'
-                                  : 'bg-emerald-50 border-emerald-200 hover:border-emerald-300'
-                                : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-sm'
-                            }`}
-                          >
-                            {/* 카드 헤더 */}
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
-                                  isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
-                                }`}>
-                                  {isObs ? '📝' : '📁'}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-black truncate">
-                                    {authorLabel(post)}
-                                    {(isMe || (post._memberIds || []).includes(session?.student_id)) && <span className="ml-1 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
-                                  </p>
-                                  <p className="text-xs text-on-surface-variant font-bold">
-                                    {post.week_number ? `${post.week_number}주차 · ` : ''}{agoLabel(postLatestAt(post), boardNow)}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <RecentBadge post={post} now={boardNow} />
-                                {!isObs && post._isGroupSub && (
-                                  <span className="text-sm font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">조별</span>
-                                )}
-                                <span className={`text-sm font-black px-2.5 py-1 rounded-full ${
-                                  isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
-                                }`}>
-                                  {isObs ? '활동 기록' : '결과'}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* 카드 내용 */}
-                            <div className="space-y-1.5">
-                              <p className="text-sm font-black leading-snug line-clamp-2">
-                                {isObs ? post.activity_name : post.title}
-                              </p>
-                              {isObs && post.content && (
-                                <p className="text-sm text-on-surface-variant font-bold leading-relaxed line-clamp-4">
-                                  {post.content}
-                                </p>
-                              )}
-                              {isObs && post.feeling && (
-                                <p className="text-sm text-on-surface-variant/60 font-bold italic line-clamp-2">
-                                  💬 {post.feeling}
-                                </p>
-                              )}
-                              {!isObs && (
-                                <div className="space-y-1.5">
-                                  {post.text_content && (
-                                    <p className="text-sm text-on-surface-variant font-bold leading-relaxed line-clamp-4">
-                                      {post.text_content}
-                                    </p>
-                                  )}
-                                  {post.image_url && (
-                                    <div className="relative">
-                                      <img
-                                        src={post.image_url}
-                                        alt="결과 이미지"
-                                        className="w-full rounded-xl object-contain bg-white/70 max-h-64"
-                                        loading="lazy"
-                                        onError={e => {
-                                          if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
-                                        }}
-                                      />
-                                      {post.image_urls?.length > 1 && (
-                                        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                                          1/{post.image_urls.length}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {post.link_url && (
-                                    <a
-                                      href={post.link_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={e => e.stopPropagation()}
-                                      className="flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:underline"
-                                    >
-                                      <ExternalLink size={11} className="shrink-0" />
-                                      <span className="truncate">{post.link_url}</span>
-                                    </a>
-                                  )}
-                                  {post.file_url && (
-                                    <div
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        openResultFile({ url: post.file_url, name: post.display_name || '파일' }, setViewerFile);
-                                      }}
-                                      className="flex items-center gap-1.5 text-sm font-bold text-on-surface-variant hover:text-primary cursor-pointer"
-                                    >
-                                      <File size={11} className="shrink-0" />
-                                      <span className="truncate">{post.display_name || '파일'}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* 좋아요 버튼 */}
-                            <div className="pt-1 border-t border-slate-100">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setBoardLikes(prev => ({ ...prev, [post.id]: !prev[post.id] })); }}
-                                className={`flex items-center gap-1.5 text-sm font-black transition-all px-2 py-1 rounded-lg ${
-                                  liked
-                                    ? 'text-rose-500 bg-rose-50'
-                                    : 'text-slate-400 hover:text-rose-400 hover:bg-rose-50'
-                                }`}
-                              >
-                                <Heart size={13} className={liked ? 'fill-rose-500' : ''} />
-                                공감
-                              </button>
-                            </div>
-                          {!isObs && post._submissions?.length > 1 && <MultiSubmitStrip count={post._submissions.length} />}
-                            </motion.div>
-                        );
-                      })}
-                    </div>
+                    <BoardSectionPosts
+                      section={section}
+                      variant="student"
+                      ctx={{
+                        now: boardNow,
+                        freshKeys: boardFreshKeys,
+                        onOpen: setBoardSelectedPost,
+                        onOpenFile: (f) => openResultFile(f, setViewerFile),
+                        myId: session?.student_id,
+                        likes: boardLikes,
+                        onLike: (id) => setBoardLikes(prev => ({ ...prev, [id]: !prev[id] })),
+                      }}
+                    />
                     </div>
                     ))}
                     {!tilesMode && <BoardMoreButton shown={paged.shown} total={paged.total} onMore={paging.more} />}

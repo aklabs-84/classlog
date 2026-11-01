@@ -1,14 +1,15 @@
 import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
-import { stackedCardStyle, MultiSubmitStrip, SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { BoardSectionPosts } from '../components/board/BoardPostCards';
 import {
   mergeDaySubmissions, boardMemberInfo, fetchGroupNameMap, attachGroupNames, sortBoardPosts,
-  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, authorLabel, agoLabel, postKey, postLatestAt,
+  filterBoardPosts, buildBoardSections, limitSections, useBoardPaging, 
   useNow, useBoardLiveRefresh, useNewArrivals, type BoardViewMode,
 } from '../lib/boardLive';
 import {
-  BoardNameTiles, BoardMoreButton, RecentBadge, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, freshCardClass,
+  BoardNameTiles, BoardMoreButton, RecentStrip, NewArrivalToast, BoardSearchBox, BoardViewToggle, BoardSectionHeader, BoardNoMatch, BoardConnBanner, 
 } from '../components/board/BoardLiveBits';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import { resolveEffectivePlan } from '../lib/effectiveWeeklyPlan';
@@ -3147,104 +3148,16 @@ const Classroom = () => {
                       {shownSections.map(section => (
                       <div key={section.key} className="mb-10">
                       <BoardSectionHeader section={section} />
-                      <div className="@container"><div className="columns-1 @[36rem]:columns-2 @[56rem]:columns-3 @[76rem]:columns-4 gap-4 space-y-4">
-                        {section.posts.map(post => {
-                          const isObs = post._type === 'obs';
-                          return (
-                            <motion.div
-                              key={`${section.key}-${postKey(post)}`}
-                              initial={{ opacity: 0, scale: 0.95 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              onClick={() => setBoardSelectedPost(post)}
-                    style={stackedCardStyle(!isObs && post._submissions?.length > 1)}
-                              className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${freshCardClass(boardFreshKeys.has(postKey(post)))} ${
-                                isObs ? 'bg-violet-50 border-violet-100 hover:border-violet-300 hover:bg-violet-50/80' : 'bg-emerald-50 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50/80'
-                              }`}
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[14px] font-bold shrink-0 ${
-                                    isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
-                                  }`}>
-                                    {isObs ? '📝' : '📁'}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-[14px] font-bold truncate">{authorLabel(post)}</p>
-                                    <p className="text-[14px] text-on-surface-variant/80 font-bold truncate">
-                                      {post.week_number ? `${post.week_number}주차 · ` : ''}{agoLabel(postLatestAt(post), boardNow)}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <RecentBadge post={post} now={boardNow} />
-                                  {!isObs && post._isGroupSub && (
-                                    <span className="text-[14px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">
-                                      조별
-                                    </span>
-                                  )}
-                                  <span className={`text-[14px] font-bold px-2.5 py-1 rounded-full ${
-                                    isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
-                                  }`}>
-                                    {isObs ? '활동 기록' : '결과'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <p className="text-sm font-bold leading-snug line-clamp-2">
-                                  {isObs ? post.activity_name : post.title}
-                                </p>
-                                {isObs && post.content && (
-                                  <p className="text-[14px] text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.content}</p>
-                                )}
-                                {isObs && post.feeling && (
-                                  <p className="text-[14px] text-on-surface-variant/75 font-bold italic line-clamp-2">💬 {post.feeling}</p>
-                                )}
-                                {!isObs && post.text_content && (
-                                  <p className="text-[14px] text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.text_content}</p>
-                                )}
-                                {!isObs && post.image_url && (
-                                  <div className="relative">
-                                    <img
-                                      src={post.image_url}
-                                      alt=""
-                                      className="w-full rounded-xl object-contain bg-white/70 max-h-64"
-                                      loading="lazy"
-                                      onError={e => {
-                                        if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
-                                      }}
-                                    />
-                                    {post.image_urls?.length > 1 && (
-                                      <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[14px] font-bold px-1.5 py-0.5 rounded-full">
-                                        1/{post.image_urls.length}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {!isObs && post.link_url && (
-                                  <a href={post.link_url} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-[14px] font-bold text-blue-600 hover:underline">
-                                    <ExternalLink size={11} /><span className="truncate">{post.link_url}</span>
-                                  </a>
-                                )}
-                                {!isObs && post.file_url && (
-                                  <div
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      openResultFile({ url: post.file_url, name: post.display_name || '파일' }, setViewerFile);
-                                    }}
-                                    className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl hover:bg-amber-100 transition-colors cursor-pointer"
-                                  >
-                                    <File size={13} className="text-amber-500 shrink-0" />
-                                    <span className="text-[14px] font-bold text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
-                                    <Download size={11} className="text-amber-400 shrink-0" />
-                                  </div>
-                                )}
-                              </div>
-                            {!isObs && post._submissions?.length > 1 && <MultiSubmitStrip count={post._submissions.length} />}
-                            </motion.div>
-                          );
-                        })}
-                      </div></div>
+                      <BoardSectionPosts
+                        section={section}
+                        variant="teacher"
+                        ctx={{
+                          now: boardNow,
+                          freshKeys: boardFreshKeys,
+                          onOpen: setBoardSelectedPost,
+                          onOpenFile: (f) => openResultFile(f, setViewerFile),
+                        }}
+                      />
                       </div>
                       ))}
                       {!tilesMode && <BoardMoreButton shown={paged.shown} total={paged.total} onMore={paging.more} />}

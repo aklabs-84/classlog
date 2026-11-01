@@ -95,7 +95,7 @@ export const BoardViewToggle = ({ value, onChange }: { value: BoardViewMode; onC
         type="button"
         onClick={() => onChange(v.key)}
         className={`px-3 py-1.5 rounded-lg text-[14px] font-bold whitespace-nowrap transition-all ${
-          value === v.key ? 'bg-white dark:bg-slate-600 text-indigo-700 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300'
+          value === v.key ? 'bg-white dark:bg-slate-600 text-primary-dim dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300'
         }`}
       >
         {v.label}
@@ -107,10 +107,9 @@ export const BoardViewToggle = ({ value, onChange }: { value: BoardViewMode; onC
 /** 개인별·조별 보기에서 묶음마다 붙는 제목 줄 */
 export const BoardSectionHeader = ({ section }: { section: BoardSection }) =>
   section.title ? (
-    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200 dark:border-slate-700">
-      <span className="text-lg">{section.isGroup ? '👥' : '👤'}</span>
-      <h3 className="text-[17px] font-black text-slate-800 dark:text-slate-100">{section.title}</h3>
-      <span className="text-[14px] font-bold text-slate-500 dark:text-slate-400">{section.subtitle}</span>
+    <div className="flex items-baseline gap-2 mb-4 pb-2 border-b border-primary/20">
+      <h3 className="text-[18px] font-bold text-on-surface">{section.title}</h3>
+      <span className="text-[14px] text-on-surface-variant">{section.subtitle}</span>
     </div>
   ) : null;
 
@@ -159,9 +158,9 @@ export const BoardNameTiles = ({ sections, now, openKey, onToggle }: {
             onClick={() => onToggle(s.key)}
             aria-pressed={open}
             className={`text-left rounded-2xl border-2 px-4 py-3 transition-colors ${
-              open ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+              open ? 'border-primary bg-primary/10'
                 : fresh ? 'border-rose-300 bg-rose-50 dark:bg-rose-900/20 hover:border-rose-400'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-300'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary'
             }`}
           >
             <p className="text-[17px] font-black text-slate-900 dark:text-slate-100 truncate">{s.title}</p>
