@@ -41,12 +41,21 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
+      if (e.data && e.data.__viewerSave) { downloadFile(fileUrl, fileName); return; }
       const c = e.data && e.data.__viewerBg;
       if (typeof c === 'string' && /^(rgb|rgba|#)[0-9a-f(),.\s%]*$/i.test(c)) setAppBg(c);
     };
+    // 바깥 화면(막대 등)에서 누른 Ctrl+S도 같은 방식으로 원본 파일을 저장
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 's' && (kind === 'web-html' || kind === 'web-zip')) {
+        e.preventDefault();
+        downloadFile(fileUrl, fileName);
+      }
+    };
     window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, []);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('message', onMsg); window.removeEventListener('keydown', onKey); };
+  }, [fileUrl, fileName, kind]);
   const [loading, setLoading] = useState(true);
   const [loadPercent, setLoadPercent] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -350,7 +359,7 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
 
         {isApp && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-800">
-            🔊 열자마자 소리(음성 안내)가 날 수 있어요. 이 화면에서 Ctrl+S(Cmd+S)를 누르면 학생 앱만이 아니라 이 화면 전체가 저장돼요. 학생 파일 그대로 저장하려면 오른쪽 위 「파일 받아서 열기」를 눌러 주세요.
+            🔊 열자마자 소리(음성 안내)가 날 수 있어요. 이 화면에서 Ctrl+S(Cmd+S)나 오른쪽 위 「파일 받아서 열기」를 누르면 학생이 낸 원본 파일 그대로 저장돼요. (브라우저 메뉴의 「페이지 저장」은 이 화면 전체가 저장되니 쓰지 마세요.)
           </div>
         )}
         </div>
@@ -555,7 +564,12 @@ const SubmissionViewerModal = ({ isOpen, onClose, fileUrl, fileName }: Submissio
 
 /** 학생 앱 맨 위 왼쪽 위 배경색을 부모 화면에 알려 주는 작은 스크립트 (상단 막대 숨김 때 색을 맞추려고) */
 const BG_REPORT_SCRIPT = `<script>(function(){function ok(c){return c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)'}function g(){try{var e=document.elementFromPoint(2,2);while(e){var c=getComputedStyle(e).backgroundColor;if(ok(c))return c;e=e.parentElement}}catch(x){}return ''}function s(){try{parent.postMessage({__viewerBg:g()},'*')}catch(x){}}addEventListener('load',function(){s();setTimeout(s,600);setTimeout(s,2000)})})();</script>`;
-const withBgReport = (html: string) => (/<\/body>/i.test(html) ? html.replace(/<\/body>/i, BG_REPORT_SCRIPT + '</body>') : html + BG_REPORT_SCRIPT);
+/** 학생 앱 안에서 Ctrl+S(Cmd+S)를 누르면 부모 화면에 알려서, 화면 전체 대신 학생 원본 파일이 저장되게 한다 */
+const SAVE_KEY_SCRIPT = `<script>addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='s'||e.key==='S')){e.preventDefault();try{parent.postMessage({__viewerSave:1},'*')}catch(x){}}},true)</script>`;
+const withBgReport = (html: string) => {
+  const extra = BG_REPORT_SCRIPT + SAVE_KEY_SCRIPT;
+  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, () => extra + '</body>') : html + extra;
+};
 
 export default SubmissionViewerModal;
 export { getViewerKind };
