@@ -264,11 +264,11 @@ const ClassBoard = () => {
       {/* ── 헤더 ── */}
       <header className="flex items-center justify-between px-8 py-4 border-b border-surface-container-high bg-surface-container-lowest sticky top-0 z-10 shadow-soft">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
-            <Users2 size={20} className="text-indigo-600 dark:text-indigo-400" />
+          <div className="w-10 h-10 rounded-2xl bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
+            <Users2 size={20} className="text-violet-600 dark:text-violet-400" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">우리반 보드</p>
+            <p className="text-[10px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest">우리반 보드</p>
             <h1 className="text-lg font-black leading-tight text-on-surface">{className || '보드'}</h1>
           </div>
         </div>
@@ -290,7 +290,7 @@ const ClassBoard = () => {
               if (document.fullscreenElement) document.exitFullscreen();
               else document.documentElement.requestFullscreen();
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 font-black text-xs transition-all border border-indigo-200 dark:border-indigo-700/40"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 text-violet-600 dark:text-violet-300 font-black text-xs transition-all border border-violet-200 dark:border-violet-700/40"
           >
             <Minimize2 size={13} /> 전체화면 해제
           </button>
@@ -311,7 +311,7 @@ const ClassBoard = () => {
               onClick={() => setTypeFilter(f.key as any)}
               className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                 typeFilter === f.key
-                  ? 'bg-indigo-500 text-white shadow-sm'
+                  ? 'bg-violet-500 text-white shadow-sm'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
@@ -326,8 +326,8 @@ const ClassBoard = () => {
             onClick={() => setWeekFilter('all')}
             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
               weekFilter === 'all'
-                ? 'bg-indigo-500 text-white border-indigo-500'
-                : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300'
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-violet-400 hover:text-violet-600 dark:hover:text-violet-300'
             }`}
           >
             전체 주차
@@ -338,8 +338,8 @@ const ClassBoard = () => {
               onClick={() => setWeekFilter(w)}
               className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
                 weekFilter === w
-                  ? 'bg-indigo-500 text-white border-indigo-500'
-                  : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300'
+                  ? 'bg-violet-500 text-white border-violet-500'
+                  : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-violet-400 hover:text-violet-600 dark:hover:text-violet-300'
               }`}
             >
               {w}주차
@@ -360,7 +360,7 @@ const ClassBoard = () => {
       <main className="flex-1 p-8">
         {loading ? (
           <div className="flex items-center justify-center py-32">
-            <Loader2 size={36} className="animate-spin text-indigo-500" />
+            <Loader2 size={36} className="animate-spin text-violet-500" />
           </div>
         ) : posts.length > 0 && (filtered.length === 0 || sections.length === 0) ? (
           <BoardNoMatch query={search} mode={boardView} />
@@ -471,19 +471,19 @@ const ClassBoard = () => {
 
                     {/* 조별 제출 정보 */}
                     {!isObs && selectedPost._isGroupSub && (
-                      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700/40">
+                      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700/40">
                         <span className="text-lg">👥</span>
                         <div className="min-w-0">
-                          <p className="text-xs font-black text-indigo-700 dark:text-indigo-300">
+                          <p className="text-xs font-black text-violet-700 dark:text-violet-300">
                             {groupModalInfo ? groupModalInfo.name : '조별 제출'}
                           </p>
                           {groupModalInfo?.memberNames && groupModalInfo.memberNames.length > 0 && (
-                            <p className="text-xs text-indigo-500 dark:text-indigo-400 font-bold mt-0.5">
+                            <p className="text-xs text-violet-500 dark:text-violet-400 font-bold mt-0.5">
                               {groupModalInfo.memberNames.join(' · ')}
                             </p>
                           )}
                           {!groupModalInfo && (
-                            <p className="text-xs text-indigo-400 font-bold mt-0.5">조원 정보 불러오는 중...</p>
+                            <p className="text-xs text-violet-400 font-bold mt-0.5">조원 정보 불러오는 중...</p>
                           )}
                         </div>
                       </div>
