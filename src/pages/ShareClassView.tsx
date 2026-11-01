@@ -1454,6 +1454,8 @@ const ShareClassView = () => {
                         {allWeeks.map((w) => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                       </div>
                       <span className="w-10 text-right shrink-0">합계</span>
+                      <span className="w-[8rem] shrink-0" />
+                      <span className="w-[18px] shrink-0" />
                     </div>
                   )}
                   <ul className="divide-y divide-gray-100">
@@ -1496,7 +1498,7 @@ const ShareClassView = () => {
                               </div>
                             )}
                             <span className={`w-10 text-right shrink-0 text-lg font-black ${has ? 'text-gray-800' : 'text-gray-300'}`}>{total}</span>
-                            <span className="shrink-0 w-[5.5rem] flex justify-end" onClick={(e) => e.stopPropagation()}>
+                            <span className="shrink-0 w-[8rem] flex justify-end" onClick={(e) => e.stopPropagation()}>
                               <QuickOpenLink target={qo} compact />
                             </span>
                             <ChevronRight size={18} className={`shrink-0 ${has ? 'text-gray-400' : 'text-transparent'}`} />
@@ -1533,7 +1535,7 @@ const ShareClassView = () => {
                         {allWeeks.map((w) => <span key={w} className="w-8 sm:w-10 text-center">{w}주</span>)}
                       </div>
                       <span className="w-10 text-right shrink-0">합계</span>
-                      <span className="w-[5.5rem] shrink-0" />
+                      <span className="w-[8rem] shrink-0" />
                       <span className="w-[18px] shrink-0" />
                     </div>
                   )}
@@ -1579,7 +1581,7 @@ const ShareClassView = () => {
                               </div>
                             )}
                             <span className={`w-10 text-right shrink-0 text-lg font-black ${has ? 'text-gray-800' : 'text-gray-300'}`}>{total}</span>
-                            <span className="shrink-0 w-[5.5rem] flex justify-end" onClick={(e) => e.stopPropagation()}>
+                            <span className="shrink-0 w-[8rem] flex justify-end" onClick={(e) => e.stopPropagation()}>
                               <QuickOpenLink target={qo} compact />
                             </span>
                             <ChevronRight size={18} className={`shrink-0 ${has ? 'text-gray-400' : 'text-transparent'}`} />
