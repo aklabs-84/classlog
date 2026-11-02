@@ -35,6 +35,7 @@ import {
   Sparkles,
   BarChart2,
   Home,
+  Presentation,
 } from 'lucide-react';
 import ResultFileActions from '../components/common/ResultFileActions';
 import PercentLoader from '../components/common/PercentLoader';
@@ -45,6 +46,8 @@ import ResultLinks from '../components/common/ResultLinks';
 import { BoardSearchBox } from '../components/board/BoardLiveBits';
 import { RECENT_MS, useNow, agoLabel } from '../lib/boardLive';
 import QuickOpenLink, { pickQuickOpen } from '../components/common/QuickOpenLink';
+import ShowcaseBoards from '../components/share/ShowcaseBoards';
+import ShowcaseGallery, { type ShowcaseEntry } from '../components/share/ShowcaseGallery';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
 import {
@@ -327,7 +330,7 @@ interface StudentData {
   results: ResultRow[];
 }
 
-type TabKey = 'overview' | 'results' | 'gallery' | 'setech' | 'survey';
+type TabKey = 'overview' | 'results' | 'showcase' | 'gallery' | 'setech' | 'survey';
 
 interface GalleryItem {
   id: string;
@@ -406,6 +409,7 @@ const ShareClassView = () => {
   const OBS_PAGE_SIZE = 1;
   const RESULTS_PAGE_SIZE = 6; // 한 줄 3장 × 2줄
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
+  const [showcaseMode, setShowcaseMode] = useState<'group' | 'individual' | null>(null);
   const [resultsViewMode, setResultsViewMode] = useState<'student' | 'group'>('student');
   const [resultSearch, setResultSearch] = useState('');
   const [modalGroupId, setModalGroupId] = useState<string | null>(null);
@@ -743,14 +747,70 @@ const ShareClassView = () => {
   // 내용이 있는 탭만 보여 준다 (설문 탭과 같은 규칙)
   const hasResultsTab = studentData.some((sd) => sd.results.length > 0 || sd.obs.length > 0);
   const hasSetechTab = studentData.some((sd) => sd.obs.length > 0) || Object.values(evalMap).some((ev) => !!ev?.setech_content);
+  // 학급 발표회: 사람(조)마다 ⭐ 최종 제출 1건. 주차 필터·검색과 무관하게 전체 기준
+  const showcase = useMemo(() => {
+    const build = (id: string, owner: string, members: string[] | undefined, rows: ResultRow[]): ShowcaseEntry | null => {
+      if (rows.length === 0) return null;
+      const bundles = bundleRows(rows);
+      const marks = bundleMarks(bundles);
+      const b = bundles.find((x) => marks.get(x.id) === 'final') || bundles[0];
+      const img = b.items.map((x) => x.image_urls?.[0] || x.image_url).find(Boolean) || null;
+      return {
+        id, owner, members,
+        title: b.title || b.items.find((x) => x.display_name)?.display_name || `${owner}의 작품`,
+        text: b.items.find((x) => x.text_content)?.text_content || null,
+        imageUrl: img,
+        week: b.week_number,
+        submittedAt: b.created_at,
+        submissionCount: bundles.length,
+        target: pickQuickOpen(b.items),
+      };
+    };
+    const groupRowsMap: Record<string, ResultRow[]> = {};
+    const seen = new Set<string>();
+    const indRows: { student: StudentRow; rows: ResultRow[] }[] = [];
+    for (const sd of studentData) {
+      const mine: ResultRow[] = [];
+      for (const r of sd.results) {
+        if (r.is_group_submission && r.group_id) {
+          const k = `${r.group_id}_${r.submission_group || r.created_at}_${r.result_type}_${r.storage_path || r.file_url || r.id}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          (groupRowsMap[r.group_id] ||= []).push(r);
+        } else mine.push(r);
+      }
+      indRows.push({ student: sd.student, rows: mine });
+    }
+    const groupEntries: ShowcaseEntry[] = [];
+    const groupPending: string[] = [];
+    groupsWithMembers.forEach(({ group, students }, gi) => {
+      const e = build(`g-${group.id}`, group.name, students.map((s) => s.full_name), groupRowsMap[group.id] || []);
+      if (e) e.groupOrder = gi + 1;
+      if (e) groupEntries.push(e); else groupPending.push(group.name);
+    });
+    const indEntries: ShowcaseEntry[] = [];
+    const indPending: string[] = [];
+    indRows.sort((a, b) => (a.student.student_number ?? 0) - (b.student.student_number ?? 0)).forEach(({ student, rows }) => {
+      const e = build(`s-${student.id}`, student.full_name, undefined, rows);
+      if (e) indEntries.push(e); else indPending.push(student.full_name);
+    });
+    return { groupEntries, groupPending, indEntries, indPending };
+  }, [studentData, groupsWithMembers]);
+  const showcaseUse: 'group' | 'individual' =
+    showcaseMode && (showcaseMode === 'group' ? showcase.groupEntries.length : showcase.indEntries.length) > 0
+      ? showcaseMode
+      : showcase.groupEntries.length > 0 ? 'group' : 'individual';
+  const hasShowcaseTab = showcase.groupEntries.length + showcase.indEntries.length > 0;
+
   const availableTabs = useMemo(() => {
     const t: TabKey[] = ['overview'];
     if (hasResultsTab) t.push('results');
+    if (hasShowcaseTab) t.push('showcase');
     t.push('gallery');
     if (hasSetechTab) t.push('setech');
     if (surveyResults.length > 0) t.push('survey');
     return t;
-  }, [hasResultsTab, hasSetechTab, surveyResults.length]);
+  }, [hasResultsTab, hasShowcaseTab, hasSetechTab, surveyResults.length]);
   useEffect(() => {
     if (!dataLoading && !availableTabs.includes(activeTab)) setActiveTab(availableTabs[0]);
   }, [availableTabs, activeTab, dataLoading]);
@@ -1151,6 +1211,7 @@ const ShareClassView = () => {
               {[
                 { key: 'overview', label: '한눈에 보기', icon: Home },
                 ...(hasResultsTab ? [{ key: 'results', label: '결과 확인', icon: FileText }] : []),
+                ...(hasShowcaseTab ? [{ key: 'showcase', label: '발표회', icon: Presentation }] : []),
                 { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
                 ...(hasSetechTab ? [{ key: 'setech', label: '기록', icon: BookOpen }] : []),
                 ...(surveyResults.length > 0 ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
@@ -1385,6 +1446,50 @@ const ShareClassView = () => {
                 </button>
               )}
             </>
+          )}
+
+          {/* ── 발표회 탭 ── */}
+          {activeTab === 'showcase' && (
+            <div className="space-y-5">
+              <ShowcaseBoards
+                key={classId}
+                accent="#4f46e5"
+                loadList={async () => {
+                  const { data, error } = await supabase.rpc('share_class_boards', { p_class_id: classId, p_code: verifiedCode });
+                  if (error) throw error;
+                  return (data as any[]) || [];
+                }}
+                loadObjects={async (boardId) => {
+                  const { data, error } = await supabase.rpc('share_class_board_objects', { p_class_id: classId, p_code: verifiedCode, p_board_id: boardId });
+                  if (error) throw error;
+                  return (data as any[]) || [];
+                }}
+              />
+              {showcase.groupEntries.length > 0 && showcase.indEntries.length > 0 && (
+                <div data-tour="showcase-toggle" className="inline-flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-xl p-1 print:hidden" role="group" aria-label="발표 단위">
+                  {([['group', `조별 (${showcase.groupEntries.length})`], ['individual', `개인별 (${showcase.indEntries.length})`]] as const).map(([k, l]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setShowcaseMode(k)}
+                      aria-pressed={showcaseUse === k}
+                      className={`px-4 min-h-[40px] rounded-lg text-[15px] font-black transition-all ${showcaseUse === k ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 hover:bg-white'}`}
+                    >{l}</button>
+                  ))}
+                </div>
+              )}
+              <ShowcaseGallery
+                entries={showcaseUse === 'group' ? showcase.groupEntries : showcase.indEntries}
+                pendingNames={showcaseUse === 'group' ? showcase.groupPending : showcase.indPending}
+                heading={showcaseUse === 'group' ? '조별 최종 작품' : '개인별 최종 작품'}
+                unitLabel={showcaseUse === 'group' ? '조' : '학생'}
+                accent="#4f46e5"
+                accentSoft="#eef2ff"
+              tourPrefix="showcase_tour_teacher_v1"
+              note={showcaseUse === 'individual' ? '개인별 화면은 조원 모두에게 같은 작품이 들어가 있을 수 있어요. 조별로 함께 낸 결과는 조원마다 똑같이 보일 수 있으니, 조 단위로 보려면 “조별” 탭을 이용해 주세요.' : undefined}
+                hasToggle={showcase.groupEntries.length > 0 && showcase.indEntries.length > 0}
+              />
+            </div>
           )}
 
           {/* ── 결과 확인 탭 ── */}
