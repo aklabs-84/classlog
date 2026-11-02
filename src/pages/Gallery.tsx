@@ -17,6 +17,7 @@ import {
 } from '../lib/gallery';
 import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import GalleryScreening from '../components/gallery/GalleryScreening';
+import { toUnitLabel } from '../lib/unitLabel';
 import { isMyTeachingClass } from '../lib/projectClassFilter';
 
 const FREE_IMAGE_LIMIT = 100;
@@ -25,6 +26,7 @@ const DRIVE_SERVICE_ACCOUNT_EMAIL = 'saengilog-drive@saengilog-drive.iam.gservic
 interface Class {
   id: string;
   name: string;
+  unit_label?: string | null;
   weekly_plan?: { week: number; topic: string }[];
 }
 
@@ -81,7 +83,7 @@ export default function Gallery() {
     if (!user) return;
     supabase
       .from('classes')
-      .select('id, name, weekly_plan, school_project_id, parent_class_id, assigned_teacher_id')
+      .select('id, name, weekly_plan, unit_label, school_project_id, parent_class_id, assigned_teacher_id')
       .or(`teacher_id.eq.${user.id},assigned_teacher_id.eq.${user.id}`)
       .eq('is_archived', false)
       .order('created_at', { ascending: false })
@@ -157,6 +159,7 @@ export default function Gallery() {
   useEffect(() => { loadDriveFolder(); }, [loadDriveFolder]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
+  const unit = toUnitLabel(selectedClass?.unit_label);
   const totalWeeks = selectedClass?.weekly_plan?.length ?? 0;
   const displayItems = [...items, ...driveItems].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -339,7 +342,7 @@ export default function Gallery() {
                   : 'border-on-surface/10 text-on-surface-variant hover:bg-white hover:text-on-surface'
               }`}
             >
-              {w}주차
+              {w}{unit}
             </button>
           ))}
         </div>
@@ -500,12 +503,14 @@ export default function Gallery() {
                     item={item}
                     onClick={() => setLightboxIndex(idx)}
                     onDelete={() => setDeleteTarget(item.id)}
+                    unit={unit}
                   />
                 ) : (
                   <VideoGalleryCard
                     key={item.id}
                     item={item}
                     onDelete={() => setDeleteTarget(item.id)}
+                    unit={unit}
                   />
                 )
               )}
@@ -551,7 +556,7 @@ export default function Gallery() {
               </p>
               {selectedClass && (
                 <p className="text-xs font-bold text-primary mb-3">
-                  추가 위치: {selectedClass.name}{selectedWeek != null ? ` · ${selectedWeek}주차` : ''}
+                  추가 위치: {selectedClass.name}{selectedWeek != null ? ` · ${selectedWeek}${unit}` : ''}
                 </p>
               )}
 
@@ -642,7 +647,7 @@ export default function Gallery() {
               </p>
               {selectedClass && (
                 <p className="text-xs font-bold text-primary mb-3">
-                  연결 위치: {selectedClass.name}{selectedWeek != null ? ` · ${selectedWeek}주차` : ''}
+                  연결 위치: {selectedClass.name}{selectedWeek != null ? ` · ${selectedWeek}${unit}` : ''}
                 </p>
               )}
 
@@ -806,7 +811,7 @@ export default function Gallery() {
               )}
               <p className="text-white/40 text-xs">
                 {lightboxIndex + 1} / {displayItems.length}
-                {lightboxItem.week_number != null && ` · ${lightboxItem.week_number}주차`}
+                {lightboxItem.week_number != null && ` · ${lightboxItem.week_number}${unit}`}
                 {lightboxItem.source === 'drive' && ' · 구글 드라이브'}
               </p>
             </motion.div>
@@ -867,7 +872,9 @@ function GalleryCard({
   item,
   onClick,
   onDelete,
+  unit = '주차',
 }: {
+  unit?: string;
   item: GalleryItem;
   onClick: () => void;
   onDelete: () => void;
@@ -914,7 +921,7 @@ function GalleryCard({
 
       {item.week_number != null && (
         <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
-          {item.week_number}주차
+          {item.week_number}{unit}
         </div>
       )}
     </motion.div>
@@ -925,7 +932,9 @@ function GalleryCard({
 function VideoGalleryCard({
   item,
   onDelete,
+  unit = '주차',
 }: {
+  unit?: string;
   item: GalleryItem;
   onDelete: () => void;
 }) {
@@ -985,7 +994,7 @@ function VideoGalleryCard({
 
       {item.week_number != null && (
         <div className="absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
-          {item.week_number}주차
+          {item.week_number}{unit}
         </div>
       )}
     </motion.div>

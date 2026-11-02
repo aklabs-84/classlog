@@ -5,6 +5,7 @@ import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import { buildSurveyXlsxRows, buildSurveyCsvRows } from '../lib/surveyExport';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
+import { toUnitLabel } from '../lib/unitLabel';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl } from '../lib/gallery';
 import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { WeeklyTrendChart, type WeeklyTrendPoint } from '../components/share/ShareCharts';
@@ -190,11 +191,12 @@ const SchoolShareView = () => {
   }, [sessionKey, codeSessionKey]);
 
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
-  const [classList, setClassList] = useState<{ id: string; name: string; subject: string; weekly_plan: any[]; show_learning_journey: boolean }[]>([]);
+  const [classList, setClassList] = useState<{ id: string; name: string; subject: string; weekly_plan: any[]; show_learning_journey: boolean; unit_label?: string }[]>([]);
   const [metaLoading, setMetaLoading] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
 
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
+  const unit = toUnitLabel(classList.find(c => c.id === activeClassId)?.unit_label ?? (classList.length > 0 && classList.every(c => c.unit_label === '차시') ? '차시' : '주차'));
   const [classDataMap, setClassDataMap] = useState<Record<string, ClassData>>({});
   const [loadingClassId, setLoadingClassId] = useState<string | null>(null);
 
@@ -555,7 +557,7 @@ const SchoolShareView = () => {
         })
       );
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const label = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
+      const label = weekFilter === 'all' ? '전체' : `${weekFilter}${unit}`;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(zipBlob);
       a.download = `${currentData?.name || '갤러리'}_${label}.zip`;
@@ -644,12 +646,12 @@ const SchoolShareView = () => {
           if (obs.length > 0) {
             rows.push([{ value: '활동기록', span: 4, style: 'section' }, null, null, null]);
             rows.push([
-              { value: '주차', style: 'header' }, { value: '활동명', style: 'header' },
+              { value: ''+unit+'', style: 'header' }, { value: '활동명', style: 'header' },
               { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
             ]);
             obs.forEach(o => {
               rows.push([
-                { value: o.week_number != null ? `${o.week_number}주차` : '' },
+                { value: o.week_number != null ? `${o.week_number}${unit}` : '' },
                 { value: o.activity_name || '' },
                 { value: o.content, style: 'wrap' },
                 { value: new Date(o.created_at).toLocaleDateString('ko-KR') },
@@ -660,13 +662,13 @@ const SchoolShareView = () => {
           if (results.length > 0) {
             rows.push([{ value: '결과제출', span: 4, style: 'section' }, null, null, null]);
             rows.push([
-              { value: '주차', style: 'header' }, { value: '제목', style: 'header' },
+              { value: ''+unit+'', style: 'header' }, { value: '제목', style: 'header' },
               { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
             ]);
             results.forEach(r => {
               const ct = r.text_content || (r.link_url ? `링크: ${r.link_url}` : r.file_url ? '파일 첨부' : r.image_url ? '이미지 첨부' : '');
               rows.push([
-                { value: r.week_number != null ? `${r.week_number}주차` : '' },
+                { value: r.week_number != null ? `${r.week_number}${unit}` : '' },
                 { value: r.title || '' },
                 { value: ct, style: 'wrap' },
                 { value: new Date(r.created_at).toLocaleDateString('ko-KR') },
@@ -951,12 +953,12 @@ const SchoolShareView = () => {
                 <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
                   <Sparkles size={32} className="text-gray-300" />
                 </div>
-                <p className="font-black text-gray-400 text-sm">아직 등록된 주차별 활동이 없습니다</p>
+                <p className="font-black text-gray-400 text-sm">아직 등록된 {unit}별 활동이 없습니다</p>
               </div>
             ) : (
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <h3 className="text-sm font-black text-gray-900 mb-3">주차별 성장 추이</h3>
+                  <h3 className="text-sm font-black text-gray-900 mb-3">{unit}별 성장 추이</h3>
                   <WeeklyTrendChart data={weeklyTrendData} />
                 </div>
                 <div className="relative">
@@ -971,8 +973,8 @@ const SchoolShareView = () => {
                       <div className="flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                         <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div className="min-w-0">
-                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{wk.week}주차</p>
-                            <h3 className="text-base font-black text-gray-900">{wk.topic || `${wk.week}주차 활동`}</h3>
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{wk.week}{unit}</p>
+                            <h3 className="text-base font-black text-gray-900">{wk.topic || `${wk.week}${unit} 활동`}</h3>
                           </div>
                           <button
                             onClick={() => { setWeekFilter(wk.week); setActiveTab('results'); }}
@@ -1000,7 +1002,7 @@ const SchoolShareView = () => {
                               <img
                                 key={url}
                                 src={url}
-                                alt={`${wk.week}주차 사진 ${i + 1}`}
+                                alt={`${wk.week}${unit} 사진 ${i + 1}`}
                                 loading="lazy"
                                 onClick={() => setLightbox({ urls: wk.images, names: wk.images.map((_, n) => `week${wk.week}_${n + 1}.webp`), index: i })}
                                 className="w-20 h-20 rounded-xl object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
@@ -1044,7 +1046,7 @@ const SchoolShareView = () => {
               {/* 주차 필터 + 전체 열기/닫기 */}
               {allWeeks.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap print:hidden">
-                  <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
+                  <span className="text-xs font-black text-gray-500 mr-1">{unit}:</span>
                   <button
                     onClick={() => setWeekFilter('all')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
@@ -1057,7 +1059,7 @@ const SchoolShareView = () => {
                       onClick={() => setWeekFilter(w)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                     >
-                      {w}주차
+                      {w}{unit}
                     </button>
                   ))}
                   <div className="ml-auto flex items-center gap-1.5">
@@ -1135,7 +1137,7 @@ const SchoolShareView = () => {
                           ) : null; })()}
                           {(studentTrendMap[student.id]?.some(p => p.engagement > 0)) && (
                             <div className="bg-white rounded-xl border border-gray-100 p-4">
-                              <p className="text-xs font-black text-gray-500 mb-2">주차별 성장 추이</p>
+                              <p className="text-xs font-black text-gray-500 mb-2">{unit}별 성장 추이</p>
                               <WeeklyTrendChart data={studentTrendMap[student.id]} height={160} />
                             </div>
                           )}
@@ -1143,7 +1145,7 @@ const SchoolShareView = () => {
                             <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
                               <div className="flex items-center gap-2 mb-2 flex-wrap">
                                 <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
-                                {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
+                                {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}{unit}</span>}
                                 <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                               </div>
                               {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
@@ -1161,7 +1163,7 @@ const SchoolShareView = () => {
                                   <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
                                   {finalMarks.get(r.id) === 'final' && <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⭐ 최종 제출</span>}
                                   {finalMarks.get(r.id) === 'older' && <span className="text-[11px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">이전 제출</span>}
-                                  {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
+                                  {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}{unit}</span>}
                                   <span className="text-[10px] font-bold text-gray-400 ml-auto">{fmtTime(r.created_at)}</span>
                                 </div>
                                 {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
@@ -1222,7 +1224,7 @@ const SchoolShareView = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 {allWeeks.length > 0 && (
                   <>
-                    <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
+                    <span className="text-xs font-black text-gray-500 mr-1">{unit}:</span>
                     <button
                       onClick={() => setWeekFilter('all')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
@@ -1233,7 +1235,7 @@ const SchoolShareView = () => {
                       <button key={w} onClick={() => setWeekFilter(w)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                       >
-                        {w}주차
+                        {w}{unit}
                       </button>
                     ))}
                   </>
@@ -1288,7 +1290,7 @@ const SchoolShareView = () => {
                           </button>
                           {(item.caption || item.week_number) && (
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {item.week_number && <p className="text-[10px] font-bold text-white/80">{item.week_number}주차</p>}
+                              {item.week_number && <p className="text-[10px] font-bold text-white/80">{item.week_number}{unit}</p>}
                               {item.caption && <p className="text-xs font-semibold text-white truncate">{item.caption}</p>}
                             </div>
                           )}

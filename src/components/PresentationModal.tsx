@@ -266,7 +266,9 @@ const PresentationModal = ({
   onSave,
   weekNav,
   resources,
+  unit = '주차',
 }: {
+  unit?: string;
   material: PresentationMaterial;
   onClose: () => void;
   onSave?: (newContent: string) => void;
@@ -604,7 +606,7 @@ const PresentationModal = ({
             <button
               onClick={goPrevWeek}
               disabled={weekIndex <= 0}
-              title="이전 주차 (←)"
+              title={`이전 ${unit} (←)`}
               className={`p-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
             >
               <ChevronLeft size={16} />
@@ -612,17 +614,17 @@ const PresentationModal = ({
             <select
               value={weekNav.currentWeek}
               onChange={e => weekNav.onNavigate(Number(e.target.value))}
-              title="주차 선택"
+              title={`${unit} 선택`}
               className={`max-w-[220px] text-xs font-black rounded-xl pl-3 pr-2 py-2.5 focus:outline-none cursor-pointer ${dark ? 'bg-white/10 text-white' : 'bg-slate-900/5 text-slate-800'}`}
             >
               {weekNav.weeks.map(w => (
-                <option key={w.week} value={w.week}>{w.week}주차 · {w.title}</option>
+                <option key={w.week} value={w.week}>{w.week}{unit} · {w.title}</option>
               ))}
             </select>
             <button
               onClick={goNextWeek}
               disabled={weekIndex === -1 || weekIndex >= weekNav.weeks.length - 1}
-              title="다음 주차 (→)"
+              title={`다음 ${unit} (→)`}
               className={`p-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
             >
               <ChevronRight size={16} />

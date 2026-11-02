@@ -9,6 +9,7 @@ import {
 interface BriefingModalProps {
   classId: string;
   className: string;
+  unit?: string;
   onClose: () => void;
 }
 
@@ -26,7 +27,7 @@ interface BriefingRecord {
 
 const SPEEDS = [0.8, 1.0, 1.2, 1.5, 2.0];
 
-const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
+const BriefingModal = ({ classId, className, unit = '주차', onClose }: BriefingModalProps) => {
   const [records, setRecords] = useState<BriefingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
@@ -199,7 +200,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
   const startBriefing = useCallback((startIdx: number) => {
     window.speechSynthesis.cancel();
     const students = studentsRef.current;
-    const weekLabel = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
+    const weekLabel = weekFilter === 'all' ? '전체' : `${weekFilter}${unit}`;
     const pendingCount = students.filter(s => s.status === 'pending').length;
     const pendingStr = pendingCount > 0 ? ` 승인 대기 ${pendingCount}건 포함.` : '';
     const introText = `${className} 이동 중 브리핑을 시작합니다. ${weekLabel} 관찰 기록, 총 ${students.length}명.${pendingStr}`;
@@ -292,7 +293,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
   const handleNotebookLMExport = () => {
     if (byStudent.length === 0) return;
 
-    const weekLabel = weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`;
+    const weekLabel = weekFilter === 'all' ? '전체 '+unit+'' : `${weekFilter}${unit}`;
     const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
     const weekTopic = weekFilter !== 'all' ? weeklyPlan.find(p => p.week === weekFilter)?.topic : null;
 
@@ -447,7 +448,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                   ) : byStudent.length === 0 ? (
                     <div className="text-center py-8 space-y-2">
                       <p className="text-slate-400 font-bold text-sm">제출된 활동 기록이 없습니다</p>
-                      <p className="text-slate-600 text-[14px]">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
+                      <p className="text-slate-600 text-[14px]">({weekFilter === 'all' ? '전체 '+unit+'' : `${weekFilter}${unit}`} · 총 {records.length}건 조회됨)</p>
                     </div>
                   ) : (
                     <div className={`rounded-2xl border p-4 transition-all ${isPlaying && phase === 'reading' ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-white/5 border-white/10'}`}>
@@ -459,7 +460,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                           <div>
                             <p className="text-[14px] font-bold text-indigo-400">브리핑 시작 중...</p>
                             <p className="text-sm font-bold text-white mt-0.5">
-                              {weekFilter === 'all' ? '전체' : `${weekFilter}주차`} · 총 {byStudent.length}명
+                              {weekFilter === 'all' ? '전체' : `${weekFilter}${unit}`} · 총 {byStudent.length}명
                             </p>
                           </div>
                         </div>
@@ -626,7 +627,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
             <div className="hidden md:flex flex-col w-64 border-l border-slate-700/40 shrink-0">
               {/* 주차 필터 */}
               <div className="px-4 pt-4 pb-3 border-b border-slate-700/30 shrink-0">
-                <p className="text-[13px] font-bold text-slate-500  mb-2">주차 필터</p>
+                <p className="text-[13px] font-bold text-slate-500  mb-2">{unit} 필터</p>
                 <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => handleWeekChange('all')}
@@ -640,7 +641,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                       onClick={() => handleWeekChange(w)}
                       className={`w-full text-left px-3 py-1.5 rounded-xl text-[14px] font-bold border transition-all truncate ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
                     >
-                      {w}주차{weeklyPlan.find(p => p.week === w)?.topic ? ` · ${weeklyPlan.find(p => p.week === w)!.topic}` : ''}
+                      {w}{unit}{weeklyPlan.find(p => p.week === w)?.topic ? ` · ${weeklyPlan.find(p => p.week === w)!.topic}` : ''}
                     </button>
                   ))}
                 </div>

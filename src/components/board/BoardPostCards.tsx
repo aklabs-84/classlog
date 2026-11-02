@@ -19,6 +19,8 @@ type CardCtx = {
   myId?: string;
   likes?: Record<string, boolean>;
   onLike?: (postId: string) => void;
+  /** 수업 단위 이름 ('주차' | '차시') */
+  unit?: string;
 };
 
 const stackStyle = (multi: boolean): CSSProperties | undefined =>
@@ -121,7 +123,7 @@ const GridCard = ({ post, ctx, hideAuthor, sectionKey, latest }: { post: any; ct
         <div className={`shrink-0 w-[52px] h-[52px] rounded-xl flex flex-col items-center justify-center leading-none ${
           latest ? 'bg-primary text-white' : 'bg-primary/10 text-primary-dim'
         }`}>
-          {week ? (<><b className="text-[22px] font-bold">{week}</b><span className="text-[11px] mt-0.5">주차</span></>) : <span className="text-[13px] font-bold">{kindLabel(post)}</span>}
+          {week ? (<><b className="text-[22px] font-bold">{week}</b><span className="text-[11px] mt-0.5">{ctx.unit || '주차'}</span></>) : <span className="text-[13px] font-bold">{kindLabel(post)}</span>}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2 mb-1">
@@ -156,7 +158,7 @@ const TimelineItem = ({ post, ctx, sectionKey, latest }: { post: any; ctx: CardC
       }`} />
       <div className="flex items-center gap-2 mb-1.5">
         <p className={`text-[15px] font-bold ${latest ? 'text-primary-dim' : 'text-on-surface-variant'}`}>
-          {week ? `${week}주차` : kindLabel(post)}
+          {week ? `${week}${ctx.unit || '주차'}` : kindLabel(post)}
           <span className="ml-2 text-[13px] font-normal text-on-surface-variant">{agoLabel(postLatestAt(post), ctx.now)}{week ? ` · ${kindLabel(post)}` : ''}</span>
         </p>
         <RecentBadge post={post} now={ctx.now} />

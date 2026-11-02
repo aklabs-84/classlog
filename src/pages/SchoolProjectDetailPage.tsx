@@ -170,6 +170,7 @@ const SchoolProjectDetailPage = () => {
   const [program, setProgram] = useState<{ id: string; name: string } | null>(null);
   const [school, setSchool] = useState<any>(null);
   const [classes, setClasses] = useState<TeachingClass[]>([]);
+  const [tabUnit, setTabUnit] = useState<'주차' | '차시'>('주차');
   const { user, profile } = useAuth();
 
   // 반 추가 (프로젝트의 강사 관리 화면과 같은 방식)
@@ -247,10 +248,11 @@ const SchoolProjectDetailPage = () => {
 
       const { data: allClasses } = await supabase
         .from('classes')
-        .select('id, name, entry_code, parent_class_id, assigned_teacher_id')
+        .select('id, name, entry_code, parent_class_id, assigned_teacher_id, unit_label')
         .eq('school_project_id', schoolId)
         .order('created_at', { ascending: true });
 
+      setTabUnit((allClasses || []).length > 0 && (allClasses || []).every((c: any) => c.unit_label === '차시') ? '차시' : '주차');
       const teaching = (allClasses || []).filter(c => c.parent_class_id !== null);
       setRootClassId((allClasses || []).find(c => c.parent_class_id === null)?.id ?? null);
       if (s?.parent_project_id) {
@@ -791,7 +793,7 @@ const SchoolProjectDetailPage = () => {
                   : 'border-transparent text-on-surface-variant/60 hover:text-on-surface-variant'
               }`}
             >
-              {g.label}
+              {g.label.replace('주차', tabUnit)}
             </button>
           );
         })}
@@ -825,6 +827,7 @@ const SchoolProjectDetailPage = () => {
           projectId={projectId}
           schoolId={schoolId}
           schoolName={school?.name || '이 학교'}
+          unit={tabUnit}
           schools={[{ id: schoolId, name: school?.name || '이 학교', school_name: school?.school_name ?? null, classes: classes.map(c => ({ id: c.id, name: c.name })) }]}
         />
       )}
@@ -836,6 +839,7 @@ const SchoolProjectDetailPage = () => {
           program={{ name: school?.name || program?.name || '', school_name: school?.school_name ?? null, start_date: school?.start_date ?? null, end_date: school?.end_date ?? null }}
           totals={{ schoolCount: 1, teacherCount: totals.teacherCount, studentCount: totals.studentCount }}
           activityStats={activityStats}
+          unit={tabUnit}
         />
       )}
 
@@ -963,7 +967,7 @@ const SchoolProjectDetailPage = () => {
       )}
 
       {tab === 'quiz' && schoolId && projectId && (
-        <ProjectQuizTab projectId={projectId} schoolId={schoolId} schools={[{ id: schoolId, name: school?.name || '이 학교' }]} teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))} />
+        <ProjectQuizTab projectId={projectId} schoolId={schoolId} unit={tabUnit} schools={[{ id: schoolId, name: school?.name || '이 학교' }]} teacherNames={Object.fromEntries(classes.filter(c => c.assigned_teacher_id && c.teacherName).map(c => [c.assigned_teacher_id as string, c.teacherName as string]))} />
       )}
 
       {tab === 'board' && schoolId && (

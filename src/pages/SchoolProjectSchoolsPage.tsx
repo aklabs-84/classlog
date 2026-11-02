@@ -2022,7 +2022,7 @@ const SchoolProjectSchoolsPage = () => {
                           }}
                           className="w-3.5 h-3.5 rounded accent-primary"
                         />
-                        <span className="text-xs font-black text-neutral-600">활동 필요</span>
+                        <span className="text-xs font-black text-neutral-600">기록 필요</span>
                       </label>
                     </div>
 

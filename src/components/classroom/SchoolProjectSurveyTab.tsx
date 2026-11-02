@@ -43,8 +43,8 @@ interface SurveyResponseRow {
 const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
 const NUMERIC_TYPES: QuestionType[] = ['star_rating', 'opinion_scale'];
 
-export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = null, schoolName = '' }: {
-  projectId: string; schools: SchoolOption[]; schoolId?: string | null; schoolName?: string;
+export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = null, schoolName = '', unit = '주차' }: {
+  projectId: string; schools: SchoolOption[]; schoolId?: string | null; schoolName?: string; unit?: string;
 }) {
   const { user } = useAuth();
 
@@ -385,7 +385,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
           <BarChart2 size={16} className="text-primary mt-0.5 shrink-0" />
           <p className="text-xs text-on-surface-variant">
             <span className="font-bold text-primary">프로젝트 공통 설문</span>과 <span className="font-bold text-amber-700">{schoolName || '이 학교'} 전용 설문</span>이 함께 보입니다 (결과는 {schoolName || '이 학교'} 학생 응답만).
-            공통 설문은 문항 수정·삭제를 프로젝트 화면에서 하고, 여기서는 주차와 대상 반만 정할 수 있어요. 대상 반을 정하면 그 반 클래스룸에만 나타납니다.
+            공통 설문은 문항 수정·삭제를 프로젝트 화면에서 하고, 여기서는 {unit}와 대상 반만 정할 수 있어요. 대상 반을 정하면 그 반 클래스룸에만 나타납니다.
           </p>
         </div>
       ) : (
@@ -452,7 +452,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                       {preForm.status === 'open' ? '진행 중' : preForm.status === 'closed' ? '종료' : '준비 중'}
                     </span>
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${preForm.school_id ? 'bg-amber-100 text-amber-700' : 'bg-surface-container-high text-on-surface-variant'}`}>{schoolLabel(preForm)}</span>
-                    {preForm.week_number && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">{preForm.week_number}주차</span>}
+                    {preForm.week_number && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">{preForm.week_number}{unit}</span>}
                     {preForm.target_class_id && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">{schools.flatMap(sc => sc.classes).find(c => c.id === preForm.target_class_id)?.name ?? '특정 반'}만</span>}
                     {postForm && <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">사후 설문 연결됨</span>}
                   </div>
@@ -489,7 +489,7 @@ export default function SchoolProjectSurveyTab({ projectId, schools, schoolId = 
                             <select value={form.week_number ?? ''} onChange={e => handleUpdateTarget(form, { week_number: e.target.value ? Number(e.target.value) : null })}
                               className="text-xs font-bold px-2 py-1 rounded-lg bg-surface-container-lowest border border-surface-container-high">
                               <option value="">정하지 않음</option>
-                              {Array.from({ length: 20 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}주차</option>)}
+                              {Array.from({ length: 20 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}{unit}</option>)}
                             </select>
                           </label>
                           <label className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant/70">

@@ -6,6 +6,7 @@ import ImportableMaterialPicker, { type ImportableMaterial } from './ImportableM
 import { applyOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../../lib/planMaterialOverride';
 import { BookOpen, Check, Loader2, Plus, RotateCcw, Save, X, AlertTriangle, ExternalLink, ListOrdered, ChevronDown } from 'lucide-react';
 import { appConfirm } from '../../lib/appDialog';
+import { toUnitLabel } from '../../lib/unitLabel';
 
 interface WeeklyPlanItem {
   week: number;
@@ -22,6 +23,7 @@ interface WeeklyPlanItem {
 export default function SchoolPlanTab({ projectId, schoolId }: { projectId: string; schoolId: string }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [unit, setUnit] = useState<'주차' | '차시'>('주차');
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [pickIdx, setPickIdx] = useState<number | null>(null);
   const [materialTitles, setMaterialTitles] = useState<Record<string, string>>({});
@@ -65,11 +67,12 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       setCommonLoaded(true);
 
       const { data: rows, error: rowsErr } = await supabase
-        .from('classes').select('id, name, parent_class_id, weekly_plan, weekly_plan_custom, created_at')
+        .from('classes').select('id, name, parent_class_id, weekly_plan, weekly_plan_custom, created_at, unit_label')
         .eq('school_project_id', schoolId).order('created_at', { ascending: true });
       if (rowsErr) throw rowsErr;
       const list = (rows || []) as any[];
       setSchoolClassIds(list.map(r => r.id));
+      setUnit(list.length > 0 && list.every(r => r.unit_label === '차시') ? '차시' : toUnitLabel(null));
       const rowsState = list.map(r => ({ id: r.id, name: r.name || '이름 없는 반', custom: !!r.weekly_plan_custom, plan: (r.weekly_plan || []) as WeeklyPlanItem[] }));
       setClassRows(rowsState);
       const root = list.find(r => r.parent_class_id === null);
@@ -191,7 +194,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       const cleanedJson = JSON.stringify(cleaned);
       const overwritten = classRows.filter(r => r.id !== baseId && r.custom && JSON.stringify(r.plan) !== cleanedJson);
       if (isAll && overwritten.length > 0 &&
-        !await appConfirm(`이 학교의 ${overwritten.length}개 반은 따로 고정된 주차별 계획이 있습니다. 저장하면 그 계획이 지금 계획으로 덮어씌워집니다. 계속할까요?`)) {
+        !await appConfirm(`이 학교의 ${overwritten.length}개 반은 따로 고정된 ${unit}별 계획이 있습니다. 저장하면 그 계획이 지금 계획으로 덮어씌워집니다. 계속할까요?`)) {
         return;
       }
       // 계획에 연결한 자료는 다른 강사·학생도 봐야 하므로 이때 공개로 전환
@@ -211,8 +214,8 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       setBaseline(JSON.stringify(cleaned));
       setToast({
         msg: isAll
-          ? '이 학교 전체 반에 주차별 계획을 저장했습니다. (학교 단위로 고정됨)'
-          : `'${targetName}'의 주차별 계획을 저장했습니다. (이 반만 적용)`,
+          ? '이 학교 전체 반에 '+unit+'별 계획을 저장했습니다. (학교 단위로 고정됨)'
+          : `'${targetName}'의 ${unit}별 계획을 저장했습니다. (이 반만 적용)`,
         type: 'success',
       });
     } catch (e: any) {
@@ -230,8 +233,8 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       return;
     }
     const msg = commonPlan.length === 0
-      ? `공통 주차별 계획이 비어 있습니다. 되돌리면 ${targetName}의 계획도 빈 상태가 됩니다. 그래도 되돌릴까요?`
-      : `${targetName}을(를) 공통 주차별 계획으로 되돌릴까요? 따로 만든 계획은 사라집니다.`;
+      ? `공통 ${unit}별 계획이 비어 있습니다. 되돌리면 ${targetName}의 계획도 빈 상태가 됩니다. 그래도 되돌릴까요?`
+      : `${targetName}을(를) 공통 ${unit}별 계획으로 되돌릴까요? 따로 만든 계획은 사라집니다.`;
     if (!await appConfirm(msg)) return;
     setSaving(true);
     try {
@@ -243,7 +246,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       setPendingPublishIds([]);
       setPlan(commonPlan);
       setBaseline(JSON.stringify(commonPlan));
-      setToast({ msg: '공통 주차별 계획으로 되돌렸습니다.', type: 'success' });
+      setToast({ msg: '공통 '+unit+'별 계획으로 되돌렸습니다.', type: 'success' });
     } catch (e: any) {
       setToast({ msg: '되돌리기에 실패했습니다: ' + (e?.message || '알 수 없는 오류'), type: 'error' });
     } finally {
@@ -284,7 +287,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
           <p>{isAll
             ? '저장하면 이 학교의 모든 반에 적용되고, 이후 공통 계획이 바뀌어도 이 학교는 따라가지 않습니다.'
             : `저장하면 '${targetName}'에만 적용됩니다. 다른 반과 공통 계획은 바뀌지 않습니다.`}</p>
-          <p className="opacity-70">복습 키워드는 프로젝트 전체 화면 &gt; 주차별 계획에서 편집하세요. 여기서 고쳐도 기존 값은 유지됩니다.</p>
+          <p className="opacity-70">복습 키워드는 프로젝트 전체 화면 &gt; {unit}별 계획에서 편집하세요. 여기서 고쳐도 기존 값은 유지됩니다.</p>
         </div>
         {targetFixed && (
           <button onClick={handleReset} disabled={saving} className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant hover:text-primary bg-surface-container hover:bg-surface-container-high px-3 py-2 rounded-xl transition-all">
@@ -294,7 +297,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       </div>
 
       <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/5 border border-primary/15">
-        <p className="text-xs text-on-surface-variant">차시 내용을 직접 만들어 연결하고 싶다면 <b className="text-primary">수업 자료 에디터</b>에서 자료를 만든 뒤, 아래 각 주차의 '수업 자료에서 가져오기'로 연결하세요.</p>
+        <p className="text-xs text-on-surface-variant">{unit} 내용을 직접 만들어 연결하고 싶다면 <b className="text-primary">수업 자료 에디터</b>에서 자료를 만든 뒤, 아래 각 {unit}의 '수업 자료에서 가져오기'로 연결하세요.</p>
         <a href="/teaching-tools?tool=material-editor" target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-dim shrink-0 whitespace-nowrap">
           에디터 열기 <ExternalLink size={12} />
@@ -302,12 +305,12 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
       </div>
 
       {plan.length === 0 && (
-        <p className="text-sm text-on-surface-variant/60 text-center py-8 surface-card border border-surface-container-high">아직 주차별 계획이 없습니다. 아래에서 주차를 추가해 보세요.</p>
+        <p className="text-sm text-on-surface-variant/60 text-center py-8 surface-card border border-surface-container-high">아직 {unit}별 계획이 없습니다. 아래에서 {unit}를 추가해 보세요.</p>
       )}
 
       {plan.length > 0 && (
         <div className="surface-card border border-surface-container-high">
-          <p className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant px-4 pt-4 pb-2"><ListOrdered size={14} /> 차시별 목차 ({plan.length}차시) · 눌러서 상세 내용 보기</p>
+          <p className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant px-4 pt-4 pb-2"><ListOrdered size={14} /> {unit}별 목차 ({plan.length}{unit}) · 눌러서 상세 내용 보기</p>
           <div className="divide-y divide-surface-container-high">
             {plan.map((item, idx) => {
               const open = openIdx === idx;
@@ -316,7 +319,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
                   <button type="button" onClick={() => setOpenIdx(open ? null : idx)}
                     className="w-full flex items-center gap-2 text-left px-4 py-3 hover:bg-surface-container/60 transition-all">
                     <ChevronDown size={15} className={`text-on-surface-variant shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
-                    <span className="text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">{idx + 1}주차</span>
+                    <span className="text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">{idx + 1}{unit}</span>
                     <span className={`text-sm font-bold truncate flex-1 ${item.topic.trim() ? 'text-on-surface' : 'text-on-surface-variant/40'}`}>{item.topic.trim() || '(주제 미입력)'}</span>
                     <span className="hidden sm:flex items-center gap-1 shrink-0">
                       {item.material_id && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">자료 연결</span>}
@@ -333,7 +336,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
                       <div className="flex items-center gap-2">
                         <input type="text" value={item.topic} onChange={e => update(idx, { topic: e.target.value })} placeholder="주제/제목"
                           className="flex-1 px-3 py-2 bg-surface-container rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20" />
-                        <button onClick={() => { setPlan(plan.filter((_, i) => i !== idx)); setOpenIdx(null); }} title="이 주차 삭제"
+                        <button onClick={() => { setPlan(plan.filter((_, i) => i !== idx)); setOpenIdx(null); }} title={`이 ${unit} 삭제`}
                           className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-all shrink-0">
                           <X size={14} />
                         </button>
@@ -380,7 +383,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input type="checkbox" checked={item.requires_activity !== false} onChange={e => update(idx, { requires_activity: e.target.checked })} className="w-3.5 h-3.5 rounded accent-primary" />
-                          <span className="text-xs font-black text-neutral-600">활동 필요</span>
+                          <span className="text-xs font-black text-neutral-600">기록 필요</span>
                         </label>
                       </div>
                     </div>
@@ -394,7 +397,7 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
 
       <button onClick={() => { setPlan(prev => [...prev, { week: prev.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }]); setOpenIdx(plan.length); }}
         className="w-full py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5">
-        <Plus size={16} /> 주차 추가
+        <Plus size={16} /> {unit} 추가
       </button>
 
       <button onClick={handleSave} disabled={saving || schoolClassIds.length === 0}

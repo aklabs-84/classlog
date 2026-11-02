@@ -35,6 +35,7 @@ const ClassBoard = () => {
   useTheme();
 
   const [className, setClassName] = useState('');
+  const [unit, setUnit] = useState('주차');
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
@@ -68,13 +69,14 @@ const ClassBoard = () => {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
       const [{ data: classInfo, error: classErr }, { data: studentList, error: studentErr }] = await Promise.all([
-        supabase.from('classes').select('name, subject, weekly_plan').eq('id', classId).single(),
+        supabase.from('classes').select('name, subject, weekly_plan, unit_label').eq('id', classId).single(),
         supabase.from('students').select('id, full_name').eq('class_id', classId),
       ]);
       // 오류가 났거나, 보던 게시물이 있는데 갑자기 학생 목록이 비면(로그인 만료 등) 화면을 지우지 않는다
       if (classErr || studentErr || ((studentList || []).length === 0 && postsCountRef.current > 0)) {
         throw new Error('board-connection');
       }
+      if (classInfo) setUnit(classInfo.unit_label === '차시' ? '차시' : '주차');
       if (classInfo) setClassName(`${classInfo.name}${classInfo.subject ? ` · ${classInfo.subject}` : ''}`);
 
       const studentIds = (studentList || []).map((s: any) => s.id);
@@ -330,7 +332,7 @@ const ClassBoard = () => {
                 : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-violet-400 hover:text-violet-600 dark:hover:text-violet-300'
             }`}
           >
-            전체 주차
+            전체 {unit}
           </button>
           {weekList.map(w => (
             <button
@@ -342,7 +344,7 @@ const ClassBoard = () => {
                   : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-violet-400 hover:text-violet-600 dark:hover:text-violet-300'
               }`}
             >
-              {w}주차
+              {w}{unit}
             </button>
           ))}
         </div>
@@ -353,7 +355,7 @@ const ClassBoard = () => {
         <span className="ml-auto text-[11px] text-on-surface-variant font-black hidden sm:block">
           {filtered.length}개 게시물
         </span>
-        <BoardDownloadButton posts={filtered} weekFilter={weekFilter} />
+        <BoardDownloadButton posts={filtered} weekFilter={weekFilter} unit={unit} />
       </div>
 
       {/* ── 콘텐츠 ── */}
@@ -382,7 +384,7 @@ const ClassBoard = () => {
           <div key={section.key} className="mb-10">
           <BoardSectionHeader section={section} />
           <BoardSectionPosts section={section} variant="teacher"
-            ctx={{ now, freshKeys, onOpen: setSelectedPost, onOpenFile: (f) => openFile(f.url, f.name) }} />
+            ctx={{ unit, now, freshKeys, onOpen: setSelectedPost, onOpenFile: (f) => openFile(f.url, f.name) }} />
           </div>
           ))}
           {!tilesMode && <BoardMoreButton shown={paged.shown} total={paged.total} onMore={paging.more} />}
@@ -445,7 +447,7 @@ const ClassBoard = () => {
                       <div className="min-w-0">
                         <p className="font-black text-on-surface truncate">{selectedPost.student_name}</p>
                         <p className="text-[11px] text-on-surface-variant font-bold">
-                          {selectedPost.week_number ? `${selectedPost.week_number}주차 · ` : ''}
+                          {selectedPost.week_number ? `${selectedPost.week_number}${unit} · ` : ''}
                           {new Date(selectedPost.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
                           <span className={isObs ? 'text-violet-600 dark:text-violet-400' : 'text-emerald-600 dark:text-emerald-400'}>

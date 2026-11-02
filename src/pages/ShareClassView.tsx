@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import { buildShareSheets, exportTodayStr, saveBlob } from '../lib/classExport';
 import { supabase } from '../lib/supabase';
+import { toUnitLabel } from '../lib/unitLabel';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl, isVerticalVideoUrl } from '../lib/gallery';
 import Pagination from '../components/Pagination';
 import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
@@ -174,6 +175,7 @@ type BundleCardProps = {
   mark?: 'final' | 'older';
   extraBadges?: ReactNode;
   onZoom: (urls: string[], names: string[]) => void;
+  unit?: string;
 };
 
 /** 목록에서는 긴 글을 앞부분만 보여 카드 높이를 맞추고, 누르면 큰 창에서 전체를 보여 준다 */
@@ -207,7 +209,7 @@ const BundleCard = (props: BundleCardProps) => {
   );
 };
 
-const BundleCardBody = ({ bundle, mark, extraBadges, onZoom, expanded, onOpenFull }: BundleCardProps & {
+const BundleCardBody = ({ bundle, mark, extraBadges, onZoom, expanded, onOpenFull, unit = '주차' }: BundleCardProps & {
   expanded?: boolean;
   onOpenFull?: () => void;
 }) => {
@@ -237,7 +239,7 @@ const BundleCardBody = ({ bundle, mark, extraBadges, onZoom, expanded, onOpenFul
             <span key={t} className={`flex items-center gap-1 text-[13px] font-black px-2 py-0.5 rounded-full ${b.color}`}>{b.icon} {b.label}</span>
           ) : null;
         })}
-        {bundle.week_number && <span className="text-[13px] font-bold text-gray-400">{bundle.week_number}주차</span>}
+        {bundle.week_number && <span className="text-[13px] font-bold text-gray-400">{bundle.week_number}{unit}</span>}
         <span className="text-[13px] font-bold text-gray-400 ml-auto">{fmtTime(bundle.created_at)}</span>
       </div>
       {bundle.title && <p className="text-base font-black text-gray-800 mb-1.5">{bundle.title}</p>}
@@ -383,6 +385,7 @@ const ShareClassView = () => {
 
   // ── 클래스 메타 ────────────────────────────────────────────────────────────
   const [classInfo, setClassInfo] = useState<any>(null);
+  const unit = toUnitLabel(classInfo?.unit_label);
   const [metaLoading, setMetaLoading] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
 
@@ -941,7 +944,7 @@ const ShareClassView = () => {
         })
       );
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const label = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
+      const label = weekFilter === 'all' ? '전체' : `${weekFilter}${unit}`;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(zipBlob);
       a.download = `${classInfo?.name || '갤러리'}_${label}.zip`;
@@ -1078,7 +1081,7 @@ const ShareClassView = () => {
 
   // ── 메인 뷰 ───────────────────────────────────────────────────────────────
   const printImages = filteredGallery.filter((g) => g.file_type === 'image');
-  const filterLabel = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
+  const filterLabel = weekFilter === 'all' ? '전체' : `${weekFilter}${unit}`;
   const printToday = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return (
@@ -1293,7 +1296,7 @@ const ShareClassView = () => {
                 return (
                   <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 h-full">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-[15px] font-black text-gray-900">주차별 제출</p>
+                      <p className="text-[15px] font-black text-gray-900">{unit}별 제출</p>
                       <button onClick={() => jumpTab('results')} className="text-[14px] font-black text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
                         결과 자세히 보기 <ArrowRight size={14} />
                       </button>
@@ -1301,7 +1304,7 @@ const ShareClassView = () => {
                     <ul className="space-y-2">
                       {overview.weeks.map((w) => (
                         <li key={w.week} className="flex items-center gap-3">
-                          <span className="w-12 text-[14px] font-black text-gray-600 shrink-0">{w.week}주차</span>
+                          <span className="w-12 text-[14px] font-black text-gray-600 shrink-0">{w.week}{unit}</span>
                           <div className="flex-1 h-3 rounded-full bg-gray-100 overflow-hidden">
                             <div className="h-full rounded-full bg-indigo-500" style={{ width: `${(w.count / max) * 100}%` }} />
                           </div>
@@ -1498,7 +1501,7 @@ const ShareClassView = () => {
               {/* 주차 필터 */}
               {allWeeks.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap print:hidden">
-                  <span className="text-[13px] font-black text-gray-500 mr-1">주차:</span>
+                  <span className="text-[13px] font-black text-gray-500 mr-1">{unit}:</span>
                   <button
                     onClick={() => setWeekFilter('all')}
                     className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${
@@ -1515,7 +1518,7 @@ const ShareClassView = () => {
                         weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'
                       }`}
                     >
-                      {w}주차
+                      {w}{unit}
                     </button>
                   ))}
                 </div>
@@ -1714,7 +1717,7 @@ const ShareClassView = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 {galleryWeeks.length > 0 && (
                   <>
-                    <span className="text-[13px] font-black text-gray-500 mr-1">주차:</span>
+                    <span className="text-[13px] font-black text-gray-500 mr-1">{unit}:</span>
                     <button
                       onClick={() => setWeekFilter('all')}
                       className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${galleryFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
@@ -1725,7 +1728,7 @@ const ShareClassView = () => {
                       <button key={w} onClick={() => setWeekFilter(w)}
                         className={`px-3 py-1.5 rounded-lg text-[13px] font-black transition-all ${galleryFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                       >
-                        {w}주차
+                        {w}{unit}
                       </button>
                     ))}
                   </>
@@ -1782,7 +1785,7 @@ const ShareClassView = () => {
                         </button>
                         {(item.caption || item.week_number) && (
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {item.week_number && <p className="text-[13px] font-bold text-white/80">{item.week_number}주차</p>}
+                            {item.week_number && <p className="text-[13px] font-bold text-white/80">{item.week_number}{unit}</p>}
                             {item.caption && <p className="text-[13px] font-semibold text-white truncate">{item.caption}</p>}
                           </div>
                         )}
@@ -1900,7 +1903,7 @@ const ShareClassView = () => {
                                 {sObs.map((o) => (
                                   <div key={o.id} className="bg-white rounded-xl border border-gray-100 p-3">
                                     <div className="flex items-center gap-2 mb-1">
-                                      {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}주차</span>}
+                                      {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}{unit}</span>}
                                       {o.activity_name && <span className="text-[13px] font-semibold text-gray-500">{o.activity_name}</span>}
                                     </div>
                                     <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">{o.content}</p>
@@ -2062,7 +2065,7 @@ const ShareClassView = () => {
                     <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-[13px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
-                        {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}주차</span>}
+                        {o.week_number && <span className="text-[13px] font-bold text-gray-400">{o.week_number}{unit}</span>}
                         <span className="text-[13px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
                       {o.activity_name && <p className="text-[13px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
@@ -2086,6 +2089,7 @@ const ShareClassView = () => {
                   <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-start">
                   {pagedResults.map((bd) => (
                     <BundleCard
+ unit={unit}
                       key={bd.id}
                       bundle={bd}
                       mark={stMarks.get(bd.id)}
@@ -2159,6 +2163,7 @@ const ShareClassView = () => {
                     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 items-start">
                       {[...gBundles].sort((x, y) => (finalMarks.get(y.id) === 'final' ? 1 : 0) - (finalMarks.get(x.id) === 'final' ? 1 : 0)).map((bd) => (
                         <BundleCard
+ unit={unit}
                           key={bd.id}
                           bundle={bd}
                           mark={finalMarks.get(bd.id)}
@@ -2228,7 +2233,7 @@ const ShareClassView = () => {
           <h1 className="text-xl font-black text-gray-900">
             {classInfo?.name}{classInfo?.subject ? ` · ${classInfo.subject}` : ''}
           </h1>
-          <p className="text-[13px] text-gray-500 mt-0.5">{filterLabel !== '전체' ? `${filterLabel} 기준` : '전체 주차'}</p>
+          <p className="text-[13px] text-gray-500 mt-0.5">{filterLabel !== '전체' ? `${filterLabel} 기준` : '전체 '+unit+''}</p>
         </div>
         <div className="text-right">
           <p className="text-[13px] text-gray-400">출력일</p>
@@ -2279,7 +2284,7 @@ const ShareClassView = () => {
                     <div key={o.id} className="pl-3 border-l-2 border-violet-300">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-[13px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">📝 활동 기록</span>
-                        {o.week_number && <span className="text-[13px] text-gray-400 font-bold">{o.week_number}주차</span>}
+                        {o.week_number && <span className="text-[13px] text-gray-400 font-bold">{o.week_number}{unit}</span>}
                         {o.activity_name && <span className="text-[13px] text-gray-500 font-semibold">{o.activity_name}</span>}
                         <span className="text-[13px] text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
@@ -2290,7 +2295,7 @@ const ShareClassView = () => {
                     <div key={r.id} className="pl-3 border-l-2 border-emerald-300">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-[13px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">📁 결과물</span>
-                        {r.week_number && <span className="text-[13px] text-gray-400 font-bold">{r.week_number}주차</span>}
+                        {r.week_number && <span className="text-[13px] text-gray-400 font-bold">{r.week_number}{unit}</span>}
                         {r.title && <span className="text-[13px] text-gray-600 font-black">{r.title}</span>}
                         <span className="text-[13px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
@@ -2328,7 +2333,7 @@ const ShareClassView = () => {
                 </div>
                 {(item.caption || item.week_number) && (
                   <p className="text-[13px] text-gray-500 mt-0.5 truncate text-center">
-                    {item.week_number ? `${item.week_number}주차` : ''}{item.caption ? ` ${item.caption}` : ''}
+                    {item.week_number ? `${item.week_number}${unit}` : ''}{item.caption ? ` ${item.caption}` : ''}
                   </p>
                 )}
               </div>

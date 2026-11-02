@@ -41,6 +41,8 @@ interface Props {
   schoolId?: string | null;
   /** 학생이 제출한 활동 기록(승인된 것만) 합계. 학교 단위 요약에서만 전달한다 */
   activityStats?: { total: number; students: number } | null;
+  /** 수업 단위 이름 ('주차' | '차시') */
+  unit?: string;
 }
 
 function fmtDate(v: string | null): string {
@@ -79,7 +81,7 @@ function heatClass(cnt: number, max: number): string {
   return 'bg-primary/25 text-on-surface';
 }
 
-export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick, schoolId = null, activityStats = null }: Props) {
+export default function ProjectResultSummary({ projectId, program, totals, onSchoolClick, schoolId = null, activityStats = null, unit = '주차' }: Props) {
   const [stats, setStats] = useState<ProjectSummaryStats | null>(null);
   const [surveys, setSurveys] = useState<SurveyPairSummary[] | null>(null);
   const [courseStats, setCourseStats] = useState<ProjectCourseStats | null>(null);
@@ -189,7 +191,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
 
       // 3) 주차별 결과물
       const rowsByWeek: (XCell | null)[][] = [
-        [H('학교'), H('반'), ...weekCols.map(w => H(`${w}주차`)), H('합계')],
+        [H('학교'), H('반'), ...weekCols.map(w => H(`${w}${unit}`)), H('합계')],
         ...classes.map(k => [
           C(k.school_name), C(k.class_name),
           ...weekCols.map(w => C(k.weekly.find(x => x.week === w)?.cnt ?? 0, 'num')),
@@ -234,7 +236,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
         { name: '표지·요약', colWidths: [20, 22, 34, 18], rows: coverRows },
         ...(classes.length > 0 ? [
           { name: '반별 비교', colWidths: [18, 22, 8, 10, 10, 12, 9, 12, 12, 10], rows: classRows, freezeRows: 1, filterRow: 1 },
-          { name: '주차별 결과물', colWidths: [18, 22, ...weekCols.map(() => 9), 9], rows: rowsByWeek, freezeRows: 1, filterRow: 1 },
+          { name: `${unit}별 결과물`, colWidths: [18, 22, ...weekCols.map(() => 9), 9], rows: rowsByWeek, freezeRows: 1, filterRow: 1 },
           { name: '출석', colWidths: [18, 22, 8, 8, 8, 8, 8, 10], rows: attRows, freezeRows: 1, filterRow: 1 },
         ] : []),
         ...(surveyForms.length > 0 ? [{ name: '설문', colWidths: [26, 8, 9, 40, 11, 14], rows: surveyRows, freezeRows: 1, filterRow: 1 }] : []),
@@ -412,14 +414,14 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
       {/* 반 × 주차 색칠표 */}
       {overview && overview.classes.length > 0 && (
         <div className="surface-card border border-surface-container-high p-4">
-          <h3 className="text-sm font-black mb-1">주차별 결과물 제출</h3>
+          <h3 className="text-sm font-black mb-1">{unit}별 결과물 제출</h3>
           <p className="text-[11px] text-on-surface-variant/60 mb-3">칸의 숫자 = 그 주에 제출된 결과물 수 · 연한 회색 = 아직 제출 없음 · 진할수록 많이 제출</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-separate border-spacing-1">
               <thead>
                 <tr className="text-on-surface-variant/70">
                   <th className="text-left font-bold px-1 py-1 whitespace-nowrap">반</th>
-                  {weekCols.map(w => <th key={w} className="font-bold px-1 py-1 text-center whitespace-nowrap">{w}주차</th>)}
+                  {weekCols.map(w => <th key={w} className="font-bold px-1 py-1 text-center whitespace-nowrap">{w}{unit}</th>)}
                   <th className="font-bold px-1 py-1 text-right whitespace-nowrap">합계</th>
                 </tr>
               </thead>
@@ -433,7 +435,7 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
                         <td key={w} className="p-0">
                           <div
                             className={`heat-cell h-9 min-w-[44px] rounded-sm flex items-center justify-center font-bold tabular-nums transition-transform hover:scale-105 ${heatClass(cnt, maxHeat)}`}
-                            title={`${classLabel(k)} ${w}주차 ${cnt}건`}
+                            title={`${classLabel(k)} ${w}${unit} ${cnt}건`}
                           >
                             {cnt === 0 ? <span className="font-normal text-[10px]">–</span> : cnt}
                           </div>
@@ -512,11 +514,11 @@ export default function ProjectResultSummary({ projectId, program, totals, onSch
                   </div>
                   {wk.length > 0 && (
                     <div>
-                      <div className="text-[11px] text-on-surface-variant/60 mb-1.5">주차별 제출</div>
+                      <div className="text-[11px] text-on-surface-variant/60 mb-1.5">{unit}별 제출</div>
                       <div className="space-y-1">
                         {wk.map(w => (
                           <div key={w.week_number} className="flex items-center gap-2 text-xs">
-                            <span className="w-10 shrink-0 text-on-surface-variant/70">{w.week_number}주차</span>
+                            <span className="w-10 shrink-0 text-on-surface-variant/70">{w.week_number}{unit}</span>
                             <div className="flex-1 h-3 bg-surface-container-high rounded-full overflow-hidden">
                               <div className="h-full bg-primary rounded-full" style={{ width: `${(w.cnt / wkMax) * 100}%` }} />
                             </div>

@@ -11,6 +11,8 @@ interface Props {
   teacherNames: Record<string, string>;
   /** 학교 페이지에서는 그 학교의 자료만 고를 수 있게 한다 */
   schoolId?: string;
+  /** 수업 단위 이름 ('주차' | '차시') */
+  unit?: string;
 }
 
 interface Material { id: string; title: string; content: string | null; week_number: number | null; scope: string; recap: string[]; }
@@ -19,7 +21,7 @@ interface Draft { type: 'multiple_choice' | 'short_answer'; text: string; option
 const stripHtml = (h: string | null) => (h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** 수업 가이드(주차별 자료)로 AI 퀴즈를 만들어 저장하고, 아래에서 학교·반에 보내는 탭 */
-export default function ProjectQuizTab({ projectId, schools, teacherNames, schoolId }: Props) {
+export default function ProjectQuizTab({ projectId, schools, teacherNames, schoolId, unit = '주차' }: Props) {
   const { user } = useAuth();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loadingMat, setLoadingMat] = useState(true);
@@ -80,7 +82,7 @@ export default function ProjectQuizTab({ projectId, schools, teacherNames, schoo
   const perLimit = picked.length ? Math.floor(12000 / picked.length) : 12000;
   const text = picked.map(m => {
     const t = [stripHtml(m.content), m.recap.join(' / ')].filter(Boolean).join('\n');
-    return t ? `[${m.week_number ? `${m.week_number}주차 ` : ''}${m.title}]\n${t.slice(0, perLimit)}` : '';
+    return t ? `[${m.week_number ? `${m.week_number}${unit} ` : ''}${m.title}]\n${t.slice(0, perLimit)}` : '';
   }).filter(Boolean).join('\n\n');
   const hasText = text.length > 0;
   const canGenerate = picked.length > 0 && (hasText || topic.trim().length > 0);
@@ -92,7 +94,7 @@ export default function ProjectQuizTab({ projectId, schools, teacherNames, schoo
   const weekRange = () => {
     const w = picked.map(m => m.week_number).filter((x): x is number => !!x).sort((a, b) => a - b);
     if (w.length === 0) return '';
-    return w.length === 1 ? `${w[0]}주차` : `${w[0]}~${w[w.length - 1]}주차`;
+    return w.length === 1 ? `${w[0]}${unit}` : `${w[0]}~${w[w.length - 1]}${unit}`;
   };
 
   const generate = async () => {
@@ -104,7 +106,7 @@ export default function ProjectQuizTab({ projectId, schools, teacherNames, schoo
       const prompt = `다음 수업 자료를 바탕으로 퀴즈 문제를 ${count}개 만들어주세요.
 난이도: ${diff}
 수업 자료 제목: ${picked.map(m => m.title).join(', ')}
-${body ? `수업 자료(여러 주차면 주차마다 골고루 출제):\n${body}` : ''}${topic.trim() ? `\n추가로 다룰 주제: ${topic.trim()}` : ''}
+${body ? `수업 자료(여러 ${unit}면 ${unit}마다 골고루 출제):\n${body}` : ''}${topic.trim() ? `\n추가로 다룰 주제: ${topic.trim()}` : ''}
 
 문제는 4지선다형(multiple_choice)과 주관식/단답형(short_answer)을 적절히 섞어서 만들어주세요.
 - multiple_choice: option_1~4와 correct_answer(0~3, 0=option_1이 정답)를 채워주세요.
@@ -167,11 +169,11 @@ ${body ? `수업 자료(여러 주차면 주차마다 골고루 출제):\n${body
       <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
         <div>
           <h3 className="font-black text-lg flex items-center gap-2"><Sparkles size={18} className="text-primary" /> 수업 가이드로 퀴즈 만들기</h3>
-          <p className="text-sm text-on-surface-variant mt-1">주차별 계획에 연결된 가이드 글을 AI가 읽고 문제를 만들어요. 훑어보고 고친 뒤 저장하면 아래에서 보낼 수 있어요.</p>
+          <p className="text-sm text-on-surface-variant mt-1">{unit}별 계획에 연결된 가이드 글을 AI가 읽고 문제를 만들어요. 훑어보고 고친 뒤 저장하면 아래에서 보낼 수 있어요.</p>
         </div>
 
         {loadingMat ? <Loader2 className="animate-spin text-primary" size={20} /> : materials.length === 0 ? (
-          <p className="text-sm font-bold text-on-surface-variant">주차별 계획에 연결된 가이드가 아직 없어요. "주차별 계획"에서 주차별 자료를 먼저 연결해 주세요.</p>
+          <p className="text-sm font-bold text-on-surface-variant">{unit}별 계획에 연결된 가이드가 아직 없어요. "{unit}별 계획"에서 {unit}별 자료를 먼저 연결해 주세요.</p>
         ) : (
           <>
             <div>
@@ -184,7 +186,7 @@ ${body ? `수업 자료(여러 주차면 주차마다 골고루 출제):\n${body
             {planScope && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-xs font-black text-on-surface-variant">2. 퀴즈에 넣을 주차 고르기 (여러 개 가능)</p>
+                  <p className="text-xs font-black text-on-surface-variant">2. 퀴즈에 넣을 {unit} 고르기 (여러 개 가능)</p>
                   <button type="button" onClick={() => setChecked(checked.length === planMats.length ? [] : planMats.map(m => m.id))} className="text-xs font-bold text-primary">
                     {checked.length === planMats.length ? '전체 해제' : '전체 선택'}
                   </button>
@@ -195,12 +197,12 @@ ${body ? `수업 자료(여러 주차면 주차마다 골고루 출제):\n${body
                     return (
                       <label key={m.id} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${checked.includes(m.id) ? 'border-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700'}`}>
                         <input type="checkbox" checked={checked.includes(m.id)} onChange={() => toggleWeek(m.id)} className="mt-1" />
-                        <span className="min-w-0 flex-1 font-bold">{m.week_number ? `${m.week_number}주차 · ` : ''}{m.title}{empty && <span className="text-xs text-amber-600"> — 가이드 내용 없음</span>}</span>
+                        <span className="min-w-0 flex-1 font-bold">{m.week_number ? `${m.week_number}${unit} · ` : ''}{m.title}{empty && <span className="text-xs text-amber-600"> — 가이드 내용 없음</span>}</span>
                       </label>
                     );
                   })}
                 </div>
-                {picked.length > 0 && !hasText && <p className="text-xs font-bold text-amber-600 mt-1.5">고른 주차에 연결된 가이드 글이 없어요. 아래에 주제를 직접 적어 주세요.</p>}
+                {picked.length > 0 && !hasText && <p className="text-xs font-bold text-amber-600 mt-1.5">고른 {unit}에 연결된 가이드 글이 없어요. 아래에 주제를 직접 적어 주세요.</p>}
               </div>
             )}
 

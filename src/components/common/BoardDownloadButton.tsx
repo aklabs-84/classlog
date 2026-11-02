@@ -11,6 +11,8 @@ interface Props {
   posts: any[];
   /** 지금 선택된 주차 ('all' 이면 전체) */
   weekFilter: number | 'all';
+  /** 수업 단위 이름 ('주차' | '차시') */
+  unit?: string;
 }
 
 const KINDS: { key: DownloadKind; label: string; hint: string; Icon: typeof ImageIcon }[] = [
@@ -59,7 +61,7 @@ function save(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-export default function BoardDownloadButton({ posts, weekFilter }: Props) {
+export default function BoardDownloadButton({ posts, weekFilter, unit = '주차' }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<DownloadKind | null>(null);
   const [error, setError] = useState('');
@@ -77,8 +79,8 @@ export default function BoardDownloadButton({ posts, weekFilter }: Props) {
   const count = (k: DownloadKind) =>
     k === 'image' ? byKind.image.reduce((n, x) => n + pathsOf(x.row).length, 0) : byKind[k].length;
 
-  const weekLabel = weekFilter === 'all' ? '전체주차' : `${weekFilter}주차`;
-  const prefixOf = (row: any) => (row.week_number ? `${row.week_number}주차` : '주차없음');
+  const weekLabel = weekFilter === 'all' ? `전체${unit}` : `${weekFilter}${unit}`;
+  const prefixOf = (row: any) => (row.week_number ? `${row.week_number}${unit}` : `${unit}없음`);
 
   const run = async (kind: DownloadKind) => {
     setBusy(kind);
@@ -86,7 +88,7 @@ export default function BoardDownloadButton({ posts, weekFilter }: Props) {
     try {
       const kindLabel = KINDS.find((k) => k.key === kind)!.label;
       if (kind === 'text' || kind === 'link') {
-        const head = kind === 'text' ? ['주차', '학생', '제목', '내용', '제출 시각'] : ['주차', '학생', '제목', '주소', '제출 시각'];
+        const head = kind === 'text' ? [unit, '학생', '제목', '내용', '제출 시각'] : [unit, '학생', '제목', '주소', '제출 시각'];
         const lines = [head.map(csvCell).join(',')];
         byKind[kind]
           .slice()
@@ -176,7 +178,7 @@ export default function BoardDownloadButton({ posts, weekFilter }: Props) {
               })}
             </div>
             {error && <p className="mt-3 text-xs font-semibold text-rose-600">{error}</p>}
-            <p className="mt-3 text-[11px] text-slate-400">같은 주차에 여러 번 올린 것도 모두 포함돼요.</p>
+            <p className="mt-3 text-[11px] text-slate-400">같은 {unit}에 여러 번 올린 것도 모두 포함돼요.</p>
           </div>
         </div>,
         document.body

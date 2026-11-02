@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { toUnitLabel } from '../lib/unitLabel';
 import { collapseObservationsByActivity, prevSubmissionLabel } from '../lib/latestObservations';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -90,6 +91,7 @@ const StudentView = () => {
   const fromClassId: string | undefined = locationState?.fromClassId;
   const { user } = useAuth();
   const [student, setStudent] = useState<any>(null);
+  const unit = toUnitLabel(student?.classes?.unit_label);
   const [observations, setObservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -326,7 +328,7 @@ const StudentView = () => {
     try {
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select(`*, classes(name, subject, teacher_id, weekly_plan, class_type, end_date, is_closed)`)
+        .select(`*, classes(name, subject, teacher_id, weekly_plan, class_type, end_date, is_closed, unit_label)`)
         .eq('id', id)
         .single();
       if (studentError) throw studentError;
@@ -1061,7 +1063,7 @@ const StudentView = () => {
           {/* 주차별 성장 추이 */}
           {weeklyTrendData.some(p => p.engagement > 0) && (
             <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm p-5 mb-8">
-              <p className="text-xs font-black text-on-surface-variant/60 mb-2">주차별 성장 추이</p>
+              <p className="text-xs font-black text-on-surface-variant/60 mb-2">{unit}별 성장 추이</p>
               <WeeklyTrendChart data={weeklyTrendData} height={200} />
             </div>
           )}
@@ -1119,7 +1121,7 @@ const StudentView = () => {
                             const activeWeek = weeklyPlan.find(p => norm(p.topic) === norm(editForm.activity_name))?.week ?? null;
                             return (
                               <div className="space-y-1.5">
-                                <label className="text-[10px] font-black text-primary uppercase tracking-widest">주차 선택</label>
+                                <label className="text-[10px] font-black text-primary uppercase tracking-widest">{unit} 선택</label>
                                 <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                                   {weeklyPlan.map(p => (
                                     <button
@@ -1138,7 +1140,7 @@ const StudentView = () => {
                                           : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
                                       }`}
                                     >
-                                      {p.week}주차<span className={`ml-1 text-[9px] ${activeWeek === p.week ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
+                                      {p.week}{unit}<span className={`ml-1 text-[9px] ${activeWeek === p.week ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -1213,7 +1215,7 @@ const StudentView = () => {
                                   if (!matched) return null;
                                   return (
                                     <span className="inline-block px-2.5 py-1 bg-primary/10 text-primary text-[10px] font-black rounded border border-primary/20">
-                                      {matched.week}주차
+                                      {matched.week}{unit}
                                     </span>
                                   );
                                 })()}
@@ -1489,7 +1491,7 @@ const StudentView = () => {
                       })}
                       {weekNumber && (
                         <span className="text-xs font-black px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20">
-                          {weekNumber}주차
+                          {weekNumber}{unit}
                         </span>
                       )}
                       {subGroups.length > 1 && (
@@ -2070,7 +2072,7 @@ const StudentView = () => {
                           })}
                           {modalWeek && (
                             <span className="text-xs font-black px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20">
-                              {modalWeek}주차
+                              {modalWeek}{unit}
                             </span>
                           )}
                           {selectedResult._subGroups?.length > 1 && (

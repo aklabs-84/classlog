@@ -12,6 +12,7 @@ import GalleryEndPrompt from './GalleryEndPrompt';
 interface AttendanceTabProps {
   classId: string;
   students: any[];
+  unit?: string;
 }
 
 const STATUSES = [
@@ -52,7 +53,7 @@ const STATUS_LABEL: Record<string, string> = {
   present: '출석', absent: '결석', late: '지각', early_leave: '조퇴', excused: '공결',
 };
 
-export default function AttendanceTab({ classId, students }: AttendanceTabProps) {
+export default function AttendanceTab({ classId, students, unit = '주차' }: AttendanceTabProps) {
   const [selectedDate, setSelectedDate] = useState(today);
   const [records, setRecords] = useState<Record<string, StatusKey>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -541,7 +542,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 motion-safe:animate-ping" />
                   <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
                 </span>
-                수업 진행 중{activeWeek ? ` · ${activeWeek}주차` : ''}
+                수업 진행 중{activeWeek ? ` · ${activeWeek}${unit}` : ''}
               </div>
             ) : (
               <div className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[16px] font-bold bg-surface-container text-on-surface-variant border border-slate-200 dark:border-slate-700">
@@ -556,9 +557,9 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   onChange={(e) => setSelectedStartWeek(e.target.value ? Number(e.target.value) : '')}
                   className="px-3.5 py-2.5 rounded-xl text-[15px] font-semibold border border-slate-200 dark:border-slate-700 text-on-surface bg-surface-container-lowest cursor-pointer focus:border-primary outline-none"
                 >
-                  <option value="">오늘 진행 주차 선택...</option>
+                  <option value="">오늘 진행 {unit} 선택...</option>
                   {weeklyPlan.map((w: any, idx: number) => (
-                    <option key={idx} value={w.week}>{w.week}주차{w.topic ? `: ${w.topic}` : ''}</option>
+                    <option key={idx} value={w.week}>{w.week}{unit}{w.topic ? `: ${w.topic}` : ''}</option>
                   ))}
                 </select>
               )}
@@ -567,7 +568,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
                   type="button"
                   onClick={toggleSessionStart}
                   disabled={sessionSaving || (weeklyPlan.length > 0 && !selectedStartWeek)}
-                  title={weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 주차를 선택해주세요' : undefined}
+                  title={weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 '+unit+'를 선택해주세요' : undefined}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[16px] font-bold bg-primary text-white hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Clock size={16} /> 오늘 수업 시작

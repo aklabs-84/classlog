@@ -108,6 +108,8 @@ import { plainDrop } from '../hooks/useFileDrop';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
+import UnitLabelPicker from '../components/classroom/UnitLabelPicker';
+import { recommendUnit, toUnitLabel, type UnitLabel } from '../lib/unitLabel';
 import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
@@ -202,6 +204,7 @@ const Classroom = () => {
     searchParams.get('id') || localStorage.getItem('teacher_last_class_id')
   );
   const [classInfo, setClassInfo] = useState<any>(null);
+  const unit = toUnitLabel(classInfo?.unit_label);
   const [viewerFile, setViewerFile] = useState<{ url: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -232,8 +235,10 @@ const Classroom = () => {
     schedule_mode: null as 'weekday' | 'dates' | null,
     class_days_of_week: [] as number[],
     class_specific_dates: [] as string[],
+    unit_label: null as UnitLabel | null,
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
+  const editUnit = toUnitLabel(updateClassData?.unit_label);
   const [breakGenNew, setBreakGenNew] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [breakGenEdit, setBreakGenEdit] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -439,7 +444,7 @@ const Classroom = () => {
         const mat = planOverrides[p.material_id] ?? classMaterials.find((m: any) => m.id === p.material_id);
         return {
           week: p.week as number,
-          title: (mat?.title as string) || `${p.week}주차`,
+          title: (mat?.title as string) || `${p.week}${unit}`,
           content: (mat?.content as string) ?? null,
           activity_urls: mat?.activity_urls as ActivityLink[] | undefined,
           attachments: mat?.attachments as MaterialAttachment[] | undefined,
@@ -817,7 +822,7 @@ const Classroom = () => {
           .single();
 
         const studentName = studentData?.full_name || '학생';
-        const title = payload.new.title || `${payload.new.week_number}주차 결과물`;
+        const title = payload.new.title || `${payload.new.week_number}${unit} 결과물`;
         showToast(`📎 ${studentName}이(가) "${title}"을(를) 제출했습니다!`);
         setStatsRefreshKey(k => k + 1);
       })
@@ -1016,7 +1021,8 @@ const Classroom = () => {
           break_times: (newClassData.break_times || []).filter((t) => t),
           schedule_mode: newClassData.schedule_mode,
           class_days_of_week: newClassData.class_days_of_week || [],
-          class_specific_dates: (newClassData.class_specific_dates || []).filter((d) => d)
+          class_specific_dates: (newClassData.class_specific_dates || []).filter((d) => d),
+          unit_label: newClassData.unit_label ?? recommendUnit(newClassData),
         })
         .select()
         .single();
@@ -1045,6 +1051,7 @@ const Classroom = () => {
         schedule_mode: null,
         class_days_of_week: [],
         class_specific_dates: [],
+        unit_label: null,
       });
       await fetchClasses();
       if (data) setActiveClassId(data.id);
@@ -1083,6 +1090,7 @@ const Classroom = () => {
       schedule_mode: updateClassData.schedule_mode || null,
       class_days_of_week: updateClassData.class_days_of_week || [],
       class_specific_dates: (updateClassData.class_specific_dates || []).filter((d: string) => d),
+      unit_label: toUnitLabel(updateClassData.unit_label),
     };
 
     try {
@@ -2107,7 +2115,7 @@ const Classroom = () => {
       const { data: freshPlan } = await supabase.from('classes').select('weekly_plan').eq('id', activeClassId).single();
       if (freshPlan) setClassInfo((prev: any) => prev ? { ...prev, weekly_plan: freshPlan.weekly_plan } : prev);
       await fetchResources(activeClassId);
-      showToast(`"${app.name}"을(를) 메인 수업도구로 설정하고 1~${PRIMARY_TOOL_AUTO_WEEKS}주차 자료에 링크를 연결했습니다.`);
+      showToast(`"${app.name}"을(를) 메인 수업도구로 설정하고 1~${PRIMARY_TOOL_AUTO_WEEKS}${unit} 자료에 링크를 연결했습니다.`);
     } catch (err) {
       console.error('handleSetPrimaryTool error:', err);
       showToast('메인 수업도구 설정 중 오류가 발생했습니다.');
@@ -2486,7 +2494,7 @@ const Classroom = () => {
     const effectivePlan: any[] = effectivePlanInfo.plan;
     const linkedWeeks = effectivePlan.filter((p: any) => p.material_id === id).map((p: any) => p.week);
     if (linkedWeeks.length > 0) {
-      const ok = await appConfirm(`이 자료는 ${linkedWeeks.join(', ')}주차 주차별 자료에 연결되어 있습니다.\n삭제하면 해당 주차에서 자료를 열 수 없게 됩니다. 그래도 삭제하시겠습니까?`);
+      const ok = await appConfirm(`이 자료는 ${linkedWeeks.join(', ')}${unit} ${unit}별 자료에 연결되어 있습니다.\n삭제하면 해당 ${unit}에서 자료를 열 수 없게 됩니다. 그래도 삭제하시겠습니까?`);
       if (!ok) return;
     }
     setDeletingEditorMatId(id);
@@ -2591,7 +2599,7 @@ const Classroom = () => {
       if (idx === next.length) next.push({ week: idx + 1, topic: '', url: '', requires_result: true, requires_activity: true });
       const cur = next[idx];
       if (cur.material_id && cur.material_id !== m.id &&
-        !await appConfirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
+        !await appConfirm(`${idx + 1}${unit}에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
         return;
       }
       next[idx] = { ...cur, material_id: m.id, url: '', topic: (cur.topic || '').trim() ? cur.topic : m.title };
@@ -2600,7 +2608,7 @@ const Classroom = () => {
       setClassInfo((prev: any) => prev ? { ...prev, weekly_plan: next } : prev);
       setPendingEditorMat(null);
       await fetchResources(activeClassId);
-      showToast(`${idx + 1}주차에 자료를 연결했어요.`);
+      showToast(`${idx + 1}${unit}에 자료를 연결했어요.`);
     } catch (err) {
       console.error('linkEditorMatToWeek error:', err);
       showToast('자료를 연결하는 중 오류가 발생했습니다.');
@@ -2674,6 +2682,7 @@ const Classroom = () => {
       <PresentationModal
         material={fullscreenMaterial}
         onClose={() => setFullscreenMaterial(null)}
+        unit={unit}
         weekNav={
           fullscreenMaterial.weekNumber != null && weekNavList.length > 1
             ? { weeks: weekNavList.map((w: any) => ({ week: w.week, title: w.title })), currentWeek: fullscreenMaterial.weekNumber, onNavigate: handleNavigateWeek }
@@ -2993,7 +3002,7 @@ const Classroom = () => {
 
               {activeTab === 'attendance' && classInfo && (
                 <div className="max-w-4xl mx-auto" data-tour="attendance-panel">
-                  <AttendanceTab classId={activeClassId!} students={sortedStudents} />
+                  <AttendanceTab classId={activeClassId!} students={sortedStudents} unit={unit} />
                 </div>
               )}
 
@@ -3089,7 +3098,7 @@ const Classroom = () => {
                           boardWeekFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
                         }`}
                       >
-                        전체 주차
+                        전체 {unit}
                       </button>
                       {Array.from(new Set(boardPosts.map(p => p.week_number).filter(Boolean))).sort((a, b) => a - b).map(w => (
                         <button
@@ -3099,13 +3108,14 @@ const Classroom = () => {
                             boardWeekFilter === w ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
                           }`}
                         >
-                          {w}주차
+                          {w}{unit}
                         </button>
                       ))}
                     </div>
                     <div className="ml-auto">
                       <BoardDownloadButton
                         weekFilter={boardWeekFilter}
+                        unit={unit}
                         posts={filterBoardPosts(boardPosts, { type: boardTypeFilter, week: boardWeekFilter, query: boardSearch })}
                       />
                     </div>
@@ -3152,6 +3162,7 @@ const Classroom = () => {
                         section={section}
                         variant="teacher"
                         ctx={{
+                          unit: toUnitLabel(classes.find((c: any) => c.id === activeClassId)?.unit_label),
                           now: boardNow,
                           freshKeys: boardFreshKeys,
                           onOpen: setBoardSelectedPost,
@@ -3865,6 +3876,12 @@ const Classroom = () => {
                   />
                 </div>
 
+                <UnitLabelPicker
+                  value={newClassData.unit_label ?? recommendUnit(newClassData)}
+                  recommended={recommendUnit(newClassData)}
+                  onChange={u => setNewClassData(prev => ({ ...prev, unit_label: u }))}
+                />
+
                 <div className="space-y-2">
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
                     <Clock size={13} /> 수업 시간 & 시작·종료 알람 (선택)
@@ -4131,7 +4148,7 @@ const Classroom = () => {
                     <summary className="flex items-center justify-between gap-2 text-xs font-black text-secondary cursor-pointer select-none py-3 px-5 bg-secondary/5 rounded-2xl hover:bg-secondary/10 transition-all">
                       <div className="flex items-center gap-2">
                         <BookOpen size={14} />
-                        주차별 수업 계획 (Syllabus)
+                        {editUnit}별 수업 계획 (Syllabus)
                       </div>
                       <ChevronDown size={14} className="group-open:rotate-180 transition-transform duration-300" />
                     </summary>
@@ -4175,7 +4192,7 @@ const Classroom = () => {
                                           : 'bg-white text-neutral-600 border-neutral-200 hover:border-secondary/40'
                                       }`}
                                     >
-                                      {w.week}주차
+                                      {w.week}{editUnit}
                                       {empty && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : 'bg-amber-400'}`} title="주제 미입력" />}
                                     </button>
                                   );
@@ -4225,7 +4242,7 @@ const Classroom = () => {
                                       </label>
                                       <label className="flex items-center gap-2 cursor-pointer min-h-[28px]">
                                         <input type="checkbox" checked={item.requires_activity !== false} onChange={(e) => updateItem({ requires_activity: e.target.checked })} className="w-4 h-4 rounded accent-secondary" />
-                                        <span className="text-xs font-black text-neutral-600">활동기록 필요</span>
+                                        <span className="text-xs font-black text-neutral-600">기록 필요</span>
                                       </label>
                                     </div>
                                   </div>
@@ -4570,6 +4587,12 @@ const Classroom = () => {
                         </p>
                       </div>
 
+                      <UnitLabelPicker
+                        value={toUnitLabel(updateClassData.unit_label)}
+                        recommended={recommendUnit(updateClassData)}
+                        onChange={u => setUpdateClassData((prev: any) => ({ ...prev, unit_label: u }))}
+                      />
+
                       {/* 쉬는시간 알림 */}
                       <div className="space-y-2 pt-1">
                         <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
@@ -4741,7 +4764,7 @@ const Classroom = () => {
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1 text-primary">
-                          <label className="text-xs font-black uppercase tracking-widest">주차별 수업 계획 (Syllabus)</label>
+                          <label className="text-xs font-black uppercase tracking-widest">{editUnit}별 수업 계획 (Syllabus)</label>
                           <button
                             type="button"
                             onClick={() => {
@@ -4753,7 +4776,7 @@ const Classroom = () => {
                               setSelectedWeekIdx(plan.length);
                             }}
                             className="text-xs font-black px-3 py-1 bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all"
-                          >+ 주차 추가</button>
+                          >+ {editUnit} 추가</button>
                         </div>
                         {(updateClassData.weekly_plan || []).length > 0 && (() => {
                           const planLen = (updateClassData.weekly_plan || []).length;
@@ -4786,7 +4809,7 @@ const Classroom = () => {
                                         : 'bg-white text-neutral-600 border-neutral-200 hover:border-primary/40'
                                     }`}
                                   >
-                                    {w.week}주차
+                                    {w.week}{editUnit}
                                     {empty && <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : 'bg-amber-400'}`} title="주제 미입력" />}
                                   </button>
                                 );
@@ -4862,7 +4885,7 @@ const Classroom = () => {
                                           plan[idx].requires_activity = e.target.checked;
                                           setUpdateClassData({ ...updateClassData, weekly_plan: plan });
                                         }} className="w-3.5 h-3.5 rounded accent-primary" />
-                                        <span className="text-xs font-black text-neutral-600">활동기록 필요</span>
+                                        <span className="text-xs font-black text-neutral-600">기록 필요</span>
                                       </label>
                                     </div>
                                   </div>
@@ -5071,7 +5094,7 @@ const Classroom = () => {
                           })()}
                           {(!updateClassData.weekly_plan || updateClassData.weekly_plan.length === 0) && (
                             <div className="py-10 text-center border-2 border-dashed border-neutral-100 rounded-[1.5rem]">
-                              <p className="text-xs font-bold text-neutral-400">등록된 주차별 계획이 없습니다. 상단 [+ 주차 추가] 버튼을 눌러보세요!</p>
+                              <p className="text-xs font-bold text-neutral-400">등록된 {unit}별 계획이 없습니다. 상단 [+ {unit} 추가] 버튼을 눌러보세요!</p>
                             </div>
                           )}
                         </div>
@@ -5536,6 +5559,7 @@ const Classroom = () => {
         {isBriefingOpen && activeClassId && classInfo && (
           <BriefingModal
             classId={activeClassId}
+            unit={unit}
             className={classInfo.name + (classInfo.subject ? ` · ${classInfo.subject}` : '')}
             onClose={() => setIsBriefingOpen(false)}
           />
@@ -5580,7 +5604,7 @@ const Classroom = () => {
                       <div className="min-w-0">
                         <p className="font-black truncate">{p.student_name}</p>
                         <p className="text-[11px] text-on-surface-variant font-bold">
-                          {p.week_number ? `${p.week_number}주차 · ` : ''}
+                          {p.week_number ? `${p.week_number}${unit} · ` : ''}
                           {new Date(p.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
                           <span className={isObs ? 'text-violet-600' : 'text-emerald-600'}>
@@ -5719,7 +5743,7 @@ const Classroom = () => {
                     {/* 주차별 자료 (weekly_plan 기반) */}
                     {planItems.length > 0 && (
                       <div className="space-y-1.5">
-                        <p className="text-[14px] font-bold text-on-surface-variant  px-1">주차별 자료</p>
+                        <p className="text-[14px] font-bold text-on-surface-variant  px-1">{unit}별 자료</p>
                         {planItems.map((item: any) => {
                           const isMaterial = !!item.material_id;
                           const origInfo = isMaterial
@@ -5772,7 +5796,7 @@ const Classroom = () => {
                                     }
                                   </p>
                                   <p className="text-[14px] text-on-surface-variant truncate">
-                                    {item.week}주차
+                                    {item.week}{unit}
                                     {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
                                   </p>
                                 </div>
@@ -5793,6 +5817,27 @@ const Classroom = () => {
                               >
                                 학생 답변
                               </button>)}
+                              {/* 내 수업용으로 수정 (원본은 그대로 두고 내 반에만 복사본 생성) */}
+                              {canForkPlanMaterial && isMaterial && origInfo && !myCopy && (
+                                <button
+                                  onClick={() => handleForkPlanMat(item.material_id)}
+                                  disabled={overrideBusy}
+                                  title="내 수업용으로 수정 — 원본은 그대로 두고, 내 반에만 복사본을 만들어 고칠 수 있어요"
+                                  className="shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-[14px] bg-primary text-white hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60"
+                                >
+                                  {overrideBusy ? <Loader2 size={13} className="animate-spin" /> : <Pencil size={13} />} 내 수업용 수정
+                                </button>
+                              )}
+                              {/* 자료와 함께 저장된 링크 (자료가 있어도 링크는 따로 열 수 있게) */}
+                              {isMaterial && item.url?.trim() && (
+                                <button
+                                  onClick={() => window.open(item.url.trim(), '_blank', 'noopener,noreferrer')}
+                                  title={`연결된 링크 열기 — ${item.url.trim()}`}
+                                  className="p-2 rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors shrink-0"
+                                >
+                                  <Link2 size={16} />
+                                </button>
+                              )}
                               {/* 슬라이드 모드로 보기 (자료 에디터 자료만) */}
                               {isMaterial && matInfo && (
                                 <button
@@ -5828,17 +5873,6 @@ const Classroom = () => {
                               </button>
                             </div>
 
-                            {/* 내 수업용으로 수정 (원본은 그대로 두고 내 반에만 복사본 생성) */}
-                            {canForkPlanMaterial && isMaterial && origInfo && !myCopy && (
-                              <button
-                                onClick={() => handleForkPlanMat(item.material_id)}
-                                disabled={overrideBusy}
-                                title="원본은 그대로 두고, 내 수업용 복사본을 만들어 고칠 수 있어요"
-                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-primary text-white text-sm font-bold shadow-sm hover:bg-primary active:scale-[0.99] transition-all disabled:opacity-50"
-                              >
-                                {overrideBusy ? <Loader2 size={15} className="animate-spin" /> : <Pencil size={15} />} 내 수업용으로 수정
-                              </button>
-                            )}
 
                             {/* 내 버전 편집: 자료 에디터에서 열기 */}
                             {myCopy && (
@@ -5899,8 +5933,8 @@ const Classroom = () => {
                     {!hasAnything && (
                       <div className="text-center py-6 text-on-surface-variant">
                         <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
-                        <p className="text-sm font-bold">주차별 자료 없음</p>
-                        <p className="text-[14px] mt-0.5">학급 수정에서 주차별 계획에 URL 또는 에디터를 연결해보세요</p>
+                        <p className="text-sm font-bold">{unit}별 자료 없음</p>
+                        <p className="text-[14px] mt-0.5">학급 수정에서 {unit}별 계획에 URL 또는 에디터를 연결해보세요</p>
                       </div>
                     )}
 
@@ -5945,7 +5979,7 @@ const Classroom = () => {
                                   )}
                                 </div>
                                 {mat.week_number != null && (
-                                  <p className="text-[14px] text-on-surface-variant truncate">{mat.week_number}주차</p>
+                                  <p className="text-[14px] text-on-surface-variant truncate">{mat.week_number}{unit}</p>
                                 )}
                               </div>
                             </button>
@@ -6000,7 +6034,7 @@ const Classroom = () => {
                             {unlinkedMats.map(renderMatRow)}
 
                             {unlinkedMats.length === 0 && (
-                              <p className="text-[14px] text-on-surface-variant px-1 py-2">주차에 연결된 자료는 위쪽 “주차별 자료”에서 볼 수 있어요.</p>
+                              <p className="text-[14px] text-on-surface-variant px-1 py-2">{unit}에 연결된 자료는 위쪽 “{unit}별 자료”에서 볼 수 있어요.</p>
                             )}
                           </div>
                         );
@@ -6151,7 +6185,7 @@ const Classroom = () => {
                                     {settingPrimaryToolId === toolId ? (
                                       <><Loader2 size={13} className="animate-spin" /> 설정 중...</>
                                     ) : (
-                                      <><Sparkles size={13} /> 메인 수업도구로 사용 (1~{PRIMARY_TOOL_AUTO_WEEKS}주차 자료 자동 생성)</>
+                                      <><Sparkles size={13} /> 메인 수업도구로 사용 (1~{PRIMARY_TOOL_AUTO_WEEKS}{unit} 자료 자동 생성)</>
                                     )}
                                   </button>
                                 )}
@@ -6390,7 +6424,7 @@ const Classroom = () => {
               <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-sm text-on-surface break-words">"{pendingEditorMat.title}" 수업에 쓰기</p>
-                  <p className="text-[14px] text-on-surface-variant mt-0.5">몇 주차에 쓸지 고르세요 (복사 없이 원본을 그대로 가리켜요)</p>
+                  <p className="text-[14px] text-on-surface-variant mt-0.5">몇 {unit}에 쓸지 고르세요 (복사 없이 원본을 그대로 가리켜요)</p>
                 </div>
                 <button onClick={() => setPendingEditorMat(null)} disabled={linkingEditorMat} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
                   <X size={16} />
@@ -6419,7 +6453,7 @@ const Classroom = () => {
                   onClick={() => linkEditorMatToWeek(-1)}
                   className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border border-dashed border-primary/40 text-primary font-bold text-sm hover:bg-primary/5 transition-all"
                 >
-                  <Plus size={15} /> 새 주차로 추가 ({(Array.isArray(classInfo?.weekly_plan) ? classInfo.weekly_plan.length : 0) + 1}주차)
+                  <Plus size={15} /> 새 {unit}로 추가 ({(Array.isArray(classInfo?.weekly_plan) ? classInfo.weekly_plan.length : 0) + 1}{unit})
                 </button>
               </div>
               <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container shrink-0">

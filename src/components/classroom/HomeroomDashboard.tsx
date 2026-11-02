@@ -75,6 +75,7 @@ const HomeroomDashboard = ({
   onResetPin,
   groupMap = {},
 }: HomeroomDashboardProps) => {
+  const unit = classInfo?.school_project_id || classInfo?.unit_label === '차시' ? '차시' : '주차';
   const navigate = useNavigate();
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
@@ -409,15 +410,15 @@ const HomeroomDashboard = ({
                  <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
                    <BarChart2 size={14} />
                  </div>
-                 <span className="text-sm font-black text-on-surface">주차별 제출 현황</span>
+                 <span className="text-sm font-black text-on-surface">{unit}별 제출 현황</span>
                  {statsWeeks.length > 0 && (
                    <span className="text-[13px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
-                     총 {statsWeeks.length}주차
+                     총 {statsWeeks.length}{unit}
                    </span>
                  )}
                  {selectedStatsWeek !== null && (
                    <span className="text-[13px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
-                     {selectedStatsWeek}주차 선택됨
+                     {selectedStatsWeek}{unit} 선택됨
                    </span>
                  )}
                </div>
@@ -432,7 +433,7 @@ const HomeroomDashboard = ({
                    </div>
                  ) : statsWeeks.length === 0 ? (
                    <div className="text-center py-6 text-on-surface-variant/70">
-                     <p className="text-[14px] font-bold">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
+                     <p className="text-[14px] font-bold">등록된 {unit} 계획이 없습니다. 학급 설정에서 {unit}별 계획을 추가해 주세요.</p>
                    </div>
                  ) : (
                    <div className="space-y-4">
@@ -459,7 +460,7 @@ const HomeroomDashboard = ({
                                  : 'bg-surface-container-lowest text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary'
                              }`}
                            >
-                             <span>{week}주차</span>
+                             <span>{week}{unit}</span>
                              {topic && <span className={`text-[14px] ${isSelected ? 'text-white/90' : 'text-on-surface-variant'}`}>· {topic}</span>}
                              {weekResultCount > 0 && (
                                <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[14px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
@@ -479,10 +480,10 @@ const HomeroomDashboard = ({
                            <span className="text-base font-black">{obsOnWeek.size}</span>
                            <span className="font-bold opacity-60">명</span>
                          </div>
-                         <p className="text-[14px] font-bold text-on-surface-variant/70 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
+                         <p className="text-[14px] font-bold text-on-surface-variant/70 ml-1">아래 표에서 {unit}별 결과 제출 현황을 확인하세요</p>
                        </div>
                      ) : (
-                       <p className="text-[14px] font-bold text-on-surface-variant/70">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
+                       <p className="text-[14px] font-bold text-on-surface-variant/70">{unit}를 선택하면 해당 {unit} 결과 제출 현황이 아래 표에 표시됩니다.</p>
                      )}
                    </div>
                  )}
@@ -573,7 +574,7 @@ const HomeroomDashboard = ({
                          const topic = weeklyPlan.find(p => p.week === w)?.topic;
                          return (
                            <div key={w} className="flex items-center gap-2">
-                             <span className="text-[14px] font-bold text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
+                             <span className="text-[14px] font-bold text-on-surface-variant/75 w-10 shrink-0">{w}{unit}</span>
                              {topic && <span className="text-[14px] font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
                              <div className="flex items-center gap-1.5 shrink-0">
                                <span className={`text-[14px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-neutral-100 text-on-surface-variant border-neutral-200'}`}>
@@ -631,10 +632,10 @@ const HomeroomDashboard = ({
                    {selectedStatsWeek !== null && (
                      <>
                        <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface uppercase tracking-widest text-center whitespace-nowrap">
-                         {selectedStatsWeek}주차 활동 기록
+                         {selectedStatsWeek}{unit} 활동 기록
                        </th>
                        <th className="p-4 lg:p-6 text-[14px] lg:text-[13px] font-black text-on-surface uppercase tracking-widest text-center whitespace-nowrap">
-                         {selectedStatsWeek}주차 결과제출
+                         {selectedStatsWeek}{unit} 결과제출
                        </th>
                      </>
                    )}
@@ -1079,7 +1080,7 @@ const HomeroomDashboard = ({
         const getActivityLabel = (s: any) => {
           if (submittedIds.has(s.id)) {
             if (selectedActivityWeek !== null) {
-              return activityTab === 'obs' ? `${selectedActivityWeek}주차 활동 기록 제출` : `${selectedActivityWeek}주차 결과물 제출`;
+              return activityTab === 'obs' ? `${selectedActivityWeek}${unit} 활동 기록 제출` : `${selectedActivityWeek}${unit} 결과물 제출`;
             }
             return activityTab === 'obs' ? '활동 기록 제출' : '결과물 제출';
           }
@@ -1110,7 +1111,7 @@ const HomeroomDashboard = ({
                 <div className="space-y-1 min-w-0">
                   <p className="text-[14px] font-semibold text-on-surface-variant">활동 참여율</p>
                   <h3 className="text-xl sm:text-2xl font-bold text-on-surface truncate">
-                    {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
+                    {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}${unit} ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0">
@@ -1187,7 +1188,7 @@ const HomeroomDashboard = ({
                             : 'bg-white text-on-surface-variant border-slate-200 dark:border-slate-700 hover:border-primary/40'
                         }`}
                       >
-                        {week}주차{topic && <span className="opacity-60">· {topic}</span>}
+                        {week}{unit}{topic && <span className="opacity-60">· {topic}</span>}
                         {weekCount > 0 && (
                           <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
                             selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'primary' ? 'bg-primary-container text-primary' : 'bg-primary-container text-primary'

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
@@ -92,20 +92,21 @@ import { appConfirm, appToast } from '../lib/appDialog';
 import { getAiApps, type AiApp } from '../lib/aiApps';
 import { useStudentLive } from '../hooks/useStudentLive';
 import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
+import { toUnitLabel, type UnitLabel } from '../lib/unitLabel';
 
 // 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
-const STUDENT_SCREENS: Record<string, StudentScreenStep> = {
+const getStudentScreens = (unit: string): Record<string, StudentScreenStep> => ({
   record: {
     target: 'student-record-submit',
     title: '오늘 배운 것을 차례로 써요',
-    lead: '주차를 고르고, 위에서부터 차례로 써 내려가요. 다 썼으면 이 "활동 기록 제출하기"를 눌러요.',
+    lead: ''+unit+'를 고르고, 위에서부터 차례로 써 내려가요. 다 썼으면 이 "활동 기록 제출하기"를 눌러요.',
     points: ['쓰다가 멈춰도 "임시 저장"을 누르면 나중에 이어서 쓸 수 있어요.', '제출한 기록은 위 메뉴의 "나의 기록"에서 다시 볼 수 있어요.'],
     missing: '수업이 끝나서 지금은 새 기록을 쓸 수 없어요. 이전 기록은 "나의 기록"에서 볼 수 있어요.',
   },
   results: {
     target: 'student-result-submit',
-    title: '만든 결과를 주차별로 제출해요',
-    lead: '주차를 고르고, 링크·이미지·파일·글 중에서 알맞은 것을 넣은 뒤 이 "○주차 결과 제출" 버튼을 눌러요.',
+    title: '만든 결과를 '+unit+'별로 제출해요',
+    lead: ''+unit+'를 고르고, 링크·이미지·파일·글 중에서 알맞은 것을 넣은 뒤 이 "○'+unit+' 결과 제출" 버튼을 눌러요.',
     points: ['조별 수업이면 누가 제출할지 선생님 안내를 따라요.', '제출한 결과는 "나의 기록"에서 확인할 수 있어요.'],
     missing: '지금은 결과를 제출할 수 없어요. 선생님께 물어봐요.',
   },
@@ -114,15 +115,15 @@ const STUDENT_SCREENS: Record<string, StudentScreenStep> = {
     title: '선생님이 올린 수업 자료를 봐요',
     lead: '자료는 3칸으로 나뉘어 있어요. 눌러서 바꿔 볼 수 있어요.',
     points: [
-      '주차별 자료: 이번 주 수업에서 쓰는 자료예요. 주차 카드를 눌러 열어요.',
+      ''+unit+'별 자료: 이번 주 수업에서 쓰는 자료예요. '+unit+' 카드를 눌러 열어요.',
       '자료 에디터: 선생님이 만든 슬라이드·문서 자료예요.',
       '일반 자료: 링크나 파일 같은 그 밖의 자료예요.',
     ],
     missing: '이 화면의 자료 칸을 찾지 못했어요. 잠시 뒤 다시 열어 주세요.',
   },
-};
+});
 
-const getTourSteps = (multiWeek: boolean): TourStep[] => [
+const getTourSteps = (multiWeek: boolean, unit: string): TourStep[] => [
   {
     emoji: '👋',
     title: '클래스로그 사용 방법 안내',
@@ -131,10 +132,10 @@ const getTourSteps = (multiWeek: boolean): TourStep[] => [
   {
     targetId: 'tour-home-greet',
     emoji: '📅',
-    title: '오늘 수업 주차',
+    title: '오늘 수업 '+unit+'',
     description: multiWeek
-      ? '선생님이 정해 둔 오늘의 주차와 주제가 보여요. 다른 주차를 보고 싶으면 "주차 바꾸기"를 눌러요.'
-      : '인사와 함께 선생님이 정해 둔 오늘의 주차와 주제가 보여요.',
+      ? '선생님이 정해 둔 오늘의 '+unit+'와 주제가 보여요. 다른 '+unit+'를 보고 싶으면 "'+unit+' 바꾸기"를 눌러요.'
+      : '인사와 함께 선생님이 정해 둔 오늘의 '+unit+'와 주제가 보여요.',
   },
   {
     targetId: 'tour-home-hero',
@@ -327,6 +328,9 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
+  // 수업 단위 이름(주차/차시) — 선생님이 반 설정에서 정함
+  const [unit, setUnit] = useState<UnitLabel>('주차');
+  const studentScreens = useMemo(() => getStudentScreens(unit), [unit]);
   const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting' | 'liveboard'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   // 데스크탑 사이드바 접기/펼치기 (처음엔 접힘, 학생이 바꾸면 localStorage에 저장)
@@ -826,7 +830,7 @@ const StudentLog = () => {
         const r = payload.new;
         const gId = r.submission_group || r.id;
         const key = `result-${gId}`;
-        const rTitle = r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물');
+        const rTitle = r.title || (r.week_number ? `${r.week_number}${unit} 결과물` : '결과물');
 
         if (r?.status === 'rejected') {
           seenApprovalIds.current.delete(key);
@@ -914,7 +918,7 @@ const StudentLog = () => {
             seenGroups.add(gId);
             const key = `result-${gId}`;
             const prev = statusTrackMap.current.get(key);
-            const rTitle = r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물');
+            const rTitle = r.title || (r.week_number ? `${r.week_number}${unit} 결과물` : '결과물');
             if (r.status === 'rejected' && prev !== 'rejected' && prev !== undefined) {
               seenApprovalIds.current.delete(key);
               seenRejectionIds.current.add(key);
@@ -1208,6 +1212,7 @@ const StudentLog = () => {
 
       if (data) {
         setTeacherId(data.teacher_id);
+        setUnit(toUnitLabel(data.unit_label));
         setEntryCode(data.entry_code || null);
         const startedToday = data.today_started_at &&
           new Date(data.today_started_at).toDateString() === new Date().toDateString();
@@ -1348,7 +1353,7 @@ const StudentLog = () => {
     const normE = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
     const editWeekMatch = (classResources as any[]).find(r => normE(r.topic) === normE(editLogForm.activity_name.trim()));
     if (!editLogForm.activity_name.trim() || (hasTopics && !editWeekMatch)) {
-      showToast(hasTopics ? '주차를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error'); return;
+      showToast(hasTopics ? ''+unit+'를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error'); return;
     }
     setSavingLogId(logId);
     try {
@@ -1467,7 +1472,7 @@ const StudentLog = () => {
     // 수정 모드: 그룹 전체 업데이트
     if (editingResult) {
       if (!selectedWeek) {
-        showToast('주차를 선택해주세요.', 'error'); return;
+        showToast(''+unit+'를 선택해주세요.', 'error'); return;
       }
       const hasText  = resultText.trim() !== '';
       const hasLink  = resultUrl.trim() !== '';
@@ -1617,7 +1622,7 @@ const StudentLog = () => {
       showToast('하나 이상의 항목을 입력해주세요.', 'error'); return;
     }
     if (!selectedWeek) {
-      showToast('주차를 선택해주세요.', 'error'); return;
+      showToast(''+unit+'를 선택해주세요.', 'error'); return;
     }
 
     setResultSubmitting(true);
@@ -1663,7 +1668,7 @@ const StudentLog = () => {
         const groupLabel = isGroupSubmission && myClassGroup ? ` [${myClassGroup.name} 조별 제출]` : '';
         await supabase.rpc('student_notify_teacher', {
           p_token: session.token,
-          p_title: `📁 ${session.student_name}이(가) ${selectedWeek}주차 결과를 제출했습니다${groupLabel}`,
+          p_title: `📁 ${session.student_name}이(가) ${selectedWeek}${unit} 결과를 제출했습니다${groupLabel}`,
           p_content: `${rows.map((r: any) => r.result_type).join('·')} — ${session.class_name}`,
           p_type: 'result_submission',
         });
@@ -1672,7 +1677,7 @@ const StudentLog = () => {
       resetResultForm();
       await fetchResults();
       const groupMsg = isGroupSubmission && myClassGroup ? ` (${myClassGroup.name} 전체)` : '';
-      showToast(`${selectedWeek}주차 결과물이 제출되었습니다${groupMsg}! ✅`);
+      showToast(`${selectedWeek}${unit} 결과물이 제출되었습니다${groupMsg}! ✅`);
 
       // 관찰기록 리마인더 체크
       if (selectedWeek) {
@@ -2419,7 +2424,7 @@ const StudentLog = () => {
     const normTitle = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
     const titleWeekMatch = hasTopics ? (classResources as any[]).find(r => normTitle(r.topic) === normTitle(title)) : null;
     if (!title || (hasTopics && !titleWeekMatch)) {
-      showToast(hasTopics ? '주차를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error');
+      showToast(hasTopics ? ''+unit+'를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error');
       return;
     }
     if (!content.trim()) {
@@ -2740,7 +2745,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         
         <div className="flex items-center gap-2 sm:gap-6 min-w-0">
           {/* 이 화면 도움말 (활동 기록·결과 제출 화면에서만) */}
-          {STUDENT_SCREENS[activeTab] && (
+          {studentScreens[activeTab] && (
             <button
               type="button"
               onClick={() => setScreenTourSignal(n => n + 1)}
@@ -3022,14 +3027,14 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <p className="text-base font-bold text-on-surface-variant/70">
                         {session?.class_name}
-                        {weekInfo ? ` · ${displayWeek}주차 ${weekInfo.topic}` : ''}
+                        {weekInfo ? ` · ${displayWeek}${unit} ${weekInfo.topic}` : ''}
                       </p>
                       {weeklyPlan.length > 1 && (
                         <button
                           onClick={() => setHomeWeekPickerOpen(v => !v)}
                           className="text-sm font-black text-primary underline underline-offset-4 decoration-2 hover:decoration-primary/50"
                         >
-                          {homeWeekPickerOpen ? '닫기' : '주차 바꾸기'}
+                          {homeWeekPickerOpen ? '닫기' : ''+unit+' 바꾸기'}
                         </button>
                       )}
                     </div>
@@ -3037,7 +3042,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   {/* 주차 선택 */}
                   {weeklyPlan.length > 1 && homeWeekPickerOpen && (
                     <div className="space-y-2">
-                      <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
+                      <p className="text-sm font-black text-on-surface-variant/50 uppercase tracking-widest">{unit} 선택</p>
                       <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                         {weeklyPlan.map(p => {
                           const isActive = p.week === displayWeek;
@@ -3059,7 +3064,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                               }`}
                             >
                               {allDone && <CheckCircle2 size={14} className={isActive ? 'text-white/80' : 'text-emerald-500'} />}
-                              {p.week}주차
+                              {p.week}{unit}
                               <span className={`text-xs font-bold ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>· {p.topic}</span>
                             </button>
                           );
@@ -3148,8 +3153,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       </p>
                       {noPlan ? (
                         <div>
-                          <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#ffffff' }}>아직 주차 계획이 없어요</h2>
-                          <p className="text-lg text-[#c4c9e6] mt-2">선생님께 주차 계획을 요청해 주세요.</p>
+                          <h2 className="text-2xl md:text-3xl font-black" style={{ color: '#ffffff' }}>아직 {unit} 계획이 없어요</h2>
+                          <p className="text-lg text-[#c4c9e6] mt-2">선생님께 {unit} 계획을 요청해 주세요.</p>
                         </div>
                       ) : (
                         <div className={`grid gap-3 md:gap-4 ${visibleSteps.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
@@ -3337,12 +3342,12 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   <div className="space-y-4">
                     <div className="flex items-center justify-between ml-2">
                       <label className="text-sm font-black text-primary uppercase tracking-[0.2em]">
-                        주차별 주제 선택 <span className="text-red-400 ml-0.5">*</span>
+                        {unit}별 주제 선택 <span className="text-red-400 ml-0.5">*</span>
                       </label>
                       <span className="text-sm font-bold text-on-surface-variant">주제를 선택해야 제출할 수 있습니다</span>
                     </div>
                     {activeWeekTopic && (
-                      <p className="text-sm font-bold text-primary/60 ml-2">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
+                      <p className="text-sm font-bold text-primary/60 ml-2">오늘 선생님이 진행 중인 {activeWeek}{unit}로 고정되어 있습니다.</p>
                     )}
                     <div className="relative">
                       <select
@@ -3357,10 +3362,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                             : 'bg-neutral-100 border-neutral-200/50 text-neutral-400 focus:ring-primary/10 focus:border-primary/30'
                         }`}
                       >
-                        <option value="">주차를 선택하세요...</option>
+                        <option value="">{unit}를 선택하세요...</option>
                         {classResources.map((item: any, idx: number) => (
                           <option key={idx} value={item.topic}>
-                            {item.week}주차: {item.topic}
+                            {item.week}{unit}: {item.topic}
                           </option>
                         ))}
                       </select>
@@ -3728,7 +3733,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                 <div className="space-y-3">
                                   {classResources.length > 0 && (
                                     <div className="space-y-1.5">
-                                      <label className="text-xs font-black text-primary uppercase tracking-widest">주차 선택</label>
+                                      <label className="text-xs font-black text-primary uppercase tracking-widest">{unit} 선택</label>
                                       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                                         {(classResources as {week: number; topic: string}[]).map(p => {
                                           const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
@@ -3743,7 +3748,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                                               }}
                                               onClick={() => setEditLogForm(prev => ({ ...prev, activity_name: p.topic }))}
                                               className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-xl text-sm font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
-                                              {p.week}주차<span className={`ml-1 text-xs ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
+                                              {p.week}{unit}<span className={`ml-1 text-xs ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
                                             </button>
                                           );
                                         })}
@@ -3883,7 +3888,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         // 결과 제출 그룹 카드
                         const r = item;
                         const weekLabel = r.week_number
-                          ? `${r.week_number}주차${classResources.find((c: any) => c.week === r.week_number)?.topic ? ` · ${classResources.find((c: any) => c.week === r.week_number).topic}` : ''}`
+                          ? `${r.week_number}${unit}${classResources.find((c: any) => c.week === r.week_number)?.topic ? ` · ${classResources.find((c: any) => c.week === r.week_number).topic}` : ''}`
                           : null;
                         const groupKey = r.submission_group || r.id;
                         // 그룹 내 텍스트 프리뷰 (첫 번째 텍스트 row)
@@ -4085,7 +4090,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   <button
                     onClick={() => setMaterialsSubTab('weekly')}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${materialsSubTab === 'weekly' ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-cyan-200'}`}
-                  >주차별 자료</button>
+                  >{unit}별 자료</button>
                   <button
                     onClick={() => setMaterialsSubTab('editor')}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${materialsSubTab === 'editor' ? 'border-violet-500 bg-violet-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-violet-200'}`}
@@ -4117,7 +4122,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     return (
                       <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                         <BookOpen size={64} />
-                        <p className="font-black text-lg">아직 등록된 주차별 자료가 없습니다.</p>
+                        <p className="font-black text-lg">아직 등록된 {unit}별 자료가 없습니다.</p>
                         <p className="text-base font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
                       </div>
                     );
@@ -4226,7 +4231,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                             <div key={res.week} className="p-4 bg-white rounded-2xl border border-surface-container">
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-black shrink-0">{res.week}</div>
-                                <p className="font-black text-base">{res.topic || `${res.week}주차`}</p>
+                                <p className="font-black text-base">{res.topic || `${res.week}${unit}`}</p>
                               </div>
                               {linkRow}
                             </div>
@@ -4478,7 +4483,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     <div>
                       <h3 className="text-2xl font-black font-manrope">결과 제출</h3>
                       <p className="text-on-surface-variant text-sm font-bold mt-1">
-                        주차를 선택하고 텍스트·링크·이미지·파일을 한 번에 제출하세요.
+                        {unit}를 선택하고 텍스트·링크·이미지·파일을 한 번에 제출하세요.
                       </p>
                     </div>
                   </div>
@@ -4488,15 +4493,15 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 {!isClassClosed && (<>
                 <div ref={resultFormRef} className="space-y-3">
                   <p className="text-sm font-black uppercase tracking-[0.2em] text-primary/70">
-                    주차 선택 *
+                    {unit} 선택 *
                   </p>
                   {!editingResult && activeWeek && (
-                    <p className="text-sm font-bold text-primary/60">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
+                    <p className="text-sm font-bold text-primary/60">오늘 선생님이 진행 중인 {activeWeek}{unit}로 고정되어 있습니다.</p>
                   )}
                   <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
                     {(classResources.length > 0
-                      ? classResources.map((r: any) => ({ week: r.week, label: `${r.week}주차${r.topic ? `: ${r.topic}` : ''}` }))
-                      : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}주차` }))
+                      ? classResources.map((r: any) => ({ week: r.week, label: `${r.week}${unit}${r.topic ? `: ${r.topic}` : ''}` }))
+                      : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}${unit}` }))
                     ).map(({ week, label }) => {
                       const weekLocked = !editingResult && !!activeWeek && week !== activeWeek;
                       return (
@@ -4530,7 +4535,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
                     <div>
                       <p className="text-sm font-black text-amber-700">
-                        ✏️ {editingResult.week_number}주차 결과물 수정 중
+                        ✏️ {editingResult.week_number}{unit} 결과물 수정 중
                       </p>
                       <p className="text-sm font-bold text-amber-500 mt-0.5">
                         항목을 추가하거나 내용을 수정할 수 있습니다
@@ -4717,8 +4722,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     : editingResult
                     ? <><Send size={20} /> 수정 완료</>
                     : isGroupSubmission && myClassGroup
-                    ? <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 · ${myClassGroup.name} 조별 제출` : '조별 제출하기'}</>
-                    : <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 결과 제출` : '결과 제출하기'}</>
+                    ? <><Send size={20} /> {selectedWeek ? `${selectedWeek}${unit} · ${myClassGroup.name} 조별 제출` : '조별 제출하기'}</>
+                    : <><Send size={20} /> {selectedWeek ? `${selectedWeek}${unit} 결과 제출` : '결과 제출하기'}</>
                   }
                 </button>
 
@@ -4776,7 +4781,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           </button>
                           {weeks.map(w => {
                             const topic = classResources.find((r: any) => r.week === w)?.topic;
-                            const chipLabel = w === 0 ? '미지정' : topic ? `${w}주차 · ${topic}` : `${w}주차`;
+                            const chipLabel = w === 0 ? '미지정' : topic ? `${w}${unit} · ${topic}` : `${w}${unit}`;
                             return (
                               <button
                                 key={w}
@@ -4794,10 +4799,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         </div>
 
                         {visibleWeeks.map(week => {
-                          const weekLabel = week === 0 ? '주차 미지정'
+                          const weekLabel = week === 0 ? ''+unit+' 미지정'
                             : classResources.find((r: any) => r.week === week)?.topic
-                              ? `${week}주차 — ${classResources.find((r: any) => r.week === week).topic}`
-                              : `${week}주차`;
+                              ? `${week}${unit} — ${classResources.find((r: any) => r.week === week).topic}`
+                              : `${week}${unit}`;
                           const weekItems = grouped[week];
                           return (
                             <div key={week} className="space-y-3">
@@ -5841,7 +5846,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
                       }`}
                     >
-                      전체 주차
+                      전체 {unit}
                     </button>
                     {Array.from(new Set(boardPosts.map(p => p.week_number).filter(Boolean))).sort((a,b)=>a-b).map(w => (
                       <button
@@ -5853,7 +5858,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                             : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
                         }`}
                       >
-                        {w}주차
+                        {w}{unit}
                       </button>
                     ))}
                   </div>
@@ -5909,6 +5914,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       section={section}
                       variant="student"
                       ctx={{
+                        unit,
                         now: boardNow,
                         freshKeys: boardFreshKeys,
                         onOpen: setBoardSelectedPost,
@@ -6439,8 +6445,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
 
       {/* 이 화면 도움말 (활동 기록·결과 제출) — 메뉴 소개 투어가 열려 있는 동안은 쉬어 간다 */}
       <StudentScreenTour
-        screenKey={STUDENT_SCREENS[activeTab] ? activeTab : null}
-        screens={STUDENT_SCREENS}
+        screenKey={studentScreens[activeTab] ? activeTab : null}
+        screens={studentScreens}
         storagePrefix="student_main_tour_v1"
         suspended={showGuideModal}
         hideButton
@@ -6450,7 +6456,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       {/* 인터랙티브 가이드 투어 */}
       {showGuideModal && (
         <TourGuide
-          steps={getTourSteps(classResources.length > 1)}
+          steps={getTourSteps(classResources.length > 1, unit)}
           onClose={handleCloseGuide}
         />
       )}
@@ -6603,10 +6609,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
           let weekLabel: string | null = null;
           if (isObs) {
             const matched = weeklyPlan.find(p => norm(p.topic) === norm(detailItem.activity_name || ''));
-            if (matched) weekLabel = `${matched.week}주차 · ${matched.topic}`;
+            if (matched) weekLabel = `${matched.week}${unit} · ${matched.topic}`;
           } else if (detailItem.week_number) {
             const topic = weeklyPlan.find(p => p.week === detailItem.week_number)?.topic;
-            weekLabel = topic ? `${detailItem.week_number}주차 · ${topic}` : `${detailItem.week_number}주차`;
+            weekLabel = topic ? `${detailItem.week_number}${unit} · ${topic}` : `${detailItem.week_number}${unit}`;
           }
 
           const imagePublicUrls = !isObs && (detailItem.result_type === 'image' || detailItem.submission_type === 'image')
@@ -6935,7 +6941,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           {isMe && <span className="ml-1.5 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
                         </p>
                         <p className="text-sm text-on-surface-variant font-bold">
-                          {p.week_number ? `${p.week_number}주차 · ` : ''}
+                          {p.week_number ? `${p.week_number}${unit} · ` : ''}
                           {new Date(p.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
                           <span className={isObs ? 'text-violet-600' : 'text-emerald-600'}>
@@ -7282,12 +7288,12 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                 <div className="flex-1">
                   <p className="font-black text-on-surface text-base leading-snug">
                     {reminderModal.type === 'need_result'
-                      ? `${reminderModal.week}주차 결과물도 제출해주세요!`
-                      : `${reminderModal.week}주차 활동 기록도 작성해주세요!`}
+                      ? `${reminderModal.week}${unit} 결과물도 제출해주세요!`
+                      : `${reminderModal.week}${unit} 활동 기록도 작성해주세요!`}
                   </p>
                   <p className="text-sm text-on-surface-variant/70 mt-1.5 leading-relaxed">
                     {reminderModal.type === 'need_result'
-                      ? `"${reminderModal.topic}" 활동 기록은 제출됐어요.\n이번 주차 결과물도 함께 제출해야 완성돼요.`
+                      ? `"${reminderModal.topic}" 활동 기록은 제출됐어요.\n이번 ${unit} 결과물도 함께 제출해야 완성돼요.`
                       : `"${reminderModal.topic}" 결과물은 제출됐어요.\n활동 기록도 빠짐없이 작성해주세요.`}
                   </p>
                 </div>
