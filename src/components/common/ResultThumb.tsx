@@ -57,6 +57,14 @@ export const pickThumb = (
 /** 화면에 보일 때만 HTML을 불러와, 격리된 작은 창(스크립트만 허용)으로 축소해서 보여준다 */
 const HtmlThumb = ({ url, label }: { url: string; label?: string }) => {
   const boxRef = useRef<HTMLDivElement>(null);
+  // srcdoc 문서의 상대 경로(이미지 등)가 우리 서버로 가 404 요청이 쌓이지 않도록 기준 주소를 막는다
+  const withNoBase = (src: string) => {
+    const tag = '<base href="about:blank">';
+    const fixed = src.replace(/(\s(?:src|href)\s*=\s*["'])\/\//gi, '$1https://');
+    if (/<head[^>]*>/i.test(fixed)) return fixed.replace(/<head([^>]*)>/i, `<head$1>${tag}`);
+    if (/^\s*<!doctype[^>]*>/i.test(fixed)) return fixed.replace(/^(\s*<!doctype[^>]*>)/i, `$1${tag}`);
+    return tag + fixed;
+  };
   const [visible, setVisible] = useState(false);
   const [html, setHtml] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -95,7 +103,7 @@ const HtmlThumb = ({ url, label }: { url: string; label?: string }) => {
       {html && !failed ? (
         <iframe
           title="결과 미리보기"
-          srcDoc={html}
+          srcDoc={withNoBase(html)}
           sandbox="allow-scripts"
           tabIndex={-1}
           loading="lazy"
