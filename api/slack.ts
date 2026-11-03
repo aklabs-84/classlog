@@ -621,12 +621,8 @@ async function handleCostCheck(req: any, res: any) {
   // Vercel: 이번 달 청구액 합계
   try {
     const h = { Authorization: `Bearer ${vToken}` };
-    let teamId = process.env.VERCEL_TEAM_ID;
-    if (!teamId) {
-      const t = await fetch('https://api.vercel.com/v2/teams?limit=20', { headers: h }).then(r => r.json());
-      teamId = t?.teams?.[0]?.id;
-      out.vercelTeams = (t?.teams ?? []).length;
-    }
+    // 팀 번호는 비밀이 아닌 식별자 (.vercel/project.json 의 orgId)
+    const teamId = process.env.VERCEL_TEAM_ID || 'team_8GOONgOcodcsEvdh1G8fAu0h';
     const now = new Date();
     const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
     const to = new Date(Date.now() + 86400000).toISOString();
