@@ -606,6 +606,54 @@ async function handleUsageAlert(req: any, res: any) {
   return res.status(200).json({ ok: true });
 }
 
+// 매일 비용·요청 수 점검 — Vercel 이번 달 청구액, Supabase 요청 수 (읽기 전용 토큰은 서버 환경변수에만 있음)
+async function handleCostCheck(req: any, res: any) {
+  const webhookSecret = process.env.PUSH_WEBHOOK_SECRET;
+  const authHeader    = req.headers.authorization ?? '';
+  if (!webhookSecret || authHeader !== `Bearer ${webhookSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const vToken = process.env.VERCEL_USAGE_TOKEN;
+  const sToken = process.env.SUPABASE_USAGE_TOKEN;
+  const ref    = (process.env.VITE_SUPABASE_URL ?? '').replace(/^https:\/\//, '').split('.')[0];
+  const out: any = {};
+
+  // Vercel: 이번 달 청구액 합계
+  try {
+    const h = { Authorization: `Bearer ${vToken}` };
+    let teamId = process.env.VERCEL_TEAM_ID;
+    if (!teamId) {
+      const t = await fetch('https://api.vercel.com/v2/teams?limit=20', { headers: h }).then(r => r.json());
+      teamId = t?.teams?.[0]?.id;
+      out.vercelTeams = (t?.teams ?? []).length;
+    }
+    const now = new Date();
+    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const to = new Date(Date.now() + 86400000).toISOString();
+    const r = await fetch(`https://api.vercel.com/v1/billing/charges?teamId=${teamId}&from=${from}&to=${to}`, { headers: h });
+    const text = await r.text();
+    out.vercelStatus = r.status;
+    if (r.ok) {
+      const rows = text.split('\n').filter(Boolean).map(l => JSON.parse(l));
+      out.vercelRows = rows.length;
+      out.vercelKeys = rows[0] ? Object.keys(rows[0]).slice(0, 30) : [];
+      out.vercelBilled = rows.reduce((s, x) => s + Number(x.BilledCost ?? 0), 0);
+      out.vercelEffective = rows.reduce((s, x) => s + Number(x.EffectiveCost ?? 0), 0);
+    } else out.vercelBody = text.slice(0, 300);
+  } catch (e: any) { out.vercelError = e?.message; }
+
+  // Supabase: 요청 수
+  try {
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/usage.api-counts?interval=1day`, {
+      headers: { Authorization: `Bearer ${sToken}` },
+    });
+    out.supabaseStatus = r.status;
+    out.supabaseBody = (await r.text()).slice(0, 800);
+  } catch (e: any) { out.supabaseError = e?.message; }
+
+  return res.status(200).json(out);
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -621,5 +669,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'training-request') return handleTrainingRequest(req, res);
   if (type === 'flagged-suggestion') return handleFlaggedSuggestion(req, res);
   if (type === 'usage-alert') return handleUsageAlert(req, res);
+  if (type === 'cost-check') return handleCostCheck(req, res);
   return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request | flagged-suggestion | usage-alert)' });
 }
