@@ -624,7 +624,10 @@ async function handleCostCheck(req: any, res: any) {
     // 팀 번호는 비밀이 아닌 식별자 (.vercel/project.json 의 orgId)
     const teamId = process.env.VERCEL_TEAM_ID || 'team_8GOONgOcodcsEvdh1G8fAu0h';
     const now = new Date();
-    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    // 청구 기간은 매달 2일 시작 (Vercel Billing 화면의 기간 기준)
+    const billingDay = Number(process.env.VERCEL_BILLING_DAY || 2);
+    const startMonth = now.getUTCDate() >= billingDay ? now.getUTCMonth() : now.getUTCMonth() - 1;
+    const from = new Date(Date.UTC(now.getUTCFullYear(), startMonth, billingDay)).toISOString();
     const to = new Date(Date.now() + 86400000).toISOString();
     const r = await fetch(`https://api.vercel.com/v1/billing/charges?teamId=${teamId}&from=${from}&to=${to}`, { headers: h });
     const text = await r.text();
