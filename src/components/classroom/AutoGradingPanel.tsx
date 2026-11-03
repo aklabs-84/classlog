@@ -48,6 +48,8 @@ interface EvalFormValue {
 }
 
 interface AutoGradingPanelProps {
+  /** 수업 단위 낱말 (기본 '주차') */
+  unit?: string;
   classId: string;
   teacherId: string;
   weeklyPlan: { week: number; topic: string }[];
@@ -65,7 +67,7 @@ async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGradingPanelProps) => {
+const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students, unit = '주차' }: AutoGradingPanelProps) => {
   const sortedWeeks = useMemo(() => [...weeklyPlan].sort((a, b) => a.week - b.week), [weeklyPlan]);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(sortedWeeks[0]?.week ?? null);
   const [rubric, setRubric] = useState(() => getLastRubric(classId));
@@ -272,10 +274,10 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
     <div className="max-w-5xl mx-auto space-y-7">
       <LimitToastView message={limitToastMessage} />
 
-      {/* 주차 선택 */}
+      {/* 주차(차시) 선택 */}
       <div className="flex items-center gap-2.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 scrollbar-thin">
         {sortedWeeks.length === 0 ? (
-          <p className="text-sm font-bold text-on-surface-variant/60">주차별 계획이 없습니다. 클래스 설정에서 먼저 주차별 계획을 등록해주세요.</p>
+          <p className="text-sm font-bold text-on-surface-variant/60">{unit}별 계획이 없습니다. 클래스 설정에서 먼저 {unit}별 계획을 등록해주세요.</p>
         ) : sortedWeeks.map(w => (
           <button
             key={w.week}
@@ -288,7 +290,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
             onClick={() => setSelectedWeek(w.week)}
             className={`shrink-0 whitespace-nowrap px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${selectedWeek === w.week ? 'bg-on-surface text-surface' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container/70'}`}
           >
-            {w.week}주차 · {w.topic}
+            {w.week}{unit} · {w.topic}
           </button>
         ))}
       </div>
@@ -319,7 +321,7 @@ const AutoGradingPanel = ({ classId, teacherId, weeklyPlan, students }: AutoGrad
         <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-primary" /></div>
       ) : groups.length === 0 ? (
         <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-          <p className="text-sm font-bold text-on-surface-variant">{selectedWeek === null ? '주차를 선택해주세요.' : '이 주차에 제출된 결과물이 없습니다.'}</p>
+          <p className="text-sm font-bold text-on-surface-variant">{selectedWeek === null ? `${unit}을(를) 선택해주세요.` : `이 ${unit}에 제출된 결과물이 없습니다.`}</p>
         </div>
       ) : (
         <div className="space-y-4">

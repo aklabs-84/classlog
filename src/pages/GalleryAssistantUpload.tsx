@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Camera, CheckCircle2, Loader2, AlertCircle, Link2, UserCheck } from 'lucide-react';
 import { checkUploadLink, uploadViaLink, submitVideoLink, type LinkInfo } from '../lib/galleryAssistant';
 import { plainDrop } from '../hooks/useFileDrop';
+import { toUnitLabel } from '../lib/unitLabel';
 import AssistantAttendance from '../components/classroom/AssistantAttendance';
 
 const NAME_KEY = 'gallery_assistant_name';
@@ -26,6 +27,7 @@ const GalleryAssistantUpload = () => {
   const [week, setWeek] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isTeacher = !!info?.teacher;
+  const unit = toUnitLabel(info?.unit_label);
 
   useEffect(() => {
     checkUploadLink(token).then(res => {
@@ -130,14 +132,14 @@ const GalleryAssistantUpload = () => {
           )}
           {mode === 'upload' && (info?.weeks?.length ?? 0) > 0 && (
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">몇 주차 사진인가요?</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">몇 {unit} 사진인가요?</label>
               <select
                 value={week ?? ''}
                 onChange={e => setWeek(e.target.value ? Number(e.target.value) : null)}
                 className="w-full border border-gray-300 rounded-xl px-3 py-3 text-base bg-white outline-none focus:border-indigo-500"
               >
-                <option value="">주차 없음 (하루짜리 수업이에요)</option>
-                {info!.weeks!.map(w => <option key={w} value={w}>{w}주차</option>)}
+                <option value="">{unit} 없음 (하루짜리 수업이에요)</option>
+                {info!.weeks!.map(w => <option key={w} value={w}>{w}{unit}</option>)}
               </select>
             </div>
           )}

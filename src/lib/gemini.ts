@@ -936,7 +936,7 @@ export async function validateTeacherPrompt(
 
 [시스템이 AI에게 제공하는 데이터]
 - 학생의 활동 기록 (활동명 + 학생이 직접 작성한 내용 텍스트)
-- 교사가 선택한 주차(전체 주차 또는 특정 주차)의 기록이 전달됨
+- 교사가 선택한 주차/차시(전체 또는 특정 회차)의 기록이 전달됨
 
 [시스템이 절대 할 수 없는 것]
 - 날짜/기간으로 필터링 (날짜 정보가 전달되지 않음)
@@ -1186,11 +1186,15 @@ export type CopilotModeId =
   | 'school_project_assistant'
   | 'app_guide';
 
+const copilotUnit = (u?: string) => (u === '차시' ? '차시' : '주차');
+
 export interface CopilotChatContext {
   className?: string;
   classId?: string;
   subject?: string;
   weeklyPlan?: { week: number; topic: string }[];
+  /** 수업 단위 이름 ('주차' 기본, 하루 수업은 '차시') */
+  unit?: string;
   observations?: any[];
   referenceMaterials?: { title: string; content: string }[];
   libraryIndex?: { title: string; snippet: string }[];
@@ -1216,9 +1220,9 @@ const COPILOT_ENGINE: Record<CopilotModeId, CopilotEngineEntry> = {
     model: 'pro',
     feature: 'lesson_plan_copilot',
     trimHistory: true,
-    buildSystemInstruction: ({ className, subject, weeklyPlan, observations, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.LESSON_PLAN_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    buildSystemInstruction: ({ className, subject, weeklyPlan, unit, observations, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.LESSON_PLAN_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
-${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 기획과 자연스럽게 이어지거나 시간표가 겹치면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 ${copilotUnit(unit) === '차시' ? '차시별' : '주간'} 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}${copilotUnit(unit)}: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 기획과 자연스럽게 이어지거나 시간표가 겹치면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
 ${observations && observations.length > 0 ? `\n[이 클래스의 최근 관찰 기록 (참고용)]\n${JSON.stringify(formatObservationsForChat(observations))}\n(이 학급 학생들의 실제 성향·참여 패턴을 활동 설계에 참고하세요. 예: 특정 활동 유형에서 참여도가 높았다면 비슷한 형태를 제안. 단, 계획안 본문에는 학생 이름이나 특정 개인을 특정할 수 있는 표현을 그대로 적지 말고 "이 반은~" 같은 일반화된 표현으로 반영하세요.)\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
 ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 톤·형식·활동 아이디어를 이번 기획에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 수업 맥락에 맞게 각색하세요.)\n` : ''}`,
@@ -1228,9 +1232,9 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'observation_analyst_copilot',
     trimHistory: true,
-    buildSystemInstruction: ({ className, weeklyPlan, observations }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.OBSERVATION_ANALYST}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    buildSystemInstruction: ({ className, weeklyPlan, unit, observations }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.OBSERVATION_ANALYST}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}\n` : ''}
-${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 ${copilotUnit(unit) === '차시' ? '차시별' : '주간'} 수업 계획 — 가장 최근에 만들어진 ${copilotUnit(unit)}는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}${copilotUnit(unit)}: ${p.topic}`).join('\n')}\n` : ''}
 ${observations && observations.length > 0
     ? `\n[이 클래스의 관찰 기록]\n${JSON.stringify(formatObservationsForChat(observations))}\n(교사가 직접 작성한 기록과 학생이 제출해 승인/대기 중인 기록이 함께 포함되어 있습니다. 위 데이터에 근거해서만 답변하세요.)\n`
     : '\n[참고] 아직 이 클래스의 관찰 기록 데이터가 없습니다. 클래스를 선택하도록 안내하거나 일반적인 조언만 제공하세요.\n'}`,
@@ -1242,9 +1246,9 @@ ${observations && observations.length > 0
     model: 'pro',
     feature: 'slide_deck_copilot',
     trimHistory: true,
-    buildSystemInstruction: ({ className, subject, weeklyPlan, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SLIDE_DECK_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    buildSystemInstruction: ({ className, subject, weeklyPlan, unit, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SLIDE_DECK_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
-${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 슬라이드와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 ${copilotUnit(unit) === '차시' ? '차시별' : '주간'} 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}${copilotUnit(unit)}: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 슬라이드와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
 ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 내용이나 흐름을 이번 슬라이드에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`,
   },
@@ -1255,10 +1259,10 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'material_copilot',
     trimHistory: true,
-    buildSystemInstruction: ({ className, subject, weeklyPlan, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.MATERIAL_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    buildSystemInstruction: ({ className, subject, weeklyPlan, unit, libraryIndex, referenceMaterials }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.MATERIAL_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${RICH_FORMATTING_GUIDE}
 ${className ? `\n[현재 대화 중인 클래스] ${className}${subject ? ` · ${subject}` : ''}\n` : ''}
-${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 주간 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 자료와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[이 클래스의 ${copilotUnit(unit) === '차시' ? '차시별' : '주간'} 수업 계획]\n${weeklyPlan.map(p => `- ${p.week}${copilotUnit(unit)}: ${p.topic}`).join('\n')}\n(참고만 하세요. 이번 자료와 자연스럽게 이어지면 짧게 언급하고, 관련 없으면 무시하세요.)\n` : ''}
 ${libraryIndex && libraryIndex.length > 0 ? `\n[선생님의 공통 자료함 목록 — 특정 클래스에 속하지 않은 전체 자료의 제목과 요약]\n${libraryIndex.map(m => `- ${m.title}: ${m.snippet}`).join('\n')}\n("공통자료에 뭐 있어?" 같은 질문에는 이 목록으로 실제 제목을 들어 답하세요. 목록에 없는 자료를 지어내지 마세요. 아래 [선생님이 불러온 과거 자료]에 본문이 없는 자료는 요약만 아는 상태이니, 자세한 내용이 필요하면 그렇다고 말하세요.)\n` : ''}
 ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러온 과거 자료]\n${referenceMaterials.map(r => `### ${r.title}\n${r.content.slice(0, 3000)}`).join('\n\n')}\n(선생님이 직접 이 자료들이 참고할 만하다고 판단해 불러왔거나, 이번 메시지와 의미가 비슷해 자동으로 불러온 자료입니다. 톤·형식·구성 아이디어를 이번 자료에 자연스럽게 이어가거나 재활용하세요. 그대로 베끼지 말고 이번 맥락에 맞게 각색하세요.)\n` : ''}`,
   },
@@ -1298,10 +1302,10 @@ ${referenceMaterials && referenceMaterials.length > 0 ? `\n[선생님이 불러�
     model: 'pro',
     feature: 'class_manager_copilot',
     trimHistory: true,
-    buildSystemInstruction: ({ className, existingClassNames, weeklyPlan }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.CLASS_MANAGER_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
+    buildSystemInstruction: ({ className, existingClassNames, weeklyPlan, unit }) => `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.CLASS_MANAGER_COPILOT}${SYSTEM_INSTRUCTIONS.PRIVACY}
 ${className ? `\n[현재 대화 중인 학급] ${className}\n` : '\n[현재 대화 중인 학급] 아직 선택된 학급이 없습니다.\n'}
 ${existingClassNames && existingClassNames.length > 0 ? `\n[선생님의 기존 학급 목록] ${existingClassNames.join(', ')}\n` : ''}
-${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 주간 수업 계획 — 가장 최근에 만들어진 주차는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}주차: ${p.topic}`).join('\n')}\n` : ''}`,
+${weeklyPlan && weeklyPlan.length > 0 ? `\n[현재 학급의 ${copilotUnit(unit) === '차시' ? '차시별' : '주간'} 수업 계획 — 가장 최근에 만들어진 ${copilotUnit(unit)}는 이 목록의 마지막 항목입니다]\n${weeklyPlan.map(p => `- ${p.week}${copilotUnit(unit)}: ${p.topic}`).join('\n')}\n` : ''}`,
   },
 
   // 사업 도우미: 학교 프로젝트 화면의 플로팅 패널(FloatingCopilot.tsx) 전용. 학교/반 생성, 계획 복사, 학교 복사, 학생 명단 등록을

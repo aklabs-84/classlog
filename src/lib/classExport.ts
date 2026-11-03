@@ -55,13 +55,15 @@ export interface ClassExportInput {
   /** 출석 요약(학급이 공개한 경우에만 전달) */
   attendance?: { total: number; byStatus: Record<string, number> } | null;
   includeNames: boolean;
+  /** 수업 단위 이름 ('주차' 기본, 하루 수업은 '차시') */
+  unit?: string;
 }
 
 const fmtDate = (v: string) => {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ko-KR');
 };
-const weekLabel = (w: number | null) => (w != null ? `${w}주차` : '');
+const weekLabel = (w: number | null, unit = '주차') => (w != null ? `${w}${unit}` : '');
 const statusText = (s?: string | null) => (s === 'done' || s === 'final' ? '완료' : s === 'draft' ? '초안' : '미작성');
 
 export function exportTodayStr() {
@@ -98,6 +100,7 @@ interface Tables {
 
 function buildTables(input: ClassExportInput): Tables {
   const { students, evalMap, includeNames } = input;
+  const unit = input.unit || '주차';
   const sorted = sortedStudents(students);
   const who = (s: ExportStudent, idx: number) => ({
     num: s.student_number ?? '',
@@ -120,12 +123,12 @@ function buildTables(input: ClassExportInput): Tables {
     const w = who(s, i);
     [...s.observations]
       .sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0) || a.created_at.localeCompare(b.created_at))
-      .forEach(o => obsRows.push([w.num, w.name, weekLabel(o.week_number), o.activity_name || '', o.content || '', fmtDate(o.created_at)]));
+      .forEach(o => obsRows.push([w.num, w.name, weekLabel(o.week_number, unit), o.activity_name || '', o.content || '', fmtDate(o.created_at)]));
     [...s.resultGroups]
       .sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0) || a.created_at.localeCompare(b.created_at))
       .forEach(g => {
         const c = resultContent(g.items);
-        resRows.push([w.num, w.name, weekLabel(g.week_number), g.isGroupSubmission ? '조별' : '개인', g.title || '', c.text, c.kind, fmtDate(g.created_at)]);
+        resRows.push([w.num, w.name, weekLabel(g.week_number, unit), g.isGroupSubmission ? '조별' : '개인', g.title || '', c.text, c.kind, fmtDate(g.created_at)]);
         const imgUrls = g.items.flatMap(it => (it.image_urls && it.image_urls.length > 0 ? it.image_urls : it.image_url ? [it.image_url] : []));
         resLinks.push(imgUrls.filter(u => /^https?:\/\//.test(u)).map((u, i) => ({ text: imgUrls.length > 1 ? `이미지 ${i + 1} 보기` : '이미지 보기', url: u })));
       });
@@ -141,7 +144,7 @@ function buildTables(input: ClassExportInput): Tables {
     s.resultGroups.forEach(g => { if (g.week_number != null) { const e = ensure(g.week_number); e.res++; e.people.add(s.id); } });
   });
   const weeklyRows = Array.from(weekMap.entries()).sort((a, b) => a[0] - b[0])
-    .map(([w, e]) => [`${w}주차`, e.obs, e.res, e.people.size]);
+    .map(([w, e]) => [`${w}${unit}`, e.obs, e.res, e.people.size]);
 
   const setechRows: (string | number)[][] = [];
   sorted.forEach((s, i) => {
@@ -172,6 +175,7 @@ const N = (value: string | number | null): XCell => ({ value, style: 'num' });
 export function buildClassSheets(input: ClassExportInput): XSheet[] {
   const t = buildTables(input);
   const { students, surveys, attendance } = input;
+  const unit = input.unit || '주차';
   const submitters = students.filter(s => s.observations.length > 0 || s.resultGroups.length > 0).length;
   const totalObs = students.reduce((a, s) => a + s.observations.length, 0);
   const totalRes = students.reduce((a, s) => a + s.resultGroups.length, 0);
@@ -198,8 +202,8 @@ export function buildClassSheets(input: ClassExportInput): XSheet[] {
   }
   if (t.weeklyRows.length > 0) {
     sum.push([null, null, null, null]);
-    sum.push([{ value: '주차별 현황', style: 'section', span: 4 }, null, null, null]);
-    sum.push([H('주차'), H('활동 기록'), H('결과물'), H('참여 학생')]);
+    sum.push([{ value: `${unit}별 현황`, style: 'section', span: 4 }, null, null, null]);
+    sum.push([H(unit), H('활동 기록'), H('결과물'), H('참여 학생')]);
     t.weeklyRows.forEach(r => sum.push([C(r[0]), N(r[1]), N(r[2]), N(r[3])]));
   }
 
@@ -219,7 +223,7 @@ export function buildClassSheets(input: ClassExportInput): XSheet[] {
     sheets.push({
       name: '활동 기록', colWidths: [8, 16, 10, 22, 60, 13], freezeRows: 1, filterRow: 1,
       rows: [
-        [H('번호'), H(t.overviewHeader[1]), H('주차'), H('활동명'), H('내용'), H('날짜')],
+        [H('번호'), H(t.overviewHeader[1]), H(unit), H('활동명'), H('내용'), H('날짜')],
         ...t.obsRows.map(r => r.map((v, i) => (i === 3 || i === 4 || i === 1 ? C(v) : N(v)))),
       ],
     });
@@ -230,7 +234,7 @@ export function buildClassSheets(input: ClassExportInput): XSheet[] {
     sheets.push({
       name: '결과물', colWidths: [8, 16, 10, 9, 24, 60, 12, 13, ...linkHeads.map(() => 14)], freezeRows: 1, filterRow: 1,
       rows: [
-        [H('번호'), H(t.overviewHeader[1]), H('주차'), H('구분'), H('제목'), H('내용'), H('종류'), H('날짜'), ...linkHeads.map(h => H(h))],
+        [H('번호'), H(t.overviewHeader[1]), H(unit), H('구분'), H('제목'), H('내용'), H('종류'), H('날짜'), ...linkHeads.map(h => H(h))],
         ...t.resRows.map((r, ri) => [
           ...r.map((v, i) => (i === 4 || i === 5 || i === 1 ? C(v) : N(v))),
           ...linkHeads.map((_, k): XCell => {
@@ -298,6 +302,7 @@ export interface ShareSheetInput {
   evalMap: Record<string, ExportEval | undefined>;
   surveys: ExportSurveyForm[];
   attendance?: { total: number; byStatus: Record<string, number> } | null;
+  unit?: string;
 }
 
 /**
@@ -306,6 +311,7 @@ export interface ShareSheetInput {
  */
 export function buildShareSheets(input: ShareSheetInput): XSheet[] {
   const { students, evalMap, surveys, attendance } = input;
+  const unit = input.unit || '주차';
   const sorted = [...students].sort((a, b) => (a.student_number ?? 9999) - (b.student_number ?? 9999) || a.full_name.localeCompare(b.full_name, 'ko'));
   const label = (s: ShareSheetStudent) => `${s.student_number != null ? `${s.student_number}번 ` : ''}${s.full_name}`;
   const hasSetech = (s: ShareSheetStudent) => !!evalMap[s.id]?.setech_content;
@@ -342,7 +348,7 @@ export function buildShareSheets(input: ShareSheetInput): XSheet[] {
   // ── 결과 ──
   const resStudents = sorted.filter(s => s.results.length > 0);
   if (resStudents.length > 0) {
-    const rows: (XCell | null)[][] = [[H('번호'), H('이름'), H('주차'), H('제목'), H('내용'), H('종류'), H('날짜'), H('결과 보기'), H('결과 보기 2'), H('결과 보기 3')]];
+    const rows: (XCell | null)[][] = [[H('번호'), H('이름'), H(unit), H('제목'), H('내용'), H('종류'), H('날짜'), H('결과 보기'), H('결과 보기 2'), H('결과 보기 3')]];
     resStudents.forEach(s => {
       rows.push([{ value: `${label(s)} · 결과물 ${s.results.length}건`, style: 'section', span: 10 }, null, null, null, null, null, null, null, null, null]);
       [...s.results]
@@ -359,7 +365,7 @@ export function buildShareSheets(input: ShareSheetInput): XSheet[] {
             ...imgs.map((u, i) => ({ text: imgs.length > 1 ? `이미지 ${i + 1} 보기` : '이미지 보기', url: u })),
           ].filter(l => /^https?:\/\//.test(l.url)).slice(0, 3);
           const linkCell = (i: number): XCell => (links[i] ? { value: links[i].text, style: 'link', url: links[i].url } : C(''));
-          rows.push([N(s.student_number ?? ''), C(s.full_name), N(weekLabel(r.week_number)), C(r.title || ''), C(c.text), N(c.kind), N(fmtDate(r.created_at)), linkCell(0), linkCell(1), linkCell(2)]);
+          rows.push([N(s.student_number ?? ''), C(s.full_name), N(weekLabel(r.week_number, unit)), C(r.title || ''), C(c.text), N(c.kind), N(fmtDate(r.created_at)), linkCell(0), linkCell(1), linkCell(2)]);
         });
     });
     sheets.push({ name: '결과', colWidths: [8, 14, 10, 24, 55, 12, 13, 13, 13, 13], freezeRows: 1, rows });
@@ -368,13 +374,13 @@ export function buildShareSheets(input: ShareSheetInput): XSheet[] {
   // ── 기록 (활동 기록 + 세특) ──
   const recStudents = sorted.filter(s => s.obs.length > 0 || hasSetech(s));
   if (recStudents.length > 0) {
-    const rows: (XCell | null)[][] = [[H('번호'), H('이름'), H('구분'), H('주차 / 성취도'), H('활동명'), H('내용'), H('날짜')]];
+    const rows: (XCell | null)[][] = [[H('번호'), H('이름'), H('구분'), H(`${unit} / 성취도`), H('활동명'), H('내용'), H('날짜')]];
     recStudents.forEach(s => {
       const ev = evalMap[s.id];
       rows.push([{ value: `${label(s)} · 활동 기록 ${s.obs.length}건${hasSetech(s) ? ' · 세특 있음' : ''}`, style: 'section', span: 7 }, null, null, null, null, null, null]);
       [...s.obs]
         .sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0) || a.created_at.localeCompare(b.created_at))
-        .forEach(o => rows.push([N(s.student_number ?? ''), C(s.full_name), N('활동 기록'), N(weekLabel(o.week_number)), C(o.activity_name || ''), C(o.content || ''), N(fmtDate(o.created_at))]));
+        .forEach(o => rows.push([N(s.student_number ?? ''), C(s.full_name), N('활동 기록'), N(weekLabel(o.week_number, unit)), C(o.activity_name || ''), C(o.content || ''), N(fmtDate(o.created_at))]));
       if (hasSetech(s) && ev) {
         rows.push([N(s.student_number ?? ''), C(s.full_name), N('세특'), N(ev.achievement_level ? `성취도 ${ev.achievement_level}` : ''), C(statusText(ev.status)), C(ev.setech_content), N(`${ev.setech_content.length}자`)]);
       }

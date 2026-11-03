@@ -80,7 +80,7 @@ export async function setReviewStatus(ids: string[], status: ReviewStatus): Prom
 }
 
 // ── 보조강사(비로그인) 쪽 ──────────────────────────────────────────────
-export interface LinkInfo { class_name: string; weeks?: number[]; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null; attendance_enabled?: boolean; student_add_enabled?: boolean }
+export interface LinkInfo { class_name: string; unit_label?: string; weeks?: number[]; used_today: number; daily_limit: number; teacher?: boolean; teacher_name?: string | null; attendance_enabled?: boolean; student_add_enabled?: boolean }
 
 // 로그인해 있으면 그 정보를 함께 보내 서버가 '주강사'인지 확인하게 한다 (없으면 보조강사로 취급)
 async function buildHeaders(): Promise<Record<string, string>> {

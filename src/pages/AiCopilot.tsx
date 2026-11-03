@@ -528,7 +528,7 @@ const AiCopilotChat = () => {
   const [loading, setLoading] = useState(false);
   // 채팅 내 슬라이드 템플릿 픽커 — 레이아웃 그룹별로 고른 색상 테마 인덱스(TemplateGallery와 동일한 방식)
   const [slideThemeIdxByGroup, setSlideThemeIdxByGroup] = useState<Record<string, number>>({});
-  const [classes, setClasses] = useState<{ id: string; name: string; subject?: string; class_type?: string; weekly_plan?: { week: number; topic: string }[] }[]>([]);
+  const [classes, setClasses] = useState<{ id: string; name: string; subject?: string; class_type?: string; weekly_plan?: { week: number; topic: string }[]; unit_label?: string }[]>([]);
   const [selectedClassId, setSelectedClassId] = useState(persistedState.selectedClassId || '');
   const [monthAiCount, setMonthAiCount] = useState(0);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -582,7 +582,7 @@ const AiCopilotChat = () => {
 
   useEffect(() => {
     if (!user?.id) return;
-    supabase.from('classes').select('id, name, subject, class_type, weekly_plan, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).then(({ data }) => {
+    supabase.from('classes').select('id, name, subject, class_type, weekly_plan, unit_label, school_project_id, parent_class_id, assigned_teacher_id').eq('teacher_id', user.id).then(({ data }) => {
       if (data) setClasses(filterMyTeachingClasses(data, user.id));
     });
   }, [user?.id]);
@@ -923,6 +923,7 @@ const AiCopilotChat = () => {
             classId: selectedClassId || undefined,
             subject: selectedClass?.subject,
             weeklyPlan: selectedClass?.weekly_plan,
+            unit: selectedClass?.unit_label,
             observations: lessonPlanObservations,
             referenceMaterials: activeReferences,
             libraryIndex,
@@ -933,6 +934,7 @@ const AiCopilotChat = () => {
             classId: selectedClassId || undefined,
             subject: selectedClass?.subject,
             weeklyPlan: selectedClass?.weekly_plan,
+            unit: selectedClass?.unit_label,
             referenceMaterials: activeReferences,
             libraryIndex,
           })
@@ -957,6 +959,7 @@ const AiCopilotChat = () => {
             classId: selectedClassId || undefined,
             existingClassNames: classes.map(c => c.name),
             weeklyPlan: selectedClass?.weekly_plan,
+            unit: selectedClass?.unit_label,
           })
         : modeAtSend === 'app_guide'
         ? await chatWithCopilot(engineMode, history, userMessage, {
@@ -969,6 +972,7 @@ const AiCopilotChat = () => {
             classId: selectedClassId || undefined,
             observations: analystObservations,
             weeklyPlan: selectedClass?.weekly_plan,
+            unit: selectedClass?.unit_label,
           });
       setMessagesByMode(prev => ({
         ...prev,

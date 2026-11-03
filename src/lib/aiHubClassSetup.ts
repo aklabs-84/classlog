@@ -59,7 +59,8 @@ export async function linkPrimaryToolMaterials({
     return null;
   };
 
-  const { data: clsRow } = await supabase.from('classes').select('weekly_plan, parent_class_id').eq('id', classId).single();
+  const { data: clsRow } = await supabase.from('classes').select('weekly_plan, parent_class_id, unit_label').eq('id', classId).single();
+  const unit = clsRow?.unit_label === '차시' ? '차시' : '주차';
   const canPoint = !clsRow?.parent_class_id;
   const nextPlan: any[] = Array.isArray(clsRow?.weekly_plan) ? [...clsRow!.weekly_plan] : [];
   let planChanged = false;
@@ -106,7 +107,7 @@ export async function linkPrimaryToolMaterials({
         class_id: classId,
         teacher_id: teacherId,
         week_number: week,
-        title: `${app.name} ${week}주차`,
+        title: `${app.name} ${week}${unit}`,
         content: '',
         activity_urls: [{ url: appUrl, label: app.name }],
       });

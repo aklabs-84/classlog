@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { toUnitLabel } from '../../lib/unitLabel';
 import RecapKeywordsEditor from './RecapKeywordsEditor';
 import { School, Users, Calendar, Plus, Trash2, Save, BookOpen, Package, ExternalLink, Link2, ChevronDown } from 'lucide-react';
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal, onSaved }: Props) => {
+  const unit = toUnitLabel(classInfo?.unit_label);
   const [project, setProject] = useState<any>(null);
   const [subClasses, setSubClasses] = useState<any[]>([]);
   const [weeklyPlan, setWeeklyPlan] = useState<any[]>([]);
@@ -191,7 +193,7 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal, onSa
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-black text-on-surface flex items-center gap-2">
               <BookOpen size={16} className="text-violet-500" />
-              주차별 계획
+              {unit}별 계획
             </h3>
             <span className="text-[10px] font-black text-violet-500 bg-violet-50 border border-violet-200 px-2 py-1 rounded-lg">전 반 공통 적용</span>
           </div>
@@ -206,7 +208,7 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal, onSa
               return (
                 <div key={idx} className="bg-white border border-neutral-200 rounded-xl px-3 py-2 shadow-sm group">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-lg shrink-0 w-10 text-center">{item.week}주</span>
+                    <span className="text-[10px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-lg shrink-0 w-10 text-center">{item.week}{unit === '차시' ? '차시' : '주'}</span>
                     <input
                       className="flex-1 text-sm font-bold text-on-surface bg-transparent outline-none placeholder:text-neutral-300"
                       placeholder="수업 주제 입력"
@@ -292,7 +294,7 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal, onSa
               className="flex items-center gap-1.5 px-3 py-2 bg-surface-container hover:bg-surface-container-high rounded-xl text-xs font-black text-on-surface-variant hover:text-on-surface transition-all"
             >
               <Plus size={13} strokeWidth={3} />
-              주차 추가
+              {unit} 추가
             </button>
             {classMaterials.length > 0 && (
               <span className="text-[10px] text-on-surface-variant/50 font-bold">

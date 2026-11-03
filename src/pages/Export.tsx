@@ -22,6 +22,7 @@ import { isDemoTeacher, getDemoClassId } from '../lib/demo';
 import DemoModeBanner from '../components/DemoModeBanner';
 import NaissWorkstation from '../components/export/NaissWorkstation';
 import { appToast } from '../lib/appDialog';
+import { toUnitLabel } from '../lib/unitLabel';
 
 type Scope = 'all' | 'specific';
 type Format = 'csv' | 'xlsx';
@@ -58,6 +59,7 @@ const Export = () => {
   const [selectedColumns, setSelectedColumns] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key));
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('structured');
+  const selectedUnit = toUnitLabel(classes.find(c => c.id === selectedClassId)?.unit_label);
 
   useEffect(() => { fetchClasses(); }, []);
 
@@ -284,6 +286,7 @@ const Export = () => {
         .eq('id', targetId)
         .single();
       const weeklyPlan: Array<{ week: number; topic: string }> = classInfo?.weekly_plan || [];
+      const unit = toUnitLabel(cls?.unit_label);
       const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
       const topicWeekMap: Record<string, number> = {};
       weeklyPlan.forEach(p => {
@@ -297,7 +300,7 @@ const Export = () => {
           _studentId: o.student_id,
           '학생번호': studentMap[o.student_id]?.student_number || '',
           '학생이름': studentMap[o.student_id]?.full_name || '',
-          '주차': weekNum != null ? `${weekNum}주차` : '미분류',
+          [unit]: weekNum != null ? `${weekNum}${unit}` : '미분류',
           '활동명': o.activity_name || '',
           '활동내용': o.content || '',
           '상태': o.status === 'approved' ? '승인' : o.status === 'pending' ? '대기' : (o.status || ''),
@@ -330,7 +333,7 @@ const Export = () => {
 
         appendSheet(allRows.map(toRow), '전체');
         for (const wk of weeks) {
-          appendSheet(allRows.filter(r => r._weekNum === wk).map(toRow), `${wk}주차`);
+          appendSheet(allRows.filter(r => r._weekNum === wk).map(toRow), `${wk}${unit}`);
         }
         if (hasUnclassified) {
           appendSheet(allRows.filter(r => r._weekNum === null).map(toRow), '미분류');
@@ -356,9 +359,9 @@ const Export = () => {
 
         zip.file('전체.csv', toCsv(allRows.map(toRow)));
 
-        const weekFolder = zip.folder('주차별')!;
+        const weekFolder = zip.folder(`${unit}별`)!;
         for (const wk of weeks) {
-          weekFolder.file(`${wk}주차.csv`, toCsv(allRows.filter(r => r._weekNum === wk).map(toRow)));
+          weekFolder.file(`${wk}${unit}.csv`, toCsv(allRows.filter(r => r._weekNum === wk).map(toRow)));
         }
         if (hasUnclassified) {
           weekFolder.file('미분류.csv', toCsv(allRows.filter(r => r._weekNum === null).map(toRow)));
@@ -550,15 +553,15 @@ const Export = () => {
                         onClick={() => setExportMode(v)}
                         className={`flex-1 py-3 px-4 font-bold text-[13px] rounded-lg transition-all ${exportMode === v ? 'bg-primary-container text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
                       >
-                        {v === 'simple' ? '단순 내보내기' : '주차별 + 학생별'}
+                        {v === 'simple' ? '단순 내보내기' : `${selectedUnit}별 + 학생별`}
                       </button>
                     ))}
                   </div>
                   {exportMode === 'structured' && (
                     <p className="text-[11px] text-on-surface-variant/70 px-1 leading-relaxed">
                       {format === 'xlsx'
-                        ? '전체·주차별·학생별 시트가 포함된 XLSX 파일로 저장됩니다.'
-                        : '전체/주차별/학생별 CSV가 담긴 ZIP 파일로 저장됩니다.'}
+                        ? `전체·${selectedUnit}별·학생별 시트가 포함된 XLSX 파일로 저장됩니다.`
+                        : `전체/${selectedUnit}별/학생별 CSV가 담긴 ZIP 파일로 저장됩니다.`}
                     </p>
                   )}
                 </div>

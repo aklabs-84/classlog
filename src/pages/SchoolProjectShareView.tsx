@@ -1445,6 +1445,7 @@ const SchoolProjectShareView = () => {
                       surveys: classSurveyIds(cls).map(fid => surveyDataByForm[fid]),
                       attendance: cls.show_attendance_summary ? attendanceByClass[cls.id] : null,
                       includeNames,
+                      unit: toUnitLabel(cls.unit_label),
                     });
                     const exportFileBase = () => `${project?.name || ''}${project?.name ? '_' : ''}${cls.name || '학급'}`;
 

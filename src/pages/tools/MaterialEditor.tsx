@@ -59,6 +59,7 @@ import PresentationModal from '../../components/PresentationModal';
 const SlideModeView = lazy(() => import('../../components/SlideModeView'));
 import MaterialCoverPage from '../../components/MaterialCoverPage';
 import MaterialThumbTile from '../../components/MaterialThumbTile';
+import { toUnitLabel } from '../../lib/unitLabel';
 import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
 import LimitToast, { useLimitToast, ActionToast, useActionToast } from '../../components/ui/LimitToast';
 import IdeaPRDWizard from '../../components/idea/IdeaPRDWizard';
@@ -344,6 +345,7 @@ const LinkToClassModal = ({
   const usable = classes.filter(c => !c._assignedOnly && !c.parent_class_id);
   const cls = usable.find(c => c.id === classId) ?? null;
   const plan: any[] = Array.isArray(cls?.weekly_plan) ? cls.weekly_plan : [];
+  const unit = toUnitLabel(cls?.unit_label);
 
   // weekIdx === -1 이면 맨 뒤에 새 주차를 추가한다
   const useOnWeek = async (weekIdx: number) => {
@@ -359,7 +361,7 @@ const LinkToClassModal = ({
       if (idx === next.length) next.push({ week: idx + 1, topic: '', url: '', requires_result: true, requires_activity: true });
       const cur = next[idx];
       if (cur.material_id && cur.material_id !== material.id &&
-        !await appConfirm(`${idx + 1}주차에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
+        !await appConfirm(`${idx + 1}${unit}에는 이미 다른 자료가 걸려 있어요. 이 자료로 바꿀까요? (기존 자료는 자료함에 그대로 남아요)`)) {
         setSaving(false);
         return;
       }
@@ -385,7 +387,7 @@ const LinkToClassModal = ({
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-on-surface truncate">"{material.title}" 수업에 쓰기</p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {cls ? '몇 주차에 쓸지 고르세요 (복사 없이 이 자료를 그대로 가리켜요)' : '쓸 클래스를 고르세요'}
+              {cls ? `몇 ${unit}에 쓸지 고르세요 (복사 없이 이 자료를 그대로 가리켜요)` : '쓸 클래스를 고르세요'}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0">
@@ -447,7 +449,7 @@ const LinkToClassModal = ({
                 onClick={() => useOnWeek(-1)}
                 className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border border-dashed border-primary/40 text-primary font-bold text-sm hover:bg-primary/5 transition-all"
               >
-                <Plus size={15} /> 새 주차로 추가 ({plan.length + 1}주차)
+                <Plus size={15} /> 새 {unit}로 추가 ({plan.length + 1}{unit})
               </button>
             </div>
           )}
@@ -1371,6 +1373,7 @@ const MaterialEditor = () => {
   // 클래스
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState<any>(null);
+  const unit = toUnitLabel(selectedClass?.unit_label);
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
   // 공통 자료함 — 클래스 선택 없이 만들어두고 나중에 원하는 클래스에 연결
   // 첫 화면은 클래스 선택 없이 바로 "내 자료함"(원본 보관함) — 거기서 바로 새 자료를 쓴다
@@ -1538,14 +1541,14 @@ const MaterialEditor = () => {
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, subject, class_type, weekly_plan, parent_class_id, school_project_id, assigned_teacher_id')
+      .select('id, name, subject, class_type, weekly_plan, parent_class_id, school_project_id, assigned_teacher_id, unit_label')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
       .order('created_at', { ascending: false });
     // 학교 프로젝트에서 배정받은 하위 반도 함께 보여준다 ("프로젝트 자료 · 내 버전" 편집용)
     const { data: assigned } = await supabase
       .from('classes')
-      .select('id, name, subject, class_type, weekly_plan, parent_class_id')
+      .select('id, name, subject, class_type, weekly_plan, parent_class_id, unit_label')
       .eq('assigned_teacher_id', user!.id)
       .not('parent_class_id', 'is', null)
       .eq('is_archived', false)
@@ -2718,10 +2721,10 @@ const MaterialEditor = () => {
                           {/* 복사 */}
                           <button
                             onClick={() => handleCopy(material)}
-                            title="다른 주차로 복사"
+                            title={`다른 ${unit}로 복사`}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[14px] font-semibold border border-slate-200 dark:border-slate-700 bg-surface-container-lowest hover:bg-primary-container/50 text-on-surface transition-colors"
                           >
-                            <Copy size={15} /> 다른 주차로 복사
+                            <Copy size={15} /> 다른 {unit}로 복사
                           </button>
                         </>
                       )}
@@ -3390,7 +3393,7 @@ const MaterialEditor = () => {
             )}
             {!libraryMode && (
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">주차</span>
+                <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">{unit}</span>
                 <input
                   type="number"
                   min={1}
@@ -4022,6 +4025,7 @@ const MaterialEditor = () => {
                         title={material.title}
                         imageUrl={material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null}
                         weekNumber={libraryMode ? null : material.week_number}
+                        unit={unit}
                         folderIndex={material.folder_id ? folders.findIndex(f => f.id === material.folder_id) : null}
                         compact
                       />
@@ -4037,7 +4041,7 @@ const MaterialEditor = () => {
                           </span>
                         )}
                         {!libraryMode && (
-                          <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">{material.week_number}주차</span>
+                          <span className="shrink-0 whitespace-nowrap text-[14px] font-semibold text-on-surface-variant bg-surface-container-low px-2.5 py-0.5 rounded-full">{material.week_number}{unit}</span>
                         )}
                         {material.source_lesson_plan_id && (() => {
                           const group = materials.filter(m => m.source_lesson_plan_id === material.source_lesson_plan_id).sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
@@ -4082,6 +4086,7 @@ const MaterialEditor = () => {
                       title={material.title}
                       imageUrl={material.cover_source === 'upload' ? (material.cover_image_url ?? null) : null}
                       weekNumber={libraryMode ? null : material.week_number}
+                      unit={unit}
                       folderIndex={material.folder_id ? folders.findIndex(f => f.id === material.folder_id) : null}
                     />
 

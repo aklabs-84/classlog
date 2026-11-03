@@ -81,6 +81,7 @@ const AIAssistant = () => {
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
+  const unit = selectedClass?.unit_label === '차시' ? '차시' : '주차';
   const aiMonthlyLimit = getAiMonthlyLimit(profile);
 
   useEffect(() => { fetchInitialData(); }, []);
@@ -903,11 +904,11 @@ ${obsText}
               {/* 주차 데이터 범위 선택 */}
               {availableWeeks.length > 0 && (
                 <div className="p-3 bg-surface-container-low rounded-2xl border border-surface-container-high space-y-2">
-                  <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">데이터 범위 (주차)</p>
+                  <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">데이터 범위 ({unit})</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {[
-                      { value: 'all', label: '전체 주차', desc: `${availableWeeks[0]}~${availableWeeks[availableWeeks.length - 1]}주차` },
-                      { value: 'select', label: '주차 선택', desc: `${availableWeeks.length}개 중 직접 선택` },
+                      { value: 'all', label: `전체 ${unit}`, desc: `${availableWeeks[0]}~${availableWeeks[availableWeeks.length - 1]}${unit}` },
+                      { value: 'select', label: `${unit} 선택`, desc: `${availableWeeks.length}개 중 직접 선택` },
                     ].map(({ value, label, desc }) => (
                       <button
                         key={value}
@@ -927,7 +928,7 @@ ${obsText}
                   {weekFilterMode === 'select' && (
                     <div className="pt-1 space-y-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold text-on-surface-variant/60">포함할 주차 선택</span>
+                        <span className="text-[10px] font-bold text-on-surface-variant/60">포함할 {unit} 선택</span>
                         <button
                           type="button"
                           onClick={() => setSelectedWeeks(selectedWeeks.length === availableWeeks.length ? [] : [...availableWeeks])}
@@ -950,13 +951,13 @@ ${obsText}
                                   : 'bg-white text-on-surface-variant/50 border-surface-container-high hover:border-secondary/30'
                               }`}
                             >
-                              {w}주차
+                              {w}{unit}
                             </button>
                           );
                         })}
                       </div>
                       {selectedWeeks.length === 0 && (
-                        <p className="text-[10px] text-rose-500 font-bold">주차를 1개 이상 선택해야 합니다.</p>
+                        <p className="text-[10px] text-rose-500 font-bold">{unit}를 1개 이상 선택해야 합니다.</p>
                       )}
                     </div>
                   )}

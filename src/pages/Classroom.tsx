@@ -2982,6 +2982,7 @@ const Classroom = () => {
               entryCode={classInfo.class_type !== 'homeroom' ? classInfo.entry_code : undefined}
               entryMode={classInfo.entry_mode || 'roster'}
               studentCount={students.length}
+              unit={unit}
             />
           )}
 
@@ -3018,6 +3019,7 @@ const Classroom = () => {
 
               {activeTab === 'grading' && classInfo && (
                 <AutoGradingPanel
+                  unit={unit}
                   classId={activeClassId!}
                   teacherId={user?.id || ''}
                   weeklyPlan={classInfo.weekly_plan || []}

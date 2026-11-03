@@ -206,9 +206,12 @@ interface Props {
   studentCount: number;
   /** 지금 열려 있는 탭 — 수업 진행 안내가 탭 이동을 따라가기 위해 필요 */
   activeTab: string;
+  /** 수업 단위 낱말 — '차시'이면 안내 문구의 '주차'를 바꿔 보여 준다 */
+  unit?: string;
 }
 
-const ClassroomGuideTour = ({ classId, eligible, entryCode, entryMode, studentCount, activeTab }: Props) => {
+const ClassroomGuideTour = ({ classId, eligible, entryCode, entryMode, studentCount, activeTab, unit = '주차' }: Props) => {
+  const u = (s: string) => (unit === '차시' ? s.replaceAll('주차', '차시') : s);
   const [studentGuideOpen, setStudentGuideOpen] = useState(false);
 
   const [seen, setSeen] = useState(readSeen);
@@ -372,24 +375,24 @@ const ClassroomGuideTour = ({ classId, eligible, entryCode, entryMode, studentCo
               <button type="button" onClick={close} aria-label="안내 닫기" className="p-1.5 -m-1.5 rounded-lg text-gray-500 hover:bg-gray-100"><X size={18} /></button>
             </div>
             {stepNo === 0 && <GuideOutdatedNotice className="mb-3 !text-[14px] !px-3 !py-2" />}
-            <h3 className="text-lg font-black leading-snug mb-2">{needTab ? `"${step.tabLabel}" 탭을 눌러 주세요` : step.title}</h3>
+            <h3 className="text-lg font-black leading-snug mb-2">{needTab ? `"${step.tabLabel}" 탭을 눌러 주세요` : u(step.title)}</h3>
             <p className="text-[15px] font-medium leading-7 text-gray-800">
-              {needTab ? '표시된 탭을 직접 눌러 이동해 주세요. 누르면 이 단계의 설명이 이어져요.' : missing ? step.missing : step.lead}
+              {needTab ? '표시된 탭을 직접 눌러 이동해 주세요. 누르면 이 단계의 설명이 이어져요.' : missing ? u(step.missing) : u(step.lead)}
             </p>
             {!needTab && !missing && !compact && step.points && (
               <ol className="mt-3 space-y-2">
                 {step.points.map((p, i) => (
                   <li key={i} className="flex gap-2.5 text-[15px] leading-6 text-gray-800">
                     <span className="mt-0.5 w-5 h-5 shrink-0 rounded-full bg-indigo-600 text-white text-[11px] font-black flex items-center justify-center">{i + 1}</span>
-                    <span>{p}</span>
+                    <span>{u(p)}</span>
                   </li>
                 ))}
               </ol>
             )}
             {!needTab && !missing && !compact && (
               <div className="mt-3 space-y-2">
-                <p className="text-sm leading-6 bg-sky-50 text-sky-900 rounded-xl px-3 py-2"><b className="font-black">왜 필요해요?</b> {step.why}</p>
-                <p className="text-sm leading-6 bg-amber-50 text-amber-900 rounded-xl px-3 py-2"><b className="font-black">자주 하는 실수</b> {step.mistake}</p>
+                <p className="text-sm leading-6 bg-sky-50 text-sky-900 rounded-xl px-3 py-2"><b className="font-black">왜 필요해요?</b> {u(step.why)}</p>
+                <p className="text-sm leading-6 bg-amber-50 text-amber-900 rounded-xl px-3 py-2"><b className="font-black">자주 하는 실수</b> {u(step.mistake)}</p>
               </div>
             )}
             <div className="mt-4 flex items-center justify-between gap-2">

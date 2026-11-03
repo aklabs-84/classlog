@@ -963,6 +963,7 @@ const ShareClassView = () => {
       const className = classInfo?.name || '클래스';
       const sheets = buildShareSheets({
         className,
+        unit,
         students: studentData.map(({ student, obs, results }) => ({
           id: student.id,
           student_number: student.student_number ?? null,

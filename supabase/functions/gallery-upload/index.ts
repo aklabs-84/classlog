@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!key || !key.is_active) return json({ error: 'invalid_link' }, 403);
 
-  const { data: cls } = await admin.from('classes').select('name, weekly_plan').eq('id', key.class_id).maybeSingle();
+  const { data: cls } = await admin.from('classes').select('name, weekly_plan, unit_label').eq('id', key.class_id).maybeSingle();
   if (!cls) return json({ error: 'invalid_link' }, 403);
 
   // 오늘(한국시간) 이 링크로 올라온 장수
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     const weeks = Array.from(new Set((Array.isArray(cls.weekly_plan) ? cls.weekly_plan : [])
       .map((p: { week?: unknown }) => Number(p?.week))
       .filter((w: number) => Number.isInteger(w) && w > 0 && w < 1000))).sort((a, b) => a - b);
-    return json({ ok: true, class_name: cls.name, weeks, attendance_enabled: !!key.allow_attendance, student_add_enabled: !!key.allow_attendance && !!key.allow_student_add, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
+    return json({ ok: true, class_name: cls.name, unit_label: cls.unit_label === '차시' ? '차시' : '주차', weeks, attendance_enabled: !!key.allow_attendance, student_add_enabled: !!key.allow_attendance && !!key.allow_student_add, used_today: usedToday, daily_limit: DAILY_LIMIT, teacher: isTeacher, teacher_name: teacherName });
   }
 
   if (!isTeacher && usedToday >= DAILY_LIMIT) return json({ error: 'daily_limit' }, 429);

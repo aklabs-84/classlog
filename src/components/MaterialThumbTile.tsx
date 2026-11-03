@@ -20,12 +20,14 @@ interface MaterialThumbTileProps {
   folderIndex?: number | null;
   /** 목록 보기용 작은 크기 */
   compact?: boolean;
+  /** 수업 단위 이름 ('주차' 기본, 하루 수업은 '차시') */
+  unit?: string;
 }
 
 // 목록/카드용 썸네일 — 커버 이미지가 있으면 기존 표지, 없으면 주차·폴더색 타일
-export default function MaterialThumbTile({ title, imageUrl, weekNumber, folderIndex, compact = false }: MaterialThumbTileProps) {
+export default function MaterialThumbTile({ title, imageUrl, weekNumber, folderIndex, compact = false, unit = '주차' }: MaterialThumbTileProps) {
   if (imageUrl) {
-    return <MaterialCoverPage title={compact ? '' : title} subtitle={!compact && weekNumber != null ? `${weekNumber}주차` : null} imageUrl={imageUrl} thumbnail />;
+    return <MaterialCoverPage title={compact ? '' : title} subtitle={!compact && weekNumber != null ? `${weekNumber}${unit}` : null} imageUrl={imageUrl} thumbnail />;
   }
 
   const color = TILE_COLORS[folderIndex != null && folderIndex >= 0 ? folderIndex % TILE_COLORS.length : 0];
@@ -35,7 +37,7 @@ export default function MaterialThumbTile({ title, imageUrl, weekNumber, folderI
       {weekNumber != null ? (
         <>
           <span className={`font-black leading-none ${compact ? 'text-2xl' : 'text-6xl'}`}>{weekNumber}</span>
-          <span className={`font-black ${compact ? 'text-[10px] mt-0.5' : 'text-sm mt-2'}`}>주차</span>
+          <span className={`font-black ${compact ? 'text-[10px] mt-0.5' : 'text-sm mt-2'}`}>{unit}</span>
         </>
       ) : (
         <FileText size={compact ? 24 : 44} strokeWidth={1.75} />
