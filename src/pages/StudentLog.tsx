@@ -93,6 +93,7 @@ import { getAiApps, type AiApp } from '../lib/aiApps';
 import { useStudentLive } from '../hooks/useStudentLive';
 import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 import { toUnitLabel, type UnitLabel } from '../lib/unitLabel';
+import { visiblePoll } from '../lib/visiblePoll';
 
 // 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
 const getStudentScreens = (unit: string): Record<string, StudentScreenStep> => ({
@@ -964,15 +965,16 @@ const StudentLog = () => {
     };
 
     check();
-    const interval = setInterval(check, 15000);
-    return () => clearInterval(interval);
+    const stopPoll = visiblePoll(check, 15000);
+    return () => stopPoll();
   }, [session?.student_id]);
 
   // 수업 보드 세션 폴링 + Realtime 구독 — 선생님 공유 중지/시작 즉시 반영
   useEffect(() => {
     if (!session?.class_id) return;
     fetchActiveBoardSessions();
-    const interval = setInterval(fetchActiveBoardSessions, 5_000);
+    // 실시간 연결이 즉시 알려 주므로 보조 확인은 15초로 느슨하게, 화면이 보일 때만
+    const stopPoll = visiblePoll(fetchActiveBoardSessions, 15_000);
 
     const channel = supabase
       .channel(`board-session-rt-${session.class_id}`)
@@ -985,7 +987,7 @@ const StudentLog = () => {
       .subscribe();
 
     return () => {
-      clearInterval(interval);
+      stopPoll();
       supabase.removeChannel(channel);
     };
   }, [session?.class_id]);
@@ -1010,16 +1012,16 @@ const StudentLog = () => {
     fetchActiveQuizSessions();
 
     // 공개 조회를 막았으므로 Realtime 대신 10초마다 확인
-    const timer = setInterval(fetchActiveQuizSessions, 10000);
-    return () => clearInterval(timer);
+    const stopPoll = visiblePoll(fetchActiveQuizSessions, 10000);
+    return () => stopPoll();
   }, [session?.class_id]);
 
   // 수업 끝 설문 칸 — 선생님이 설문을 열면 새로고침 없이 빨갛게 켜지도록 10초마다 확인
   useEffect(() => {
     if (!session?.class_id) return;
     fetchActiveSurveyForms(true);
-    const timer = setInterval(() => fetchActiveSurveyForms(true), 10000);
-    return () => clearInterval(timer);
+    const stopPoll = visiblePoll(() => fetchActiveSurveyForms(true), 10000);
+    return () => stopPoll();
   }, [session?.class_id]);
 
   // 주차에 연결된 보드의 공개 여부 — 선생님이 공개하면 새로고침 없이 반영 (10초마다 확인)
@@ -1039,8 +1041,8 @@ const StudentLog = () => {
         console.error('Error refreshing week links:', e);
       }
     };
-    const timer = setInterval(refresh, 10000);
-    return () => clearInterval(timer);
+    const stopPoll = visiblePoll(refresh, 10000);
+    return () => stopPoll();
   }, [session?.token, classResources]);
 
   // 선생님이 주차별 계획·수업 자료를 수정하면 새로고침 없이 반영 — 30초마다 조용히 다시 불러옴 (자료 전체를 받아 egress가 커서 10초→30초)
@@ -1101,8 +1103,8 @@ const StudentLog = () => {
     fetchActiveMeeting();
 
     // 공개 조회를 막았으므로 Realtime 대신 15초마다 확인
-    const timer = setInterval(fetchActiveMeeting, 15000);
-    return () => clearInterval(timer);
+    const stopPoll = visiblePoll(fetchActiveMeeting, 15000);
+    return () => stopPoll();
   }, [session?.class_id]);
 
   // 화이트보드에서 돌아올 때 보드 탭 자동 복원
@@ -1136,8 +1138,8 @@ const StudentLog = () => {
         return rows;
       });
     };
-    const timer = setInterval(tick, 15000);
-    return () => { stop = true; clearInterval(timer); };
+    const stopPoll = visiblePoll(tick, 15000);
+    return () => { stop = true; stopPoll(); };
   }, [session?.student_id, session?.token]);
 
   useEffect(() => {

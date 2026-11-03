@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, Eye, WifiOff, Radio } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { BoardObject, ActiveTool } from '../../components/whiteboard/types';
 import WhiteboardCanvas from '../../components/whiteboard/WhiteboardCanvas';
+import { visiblePoll } from '../../lib/visiblePoll';
 
 type SyncStatus = 'loading' | 'live' | 'error';
 
-const POLL_MS = 3000;
+const POLL_MS = 5000;
 
 export default function StudentBoardViewer() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -15,7 +16,6 @@ export default function StudentBoardViewer() {
   const [objects, setObjects] = useState<BoardObject[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
   const [className, setClassName] = useState<string | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchBoard = useCallback(async () => {
     if (!boardId) return;
@@ -57,7 +57,8 @@ export default function StudentBoardViewer() {
   useEffect(() => {
     if (syncStatus === 'error') return;
 
-    pollingRef.current = setInterval(async () => {
+    // 화면이 보일 때만 확인 (숨겨진 탭은 멈추고, 다시 보이면 바로 1회)
+    return visiblePoll(async () => {
       if (!boardId) return;
       const { data } = await supabase
         .from('board_objects')
@@ -66,10 +67,6 @@ export default function StudentBoardViewer() {
         .order('z_index');
       if (data) setObjects(data);
     }, POLL_MS);
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
   }, [boardId, syncStatus]);
 
   // 뷰어: 편집 콜백은 모두 no-op

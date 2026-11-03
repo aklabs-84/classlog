@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Users, CheckCircle2, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { appConfirm } from '../../lib/appDialog';
+import { visiblePoll } from '../../lib/visiblePoll';
 
 interface Row { id: string; full_name: string; student_number: string; created_at: string }
 
@@ -29,8 +30,8 @@ const LiveRosterPanel = ({ classId, onAccepted, onReset }: Props) => {
       if (!e && Array.isArray(data)) setRows(data as Row[]);
     };
     load();
-    const timer = setInterval(load, 3000);
-    return () => { stopped = true; clearInterval(timer); };
+    const stopPoll = visiblePoll(load, 3000);
+    return () => { stopped = true; stopPoll(); };
   }, [classId]);
 
   const handleAccept = async () => {

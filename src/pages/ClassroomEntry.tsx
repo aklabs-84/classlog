@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { rpcWithRetry, hardReload, CONNECTION_ERROR_MSG } from '../lib/entryHelpers';
 import AvatarPicker from '../components/AvatarPicker';
+import { visiblePoll } from '../lib/visiblePoll';
 import StudentScreenTour, { type StudentScreenStep } from '../components/student/StudentScreenTour';
 
 // 학생 입장 화면별 도움말 (화면마다 처음 한 번 자동으로 나타나고, 우측 상단 ? 버튼으로 다시 볼 수 있다)
@@ -277,8 +278,8 @@ const ClassroomEntry = () => {
       }
     };
     tick();
-    const timer = setInterval(tick, 2000);
-    return () => { stopped = true; clearInterval(timer); };
+    const stopPoll = visiblePoll(tick, 2000);
+    return () => { stopped = true; stopPoll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { ShortcutRow } from './ShortcutRow';
+import { visiblePoll } from '../../lib/visiblePoll';
 
 interface ProgressRow {
   student_id: string; team_name: string | null; page: number; page_label: string | null;
@@ -61,7 +62,9 @@ function useProgress(classId: string, active: boolean) {
     let alive = true;
     const load = async () => {
       const [p, s] = await Promise.all([
-        supabase.from('studio_progress').select('*').eq('class_id', classId).limit(500),
+        supabase.from('studio_progress')
+          .select('student_id, team_name, page, page_label, step_no, step_total, step_label, completed_pages, submitted_pages, online, done, last_seen')
+          .eq('class_id', classId).limit(500),
         supabase.from('students').select('id, full_name, student_number').eq('class_id', classId).limit(500),
       ]);
       if (!alive) return;
@@ -71,9 +74,9 @@ function useProgress(classId: string, active: boolean) {
       setReady(true);
     };
     load();
-    const poll = setInterval(load, 5000);
+    const stopPoll = visiblePoll(load, 5000);
     const tick = setInterval(() => setNow(Date.now()), 1000);
-    return () => { alive = false; clearInterval(poll); clearInterval(tick); };
+    return () => { alive = false; stopPoll(); clearInterval(tick); };
   }, [classId, active]);
 
   return { rows, students, now, ready };
