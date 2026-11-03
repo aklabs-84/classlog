@@ -56,6 +56,14 @@ begin
       ),
       body := jsonb_build_object('items', items)
     );
+
+    -- 앱 설치 기기(PWA)로도 알림: 관리자 쪽지를 남기면 기존 푸시 트리거가 발송
+    perform public.notify_admins(
+      '⚠️ 서버 용량 경고',
+      (select string_agg(i->>'label' || ' ' || (i->>'pct') || '% 사용', ' · ') from jsonb_array_elements(items) i),
+      'usage_alert',
+      '/admin'
+    );
   end if;
 end;
 $$;
