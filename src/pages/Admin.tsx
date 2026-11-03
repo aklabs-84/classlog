@@ -13,12 +13,13 @@ import {
   ArrowUpDown, LogIn, ChevronUp, ChevronDown, Calculator, Sparkles,
 } from 'lucide-react';
 import { appConfirm, appToast } from '../lib/appDialog';
+import ServerUsagePanel from '../components/admin/ServerUsagePanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'activity' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'refund_calc' | 'ai_cost' | 'video_guides'
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'refund_calc' | 'ai_cost' | 'server_usage' | 'video_guides'
   | 'waitlist' | 'training_requests' | 'instructor_pool';
 
 interface InstructorPoolRow {
@@ -248,6 +249,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'coupons',       label: '쿠폰',       icon: Ticket },
   { id: 'refund_calc',   label: '환불 계산기', icon: Calculator },
   { id: 'ai_cost',       label: 'AI 비용',    icon: DollarSign },
+  { id: 'server_usage',  label: '서버 사용량', icon: Cpu },
   { id: 'video_guides',  label: '영상 가이드', icon: Layers },
 ];
 
@@ -3696,6 +3698,8 @@ const Admin = () => {
             )}
           </div>
         )}
+
+        {activeTab === 'server_usage' && <ServerUsagePanel />}
 
         {/* ── 영상 가이드 관리 ──────────────────────────────────────────────── */}
         {activeTab === 'video_guides' && (
