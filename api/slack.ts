@@ -606,51 +606,67 @@ async function handleUsageAlert(req: any, res: any) {
   return res.status(200).json({ ok: true });
 }
 
-// 매일 비용·요청 수 점검 — Vercel 이번 달 청구액, Supabase 요청 수 (읽기 전용 토큰은 서버 환경변수에만 있음)
-async function handleCostCheck(req: any, res: any) {
-  const webhookSecret = process.env.PUSH_WEBHOOK_SECRET;
-  const authHeader    = req.headers.authorization ?? '';
+// 매일 Supabase 요청 수 점검 — 최근 24시간 합계가 평소(최근 7일 평균)의 2배 + 10만 건을 넘으면 슬랙·앱 푸시로 경고
+// 읽기 전용 토큰은 서버 환경변수(SUPABASE_USAGE_TOKEN)에만 있고, 기록은 usage_alert_state 표를 재사용 (key='req_날짜')
+async function handleRequestCheck(req: any, res: any) {
+  const webhookSecret  = process.env.PUSH_WEBHOOK_SECRET;
+  const webhookUrl     = process.env.SLACK_WEBHOOK_URL;
+  const supabaseUrl    = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const token          = process.env.SUPABASE_USAGE_TOKEN;
+  const authHeader     = req.headers.authorization ?? '';
   if (!webhookSecret || authHeader !== `Bearer ${webhookSecret}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const vToken = process.env.VERCEL_USAGE_TOKEN;
-  const sToken = process.env.SUPABASE_USAGE_TOKEN;
-  const ref    = (process.env.VITE_SUPABASE_URL ?? '').replace(/^https:\/\//, '').split('.')[0];
-  const out: any = {};
+  if (!supabaseUrl || !serviceRoleKey || !token) return res.status(500).json({ error: 'env not configured' });
 
-  // Vercel: 이번 달 청구액 합계
-  try {
-    const h = { Authorization: `Bearer ${vToken}` };
-    // 팀 번호는 비밀이 아닌 식별자 (.vercel/project.json 의 orgId)
-    const teamId = process.env.VERCEL_TEAM_ID || 'team_8GOONgOcodcsEvdh1G8fAu0h';
-    const now = new Date();
-    // 청구 기간은 매달 2일 시작 (Vercel Billing 화면의 기간 기준)
-    const billingDay = Number(process.env.VERCEL_BILLING_DAY || 2);
-    const startMonth = now.getUTCDate() >= billingDay ? now.getUTCMonth() : now.getUTCMonth() - 1;
-    const from = new Date(Date.UTC(now.getUTCFullYear(), startMonth, billingDay)).toISOString();
-    const to = new Date(Date.now() + 86400000).toISOString();
-    const r = await fetch(`https://api.vercel.com/v1/billing/charges?teamId=${teamId}&from=${from}&to=${to}`, { headers: h });
-    const text = await r.text();
-    out.vercelStatus = r.status;
-    if (r.ok) {
-      const rows = text.split('\n').filter(Boolean).map(l => JSON.parse(l));
-      out.vercelRows = rows.length;
-      out.vercelKeys = rows[0] ? Object.keys(rows[0]).slice(0, 30) : [];
-      out.vercelBilled = rows.reduce((s, x) => s + Number(x.BilledCost ?? 0), 0);
-      out.vercelEffective = rows.reduce((s, x) => s + Number(x.EffectiveCost ?? 0), 0);
-    } else out.vercelBody = text.slice(0, 300);
-  } catch (e: any) { out.vercelError = e?.message; }
+  const ref = supabaseUrl.replace(/^https:\/\//, '').split('.')[0];
+  const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/usage.api-counts?interval=1day`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) return res.status(502).json({ error: 'usage api failed', status: r.status });
+  const rows: any[] = (await r.json())?.result ?? [];
+  const sum = (k: string) => rows.reduce((s, x) => s + Number(x[k] ?? 0), 0);
+  const parts = { rest: sum('total_rest_requests'), auth: sum('total_auth_requests'), realtime: sum('total_realtime_requests'), storage: sum('total_storage_requests') };
+  const total = parts.rest + parts.auth + parts.realtime + parts.storage;
 
-  // Supabase: 요청 수
-  try {
-    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/usage.api-counts?interval=1day`, {
-      headers: { Authorization: `Bearer ${sToken}` },
-    });
-    out.supabaseStatus = r.status;
-    out.supabaseBody = (await r.text()).slice(0, 800);
-  } catch (e: any) { out.supabaseError = e?.message; }
+  const sb = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
+  const today = new Date().toISOString().slice(0, 10);
+  const prevRes = await fetch(`${supabaseUrl}/rest/v1/usage_alert_state?key=like.req_*&key=lt.req_${today}&select=level&order=key.desc&limit=7`, { headers: sb });
+  const prev: number[] = (await prevRes.json().catch(() => [])).map((x: any) => Number(x.level));
+  const avg = prev.length ? prev.reduce((a, b) => a + b, 0) / prev.length : 0;
 
-  return res.status(200).json(out);
+  await fetch(`${supabaseUrl}/rest/v1/usage_alert_state?on_conflict=key`, {
+    method: 'POST',
+    headers: { ...sb, Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ key: `req_${today}`, level: total, notified_at: null }),
+  });
+
+  const spike = total >= 100000 && (prev.length === 0 || total >= avg * 2);
+  if (spike) {
+    const text = `Supabase 요청 ${total.toLocaleString()}건 (평소 약 ${Math.round(avg).toLocaleString()}건) — 데이터 ${parts.rest.toLocaleString()} · 실시간 ${parts.realtime.toLocaleString()} · 로그인 ${parts.auth.toLocaleString()} · 파일 ${parts.storage.toLocaleString()}`;
+    if (webhookUrl) {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blocks: [
+            { type: 'header', text: { type: 'plain_text', text: '⚠️ 클래스로그 — 요청 수 급증', emoji: true } },
+            { type: 'section', text: { type: 'mrkdwn', text } },
+          ],
+        }),
+      }).catch(() => {});
+    }
+    const admins = await fetch(`${supabaseUrl}/rest/v1/profiles?is_admin=eq.true&select=id`, { headers: sb }).then(x => x.json()).catch(() => []);
+    if (Array.isArray(admins) && admins.length) {
+      await fetch(`${supabaseUrl}/rest/v1/notifications`, {
+        method: 'POST',
+        headers: sb,
+        body: JSON.stringify(admins.map((a: any) => ({ user_id: a.id, title: '⚠️ 요청 수 급증', content: text, type: 'usage_alert', link: '/admin' }))),
+      }).catch(() => {});
+    }
+  }
+  return res.status(200).json({ ok: true, total, avg: Math.round(avg), days: prev.length, rows: rows.length, spike });
 }
 
 export default async function handler(req: any, res: any) {
@@ -668,6 +684,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'training-request') return handleTrainingRequest(req, res);
   if (type === 'flagged-suggestion') return handleFlaggedSuggestion(req, res);
   if (type === 'usage-alert') return handleUsageAlert(req, res);
-  if (type === 'cost-check') return handleCostCheck(req, res);
-  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request | flagged-suggestion | usage-alert)' });
+  if (type === 'request-check') return handleRequestCheck(req, res);
+  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request | flagged-suggestion | usage-alert | request-check)' });
 }
