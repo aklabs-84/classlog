@@ -228,7 +228,7 @@ export default function Home() {
 
       {/* 아이디어 한 줄 */}
       <div className="home-rise group relative mt-7 mb-10 bg-surface-container-lowest border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 transition-all focus-within:border-primary focus-within:shadow-[0_0_0_4px_var(--color-primary-container)]" style={{ animationDelay: '.08s' }}>
-        <kbd className="absolute right-5 top-4 text-[13px] text-on-surface-variant border border-slate-200 dark:border-slate-600 rounded-md px-2 transition-opacity group-focus-within:opacity-0">/</kbd>
+        <kbd className="hidden md:block absolute right-5 top-4 text-[13px] text-on-surface-variant border border-slate-200 dark:border-slate-600 rounded-md px-2 transition-opacity group-focus-within:opacity-0">/</kbd>
         <input ref={quickRef} value={quickTitle} onChange={e => setQuickTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !quickBody.trim()) saveQuick(); }}
           placeholder="떠오른 수업 아이디어를 한 줄로 적어 보세요"
@@ -276,7 +276,7 @@ export default function Home() {
         ))}
       </nav>
 
-      <div className="grid lg:grid-cols-[1fr_330px] gap-10 lg:gap-12">
+      <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_330px] gap-10 lg:gap-12">
         {/* 내 바로가기 */}
         <section>
           <div className="flex items-center justify-between mb-3.5">
@@ -285,7 +285,7 @@ export default function Home() {
               <button onClick={() => setEditing(v => !v)} className="text-[14px] font-medium text-primary">{editing ? '완료' : '정리하기'}</button>
             )}
           </div>
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] sm:grid-cols-2 gap-3">
             {FIXED.map((f, i) => (
               <button key={f.label} onClick={() => navigate(f.to, { state: { fromHome: true } })} className={`${tile} home-glow`} style={{ animationDelay: `${0.14 + i * 0.05}s` }}
                 onMouseMove={e => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mx', e.clientX - r.left + 'px'); e.currentTarget.style.setProperty('--my', e.clientY - r.top + 'px'); }}>
