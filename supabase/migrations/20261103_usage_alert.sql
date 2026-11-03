@@ -21,11 +21,13 @@ declare
   pct numeric;
   lvl int;
   prev int;
+  gb constant numeric := 1073741824;
+  mb constant numeric := 1048576;
 begin
   for r in
     select * from (values
-      ('db',      '데이터베이스', pg_database_size(current_database())::numeric,                                         8::numeric * 1024^3),
-      ('storage', '파일 저장',    (select coalesce(sum((metadata->>'size')::numeric), 0) from storage.objects),            100::numeric * 1024^3)
+      ('db',      '데이터베이스', pg_database_size(current_database())::numeric,                                         8 * gb),
+      ('storage', '파일 저장',    (select coalesce(sum((metadata->>'size')::numeric), 0) from storage.objects),            100 * gb)
     ) as t(key, label, used, lim)
   loop
     pct := round(r.used / r.lim * 100, 1);
@@ -35,7 +37,7 @@ begin
 
     if lvl > prev then
       items := items || jsonb_build_object('label', r.label, 'pct', pct, 'level', lvl,
-                                           'used_mb', round(r.used / 1024^2), 'limit_mb', round(r.lim / 1024^2));
+                                           'used_mb', round(r.used / mb), 'limit_mb', round(r.lim / mb));
     end if;
 
     insert into public.usage_alert_state(key, level, notified_at)
