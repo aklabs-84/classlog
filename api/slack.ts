@@ -572,6 +572,40 @@ async function handleFlaggedSuggestion(req: any, res: any) {
   return res.status(200).json({ ok: true });
 }
 
+// DB 예약 작업(run_usage_check)이 보내는 용량 경고 — 70%/90%를 넘었을 때만 호출됨
+async function handleUsageAlert(req: any, res: any) {
+  const webhookSecret = process.env.PUSH_WEBHOOK_SECRET;
+  const webhookUrl    = process.env.SLACK_WEBHOOK_URL;
+  const authHeader    = req.headers.authorization ?? '';
+  if (!webhookSecret || authHeader !== `Bearer ${webhookSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!webhookUrl) return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
+
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (items.length === 0) return res.status(400).json({ error: 'items is required' });
+
+  const lines = items.map((i: any) =>
+    `${Number(i.level) >= 90 ? '🔴' : '🟠'} *${String(i.label)}* ${Number(i.pct)}% 사용 (${Number(i.used_mb)}MB / ${Number(i.limit_mb)}MB)`
+  );
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        blocks: [
+          { type: 'header', text: { type: 'plain_text', text: '⚠️ 클래스로그 — 서버 용량 경고', emoji: true } },
+          { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } },
+          { type: 'context', elements: [{ type: 'mrkdwn', text: `Supabase Pro 기준 | ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` }] },
+        ],
+      }),
+    });
+  } catch (e: any) {
+    console.warn('[api/slack?type=usage-alert] slack notify failed:', e?.message);
+  }
+  return res.status(200).json({ ok: true });
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -586,5 +620,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'waitlist') return handleWaitlist(req, res);
   if (type === 'training-request') return handleTrainingRequest(req, res);
   if (type === 'flagged-suggestion') return handleFlaggedSuggestion(req, res);
-  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request | flagged-suggestion)' });
+  if (type === 'usage-alert') return handleUsageAlert(req, res);
+  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup | waitlist | training-request | flagged-suggestion | usage-alert)' });
 }
