@@ -31,6 +31,21 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// 새 버전이 배포된 뒤 예전 화면에서 없어진 화면 조각을 못 받으면, 새로고침해서 새 버전으로 바꾼다
+// (한 번만 시도 — 계속 실패해도 무한 새로고침이 되지 않도록 표시를 남긴다)
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    if (sessionStorage.getItem('chunk-reload-tried')) return
+    sessionStorage.setItem('chunk-reload-tried', '1')
+  } catch { /* 저장소를 못 써도 아래 처리는 계속 */ }
+  event.preventDefault()
+  if (isUserTyping()) showUpdateReadyToast()
+  else showUpdatingAndReload()
+})
+
+// 새로고침 뒤 10초 동안 잘 돌아가면 표시를 지워, 다음 배포 때 다시 한 번 시도할 수 있게 한다
+setTimeout(() => { try { sessionStorage.removeItem('chunk-reload-tried') } catch { /* 무시 */ } }, 10000)
+
 startVersionWatch()
 
 createRoot(document.getElementById('root')!).render(
