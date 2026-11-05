@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react';
-import { ChevronRight, Files, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
+import { Check, ChevronRight, Copy, Files, Maximize2, Minimize2 } from 'lucide-react';
 
 // 우리 반 보드 카드/팝업에서 "같은 날·같은 주차에 여러 번 제출"을 눈에 띄게 알리는 공용 부품
 // (학생 보드, 선생님 클래스룸 보드, 우리반 보드 화면 3곳이 함께 쓴다)
@@ -29,7 +29,7 @@ export const SubmissionChips = ({ subs, className = '' }: { subs: { id: string; 
       <button
         key={s.id}
         type="button"
-        onClick={() => document.getElementById(`sub-${s.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        onClick={() => { const el = document.getElementById(`sub-${s.id}`); if (el) { el.style.scrollMarginTop = '88px'; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }}
         className="text-sm font-black px-3 py-1 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
       >
         {i + 1}번째 · {new Date(s.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
@@ -49,4 +49,68 @@ export const ExpandToggle = ({ full, onToggle }: { full: boolean; onToggle: () =
   >
     {full ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
   </button>
+);
+
+// ── 복사 버튼 (선생님 화면 전용: 학생 화면에는 쓰지 않는다) ──
+const writeText = async (text: string) => {
+  if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+};
+
+/** 사진을 PNG로 바꿔 클립보드에 넣는다. 안 되면 사진 주소를 복사하고 false를 돌려준다 */
+const copyImage = async (url: string): Promise<boolean> => {
+  try {
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('unsupported');
+    const png = (async () => {
+      const blob = await (await fetch(url, { mode: 'cors' })).blob();
+      const bmp = await createImageBitmap(blob);
+      const c = document.createElement('canvas');
+      c.width = bmp.width; c.height = bmp.height;
+      c.getContext('2d')!.drawImage(bmp, 0, 0);
+      return await new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('toBlob'))), 'image/png'));
+    })();
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+    return true;
+  } catch {
+    await writeText(url);
+    return false;
+  }
+};
+
+type CopyKind = { type: 'text'; value: string } | { type: 'image'; value: string };
+
+/** 작은 "복사" 버튼. 누르면 잠깐 "복사됨 ✓"으로 바뀐다 */
+export const CopyButton = ({ kind, label = '복사', className = '' }: { kind: CopyKind; label?: string; className?: string }) => {
+  const [state, setState] = useState<'idle' | 'done' | 'url' | 'fail'>('idle');
+  const run = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      if (kind.type === 'text') { await writeText(kind.value); setState('done'); }
+      else setState((await copyImage(kind.value)) ? 'done' : 'url');
+    } catch { setState('fail'); }
+    setTimeout(() => setState('idle'), 1800);
+  };
+  const text = state === 'done' ? '복사됨' : state === 'url' ? '사진 주소 복사됨' : state === 'fail' ? '복사 실패' : label;
+  return (
+    <button
+      type="button"
+      onClick={run}
+      title={kind.type === 'image' ? '사진을 복사해서 문서에 붙여넣을 수 있어요' : '클립보드에 복사'}
+      className={`inline-flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-full border text-sm font-black transition-colors ${
+        state === 'done' ? 'bg-emerald-600 border-emerald-600 text-white' : state === 'fail' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+      } ${className}`}
+    >
+      {state === 'done' || state === 'url' ? <Check size={14} /> : <Copy size={14} />} {text}
+    </button>
+  );
+};
+
+/** 제출 사진 복사 줄: 1장이면 "사진 복사", 여러 장이면 "1번 사진 복사"… */
+export const ImageCopyRow = ({ urls }: { urls: string[] }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {urls.map((u, i) => <CopyButton key={u + i} kind={{ type: 'image', value: u }} label={urls.length > 1 ? `${i + 1}번 사진 복사` : '사진 복사'} />)}
+  </div>
 );

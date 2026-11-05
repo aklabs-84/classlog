@@ -13,6 +13,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  UserCog,
   ArrowRight,
   ArrowLeftRight,
   Check,
@@ -52,6 +53,7 @@ interface SubjectDashboardProps {
   onAddStudent: () => void;
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
   onDeleteStudent: (id: string) => void;
+  onMarkTeacher?: (id: string) => void;
   onNavigateAI: (studentId: string) => void;
   sortConfig: { key: string, direction: 'asc' | 'desc' };
   onSort: (key: any) => void;
@@ -74,6 +76,7 @@ const SubjectDashboard = ({
   onAddStudent,
   onEditStudent,
   onDeleteStudent,
+  onMarkTeacher,
   onNavigateAI,
   sortConfig,
   onSort,
@@ -325,6 +328,15 @@ const SubjectDashboard = ({
   const resultsOnWeek = getResultsOnWeek(selectedStatsWeek);
 
   useEffect(() => {
+    setRawObs([]);
+    setRawResults([]);
+    setLinkedWeeklyPlan([]);
+    setSuggestionCounts({});
+  }, [classInfo?.id]);
+
+  useEffect(() => {
+    // 반이 바뀌면 이전 반의 제출·관찰 기록을 즉시 비우고, 늦게 도착한 옛 응답은 버린다
+    let cancelled = false;
     const fetchStats = async () => {
       if (!classInfo?.id || students.length === 0) return;
       setStatsLoading(true);
@@ -339,6 +351,7 @@ const SubjectDashboard = ({
           supabase.from('student_results').select('created_at, student_id, week_number, status, title').in('student_id', studentIds),
           supabase.from('student_suggestions').select('student_id').eq('class_id', classInfo.id).is('teacher_reply', null),
         ]);
+        if (cancelled) return;
         setRawObs(obsRes.data || []);
         setRawResults(resultsRes.data || []);
 
@@ -350,6 +363,7 @@ const SubjectDashboard = ({
             .select('weekly_plan')
             .eq('id', refClassId)
             .single();
+          if (cancelled) return;
           if (linkedClassRes.data?.weekly_plan) {
             setLinkedWeeklyPlan(linkedClassRes.data.weekly_plan);
           }
@@ -364,10 +378,11 @@ const SubjectDashboard = ({
       } catch (err) {
         console.error('fetchStats error:', err);
       } finally {
-        setStatsLoading(false);
+        if (!cancelled) setStatsLoading(false);
       }
     };
     fetchStats();
+    return () => { cancelled = true; };
   }, [classInfo?.id, students.length, statsRefreshKey]);
 
   // 학생이 건의를 쓰면 새로고침 없이 숫자 갱신
@@ -749,6 +764,7 @@ const SubjectDashboard = ({
                       {/* 관리 버튼 */}
                       <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); onMarkTeacher?.(s.id); }} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg" title="선생님(임시 참여자)으로 분류"><UserCog size={14} /></button>
                         <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
                         <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-primary-container text-on-surface-variant hover:text-primary transition-all rounded-lg"><KeyRound size={14} /></button>
                       </div>
@@ -963,6 +979,7 @@ const SubjectDashboard = ({
                             ) : (
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onMarkTeacher?.(s.id); }} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg" title="선생님(임시 참여자)으로 분류"><UserCog size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
                               {/* PIN 보기 */}
                               <div className="relative">
@@ -1113,6 +1130,13 @@ const SubjectDashboard = ({
                           title="이름/번호 수정"
                         >
                           <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onMarkTeacher?.(s.id); }}
+                          className="p-1.5 hover:bg-primary/10 text-on-surface-variant/65 hover:text-primary rounded-lg transition-all"
+                          title="선생님(임시 참여자)으로 분류"
+                        >
+                          <UserCog size={12} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }}

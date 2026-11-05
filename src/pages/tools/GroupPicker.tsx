@@ -225,12 +225,12 @@ const GroupPicker = () => {
     setLoadedClassName(className);
     const { data } = await supabase
       .from('students')
-      .select('id, full_name, student_number')
+      .select('id, full_name, student_number, registered_via')
       .eq('class_id', classId)
       .order('student_number', { ascending: true });
     if (data) {
       const merged = [...students];
-      data.forEach((s) => {
+      data.filter((s: any) => s.registered_via !== 'teacher').forEach((s) => {
         if (!merged.find((m) => m.id === s.id)) {
           merged.push({ id: s.id, name: s.full_name, number: s.student_number ?? '' });
         }

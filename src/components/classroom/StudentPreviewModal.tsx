@@ -118,11 +118,11 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{ width: preset.width, maxWidth: '95vw', height: preset.height }}
-        className="flex flex-col bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden transition-[width] duration-200"
+        className="@container flex flex-col bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden transition-[width] duration-200"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-surface-container-low/40 shrink-0">
-          <span className="flex-1 min-w-0 text-sm font-bold truncate">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-surface-container-low/40 shrink-0">
+          <span className="flex-1 min-w-[7rem] text-sm font-bold truncate">
             {pickedId === null
               ? '어느 학생 화면을 볼까요?'
               : teacherName
@@ -130,6 +130,8 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
                 : '학생 화면 미리보기'}
           </span>
 
+          {((liveOn && pickedId) || (students && students.length > 0 && pickedId !== null && !studentId)) && (
+          <div className="order-last w-full @[640px]:order-none @[640px]:w-auto flex items-center gap-2">
           {liveOn && pickedId && (
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold shrink-0 ${liveOnline ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
               <span className={`w-2 h-2 rounded-full ${liveOnline ? 'bg-primary' : 'bg-slate-400'}`} />
@@ -145,6 +147,8 @@ const StudentPreviewModal = ({ classId, studentId, students, onClose }: StudentP
             >
               <Users size={14} /> 다른 학생
             </button>
+          )}
+          </div>
           )}
 
           <div className="flex items-center gap-0.5 p-0.5 bg-surface-container rounded-full shrink-0">

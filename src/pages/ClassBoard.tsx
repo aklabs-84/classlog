@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { SubmissionChips, ExpandToggle, CopyButton, ImageCopyRow } from '../components/BoardSubmissionBits';
 import {
   mergeDaySubmissions, boardMemberInfo, fetchGroupNameMap, attachGroupNames, sortBoardPosts,
   filterBoardPosts, buildBoardSections, limitSections, useBoardPaging,
@@ -521,7 +521,7 @@ const ClassBoard = () => {
                         )}
                         {sub.text_content && (
                           <div className="space-y-1.5">
-                            <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">내용</p>
+                            <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">내용</p><CopyButton kind={{ type: 'text', value: sub.text_content }} /></div>
                             <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                               {sub.text_content}
                             </p>
@@ -529,36 +529,36 @@ const ClassBoard = () => {
                         )}
 
                         {sub.image_urls?.length > 0 && (
-                          <ImageCarousel
+                          <div className="space-y-2"><ImageCarousel
                             urls={sub.image_urls}
                             thumbClassName="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
-                          />
+                          /><ImageCopyRow urls={sub.image_urls} /></div>
                         )}
 
                         {sub.link_url && (
-                          <a
+                          <div className="flex items-center gap-2"><a
                             href={sub.link_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
+                            className="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
                           >
                             <ExternalLink size={15} />
                             <span className="truncate">{sub.link_url}</span>
-                          </a>
+                          </a><CopyButton kind={{ type: 'text', value: sub.link_url }} /></div>
                         )}
 
                         {/* 추가 링크 항목들 (같은 그룹 내 여러 링크) */}
                         {sub._group && sub._group.filter((r: any) => r.result_type === 'link' && r.link_url !== sub.link_url).map((r: any) => (
-                          <a
+                          <div className="flex items-center gap-2"><a
                             key={r.id}
                             href={r.link_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
+                            className="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
                           >
                             <ExternalLink size={15} />
                             <span className="truncate">{r.link_url}</span>
-                          </a>
+                          </a><CopyButton kind={{ type: 'text', value: r.link_url }} /></div>
                         ))}
 
                         {sub.file_url && (

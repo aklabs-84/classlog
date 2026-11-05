@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  UserCog,
   KeyRound,
   Eye,
   EyeOff,
@@ -49,6 +50,7 @@ interface HomeroomDashboardProps {
   onSelectClass: (id: string) => void;
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
   onDeleteStudent: (id: string) => void;
+  onMarkTeacher?: (id: string) => void;
   onBulkApprove: () => void;
   onResetPin: (id: string) => void;
   groupMap?: Record<string, { name: string; color: string }>;
@@ -71,6 +73,7 @@ const HomeroomDashboard = ({
   onSelectClass: _onSelectClass,
   onEditStudent,
   onDeleteStudent,
+  onMarkTeacher,
   onBulkApprove,
   onResetPin,
   groupMap = {},
@@ -593,6 +596,7 @@ const HomeroomDashboard = ({
                    {/* 관리 버튼 */}
                    <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                      <button onClick={(e) => { e.stopPropagation(); handleStartEdit(e, s); }} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
+                     <button onClick={(e) => { e.stopPropagation(); onMarkTeacher?.(s.id); }} className="p-2 hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all rounded-lg" title="선생님(임시 참여자)으로 분류"><UserCog size={14} /></button>
                      <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
                      <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-primary-container text-on-surface-variant hover:text-primary transition-all rounded-lg"><KeyRound size={14} /></button>
                    </div>

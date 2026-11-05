@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
-import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
+import { SubmissionChips, ExpandToggle, CopyButton, ImageCopyRow } from '../components/BoardSubmissionBits';
 import { BoardSectionPosts } from '../components/board/BoardPostCards';
 import {
   mergeDaySubmissions, boardMemberInfo, fetchGroupNameMap, attachGroupNames, sortBoardPosts,
@@ -79,6 +79,7 @@ import {
   QrCode,
   Share2,
   Camera,
+  UserCog,
 } from 'lucide-react';
 import { openResultFile } from '../lib/openResult';
 import { useAuth, getClassLimit, getStudentLimit, countActiveClasses, isFreeCreditPlan } from '../lib/auth';
@@ -1344,6 +1345,8 @@ const Classroom = () => {
     setGroupMap(map);
   };
 
+  const [tempList, setTempList] = useState<{ id: string; name: string }[]>([]);
+
   const fetchStudents = async (classId: string) => {
     if (!classInfo) setLoading(true);
 
@@ -1372,6 +1375,10 @@ const Classroom = () => {
 
       if (error) throw error;
 
+      // 선생님(임시 참여자)으로 분류된 칸은 일반 조회에서 숨겨져 있어 전용 함수로 따로 가져온다
+      const { data: tempRows } = await supabase.rpc('list_temp_participants', { p_class_id: targetClassId });
+      setTempList(((tempRows as any[]) || []).map(r => ({ id: r.id, name: r.full_name })));
+
       if (data) {
         const formattedStudents = data.map(s => {
           const latestObs = s.observations && s.observations.length > 0 
@@ -1388,6 +1395,7 @@ const Classroom = () => {
             memo: s.memo || '',
             pin: s.pin || null,
             pending: s.registered_via === 'assistant_pending',
+            isTeacher: s.registered_via === 'teacher',
             avatar: s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.full_name)}&background=random`,
             activity: latestObs ? latestObs.activity_name : '기록 없음',
             time: latestObs ? new Date(latestObs.created_at).toLocaleDateString('ko-KR') : '-',
@@ -1576,7 +1584,7 @@ const Classroom = () => {
 
     // 플랜별 학생 수 제한 체크
     const studentLimit = getStudentLimit(profile);
-    if (students.length >= studentLimit) {
+    if (realStudents.length >= studentLimit) {
       appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       return;
     }
@@ -1636,9 +1644,10 @@ const Classroom = () => {
 
     // 플랜별 학생 수 제한 체크 (일괄 등록 포함)
     const studentLimit = getStudentLimit(profile);
-    if (students.length + names.length > studentLimit) {
-      const remaining = Math.max(0, studentLimit - students.length);
-      appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${students.length}명 등록 중 — ${remaining}명만 추가 가능합니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
+    const realCount = students.filter((st: any) => !st.isTeacher).length;
+    if (realCount + names.length > studentLimit) {
+      const remaining = Math.max(0, studentLimit - realCount);
+      appToast(`한 클래스에는 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${realCount}명 등록 중 — ${remaining}명만 추가 가능합니다.\n학급 규모가 더 크다면 클래스를 나누어 등록해 주세요.`);
       return;
     }
 
@@ -1700,7 +1709,7 @@ const Classroom = () => {
 
   const handleSelectAll = (isSelect: boolean) => {
     if (isSelect) {
-      setSelectedStudentIds(students.map(s => s.id));
+      setSelectedStudentIds(students.filter((st: any) => !st.isTeacher).map(s => s.id));
     } else {
       setSelectedStudentIds([]);
     }
@@ -1735,6 +1744,17 @@ const Classroom = () => {
       console.error(err);
       showToast('일괄 승인 중 오류가 발생했습니다.');
     }
+  };
+
+  const handleBulkMarkTeacher = async () => {
+    const ids = [...selectedStudentIds];
+    if (ids.length === 0) return;
+    if (!await appConfirm(`선택한 ${ids.length}명을 선생님(임시 참여자)으로 분류할까요?\n학생 수·출석·조 편성·결과 공유에서 빠지고, 목록 아래 "선생님" 칸으로 옮겨져요. 언제든 되돌릴 수 있어요.`)) return;
+    const results = await Promise.all(ids.map(id => supabase.rpc('set_student_teacher_flag', { p_student_id: id, p_is_teacher: true })));
+    const failed = results.filter(r => r.error).length;
+    showToast(failed ? `${ids.length - failed}명 분류, ${failed}명은 실패했어요.` : `${ids.length}명을 선생님(임시 참여자)으로 분류했어요.`);
+    setSelectedStudentIds([]);
+    fetchStudents(activeClassId!);
   };
 
   const handleBulkDelete = async () => {
@@ -1779,6 +1799,29 @@ const Classroom = () => {
     } catch (err) {
       console.error('Error confirming pending student:', err);
     }
+  };
+
+  const handleMarkTeacher = async (studentId: string) => {
+    const name = students.find(s => s.id === studentId)?.name || '';
+    if (!await appConfirm(`"${name}" 님을 선생님(임시 참여자)으로 분류할까요?\n학생 수·출석·조 편성·결과 공유에서 빠지고, 목록 아래 "선생님" 칸으로 옮겨져요. 언제든 되돌릴 수 있어요.`)) return;
+    const { error } = await supabase.rpc('set_student_teacher_flag', { p_student_id: studentId, p_is_teacher: true });
+    if (error) { showToast('분류하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    showToast('선생님(임시 참여자)으로 분류했어요.');
+    fetchStudents(activeClassId!);
+  };
+
+  const handleUnmarkTeacher = async (studentId: string) => {
+    const { error } = await supabase.rpc('set_student_teacher_flag', { p_student_id: studentId, p_is_teacher: false });
+    if (error) { showToast('되돌리지 못했어요.'); return; }
+    showToast('학생으로 되돌렸어요.');
+    fetchStudents(activeClassId!);
+  };
+
+  const handleDeleteTempParticipant = async (studentId: string, name: string) => {
+    if (!await appConfirm(`"${name}" 임시 참여자를 삭제할까요? 기록된 데이터도 사라져요.`)) return;
+    const { error } = await supabase.rpc('delete_temp_participant', { p_student_id: studentId });
+    if (error) { showToast('삭제하지 못했어요.'); return; }
+    fetchStudents(activeClassId!);
   };
 
   const handleDeleteStudent = async (studentId: string, studentName: string) => {
@@ -2644,6 +2687,11 @@ const Classroom = () => {
     return 0;
   });
 
+  // 선생님이 테스트로 들어온 임시 칸은 집계·출석·조·결과에서 빼고, 목록 아래 따로 보여 줌
+  const realStudents = students.filter((st: any) => !st.isTeacher);
+  const sortedRealStudents = sortedStudents.filter((st: any) => !st.isTeacher);
+  const tempParticipants = tempList;
+
   return (
     <>
     {answersMaterial && (
@@ -2981,7 +3029,7 @@ const Classroom = () => {
               eligible={!loading && !!(classInfo.school_project_id && classInfo.parent_class_id && classInfo.assigned_teacher_id === user?.id)}
               entryCode={classInfo.class_type !== 'homeroom' ? classInfo.entry_code : undefined}
               entryMode={classInfo.entry_mode || 'roster'}
-              studentCount={students.length}
+              studentCount={realStudents.length}
               unit={unit}
             />
           )}
@@ -3003,7 +3051,7 @@ const Classroom = () => {
 
               {activeTab === 'attendance' && classInfo && (
                 <div className="max-w-4xl mx-auto" data-tour="attendance-panel">
-                  <AttendanceTab classId={activeClassId!} students={sortedStudents} unit={unit} />
+                  <AttendanceTab classId={activeClassId!} students={sortedRealStudents} unit={unit} />
                 </div>
               )}
 
@@ -3011,7 +3059,7 @@ const Classroom = () => {
                 <div className="max-w-5xl mx-auto">
                   <GroupTab
                     classId={activeClassId!}
-                    students={sortedStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
+                    students={sortedRealStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
                     onGroupsChanged={() => loadGroupMap(activeClassId!)}
                   />
                 </div>
@@ -3023,7 +3071,7 @@ const Classroom = () => {
                   classId={activeClassId!}
                   teacherId={user?.id || ''}
                   weeklyPlan={classInfo.weekly_plan || []}
-                  students={sortedStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
+                  students={sortedRealStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
                 />
               )}
 
@@ -3032,11 +3080,11 @@ const Classroom = () => {
                   <AIInsightBanner
                     className={classInfo.name}
                     classId={activeClassId ?? undefined}
-                    students={sortedStudents}
+                    students={sortedRealStudents}
                     onOpenReport={() => setIsAIReportOpen(true)}
                     onOpenChat={() => { setAiChatFocusStudentId(null); setIsAIChatOpen(true); }}
                   />
-                  {sortedStudents.length > 0 && (
+                  {sortedRealStudents.length > 0 && (
                      <p className="mt-10 text-on-surface-variant/70 text-sm font-bold flex items-center gap-2">
                        <Sparkles size={16} /> 
                        명단 데이터를 기반으로 분석된 실시간 결과입니다.
@@ -3574,7 +3622,7 @@ const Classroom = () => {
                 </div>
               )}
 
-              {activeTab === 'list' && classInfo && students.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
+              {activeTab === 'list' && classInfo && realStudents.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
                 <div data-tour="entry-mode-banner" className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-primary-container/50 border border-primary/30 rounded-xl">
                   <p className="text-[16px] font-medium text-on-surface">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
                   <button type="button" onClick={() => handleReopenEntryMode(classInfo)} className="px-4 py-2 rounded-xl bg-surface-container-lowest border border-slate-200 dark:border-slate-700 text-[15px] font-bold text-on-surface hover:border-primary/40 hover:text-primary transition-all">입장 방식 바꾸기</button>
@@ -3650,7 +3698,7 @@ const Classroom = () => {
                 classInfo?.class_type === 'homeroom' ? (
                   <HomeroomDashboard
                     classInfo={classInfo}
-                    students={sortedStudents}
+                    students={sortedRealStudents}
                     onInviteTeachers={async () => {
                       if (classInfo?.school_project_id) {
                         const { data } = await supabase
@@ -3680,6 +3728,7 @@ const Classroom = () => {
                     onSelectClass={(id) => setActiveClassId(id)}
                     onEditStudent={handleEditStudent}
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
+                    onMarkTeacher={handleMarkTeacher}
                     onBulkApprove={handleBulkApprove}
                     onResetPin={handleResetPin}
                     groupMap={groupMap}
@@ -3687,7 +3736,7 @@ const Classroom = () => {
                 ) : (
                   <SubjectDashboard
                     classInfo={classInfo}
-                    students={sortedStudents}
+                    students={sortedRealStudents}
                     viewMode={viewMode}
                     setViewMode={setViewMode}
                     searchQuery={searchQuery}
@@ -3695,6 +3744,7 @@ const Classroom = () => {
                     onAddStudent={() => setIsStudentModalOpen(true)}
                     onEditStudent={handleEditStudent}
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
+                    onMarkTeacher={handleMarkTeacher}
                     onNavigateAI={(id) => {
                       setDetailedStudentId(id);
                       setIsDrawerOpen(true);
@@ -3711,6 +3761,31 @@ const Classroom = () => {
                   />
                 )
               )}
+
+              {activeTab === 'list' && tempParticipants.length > 0 && (
+                <div className="mt-4 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-4" data-testid="temp-participants">
+                  <p className="text-sm font-black text-primary mb-1">선생님 · 임시 참여자 {tempParticipants.length}명</p>
+                  <p className="text-sm text-on-surface-variant mb-3">테스트로 학생처럼 들어온 선생님이에요. 학생 수·출석·조 편성·결과 공유에는 포함되지 않아요.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {tempParticipants.map((t: any) => (
+                      <span key={t.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-primary/20 text-sm font-bold">
+                        {t.name}
+                        <span className="text-xs font-black text-primary">선생님</span>
+                        <button
+                          onClick={() => handleUnmarkTeacher(t.id)}
+                          className="text-on-surface-variant/60 hover:text-primary text-xs font-bold"
+                          title="학생으로 되돌리기"
+                        >학생으로 되돌리기</button>
+                        <button
+                          onClick={() => handleDeleteTempParticipant(t.id, t.name)}
+                          className="text-on-surface-variant/60 hover:text-red-500 text-xs font-bold"
+                          title="임시 참여자 지우기"
+                        >지우기</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
             </div>
@@ -3719,7 +3794,7 @@ const Classroom = () => {
               userId={user?.id}
               classId={classInfo.id}
               entryCode={classInfo.class_type !== 'homeroom' ? classInfo.entry_code : undefined}
-              studentCount={students.length}
+              studentCount={realStudents.length}
               rosterAccepted={classInfo.entry_mode !== 'live_roster' || !!classInfo.live_roster_accepted}
               lessonStarted={lessonStarted}
               onShowCode={classInfo.class_type !== 'homeroom' ? handleShowEntryCode : undefined}
@@ -3788,6 +3863,13 @@ const Classroom = () => {
                   선택 취소
                 </button>
                 <button 
+                  onClick={handleBulkMarkTeacher}
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2"
+                >
+                  <UserCog size={16} />
+                  선생님으로 분류
+                </button>
+                <button 
                   onClick={handleBulkDelete}
                   className="px-8 py-3 bg-error hover:bg-error/90 text-white rounded-xl text-xs font-black shadow-lg shadow-error/20 transition-all active:scale-95 flex items-center gap-2"
                 >
@@ -3812,7 +3894,7 @@ const Classroom = () => {
         onClose={() => setIsAIReportOpen(false)}
         className={classInfo?.name || ''}
         classId={activeClassId ?? undefined}
-        students={students}
+        students={realStudents}
       />
 
       <AIChatModal
@@ -3820,7 +3902,7 @@ const Classroom = () => {
         onClose={() => { setIsAIChatOpen(false); setAiChatFocusStudentId(null); }}
         className={classInfo?.name || ''}
         classId={activeClassId ?? undefined}
-        students={students}
+        students={realStudents}
         focusStudentId={aiChatFocusStudentId}
         onClearFocus={() => setAiChatFocusStudentId(null)}
       />
@@ -5354,7 +5436,7 @@ const Classroom = () => {
         {isStudentPreviewOpen && activeClassId && (
           <StudentPreviewModal
             classId={activeClassId}
-            students={students.map((st: any) => ({ id: st.id, name: st.name, number: st.number }))}
+            students={realStudents.map((st: any) => ({ id: st.id, name: st.name, number: st.number }))}
             onClose={() => setIsStudentPreviewOpen(false)}
           />
         )}
@@ -5664,27 +5746,27 @@ const Classroom = () => {
                         )}
                         {sub.text_content && (
                           <div className="space-y-1.5">
-                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p>
+                            <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p><CopyButton kind={{ type: 'text', value: sub.text_content }} /></div>
                             <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{sub.text_content}</p>
                           </div>
                         )}
                         {sub.image_urls?.length > 0 && (
-                          <ImageCarousel
+                          <div className="space-y-2"><ImageCarousel
                             urls={sub.image_urls}
                             thumbClassName="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
-                          />
+                          /><ImageCopyRow urls={sub.image_urls} /></div>
                         )}
                         {sub.link_url && (
-                          <a href={sub.link_url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                          <div className="flex items-center gap-2"><a href={sub.link_url} target="_blank" rel="noopener noreferrer"
+                            className="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
                             <ExternalLink size={15} /><span className="truncate">{sub.link_url}</span>
-                          </a>
+                          </a><CopyButton kind={{ type: 'text', value: sub.link_url }} /></div>
                         )}
                         {sub._group && sub._group.filter((r: any) => r.result_type === 'link' && r.link_url !== sub.link_url).map((r: any) => (
-                          <a key={r.id} href={r.link_url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                          <div className="flex items-center gap-2"><a key={r.id} href={r.link_url} target="_blank" rel="noopener noreferrer"
+                            className="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
                             <ExternalLink size={15} /><span className="truncate">{r.link_url}</span>
-                          </a>
+                          </a><CopyButton kind={{ type: 'text', value: r.link_url }} /></div>
                         ))}
                         {sub.file_url && (
                           <div className="w-full flex items-center gap-2 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl">
