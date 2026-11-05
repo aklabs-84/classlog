@@ -1378,6 +1378,10 @@ const Classroom = () => {
       // 선생님(임시 참여자)으로 분류된 칸은 일반 조회에서 숨겨져 있어 전용 함수로 따로 가져온다
       const { data: tempRows } = await supabase.rpc('list_temp_participants', { p_class_id: targetClassId });
       setTempList(((tempRows as any[]) || []).map(r => ({ id: r.id, name: r.full_name })));
+      // 학생별 마지막 입장 시각 (목록 불러올 때 1번만, 추가 폴링 없음)
+      const { data: entryRows } = await supabase.rpc('class_entry_status', { p_class_id: targetClassId });
+      const entryMap: Record<string, number> = {};
+      ((entryRows as any[]) || []).forEach(r => { entryMap[r.student_id] = new Date(r.last_entry).getTime(); });
 
       if (data) {
         const formattedStudents = data.map(s => {
@@ -1396,6 +1400,7 @@ const Classroom = () => {
             pin: s.pin || null,
             pending: s.registered_via === 'assistant_pending',
             isTeacher: s.registered_via === 'teacher',
+            lastEntry: entryMap[s.id] || null,
             avatar: s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.full_name)}&background=random`,
             activity: latestObs ? latestObs.activity_name : '기록 없음',
             time: latestObs ? new Date(latestObs.created_at).toLocaleDateString('ko-KR') : '-',

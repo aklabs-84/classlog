@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import EntryBadge from './EntryBadge';
 import { useState, useEffect, useRef } from 'react';
 import {
   Users,
@@ -538,6 +539,7 @@ const HomeroomDashboard = ({
                          <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                            <span className="text-[14px] font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
+<EntryBadge lastEntry={s.lastEntry} />
                            {colVis.group && groupMap[s.id] && (
                              <span
                                className="text-[12px] font-black px-1.5 py-0.5 rounded-md text-white"

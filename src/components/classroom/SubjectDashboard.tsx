@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import EntryBadge from './EntryBadge';
 import { createPortal } from 'react-dom';
 import { resolveEffectivePlan } from '../../lib/effectiveWeeklyPlan';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -684,6 +685,7 @@ const SubjectDashboard = ({
                             <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                               <span className="text-[14px] font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
+<EntryBadge lastEntry={s.lastEntry} />
                               {suggestionCounts[s.id] > 0 && (
                                 <span className="text-[12px] font-black text-surface-container0 bg-surface-container px-1.5 py-0.5 rounded border border-slate-200">💬 {suggestionCounts[s.id]}</span>
                               )}
@@ -889,6 +891,7 @@ const SubjectDashboard = ({
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[14px] font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
+<EntryBadge lastEntry={s.lastEntry} />
                                   {colVis.group && groupMap[s.id] && (
                                     <span
                                       className="text-[12px] font-black px-1.5 py-0.5 rounded-md text-white"
