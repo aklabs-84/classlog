@@ -85,7 +85,7 @@ export default function ServerUsagePanel() {
         <Gauge title="데이터베이스" big={fmtPct(dbPct)} sub={`${fmtBytes(stats.db_bytes)} / 8 GB`} pct={dbPct} />
         <Gauge title="파일 저장" big={fmtPct(stPct)} sub={`${fmtBytes(stats.storage_bytes)} / 100 GB`} pct={stPct} />
         <Gauge
-          title={latest ? `요청 수 (${latest.day.slice(5)})` : '요청 수'}
+          title={latest ? `하루 요청 수 (${latest.day.slice(5).replace('-', '/')})` : '하루 요청 수'}
           big={latest ? `${latest.total.toLocaleString()}건` : '기록 없음'}
           sub={latest ? `경보 기준 ${REQUEST_ALERT.toLocaleString()}건 대비 ${Math.round(reqPct)}%` : '매일 오전 9시 10분에 기록돼요'}
           pct={reqPct}
@@ -94,12 +94,19 @@ export default function ServerUsagePanel() {
 
       {stats.requests.length > 1 && (
         <div className="border-t border-gray-200 pt-4">
-          <p className="text-sm text-gray-500 mb-2">최근 요청 수 흐름</p>
-          <div className="flex items-end gap-1 h-12">
-            {stats.requests.map(r => (
-              <div key={r.day} title={`${r.day}: ${r.total.toLocaleString()}건`} className="flex-1 rounded-t"
-                style={{ height: `${Math.max((r.total / Math.max(...stats.requests.map(x => x.total))) * 100, 4)}%`, background: '#2f8f5b' }} />
-            ))}
+          <p className="font-bold text-gray-800">하루 요청 수 (날짜별)</p>
+          <p className="text-sm text-gray-500 mb-3">막대가 높을수록 그날 요청이 많았어요</p>
+          <div className="flex items-end gap-2">
+            {stats.requests.map(r => {
+              const max = Math.max(...stats.requests.map(x => x.total));
+              return (
+                <div key={r.day} className="flex-1 flex flex-col items-center min-w-0">
+                  <span className="text-xs text-gray-700 tabular-nums mb-1">{r.total.toLocaleString()}</span>
+                  <div className="w-full rounded-t" style={{ height: `${Math.max((r.total / max) * 64, 3)}px`, background: '#2f8f5b' }} />
+                  <span className="text-xs text-gray-500 tabular-nums mt-1">{r.day.slice(5).replace('-', '/')}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
