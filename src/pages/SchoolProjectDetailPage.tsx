@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../lib/auth';
 import DailyLogTab from '../components/classroom/DailyLogTab';
+import SchoolSubmitLinkTab from '../components/classroom/SchoolSubmitLinkTab';
 import ProjectQuizTab from '../components/classroom/ProjectQuizTab';
 import SendBoardTab from '../components/classroom/SendBoardTab';
 import { supabase } from '../lib/supabase';
@@ -128,6 +129,7 @@ const TABS = [
   { key: 'notice', label: '공지 만들기' },
   { key: 'attendance', label: '출결' },
   { key: 'results', label: '결과' },
+  { key: 'submitlink', label: '결과 제출 링크' },
   { key: 'records', label: '세특' },
   { key: 'suggestions', label: '건의' },
   { key: 'daily', label: '일자별' },
@@ -148,7 +150,7 @@ const TAB_GROUPS: { key: string; label: string; subs: { key: TabKey; label: stri
   { key: 'notice', label: '공지 만들기', subs: [{ key: 'notice', label: '공지 만들기' }] },
   { key: 'log', label: '수업 기록', subs: [
     { key: 'attendance', label: '출결' }, { key: 'daily', label: '일자별' },
-    { key: 'results', label: '결과' }, { key: 'records', label: '세특' },
+    { key: 'results', label: '결과' }, { key: 'submitlink', label: '결과 제출 링크' }, { key: 'records', label: '세특' },
     { key: 'suggestions', label: '건의' },
   ] },
   { key: 'mat', label: '수업 자료', subs: [
@@ -1219,6 +1221,10 @@ const SchoolProjectDetailPage = () => {
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'submitlink' && (
+        <SchoolSubmitLinkTab classes={classes.map(c => ({ id: c.id, name: c.name }))} />
       )}
 
       {tab === 'daily' && (

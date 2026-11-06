@@ -5472,6 +5472,11 @@ const Classroom = () => {
                 <h3 className="text-[22px] font-bold text-on-surface">학생 결과 제출 링크</h3>
                 <p className="text-[15px] text-on-surface-variant">{classInfo.name} · 학생이 이름만 쓰고 수업 결과만 올리는 링크예요.</p>
               </div>
+              <p className="text-[14px] leading-relaxed text-on-surface-variant bg-surface-container-low rounded-xl p-4">
+                ① 이 링크로 새로 들어온 학생은 <b>수업 결과 내기 화면만</b> 보여요. 아래 두 설정은 <b>이 전용 링크에만</b> 적용돼요.<br />
+                ② 반의 <b>일반 입장 링크</b>(입장코드)는 따로 열려 있고, 이 설정과 상관없이 전체 기능이 보여요.<br />
+                ③ 이미 입장해 둔 브라우저는 예전 화면이 남아요. 시험할 때는 <b>새 탭(또는 시크릿 창)에서 이 링크로</b> 들어가 보세요.
+              </p>
               {!nameOnly && (
                 <p className="text-[15px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-4 leading-relaxed">
                   이 반은 '이름만 입력' 입장 방식이 아니라서 링크를 쓸 수 없어요. 반 수정에서 입장 방식을 '이름만 입력'으로 바꾼 뒤 다시 열어 주세요.

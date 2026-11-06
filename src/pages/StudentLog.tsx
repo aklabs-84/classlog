@@ -738,7 +738,7 @@ const StudentLog = () => {
         // 사용 방법 안내는 처음 한 번만 보여 준다(보여 주는 순간 기록 — 닫지 않고 지나가도 다시 뜨지 않음)
         let seenOnce = false;
         try { seenOnce = localStorage.getItem(`guide_seen_${parsed.student_id}`) === '1'; } catch { /* 무시 */ }
-        if (!hiddenToday && !seenOnce) {
+        if (!hiddenToday && !seenOnce && !parsed.submit_only) {
           try { localStorage.setItem(`guide_seen_${parsed.student_id}`, '1'); } catch { /* 무시 */ }
           setShowGuideModal(true);
         }
@@ -6452,7 +6452,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
 
       {/* 이 화면 도움말 (활동 기록·결과 제출) — 메뉴 소개 투어가 열려 있는 동안은 쉬어 간다 */}
       <StudentScreenTour
-        screenKey={studentScreens[activeTab] ? activeTab : null}
+        screenKey={!session?.submit_only && studentScreens[activeTab] ? activeTab : null}
         screens={studentScreens}
         storagePrefix="student_main_tour_v1"
         suspended={showGuideModal}

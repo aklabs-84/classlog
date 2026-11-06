@@ -571,6 +571,10 @@ const SchoolProjectClassDetailPage = () => {
             학생이 이름만 입력하고 수업 결과만 올리는 링크예요. 올린 결과는 이 반에 쌓이고, 결과 공유 페이지와 엑셀에 나와요.
           </p>
 
+          <p className="text-xs leading-relaxed text-on-surface-variant bg-surface-container-low rounded-xl p-3">
+            이 설정은 <b>전용 링크에만</b> 적용돼요. 새로 들어온 학생은 결과 내기 화면만 보여요. 반의 일반 입장 링크는 따로 열려 있고 이 설정과 상관없어요. 시험은 새 탭(시크릿 창)에서 해 보세요.
+          </p>
+
           {!nameOnly && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-bold text-amber-800 leading-relaxed">
