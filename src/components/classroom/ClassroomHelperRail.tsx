@@ -29,6 +29,8 @@ interface Props {
   onOpenStudentPage?: () => void;
   onOpenTeacherShareQR?: () => void;
   onOpenGallery?: () => void;
+  /** 학생 결과 제출 링크 창 (학교 프로젝트 반에서만) */
+  onOpenSubmitLink?: () => void;
   galleryPending?: number;
   onExport?: () => void;
   /** 설문·퀴즈·게시판 목록을 열어 준다 (연결된 게 없어 숨겨져 있을 때 쓰는 입구) */
@@ -90,6 +92,7 @@ const ClassroomHelperRail = (p: Props) => {
     p.onOpenResources && { key: 'res', label: '수업 자료실', icon: BookOpen, run: p.onOpenResources },
     p.onOpenStudentPage && { key: 'page', label: '학생 페이지 이동', icon: ExternalLink, run: p.onOpenStudentPage },
     p.onOpenTeacherShareQR && { key: 'share', label: '교사용 결과 공유', icon: Share2, run: p.onOpenTeacherShareQR },
+    p.onOpenSubmitLink && { key: 'submit', label: '학생 결과 제출 링크', icon: Share2, run: p.onOpenSubmitLink },
     p.onOpenGallery && { key: 'gallery', label: '수업 사진·동의', icon: Camera, run: p.onOpenGallery, badge: p.galleryPending },
     p.onExport && { key: 'export', label: '내보내기', icon: Download, run: p.onExport },
   ].filter(Boolean) as { key: string; label: string; icon: LucideIcon; run: () => void; badge?: number }[];

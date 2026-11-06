@@ -16,6 +16,8 @@ import {
   X,
   Link2,
   Trash2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { appConfirm, appToast } from '../lib/appDialog';
 
@@ -50,6 +52,7 @@ const TABS = [
   { key: 'students', label: '학생 현황' },
   { key: 'materials', label: '수업 자료 현황' },
   { key: 'links', label: '일반 자료' },
+  { key: 'submit', label: '결과 제출 링크' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -59,6 +62,11 @@ const SchoolProjectClassDetailPage = () => {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  // 학생 결과 제출 링크 설정·대기 목록
+  const [submitCfg, setSubmitCfg] = useState<{ entry_code: string | null; entry_mode: string; submit_link_enabled: boolean; result_review: boolean } | null>(null);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [pendingResults, setPendingResults] = useState<{ id: string; student_id: string; title: string | null; result_type: string | null; created_at: string; submission_group: string | null }[]>([]);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [tab, setTab] = useState<TabKey>('students');
   const [classInfo, setClassInfo] = useState<{ id: string; name: string; teacherName: string | null } | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -88,7 +96,7 @@ const SchoolProjectClassDetailPage = () => {
     try {
       const { data: cls } = await supabase
         .from('classes')
-        .select('id, name, assigned_teacher_id, weekly_plan, schedule_mode, class_specific_dates, class_start_time, class_end_time, end_alarm_minutes, break_times')
+        .select('id, name, assigned_teacher_id, entry_code, entry_mode, submit_link_enabled, result_review, weekly_plan, schedule_mode, class_specific_dates, class_start_time, class_end_time, end_alarm_minutes, break_times')
         .eq('id', classId)
         .single();
 
@@ -98,6 +106,12 @@ const SchoolProjectClassDetailPage = () => {
         teacherName = profile?.full_name || null;
       }
       setClassInfo(cls ? { id: cls.id, name: cls.name, teacherName } : null);
+      setSubmitCfg(cls ? {
+        entry_code: cls.entry_code || null,
+        entry_mode: cls.entry_mode || 'roster',
+        submit_link_enabled: !!cls.submit_link_enabled,
+        result_review: !!cls.result_review,
+      } : null);
       if ((cls?.weekly_plan || []).length > 0) setPeriodCount(Math.min(8, cls!.weekly_plan.length));
       setClassDates(cls?.schedule_mode === 'dates' ? [...(cls?.class_specific_dates || [])] : []);
       setTimeForm({
@@ -122,12 +136,14 @@ const SchoolProjectClassDetailPage = () => {
       const { data: studentRows } = await supabase.from('students').select('id, full_name').eq('class_id', classId);
       const studentIds = (studentRows || []).map(s => s.id);
 
+      setPendingResults([]);
       const resultStatsByStudent: Record<string, { count: number; last: string | null }> = {};
       if (studentIds.length > 0) {
         const { data: results } = await supabase
           .from('student_results')
-          .select('student_id, created_at')
+          .select('id, student_id, created_at, title, result_type, status, submission_group')
           .in('student_id', studentIds);
+        setPendingResults((results || []).filter((r: any) => r.status === 'pending').sort((a: any, b: any) => (a.created_at < b.created_at ? 1 : -1)));
         (results || []).forEach((r: any) => {
           if (!resultStatsByStudent[r.student_id]) resultStatsByStudent[r.student_id] = { count: 0, last: null };
           const stat = resultStatsByStudent[r.student_id];
@@ -163,6 +179,25 @@ const SchoolProjectClassDetailPage = () => {
   }, [classId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const saveSubmitCfg = async (patch: Partial<{ submit_link_enabled: boolean; result_review: boolean; entry_mode: string }>) => {
+    if (!classId) return;
+    setSubmitBusy(true);
+    const { error } = await supabase.from('classes').update(patch).eq('id', classId);
+    setSubmitBusy(false);
+    if (error) { appToast('저장하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    setSubmitCfg(prev => (prev ? { ...prev, ...patch } : prev));
+  };
+
+  const reviewPending = async (ids: string[], status: 'approved' | 'rejected') => {
+    const { data, error } = await supabase.from('student_results').update({ status }).in('id', ids).select('id');
+    if (error || !data || data.length === 0) {
+      appToast('이 화면에서는 승인할 권한이 없어요. 담당 선생님의 반 화면(빠른 확인)에서 처리해 주세요.');
+      return;
+    }
+    setPendingResults(prev => prev.filter(r => !ids.includes(r.id)));
+    appToast(status === 'approved' ? '승인했어요. 공유 페이지에 공개돼요.' : '반려했어요.');
+  };
 
   const handleSaveDates = async () => {
     if (!classId) return;
@@ -518,6 +553,86 @@ const SchoolProjectClassDetailPage = () => {
           </div>
         </div>
       )}
+
+      {tab === 'submit' && submitCfg && (() => {
+        const link = `https://classlog-ai.vercel.app/classroom-entry?code=${submitCfg.entry_code}&mode=submit`;
+        const nameOnly = submitCfg.entry_mode === 'common_named';
+        const nameOf = (sid: string) => students.find(x => x.id === sid)?.full_name || '학생';
+        // 한 번에 낸 여러 건(같은 묶음)은 한 줄로 합쳐 보여 준다
+        const groups: { key: string; ids: string[]; student_id: string; title: string | null; created_at: string }[] = [];
+        pendingResults.forEach(r => {
+          const key = r.submission_group || r.id;
+          const g = groups.find(x => x.key === key);
+          if (g) g.ids.push(r.id); else groups.push({ key, ids: [r.id], student_id: r.student_id, title: r.title, created_at: r.created_at });
+        });
+        return (
+        <div className="space-y-6">
+          <p className="text-xs font-bold text-on-surface-variant/70">
+            학생이 이름만 입력하고 수업 결과만 올리는 링크예요. 올린 결과는 이 반에 쌓이고, 결과 공유 페이지와 엑셀에 나와요.
+          </p>
+
+          {!nameOnly && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <p className="text-sm font-bold text-amber-800 leading-relaxed">
+                이 반은 지금 '이름만 입력' 입장 방식이 아니라서 링크를 쓸 수 없어요. 방식을 바꾸면 이미 등록된 학생 번호/PIN 입장은 더 이상 쓰이지 않아요. (학생 {students.length}명)
+              </p>
+              <button
+                disabled={submitBusy}
+                onClick={async () => { if (await appConfirm('입장 방식을 "이름만 입력"으로 바꿀까요?\n기존 PIN·번호 입장은 쓰이지 않게 돼요.')) saveSubmitCfg({ entry_mode: 'common_named' }); }}
+                className="px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-black disabled:opacity-50"
+              >이름만 입력 방식으로 바꾸기</button>
+            </div>
+          )}
+
+          <label className="flex items-center justify-between gap-4 p-4 rounded-xl border border-surface-container-high">
+            <span className="text-sm font-black">제출 링크 켜기</span>
+            <input type="checkbox" className="w-5 h-5 accent-primary" disabled={!nameOnly || submitBusy} checked={submitCfg.submit_link_enabled}
+              onChange={e => saveSubmitCfg(e.target.checked ? { submit_link_enabled: true, result_review: true } : { submit_link_enabled: false })} />
+          </label>
+          <label className="flex items-center justify-between gap-4 p-4 rounded-xl border border-surface-container-high">
+            <span>
+              <span className="block text-sm font-black">확인한 뒤 공개</span>
+              <span className="block text-xs text-on-surface-variant">끄면 학생이 내자마자 공유 페이지에 보여요.</span>
+            </span>
+            <input type="checkbox" className="w-5 h-5 accent-primary" disabled={!nameOnly || submitBusy} checked={submitCfg.result_review}
+              onChange={e => saveSubmitCfg({ result_review: e.target.checked })} />
+          </label>
+
+          {submitCfg.submit_link_enabled && nameOnly && submitCfg.entry_code && (
+            <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl border border-surface-container-high">
+              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`} alt="결과 제출 QR" className="w-40 h-40 rounded-lg border border-surface-container-high bg-white p-2" />
+              <div className="flex-1 min-w-0 space-y-3 w-full">
+                <p className="text-xs text-on-surface-variant break-all select-all">{link}</p>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(link).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }, () => appToast('복사하지 못했어요. 주소를 직접 복사해 주세요.')); }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-black"
+                >{linkCopied ? <Check size={16} /> : <Copy size={16} />} {linkCopied ? '복사됨' : '링크 복사'}</button>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h2 className="text-sm font-black mb-2">승인 기다리는 결과 ({groups.length})</h2>
+            {groups.length === 0 ? (
+              <p className="text-sm text-on-surface-variant py-6 text-center rounded-xl border border-dashed border-surface-container-high">기다리는 결과가 없어요.</p>
+            ) : (
+              <div className="space-y-2">
+                {groups.map(g => (
+                  <div key={g.key} className="flex items-center gap-3 p-3 rounded-xl border border-surface-container-high">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black truncate">{nameOf(g.student_id)}{g.ids.length > 1 ? ` · ${g.ids.length}건` : ''}</p>
+                      <p className="text-xs text-on-surface-variant truncate">{g.title || '제목 없음'} · {new Date(g.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <button onClick={() => reviewPending(g.ids, 'rejected')} className="px-3 py-2 rounded-lg border border-surface-container-high text-sm font-bold text-on-surface-variant">반려</button>
+                    <button onClick={() => reviewPending(g.ids, 'approved')} className="px-3 py-2 rounded-lg bg-primary text-white text-sm font-black">승인</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        );
+      })()}
 
       {tab === 'links' && (
         <div className="space-y-6">

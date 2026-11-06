@@ -3826,6 +3826,7 @@ const Classroom = () => {
               onOpenStudentPage={classInfo.entry_code ? handleOpenStudentPage : undefined}
               onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
               galleryPending={galleryPending}
+              onOpenSubmitLink={classInfo.school_project_id && classInfo.entry_code ? () => setIsSubmitLinkOpen(true) : undefined}
               onOpenGallery={classInfo.class_type !== 'homeroom' && user ? () => setIsGalleryOpen(true) : undefined}
               onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
             />
