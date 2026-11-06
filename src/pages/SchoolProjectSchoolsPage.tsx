@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Loader2,
   MoreVertical,
+  FolderInput,
   Archive,
   ArchiveRestore,
   Trash2,
@@ -233,6 +234,10 @@ const SchoolProjectSchoolsPage = () => {
   const [deleteTarget, setDeleteTarget] = useState<SchoolRow | null>(null);
   const [editTarget, setEditTarget] = useState<SchoolRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<SchoolRow | null>(null);
+  const [moveOptions, setMoveOptions] = useState<{ id: string; name: string }[] | null>(null);
+  const [moveToId, setMoveToId] = useState('');
+  const [moving, setMoving] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<PageTabKey>('schools');
@@ -812,6 +817,38 @@ const SchoolProjectSchoolsPage = () => {
       setSchools(prev => prev.map(s => s.id === school.id ? { ...s, status: nextStatus } : s));
     } finally {
       setArchivingId(null);
+    }
+  };
+
+  const openMoveModal = async (school: SchoolRow) => {
+    setMoveTarget(school);
+    setMoveToId('');
+    setMoveOptions(null);
+    if (!user) return;
+    const { data } = await supabase
+      .from('school_projects')
+      .select('id, name')
+      .eq('admin_id', user.id)
+      .is('parent_project_id', null)
+      .neq('id', projectId || '')
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false });
+    setMoveOptions(data || []);
+  };
+
+  const handleMoveSchool = async () => {
+    if (!moveTarget || !moveToId) return;
+    setMoving(true);
+    try {
+      const { error } = await supabase.rpc('move_school_to_project', { p_school_id: moveTarget.id, p_target_project_id: moveToId });
+      if (error) { appToast('옮기지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+      const dest = moveOptions?.find(o => o.id === moveToId)?.name || '선택한 프로젝트';
+      setSchools(prev => prev.filter(s => s.id !== moveTarget.id));
+      setMoveTarget(null);
+      appToast(`'${dest}'(으)로 옮겼어요.`);
+      fetchData();
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -1418,6 +1455,12 @@ const SchoolProjectSchoolsPage = () => {
                                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high transition-all"
                                 >
                                   <Pencil size={13} /> 정보 수정
+                                </button>
+                                <button
+                                  onClick={() => { setMenuOpenId(null); openMoveModal(s); }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container-high transition-all"
+                                >
+                                  <FolderInput size={13} /> 다른 프로젝트로 옮기기
                                 </button>
                                 <button
                                   onClick={() => { setMenuOpenId(null); handleToggleArchive(s); }}
@@ -2161,6 +2204,42 @@ const SchoolProjectSchoolsPage = () => {
           onClose={() => setEditTarget(null)}
           onSaved={() => fetchData()}
         />
+      )}
+
+      {/* 학교 옮기기 모달 */}
+      {moveTarget && createPortal(
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => !moving && setMoveTarget(null)}>
+          <div className="bg-surface-container-lowest rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h2 className="font-black text-lg mb-1">다른 프로젝트로 옮기기</h2>
+            <p className="text-sm text-on-surface-variant">
+              <span className="font-bold text-on-surface">{moveTarget.school_name || moveTarget.name}</span>을(를) 통째로 옮겨요. 반·학생·제출 결과·입장 코드는 그대로 따라가요.
+            </p>
+            <label className="block text-xs font-bold text-on-surface-variant mt-4 mb-1">옮길 프로젝트</label>
+            {moveOptions === null ? (
+              <p className="text-sm text-on-surface-variant py-2">불러오는 중...</p>
+            ) : moveOptions.length === 0 ? (
+              <p className="text-sm text-on-surface-variant py-2">옮길 수 있는 다른 프로젝트가 없어요. 먼저 새 프로젝트를 만들어 주세요.</p>
+            ) : (
+              <select
+                value={moveToId}
+                onChange={e => setMoveToId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-surface-container-high bg-surface-container-lowest text-sm"
+              >
+                <option value="">프로젝트를 고르세요</option>
+                {moveOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            )}
+            <ul className="text-xs text-on-surface-variant mt-3 space-y-1 list-disc pl-4">
+              <li>반에 지정된 '과정'은 비워져요. 새 프로젝트에서 다시 지정해 주세요.</li>
+              <li>이 프로젝트의 공지·자료·설문은 따라가지 않아요.</li>
+            </ul>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setMoveTarget(null)} disabled={moving} className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-container hover:bg-surface-container-high transition-all">취소</button>
+              <button onClick={handleMoveSchool} disabled={moving || !moveToId} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:opacity-90 disabled:opacity-50 transition-all">{moving ? '옮기는 중...' : '옮기기'}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* 학교 삭제 확인 모달 */}

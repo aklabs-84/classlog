@@ -120,7 +120,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
           .from('student_results')
           .select('id, title, text_content, result_type, link_url, display_name, created_at, student_id, submission_group')
           .in('student_id', studentIds)
-          .or('status.is.null,status.eq.submitted')
+          .or('status.is.null,status.eq.submitted,status.eq.pending')
           .order('created_at', { ascending: true })
           .limit(50),
       ]);

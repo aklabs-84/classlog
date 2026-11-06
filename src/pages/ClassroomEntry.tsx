@@ -201,6 +201,8 @@ const ClassroomEntry = () => {
   };
 
   // 명단 없는 공통 수업 입장: PIN 없이 서버가 통과 표를 바로 발급
+  // 결과 제출 전용 링크(?mode=submit)로 들어왔는지
+  const submitMode = searchParams.get('mode') === 'submit';
   const enterCommon = async (cls: any, fullCode: string, name: string) => {
     const { data: rows, error: cErr } = await supabase.rpc('common_enter', { p_entry_code: fullCode, p_name: name });
     const r = Array.isArray(rows) ? rows[0] : rows;
@@ -214,6 +216,7 @@ const ClassroomEntry = () => {
       token: r.session_token,
       is_fresh_entry: true,
       common_mode: cls.entry_mode,
+      ...(submitMode ? { submit_only: true } : {}),
     }));
     navigate('/student-log');
   };
@@ -326,8 +329,9 @@ const ClassroomEntry = () => {
       }
 
       // 이 반의 담당 선생님이 로그인한 상태라면 명단·PIN 없이 바로 입장 (서버가 담당 교사인지 확인)
+      // (결과 제출 링크로 들어온 경우는 학생과 같은 화면을 보도록 건너뜀)
       const { data: authData } = await supabase.auth.getSession();
-      if (authData.session) {
+      if (authData.session && !submitMode) {
         const { data: tRows, error: tErr } = await supabase.rpc('teacher_student_session', { p_class_id: data.id });
         const t = Array.isArray(tRows) ? tRows[0] : tRows;
         if (!tErr && t?.session_token) {
@@ -344,6 +348,12 @@ const ClassroomEntry = () => {
           navigate('/student-log');
           return;
         }
+      }
+
+      // 결과 제출 링크: 선생님이 켜 둔 반의 '이름만 입력' 입장에서만 열린다
+      if (submitMode && !(data.submit_link_enabled && data.entry_mode === 'common_named')) {
+        setError('지금은 이 링크로 결과를 낼 수 없어요. 선생님께 문의해 주세요.');
+        return;
       }
 
       setTargetClass(data);

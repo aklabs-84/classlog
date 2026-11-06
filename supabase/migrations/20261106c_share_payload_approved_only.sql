@@ -1,0 +1,4 @@
+-- 공유 페이지(_share_class_payload)의 학생 결과는 '승인된 것'만 보여준다 (대기·반려 제외)
+-- 적용: 함수 본문의 student_results 조회 줄에 r.status = 'approved' 조건을 추가함
+-- (이미 적용 완료. 재현하려면 _share_class_payload 정의에서 아래 한 줄만 바꾸면 됨)
+--   from public.student_results r where r.student_id = any(v_ids) and r.status = 'approved'

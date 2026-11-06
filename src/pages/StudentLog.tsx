@@ -715,6 +715,7 @@ const StudentLog = () => {
 
         // 검증 통과 — 세션 활성화
         setSession(parsed);
+        if (parsed.submit_only) setActiveTab('results'); // 결과 제출 전용 입장
         setStudentAvatar(studentExists.avatar_url || null);
         fetchClassDetails(parsed.class_id);
         fetchAnnouncements(parsed.class_id);
@@ -2737,7 +2738,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         onClose={() => setFullscreenMaterial(null)}
       />
     )}
-    <div className={`min-h-screen bg-surface flex flex-col p-6 pb-28 lg:pb-6 transition-[padding] duration-200 ${isSidebarCollapsed ? 'lg:pl-28' : 'lg:pl-72'}`}>
+    <div className={`min-h-screen bg-surface flex flex-col p-6 pb-28 lg:pb-6 transition-[padding] duration-200 ${session?.submit_only ? '' : isSidebarCollapsed ? 'lg:pl-28' : 'lg:pl-72'}`}>
       {/* Top Navbar */}
       <header className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 mb-4">
         <div className="flex items-center gap-3 shrink-0">
@@ -2761,14 +2762,14 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
             </button>
           )}
           {/* 교육 신청하기 버튼 */}
-          <button
+          {!session?.submit_only && <button
             onClick={() => navigate('/training-request?source=student-log')}
             title="교육 신청하기"
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-primary transition-all"
           >
             <GraduationCap size={20} />
             <span className="hidden sm:inline text-sm font-black">교육 신청하기</span>
-          </button>
+          </button>}
 
           {/* Bell 알림 버튼 */}
           <div className="relative">
@@ -2909,7 +2910,9 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       <div className="max-w-6xl mx-auto w-full py-5 space-y-5">
         {/* 학교·학생 한 줄 요약 */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl bg-white border border-surface-container-highest px-5 py-3" style={{ wordBreak: 'keep-all' }}>
-          {activeTab !== 'home' ? (
+          {session?.submit_only ? (
+            <span className="w-2 h-2 bg-primary rounded-full animate-pulse shrink-0" />
+          ) : activeTab !== 'home' ? (
             <button
               onClick={() => handleTabChange('home')}
               className="group inline-flex items-center gap-2 bg-primary text-white rounded-xl px-4 py-2 text-base font-black hover:bg-primary/90 active:scale-95 transition-all shrink-0"
@@ -4472,10 +4475,10 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
                     <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">2</div>
                     <div>
-                      <p className="text-sm font-black text-emerald-700">Step 2 · 결과물 제출</p>
-                      <p className="text-sm font-bold text-emerald-500/80">활동 기록 작성 후 결과물을 업로드하세요.</p>
+                      <p className="text-sm font-black text-emerald-700">{session?.submit_only ? '수업 결과 내기' : 'Step 2 · 결과물 제출'}</p>
+                      <p className="text-sm font-bold text-emerald-500/80">{session?.submit_only ? '오늘 만든 결과를 올려 주세요. 제출한 결과는 선생님이 확인해요.' : '활동 기록 작성 후 결과물을 업로드하세요.'}</p>
                     </div>
-                    <button onClick={() => handleTabChange('home')} className="ml-auto text-sm font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
+                    {!session?.submit_only && <button onClick={() => handleTabChange('home')} className="ml-auto text-sm font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>}
                   </div>
                 )}
 
@@ -6225,7 +6228,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       </div>
 
       {/* ── 데스크탑 사이드바 (lg 이상 전용) ── */}
-      <aside id="tour-sidebar" className={`hidden lg:flex fixed top-0 left-0 h-screen z-40 flex-col bg-slate-900 border-r border-slate-700/60 transition-[width] duration-200 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+      <aside id="tour-sidebar" style={session?.submit_only ? { display: 'none' } : undefined} className={`hidden lg:flex fixed top-0 left-0 h-screen z-40 flex-col bg-slate-900 border-r border-slate-700/60 transition-[width] duration-200 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className={`flex items-center gap-2 px-4 py-5 shrink-0 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isSidebarCollapsed && (
             <div className="flex items-center gap-2 min-w-0">
@@ -6299,7 +6302,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
       </aside>
 
       {/* ── 하단 바텀 탭 바 (모바일 전용) ── */}
-      <div id="tour-bottom-bar" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900 border-t border-slate-700/60 shadow-[0_-8px_40px_rgba(0,0,0,0.35)]">
+      <div id="tour-bottom-bar" style={session?.submit_only ? { display: 'none' } : undefined} className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900 border-t border-slate-700/60 shadow-[0_-8px_40px_rgba(0,0,0,0.35)]">
         <div className="max-w-lg mx-auto flex items-center px-1 pb-safe">
           {[
             { key: 'home' as const,    icon: LayoutDashboard, label: '홈',   activeColor: 'text-sky-400',     activeBg: 'bg-sky-400/15' },

@@ -398,6 +398,18 @@ const Classroom = () => {
   const [isTeacherShareQRModalOpen, setIsTeacherShareQRModalOpen] = useState(false);
   const [isStudentPreviewOpen, setIsStudentPreviewOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  // 학생 결과 제출 링크 창
+  const [isSubmitLinkOpen, setIsSubmitLinkOpen] = useState(false);
+  const [submitLinkBusy, setSubmitLinkBusy] = useState(false);
+  const saveSubmitLink = async (patch: { submit_link_enabled?: boolean; result_review?: boolean }) => {
+    if (!classInfo) return;
+    setSubmitLinkBusy(true);
+    const { error } = await supabase.from('classes').update(patch).eq('id', classInfo.id);
+    setSubmitLinkBusy(false);
+    if (error) { showToast('저장하지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+    setClassInfo((prev: any) => (prev ? { ...prev, ...patch } : prev));
+    setClasses((prev: any[]) => prev.map(c => (c.id === classInfo.id ? { ...c, ...patch } : c)));
+  };
   const [galleryPending, setGalleryPending] = useState(0);
   useEffect(() => {
     if (!activeClassId || isGalleryOpen) return;
@@ -3824,6 +3836,7 @@ const Classroom = () => {
               items={[
                 activeTab !== 'activities' && { key: 'acts', label: '설문·퀴즈·게시판', icon: Radio, run: openActivities },
                 { key: 'preview', label: '학생 화면 미리보기', icon: Smartphone, run: () => setIsStudentPreviewOpen(true) },
+                classInfo.school_project_id && classInfo.entry_code && { key: 'submit', label: '학생 결과 제출 링크', icon: Share2, run: () => setIsSubmitLinkOpen(true) },
                 classInfo.class_type !== 'homeroom' && { key: 'qr', label: '학생 입장 코드 확인', icon: QrCode, run: handleShowEntryCode },
                 { key: 'res', label: '수업 자료실', icon: BookOpen, run: () => { if (activeClassId) fetchResources(activeClassId); setIsResourceModalOpen(true); } },
                 classInfo.entry_code && { key: 'page', label: '학생 페이지 이동', icon: ExternalLink, run: handleOpenStudentPage },
@@ -5445,6 +5458,53 @@ const Classroom = () => {
             onClose={() => setIsStudentPreviewOpen(false)}
           />
         )}
+
+        {isSubmitLinkOpen && classInfo && (() => {
+          const link = `https://classlog-ai.vercel.app/classroom-entry?code=${classInfo.entry_code}&mode=submit`;
+          const nameOnly = classInfo.entry_mode === 'common_named';
+          const on = !!classInfo.submit_link_enabled;
+          return (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => setIsSubmitLinkOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-surface-container-lowest p-8 rounded-2xl space-y-5 relative shadow-lg border border-slate-200 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setIsSubmitLinkOpen(false)} className="absolute top-5 right-5 p-2 rounded-full hover:bg-surface-container"><X size={22} /></button>
+              <div className="space-y-1">
+                <h3 className="text-[22px] font-bold text-on-surface">학생 결과 제출 링크</h3>
+                <p className="text-[15px] text-on-surface-variant">{classInfo.name} · 학생이 이름만 쓰고 수업 결과만 올리는 링크예요.</p>
+              </div>
+              {!nameOnly && (
+                <p className="text-[15px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-4 leading-relaxed">
+                  이 반은 '이름만 입력' 입장 방식이 아니라서 링크를 쓸 수 없어요. 반 수정에서 입장 방식을 '이름만 입력'으로 바꾼 뒤 다시 열어 주세요.
+                </p>
+              )}
+              <label className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200">
+                <span className="text-[16px] font-bold text-on-surface">제출 링크 켜기</span>
+                <input type="checkbox" className="w-6 h-6 accent-primary" disabled={!nameOnly || submitLinkBusy} checked={on}
+                  onChange={e => saveSubmitLink(e.target.checked ? { submit_link_enabled: true, result_review: true } : { submit_link_enabled: false })} />
+              </label>
+              <label className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200">
+                <span>
+                  <span className="block text-[16px] font-bold text-on-surface">선생님이 확인한 뒤 공개</span>
+                  <span className="block text-[14px] text-on-surface-variant">끄면 학생이 내자마자 공유 페이지에 보여요.</span>
+                </span>
+                <input type="checkbox" className="w-6 h-6 accent-primary" disabled={!nameOnly || submitLinkBusy} checked={!!classInfo.result_review}
+                  onChange={e => saveSubmitLink({ result_review: e.target.checked })} />
+              </label>
+              {on && nameOnly && (
+                <div className="space-y-3 text-center">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 inline-block">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(link)}`} alt="결과 제출 QR" className="w-48 h-48 object-contain" />
+                  </div>
+                  <p className="text-[13px] text-on-surface-variant break-all select-all">{link}</p>
+                  <button
+                    onClick={() => { navigator.clipboard?.writeText(link).then(() => showToast('🔗 결과 제출 링크가 복사되었습니다.'), () => showToast('복사하지 못했어요. 위 주소를 직접 복사해 주세요.')); }}
+                    className="w-full py-3.5 bg-primary text-white rounded-xl text-[16px] font-bold hover:bg-primary/90 transition-all"
+                  >링크 복사</button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+          );
+        })()}
 
         {isQRModalOpen && classInfo && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-sm" onClick={() => setIsQRModalOpen(false)}>
