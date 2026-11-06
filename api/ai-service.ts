@@ -179,7 +179,7 @@ const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 // 확장자 화이트리스트 — html/svg/실행 파일처럼 공개 주소에서 열면 위험한 형식은 받지 않는다.
 const IMAGE_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
 const FILE_TYPES: Record<string, string> = {
-  pdf: 'application/pdf', txt: 'text/plain', csv: 'text/csv', zip: 'application/zip',
+  pdf: 'application/pdf', txt: 'text/plain', py: 'text/plain', csv: 'text/csv', zip: 'application/zip',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
