@@ -395,6 +395,10 @@ const ClassroomEntry = () => {
         p_full_name: name,
       });
 
+      if (error?.message?.includes('NAME_ALREADY_EXISTS')) {
+        setSelfSignupError('이미 있는 이름이에요. 위 학생 목록에서 내 이름을 골라 주세요. (같은 이름이 있다면 이름 뒤에 A, B를 붙여 써 주세요)');
+        return;
+      }
       if (error || !newStudentId) {
         setSelfSignupError('등록에 실패했습니다. 선생님께 문의해 주세요.');
         return;

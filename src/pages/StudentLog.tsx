@@ -2380,6 +2380,8 @@ const StudentLog = () => {
       const u = new URL(url.startsWith('http') ? url : `https://${url}`);
       if (entryCode) u.searchParams.set('entryCode', entryCode);
       if (session?.student_name) u.searchParams.set('studentName', session.student_name);
+      // 학생 번호도 함께 붙인다 (같은 이름이 있어도 누구인지 구분됨)
+      if (session?.student_id) u.searchParams.set('studentId', session.student_id);
       return u.toString();
     } catch { return url; }
   };
