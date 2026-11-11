@@ -102,7 +102,13 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   const [fresh, setFresh] = useState<Record<string, number>>({}); // 방금 새로 쓴 학생(id → 시각)
   const seenRef = useRef<Record<string, string> | null>(null);
   const [showEmpty, setShowEmpty] = useState(false);
-  const [showCheck, setShowCheck] = useState(false);
+  const [showCheck, setShowCheckRaw] = useState<boolean>(() => {
+    try { return localStorage.getItem('answers-show-check') !== '0'; } catch { return true; }
+  });
+  const setShowCheck = (v: boolean) => {
+    setShowCheckRaw(v);
+    try { localStorage.setItem('answers-show-check', v ? '1' : '0'); } catch { /* 저장 못 해도 화면은 동작 */ }
+  };
   const [baseFields, setBaseFields] = useState<FieldInfo[]>([]);
   const [live, setLive] = useState(false);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -200,7 +206,10 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     Object.values(byStudent).forEach(a => Object.entries(a.values).forEach(([k, v]) => { if (k.includes('+') && isFilled(v)) set.add(k); }));
     return set;
   }, [byStudent]);
-  const fields = useMemo(() => withExtraFields(baseFields, extraKeys), [baseFields, extraKeys]);
+  const allFields = useMemo(() => withExtraFields(baseFields, extraKeys), [baseFields, extraKeys]);
+  const hasCheckFields = allFields.some(f => f.checkbox);
+  // 체크 문항 보기를 끄면 모든 화면(단계별·문항별·학생별·지도·표)에서 체크 칸을 뺀다
+  const fields = useMemo(() => allFields.filter(f => showCheck || !f.checkbox), [allFields, showCheck]);
   const answeredCount = useMemo(() => students.filter(s => (byStudent[s.id]?.filled ?? 0) > 0).length, [students, byStudent]);
   const selected = selectedId ? students.find(s => s.id === selectedId) : null;
 
@@ -409,9 +418,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     const cols = fields.filter(f => showCheck || !f.checkbox);
     return (
       <div className="p-8 overflow-auto">
-        <label className="flex items-center gap-2 text-base text-[#6f685c] mb-4 cursor-pointer w-fit">
-          <input type="checkbox" checked={showCheck} onChange={e => setShowCheck(e.target.checked)} className="accent-[#2F5240]" />체크 문항도 보기 · 붉은 칸은 아직 안 쓴 칸이에요
-        </label>
+        <p className="text-base text-[#6f685c] mb-4">붉은 칸은 아직 안 쓴 칸이에요</p>
         <table className="border-collapse text-base">
           <thead><tr>
             <th className="sticky top-0 left-0 z-20 bg-[#f6f2ea] border-b border-[#ddd5c6] px-3 py-2 text-left min-w-[90px]">학생</th>
@@ -471,7 +478,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       <>
         <p className="text-sm text-[#6f685c] px-6 pt-4 pb-2">학생 {students.length}명</p>
         {students.map(s => {
-          const c = byStudent[s.id]?.filled ?? 0;
+          const c = fields.filter(f => isFilled(valueOf(s.id, f.key))).length;
           return <Fragment key={s.id}>{listItem(currentS?.id === s.id, () => setSelectedId(s.id), <b>{s.full_name}</b>, c ? `${c}/${fields.length}칸` : '미작성', (c / Math.max(fields.length, 1)) * 100)}</Fragment>;
         })}
       </>
@@ -494,7 +501,12 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
               <span className="text-sm text-[#BFE8CC]"><span className="inline-block w-2 h-2 rounded-full bg-[#BFE8CC] mr-1.5 animate-pulse" />{live ? '실시간' : '5초마다 갱신'}</span></p>
           )}
         </div>
-        <nav className="ml-auto flex gap-1">
+        {hasCheckFields && !loading && !error && (
+          <label className="ml-auto pb-3 flex items-center gap-2 text-base text-[#F4F1E6]/90 cursor-pointer select-none">
+            <input type="checkbox" checked={showCheck} onChange={e => setShowCheck(e.target.checked)} className="w-4 h-4 accent-[#FFE27A]" />체크 문항 보기
+          </label>
+        )}
+        <nav className={`${hasCheckFields && !loading && !error ? '' : 'ml-auto '}flex gap-1`}>
           {tabs.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-lg font-semibold rounded-t-lg transition-colors ${tab === k ? 'bg-[#f6f2ea] text-[#2F5240]' : 'text-[#F4F1E6]/85 hover:text-white hover:bg-white/10'}`}>{label}</button>
           ))}

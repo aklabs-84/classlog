@@ -3932,6 +3932,7 @@ const MaterialEditor = () => {
                     <div
                       key={f.id}
                       {...folderDragProps(f.id)}
+                      draggable={renamingFolderId !== f.id}
                       {...dropProps(f.id)}
                       onClick={() => { setActiveFolderId(f.id); setExpandedFolders(prev => ({ ...prev, ...Object.fromEntries(folderPathOf(f.id).map(x => [x.id, true])) })); }}
                       role="button"
@@ -3951,12 +3952,15 @@ const MaterialEditor = () => {
                       <div className="min-w-0 w-full">
                         {renamingFolderId === f.id ? (
                           <input
-                            autoFocus
+                            ref={el => { if (el && !el.dataset.ready) { el.dataset.ready = String(Date.now()); setTimeout(() => { el.focus(); el.select(); }, 0); } }}
                             value={renamingFolderName}
+                            draggable={false}
                             onClick={e => e.stopPropagation()}
+                            onMouseDown={e => e.stopPropagation()}
+                            onDragStart={e => { e.preventDefault(); e.stopPropagation(); }}
                             onChange={e => setRenamingFolderName(e.target.value)}
                             onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleRenameFolder(f.id); if (e.key === 'Escape') setRenamingFolderId(null); }}
-                            onBlur={() => handleRenameFolder(f.id)}
+                            onBlur={e => { if (Date.now() - Number(e.currentTarget.dataset.ready || 0) < 400) { e.currentTarget.focus(); return; } handleRenameFolder(f.id); }}
                             className="w-full px-1.5 py-0.5 rounded bg-white text-on-surface text-[14px] font-bold text-center border border-primary/40 focus:outline-none"
                           />
                         ) : (

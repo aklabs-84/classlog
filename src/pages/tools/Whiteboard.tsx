@@ -19,6 +19,18 @@ import { appToast } from '../../lib/appDialog';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+// 저장 방식: "보드 전체 지우고 다시 넣기" 대신, 마지막으로 저장된 모습(스냅샷)과 비교해 바뀐 물건만 저장한다.
+// 여러 명이 동시에 편집해도 서로의 물건을 지우지 않게 하기 위함.
+// 비교용 지문 — 위치·크기·내용·스타일만 본다 (시각·작성자 차이로 불필요한 재저장이 일어나지 않게)
+const objSignature = (o: BoardObject) =>
+  JSON.stringify([o.type, o.x, o.y, o.width, o.height, o.z_index, o.content, o.style]);
+const SAVE_CHUNK = 100; // 한 번에 보내는 물건 수 (요청 크기 제한 방지)
+const chunked = <T,>(arr: T[], n = SAVE_CHUNK): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+};
+
 export default function Whiteboard() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
@@ -52,6 +64,10 @@ export default function Whiteboard() {
   const [linkedClassName, setLinkedClassName] = useState<string | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 내가 알고 있는 "DB에 저장된 모습" (물건 id → 지문). 저장할 때 이것과 비교해 바뀐 것만 보낸다.
+  const savedSnapshot = useRef<Map<string, string>>(new Map());
+  const saveRunning = useRef(false);               // 저장이 겹쳐 실행되지 않게
+  const saveQueued = useRef<BoardObject[] | null>(null); // 저장 중에 들어온 최신 요청
   const clipboardRef = useRef<BoardObject | null>(null);
   const historyStack = useRef<BoardObject[][]>([]);
   const pasteOffsetRef = useRef(0);
@@ -171,6 +187,7 @@ export default function Whiteboard() {
       }
       const { data: objData } = await supabase.from('board_objects').select('*').eq('board_id', boardId).order('z_index');
       setObjects(objData || []);
+      savedSnapshot.current = new Map((objData || []).map((o: BoardObject) => [o.id, objSignature(o)]));
       setLoading(false);
       setBoardReady(true); // 보드 확인 완료 → Realtime 연결 허용
     })();
@@ -187,30 +204,65 @@ export default function Whiteboard() {
 
   const saveObjects = async (objs: BoardObject[]) => {
     if (!boardId) return;
+    // 저장이 이미 진행 중이면 가장 최신 요청만 기억해 두었다가 끝난 뒤 한 번 더 실행 (저장끼리 엉키지 않게)
+    if (saveRunning.current) { saveQueued.current = objs; return; }
+    saveRunning.current = true;
     setSaveStatus('saving');
 
-    const isCreator = board?.created_by === user?.id;
+    try {
+      const isCreator = board?.created_by === user?.id;
 
-    // 보드 제목·updated_at 업데이트 — 생성자만 (초대 유저는 건너뜀)
-    if (isCreator) {
-      const { error: boardErr } = await supabase
-        .from('whiteboards')
-        .update({ title, updated_at: new Date().toISOString() })
-        .eq('id', boardId);
-      if (boardErr) { console.error('보드 저장 실패:', boardErr); setSaveStatus('error'); return; }
+      // 보드 제목·updated_at 업데이트 — 생성자만 (초대 유저는 건너뜀)
+      if (isCreator) {
+        const { error: boardErr } = await supabase
+          .from('whiteboards')
+          .update({ title, updated_at: new Date().toISOString() })
+          .eq('id', boardId);
+        if (boardErr) { console.error('보드 저장 실패:', boardErr); setSaveStatus('error'); return; }
+      }
+
+      // 바뀐 것만 저장 — 마지막 저장 모습(스냅샷)과 비교해 추가·수정·삭제를 가려낸다.
+      // (공개 보드 편집 권한은 WHITEBOARD_SHARE_FIX.sql 필요)
+      const snap = savedSnapshot.current;
+      const currentIds = new Set(objs.map(o => o.id));
+      const added = objs.filter(o => !snap.has(o.id));
+      const changed = objs.filter(o => snap.has(o.id) && snap.get(o.id) !== objSignature(o));
+      const removedIds = [...snap.keys()].filter(id => !currentIds.has(id));
+
+      // ① 새 물건: 이미 DB에 있으면(다른 사람이 먼저 넣은 경우) 건드리지 않고 넘어간다
+      for (const chunk of chunked(added)) {
+        const rows = chunk.map(o => ({ ...o, board_id: boardId, created_by: o.created_by ?? user?.id }));
+        const { error } = await supabase.from('board_objects').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+        if (error) { console.error('객체 추가 실패:', error); setSaveStatus('error'); return; }
+        chunk.forEach(o => snap.set(o.id, objSignature(o)));
+      }
+
+      // ② 바뀐 물건: 그 물건만 고친다 (작성자·만든 시각은 그대로 둔다)
+      for (const chunk of chunked(changed)) {
+        const rows = chunk.map(o => {
+          const { created_by: _cb, created_at: _ca, ...rest } = o;
+          return { ...rest, board_id: boardId };
+        });
+        const { error } = await supabase.from('board_objects').upsert(rows, { onConflict: 'id' });
+        if (error) { console.error('객체 수정 실패:', error); setSaveStatus('error'); return; }
+        chunk.forEach(o => snap.set(o.id, objSignature(o)));
+      }
+
+      // ③ 지운 물건: 내가 알고 있던 것 중 지금 없는 것만 지운다 (다른 사람 물건은 건드리지 않음)
+      for (const chunk of chunked(removedIds)) {
+        const { error } = await supabase.from('board_objects').delete().eq('board_id', boardId).in('id', chunk);
+        if (error) { console.error('객체 삭제 실패:', error); setSaveStatus('error'); return; }
+        chunk.forEach(id => snap.delete(id));
+      }
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } finally {
+      saveRunning.current = false;
+      const queued = saveQueued.current;
+      saveQueued.current = null;
+      if (queued) saveObjectsRef.current?.(queued);
     }
-
-    // 객체 전체 교체 (공개 보드 편집 권한은 WHITEBOARD_SHARE_FIX.sql 필요)
-    const { error: delErr } = await supabase.from('board_objects').delete().eq('board_id', boardId);
-    if (delErr) { console.error('객체 삭제 실패:', delErr); setSaveStatus('error'); return; }
-
-    if (objs.length > 0) {
-      const toInsert = objs.map(o => ({ ...o, created_by: o.created_by ?? user?.id }));
-      const { error: insErr } = await supabase.from('board_objects').insert(toInsert);
-      if (insErr) { console.error('객체 저장 실패:', insErr); setSaveStatus('error'); return; }
-    }
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
   // 매 렌더마다 ref를 최신 saveObjects로 갱신
@@ -363,7 +415,8 @@ export default function Whiteboard() {
     const initObjects = createTemplateObjects(boardId, templateKey);
     setObjects(initObjects);
     if (initObjects.length > 0) {
-      await supabase.from('board_objects').insert(initObjects.map(o => ({ ...o, created_by: user.id })));
+      const { error: initErr } = await supabase.from('board_objects').insert(initObjects.map(o => ({ ...o, created_by: user.id })));
+      if (!initErr) savedSnapshot.current = new Map(initObjects.map(o => [o.id, objSignature(o)]));
     }
     setLoading(false);
     setBoardReady(true); // 신규 보드 생성 완료 → Realtime 연결 허용
