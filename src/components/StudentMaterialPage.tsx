@@ -49,6 +49,7 @@ interface Props {
   title: string;
   content: string;
   links?: ActivityLink[];
+  onOpenGatedLink?: (link: ActivityLink) => void;
   attachments?: MaterialAttachment[];
   mdComponents: any;
   relatedMaterials?: RelatedMaterial[];
@@ -430,7 +431,7 @@ const withSkinComponents = (base: any) => ({
 const SAVE_DELAY_MS = 800;
 const RETRY_DELAY_MS = 5000;
 
-const StudentMaterialPage = ({ title, content, links, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, studentView = false, boardsClassId, onShowAnswers, onJoinBoard, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
+const StudentMaterialPage = ({ title, content, links, onOpenGatedLink, attachments, mdComponents, relatedMaterials = [], extraItems = [], answers, onOpenFile, teacherTools = false, studentView = false, boardsClassId, onShowAnswers, onJoinBoard, previewOnly = false, viewerStyle, progressKey, onClose }: Props) => {
   const skin = normalizeViewerStyle(viewerStyle);
   const skinInfo = viewerStyleInfo(skin);
   const skinned = skin !== 'default';
@@ -839,7 +840,7 @@ const StudentMaterialPage = ({ title, content, links, attachments, mdComponents,
         )}
         {teacherTools && <TeacherPageTools scrollRef={scrollRef} />}
         {teacherTools && boardsClassId && <TeacherBoardsButton classId={boardsClassId} />}
-        <ActivityLinksButton links={links} dark />
+        <ActivityLinksButton links={links} dark onGatedOpen={onOpenGatedLink} />
         {studentView && onJoinBoard && (
           <button
             onClick={onJoinBoard}

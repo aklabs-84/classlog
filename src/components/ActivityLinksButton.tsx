@@ -4,12 +4,13 @@ import { ExternalLink, ChevronDown } from 'lucide-react';
 export interface ActivityLink {
   url: string;
   label: string;
+  gateAppId?: string; // 입장권으로만 열리는 허브 앱이면 그 앱 id (열 때 입장권을 받아와야 함)
 }
 
 // 수업 자료에 연결된 활동 앱 링크(들)를 여는 버튼.
 // 1개면 바로 여는 버튼, 여러 개면 드롭다운으로 골라서 열 수 있다.
 // 학생 화면, 교사 미리보기/발표/슬라이드 화면에서 공통으로 쓴다.
-export default function ActivityLinksButton({ links, dark = false }: { links?: ActivityLink[]; dark?: boolean }) {
+export default function ActivityLinksButton({ links, dark = false, onGatedOpen }: { links?: ActivityLink[]; dark?: boolean; onGatedOpen?: (link: ActivityLink) => void }) {
   const [open, setOpen] = useState(false);
   const valid = (links ?? []).filter((l) => l.url);
   if (valid.length === 0) return null;
@@ -22,6 +23,7 @@ export default function ActivityLinksButton({ links, dark = false }: { links?: A
         href={toHref(valid[0].url)}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(e) => { if (valid[0].gateAppId && onGatedOpen) { e.preventDefault(); onGatedOpen(valid[0]); } }}
         className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 active:scale-95 transition-all shadow shrink-0 max-w-full"
       >
         <ExternalLink size={15} className="shrink-0" /> <span className="truncate">{valid[0].label || '체험해보기'}</span>
@@ -51,7 +53,10 @@ export default function ActivityLinksButton({ links, dark = false }: { links?: A
                 href={toHref(link.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => setOpen(false)}
+                onClick={(e) => {
+                  setOpen(false);
+                  if (link.gateAppId && onGatedOpen) { e.preventDefault(); onGatedOpen(link); }
+                }}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-colors ${
                   dark ? 'text-white hover:bg-white/10' : 'text-on-surface hover:bg-surface-container-low'
                 }`}

@@ -463,12 +463,97 @@ async function handleProgressRead(req: any, res: any) {
   return res.status(200).json({ ok: true, server_time: new Date().toISOString(), students });
 }
 
+// resource=ticket
+// "입장권(문지기) 모드"가 켜진 허브 앱을 클래스로그AI에서 열 때 쓰는 5분짜리 입장권을 만든다.
+// body: { app_id(허브 앱 id), entry_code, student_id? }  (선생님은 student_id 대신 로그인 Authorization: Bearer 토큰)
+// 응답: { ticket: string | null }  — 앱의 입장권 스위치가 꺼져 있으면 ticket 은 null (그냥 열면 됨)
+// 형식: base64url(payload).base64url(Ed25519 서명). 앱의 middleware.js 가 같은 규칙으로 확인한다. 비밀키는 GATE_PRIVATE_KEY_JWK 에만 둔다.
+const TICKET_TTL_SEC = 5 * 60;
+let gateKeyPromise: Promise<CryptoKey> | null = null;
+function getGateKey(): Promise<CryptoKey> {
+  const raw = process.env.GATE_PRIVATE_KEY_JWK;
+  if (!raw) throw new Error('GATE_PRIVATE_KEY_JWK not set');
+  if (!gateKeyPromise) {
+    gateKeyPromise = crypto.subtle.importKey('jwk', JSON.parse(raw), 'Ed25519', false, ['sign']);
+    gateKeyPromise.catch(() => { gateKeyPromise = null; });
+  }
+  return gateKeyPromise;
+}
+async function signGateTicket(appId: string): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(
+    JSON.stringify({ v: 1, app: appId, iat: now, exp: now + TICKET_TTL_SEC, iss: 'classlog' }),
+  ).toString('base64url');
+  const sig = await crypto.subtle.sign('Ed25519', await getGateKey(), new TextEncoder().encode(payload));
+  return `${payload}.${Buffer.from(sig).toString('base64url')}`;
+}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function handleTicket(req: any, res: any) {
+  res.setHeader('Cache-Control', 'no-store');
+  const supabaseAdmin = getSupabaseAdmin();
+  const apiKey = process.env.AISERVICEHUB_API_KEY;
+  if (!supabaseAdmin || !apiKey) return res.status(500).json({ error: 'Server configuration error' });
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const cap = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const app_id = cap(body.app_id, 64);
+  const entry_code = cap(body.entry_code, 100);
+  const student_id = cap(body.student_id, 100);
+  if (!UUID_RE.test(app_id)) return res.status(400).json({ error: 'app_id가 올바르지 않아요.' });
+
+  // 1) 누가 요청했는지 확인: 선생님(로그인 토큰) 또는 그 반 학생(입장 코드 + 학생 번호)
+  const auth = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  let allowed = false;
+  if (bearer) {
+    const { data } = await supabaseAdmin.auth.getUser(bearer);
+    allowed = Boolean(data?.user);
+  }
+  if (!allowed) {
+    if (!entry_code || !student_id) return res.status(400).json({ error: 'entry_code, student_id가 필요해요.' });
+    const { data: klass } = await supabaseAdmin
+      .from('classes').select('id, linked_class_id').eq('entry_code', entry_code).maybeSingle();
+    if (!klass) return res.status(404).json({ error: 'CLASS_NOT_FOUND' });
+    const { data: student } = await supabaseAdmin
+      .from('students').select('id').eq('id', student_id).eq('class_id', klass.linked_class_id || klass.id).maybeSingle();
+    if (!student) return res.status(404).json({ error: 'STUDENT_NOT_FOUND' });
+  }
+
+  // 2) 허브에 있는 앱인지, 입장권 스위치가 켜져 있는지 확인 (아무 앱 번호로나 입장권을 받지 못하게)
+  const baseUrl = process.env.AISERVICEHUB_BASE_URL || 'https://ai-service-hub.vercel.app';
+  let gateMode = false;
+  try {
+    const r = await fetch(new URL(`/api/public/apps/${app_id}`, baseUrl), {
+      headers: { 'x-api-key': apiKey },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (r.status === 404) return res.status(404).json({ error: 'APP_NOT_FOUND' });
+    if (!r.ok) return res.status(502).json({ error: 'HUB_UNAVAILABLE' });
+    const data = await r.json();
+    gateMode = data?.app?.gateMode === true;
+  } catch (e: any) {
+    console.error('[api/ai-service:ticket] hub lookup failed:', e?.message);
+    return res.status(502).json({ error: 'HUB_UNAVAILABLE' });
+  }
+  if (!gateMode) return res.status(200).json({ ticket: null });
+
+  // 3) 입장권 만들기
+  try {
+    return res.status(200).json({ ticket: await signGateTicket(app_id) });
+  } catch (e: any) {
+    console.error('[api/ai-service:ticket] sign failed:', e?.message);
+    return res.status(503).json({ error: 'gate_not_configured' });
+  }
+}
+
 async function handlePost(req: any, res: any) {
   const { resource } = req.query;
+  if (resource === 'ticket') return handleTicket(req, res);
   if (resource === 'class-sync') return handleClassSync(req, res);
   if (resource === 'submission') return handleSubmission(req, res);
   if (resource === 'progress') return handleProgressWrite(req, res);
-  return res.status(400).json({ error: 'resource must be "class-sync", "submission" or "progress"' });
+  return res.status(400).json({ error: 'resource must be "class-sync", "submission", "progress" or "ticket"' });
 }
 
 export default async function handler(req: any, res: any) {

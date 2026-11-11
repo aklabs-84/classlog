@@ -2387,14 +2387,60 @@ const StudentLog = () => {
     } catch { return url; }
   };
 
-  // 수업 자료 위쪽 연결 링크: AI Service Hub 앱 주소일 때만 학생 정보를 붙인다 (다른 외부 사이트로는 보내지 않음)
-  const decorateActivityLinks = (links?: { url: string; label: string }[]) => {
-    if (!links || session?.is_teacher === true || aiHubApps.length === 0) return links;
-    const key = (raw: string) => {
-      try { const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; } catch { return ''; }
+  // 주소 → 허브 앱 찾기 (주소 끝 / 와 쿼리는 무시하고 비교)
+  const findHubApp = (raw: string): AiApp | undefined => {
+    const key = (r: string) => {
+      try { const u = new URL(r.startsWith('http') ? r : `https://${r}`); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; } catch { return ''; }
     };
-    const hubKeys = new Set(aiHubApps.flatMap(a => a.appUrls.map(x => key(x.url))).filter(Boolean));
-    return links.map(l => (l.url && hubKeys.has(key(l.url)) ? { ...l, url: withStudentParams(l.url) } : l));
+    const k = key(raw);
+    if (!k) return undefined;
+    return aiHubApps.find(a => a.appUrls.some(x => key(x.url) === k));
+  };
+
+  // 수업 자료 위쪽 연결 링크: AI Service Hub 앱 주소일 때만 학생 정보를 붙인다 (다른 외부 사이트로는 보내지 않음)
+  // 입장권 모드 앱에는 gateAppId 를 달아 두어, 누를 때 입장권을 받아 열게 한다
+  const decorateActivityLinks = (links?: { url: string; label: string; gateAppId?: string }[]) => {
+    if (!links || aiHubApps.length === 0) return links;
+    const isTeacher = session?.is_teacher === true;
+    return links.map(l => {
+      const app = l.url ? findHubApp(l.url) : undefined;
+      if (!app) return l;
+      return { ...l, url: isTeacher ? l.url : withStudentParams(l.url), gateAppId: app.gateMode ? app.id : undefined };
+    });
+  };
+
+  // 입장권 모드 앱 열기: 팝업 차단을 피하려고 빈 창을 먼저 열고, 입장권을 받아 오면 그 창의 주소를 바꾼다
+  const openGatedApp = async (url: string, appId: string) => {
+    const win = window.open('', '_blank');
+    if (win) win.opener = null;
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      let body: Record<string, string> = { app_id: appId };
+      if (session?.is_teacher === true) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
+      } else {
+        body = { ...body, entry_code: entryCode || '', student_id: session?.student_id || '' };
+      }
+      const res = await fetch('/api/ai-service?resource=ticket', { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`ticket ${res.status}`);
+      const { ticket } = await res.json();
+      const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+      if (ticket) u.searchParams.set('t', ticket);
+      if (win) win.location.href = u.toString();
+      else window.location.href = u.toString();
+    } catch {
+      win?.close();
+      showToast('앱을 여는 데 실패했어요. 잠시 후 다시 눌러 주세요.', 'error');
+    }
+  };
+
+  // 앱 하나를 연다 (입장권 모드면 입장권을 받아서, 아니면 바로)
+  const openHubApp = (app: AiApp) => {
+    const url = app.appUrls[0].url;
+    const finalUrl = session?.is_teacher === true ? url : withStudentParams(url);
+    if (app.gateMode) openGatedApp(finalUrl, app.id);
+    else window.open(finalUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'tools' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting' | 'liveboard') => {
@@ -2678,6 +2724,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
         title={fullscreenMaterial.title}
         content={fullscreenMaterial.content}
         links={decorateActivityLinks(fullscreenMaterial.links)}
+        onOpenGatedLink={(l) => { if (l.gateAppId) openGatedApp(l.url, l.gateAppId); }}
         attachments={fullscreenMaterial.attachments}
         mdComponents={MATERIAL_MD_COMPONENTS}
         viewerStyle={fullscreenMaterial.viewerStyle}
@@ -4403,9 +4450,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                     );
                   }
 
-                  const openExternalTool = (app: AiApp) => {
-                    window.open(withStudentParams(app.appUrls[0].url), '_blank', 'noopener,noreferrer');
-                  };
+                  const openExternalTool = (app: AiApp) => openHubApp(app);
 
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -18,6 +18,7 @@ export interface AiApp {
   isPaid: boolean;
   likeCount: number;
   createdAt: string;
+  gateMode?: boolean; // 입장권으로만 열리는 앱이면 true (열 때 입장권을 받아야 함)
 }
 
 export interface GetAiAppsOptions {
