@@ -1478,10 +1478,9 @@ const Classroom = () => {
     try { localStorage.setItem(lessonKey, '1'); } catch { /* 저장 못 해도 화면은 정상 */ }
   };
 
-  // 바로가기 버튼(전역)에 이 클래스룸의 전체 메뉴를 맡긴다. 전체 명단 탭은 도우미 칸이 있으니 숨긴다.
+  // 바로가기 버튼(전역)에 이 클래스룸의 전체 메뉴를 맡긴다. (전체 명단 탭에서도 보임)
   useEffect(() => {
     if (!classInfo) { setQuickDock({ items: null, hidden: false }); return; }
-    if (activeTab === 'list') { setQuickDock({ items: null, hidden: true }); return; }
     setQuickDock({
       hidden: false,
       items: [
