@@ -327,11 +327,27 @@ async function handleSubmission(req: any, res: any) {
     };
   }
 
+  // 선생님이 '오늘 수업 시작'을 누른 반이면 그 주차를 자동으로 단다. (학생이 직접 낼 때와 같은 규칙)
+  // 조회가 실패해도 제출은 막지 않고 주차만 비워 둔다.
+  let activeWeek: number | null = null;
+  const { data: weekInfo } = await supabaseAdmin
+    .from('classes')
+    .select('active_week, today_started_at')
+    .eq('id', targetClassId)
+    .maybeSingle();
+  if (weekInfo?.active_week && weekInfo.today_started_at) {
+    const sameDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+    if (sameDay(new Date(weekInfo.today_started_at)) === sameDay(new Date())) {
+      activeWeek = weekInfo.active_week;
+    }
+  }
+
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from('student_results')
     .insert({
       student_id: resolvedStudentId,
       class_id: targetClassId,
+      week_number: activeWeek,
       title,
       result_type,
       link_url: link_url || null,
