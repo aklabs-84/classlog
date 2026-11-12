@@ -119,15 +119,26 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
   }, [material.content, mdComponents, loading]);
 
   // 학생들의 답만 다시 읽는다(최초 로딩 · 실시간 알림 · 주기 갱신이 함께 쓴다)
-  const loadAnswers = useCallback(async () => {
-    const { data, error: e } = await supabase
+  // 비용 절약: 평소에는 "마지막으로 본 시각 이후 바뀐 줄"만 가져와 합치고, 전체 읽기는 처음과 가끔(지운 줄 정리용)만 한다.
+  const rowsRef = useRef<Map<string, { student_id: string; field_key: string; value: string; updated_at: string }>>(new Map());
+  const lastSeenRef = useRef('');
+  const loadAnswers = useCallback(async (full = true) => {
+    const useDelta = !full && lastSeenRef.current !== '';
+    let q = supabase
       .from('student_material_answers')
       .select('student_id, field_key, value, updated_at')
-      .eq('material_id', material.id)
-      .limit(10000);
+      .eq('material_id', material.id);
+    if (useDelta) q = q.gte('updated_at', lastSeenRef.current);
+    const { data, error: e } = await q.limit(10000);
     if (e) throw e;
-    const map: Record<string, StudentAnswers> = {};
+    if (useDelta && (data || []).length === 0) return; // 바뀐 게 없으면 화면도 그대로
+    if (!useDelta) rowsRef.current = new Map();
     (data || []).forEach((r: any) => {
+      rowsRef.current.set(`${r.student_id}|${r.field_key}`, r);
+      if (r.updated_at > lastSeenRef.current) lastSeenRef.current = r.updated_at;
+    });
+    const map: Record<string, StudentAnswers> = {};
+    rowsRef.current.forEach(r => {
       const cur = map[r.student_id] || (map[r.student_id] = { values: {}, filled: 0, updatedAt: '' });
       cur.values[r.field_key] = r.value;
       if (isFilled(r.value)) cur.filled += 1;
@@ -171,22 +182,35 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
     return () => { cancelled = true; };
   }, [material.id, material.class_id, loadAnswers]);
 
-  // 실시간: 학생이 적으면 바로 반영. DB 실시간이 꺼져 있어도 5초마다 다시 읽어 따라간다.
+  // 실시간: 학생이 적으면 바로 반영(바뀐 줄만). 실시간이 연결돼 있으면 30초마다, 아니면 5초마다 바뀐 줄을 확인하고,
+  // 2분마다 한 번 전체를 다시 읽어 어긋남을 바로잡는다. 탭이 숨겨져 있으면 쉰다.
   useEffect(() => {
     if (loading || error) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let subscribed = false;
+    let lastFull = Date.now();
     const refresh = () => {
       if (timer) return;
-      timer = setTimeout(() => { timer = null; loadAnswers().catch(() => {}); }, 300);
+      timer = setTimeout(() => { timer = null; loadAnswers(false).catch(() => {}); }, 300);
     };
     const channel = supabase
       .channel(`answers-${material.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'student_material_answers', filter: `material_id=eq.${material.id}` }, refresh)
-      .subscribe(status => setLive(status === 'SUBSCRIBED'));
-    const poll = setInterval(() => { if (!document.hidden) loadAnswers().catch(() => {}); }, 5000);
+      .subscribe(status => { subscribed = status === 'SUBSCRIBED'; setLive(subscribed); });
+    let lastPoll = Date.now();
+    const poll = setInterval(() => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now - lastFull >= 120000) { lastFull = now; lastPoll = now; loadAnswers(true).catch(() => {}); return; }
+      if (now - lastPoll >= (subscribed ? 30000 : 5000) - 200) { lastPoll = now; loadAnswers(false).catch(() => {}); }
+    }, 5000);
+    // 탭으로 돌아오면 바로 한 번 확인
+    const onVis = () => { if (!document.hidden) loadAnswers(false).catch(() => {}); };
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       if (timer) clearTimeout(timer);
       clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVis);
       supabase.removeChannel(channel);
     };
   }, [loading, error, material.id, loadAnswers]);
@@ -495,7 +519,7 @@ const MaterialAnswersModal = ({ material, mdComponents, onClose }: Props) => {
       <header className="flex items-end gap-6 px-8 pt-4 bg-[#2F5240] text-[#F4F1E6] flex-wrap">
         <button onClick={onClose} className="flex items-center gap-1.5 pb-3 text-[#F4F1E6]/80 hover:text-white"><ArrowLeft size={18} />나가기</button>
         <div className="min-w-0 pb-3">
-          <h1 className="font-serif text-2xl font-bold truncate">{material.title}</h1>
+          <h1 className="font-serif text-2xl font-bold truncate !text-[#F4F1E6]">{material.title}</h1>
           {!loading && !error && (
             <p className="text-base text-[#F4F1E6]/85">{students.length}명 중 <b className="text-[#FFE27A]">{answeredCount}명</b>이 입력했어요 ·{' '}
               <span className="text-sm text-[#BFE8CC]"><span className="inline-block w-2 h-2 rounded-full bg-[#BFE8CC] mr-1.5 animate-pulse" />{live ? '실시간' : '5초마다 갱신'}</span></p>

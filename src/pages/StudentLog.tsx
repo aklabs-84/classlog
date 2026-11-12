@@ -734,6 +734,10 @@ const StudentLog = () => {
           // fresh 플래그 소모 — 이후 새로고침에선 아래 조건으로만 판단
           const { is_fresh_entry: _, ...rest } = parsed;
           sessionStorage.setItem('student_session', JSON.stringify(rest));
+          // 입장 출석 자동 처리 (수업 시간 안일 때만 서버가 찍음, 실패해도 화면엔 영향 없음)
+          if (!parsed.submit_only && !parsed.is_teacher) {
+            supabase.rpc('student_mark_present', { p_token: parsed.token, p_class_id: parsed.class_id }).then(() => {}, () => {});
+          }
         }
         // 사용 방법 안내는 처음 한 번만 보여 준다(보여 주는 순간 기록 — 닫지 않고 지나가도 다시 뜨지 않음)
         let seenOnce = false;
@@ -1687,7 +1691,7 @@ const StudentLog = () => {
         const norm2 = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
         const weekPlan = (classResources as any[]).find(r => r.week === selectedWeek);
         const weekTopic = weekPlan?.topic || '';
-        if (weekTopic && weekPlan?.requires_activity !== false) {
+        if (weekTopic && weekPlan?.requires_activity !== false && !session?.submit_only) {
           const hasObs = historyLogs.some((l: any) => norm2(l.activity_name || '') === norm2(weekTopic));
           if (!hasObs) {
             setTimeout(() => setReminderModal({

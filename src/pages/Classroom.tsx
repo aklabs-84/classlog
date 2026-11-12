@@ -116,7 +116,7 @@ import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import ClassGalleryModal from '../components/classroom/ClassGalleryModal';
 import ClassroomHelperRail from '../components/classroom/ClassroomHelperRail';
-import ClassroomQuickDock, { type QuickItem } from '../components/classroom/ClassroomQuickDock';
+import { setQuickDock, type QuickItem } from '../lib/quickDockStore';
 import StudentPreviewModal from '../components/classroom/StudentPreviewModal';
 import EntryModeSelect, { StudentNumberToggle, type EntryMode } from '../components/classroom/EntryModeSelect';
 import LiveRosterPanel from '../components/classroom/LiveRosterPanel';
@@ -1477,6 +1477,27 @@ const Classroom = () => {
     setLessonStarted(true);
     try { localStorage.setItem(lessonKey, '1'); } catch { /* 저장 못 해도 화면은 정상 */ }
   };
+
+  // 바로가기 버튼(전역)에 이 클래스룸의 전체 메뉴를 맡긴다. 전체 명단 탭은 도우미 칸이 있으니 숨긴다.
+  useEffect(() => {
+    if (!classInfo) { setQuickDock({ items: null, hidden: false }); return; }
+    if (activeTab === 'list') { setQuickDock({ items: null, hidden: true }); return; }
+    setQuickDock({
+      hidden: false,
+      items: [
+        activeTab !== 'activities' && { key: 'acts', label: '설문·퀴즈·게시판', icon: Radio, run: openActivities },
+        { key: 'preview', label: '학생 화면 미리보기', icon: Smartphone, run: () => setIsStudentPreviewOpen(true) },
+        classInfo.school_project_id && classInfo.entry_code && { key: 'submit', label: '학생 결과 제출 링크', icon: Share2, run: () => setIsSubmitLinkOpen(true) },
+        classInfo.class_type !== 'homeroom' && { key: 'qr', label: '학생 입장 코드 확인', icon: QrCode, run: handleShowEntryCode },
+        { key: 'res', label: '수업 자료실', icon: BookOpen, run: () => { if (activeClassId) fetchResources(activeClassId); setIsResourceModalOpen(true); } },
+        classInfo.entry_code && { key: 'page', label: '학생 페이지 이동', icon: ExternalLink, run: handleOpenStudentPage },
+        { key: 'share', label: '교사용 결과 공유', icon: Share2, run: () => setIsTeacherShareQRModalOpen(true) },
+        classInfo.class_type !== 'homeroom' && user && { key: 'gallery', label: '수업 사진·동의', icon: Camera, run: () => setIsGalleryOpen(true), badge: galleryPending },
+        classInfo.class_type !== 'homeroom' && { key: 'export', label: '내보내기', icon: Download, run: handleExportCSV },
+      ].filter(Boolean) as QuickItem[],
+    });
+  });
+  useEffect(() => () => setQuickDock({ items: null, hidden: false }), []);
 
   const handleOpenStudentPage = () => {
     if (!classInfo?.entry_code) return;
@@ -3832,21 +3853,6 @@ const Classroom = () => {
             />
           )}
           </div>
-          {classInfo && activeTab !== 'list' && (
-            <ClassroomQuickDock
-              items={[
-                activeTab !== 'activities' && { key: 'acts', label: '설문·퀴즈·게시판', icon: Radio, run: openActivities },
-                { key: 'preview', label: '학생 화면 미리보기', icon: Smartphone, run: () => setIsStudentPreviewOpen(true) },
-                classInfo.school_project_id && classInfo.entry_code && { key: 'submit', label: '학생 결과 제출 링크', icon: Share2, run: () => setIsSubmitLinkOpen(true) },
-                classInfo.class_type !== 'homeroom' && { key: 'qr', label: '학생 입장 코드 확인', icon: QrCode, run: handleShowEntryCode },
-                { key: 'res', label: '수업 자료실', icon: BookOpen, run: () => { if (activeClassId) fetchResources(activeClassId); setIsResourceModalOpen(true); } },
-                classInfo.entry_code && { key: 'page', label: '학생 페이지 이동', icon: ExternalLink, run: handleOpenStudentPage },
-                { key: 'share', label: '교사용 결과 공유', icon: Share2, run: () => setIsTeacherShareQRModalOpen(true) },
-                classInfo.class_type !== 'homeroom' && user && { key: 'gallery', label: '수업 사진·동의', icon: Camera, run: () => setIsGalleryOpen(true), badge: galleryPending },
-                classInfo.class_type !== 'homeroom' && { key: 'export', label: '내보내기', icon: Download, run: handleExportCSV },
-              ].filter(Boolean) as QuickItem[]}
-            />
-          )}
           </>
           )}
         </div>

@@ -9,6 +9,7 @@ import RealNameNotice from './RealNameNotice';
 import StoryBanner from './StoryBanner';
 import FloatingTimer from '../FloatingTimer';
 import FloatingLessonMemo from '../FloatingLessonMemo';
+import QuickDock from '../classroom/ClassroomQuickDock';
 import FloatingAIProgress from '../FloatingAIProgress';
 import ScrollToTopButton from './ScrollToTopButton';
 import CopilotReturnBadge from '../CopilotReturnBadge';
@@ -40,6 +41,7 @@ const MainLayout = () => {
       </div>
       <FloatingTimer />
       <FloatingLessonMemo />
+      <QuickDock />
       <FloatingAIProgress />
       <ScrollToTopButton />
       <CopilotReturnBadge />
