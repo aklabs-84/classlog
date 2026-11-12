@@ -77,13 +77,16 @@ const ClassroomQuickDock = () => {
 
   if (!user || hidden) return null;
 
+  const openQrTool = () => navigate('/teaching-tools?tool=qr-generator');
   const cur = classes?.find(c => c.id === classId) ?? null;
   const defaultItems: QuickItem[] = [
     classId && { key: 'back', label: '지금 클래스룸으로 돌아가기', icon: ArrowLeftCircle, run: () => navigate(`/classroom?id=${classId}`) },
     cur?.entry_code && { key: 'page', label: '학생 페이지 열기', icon: ExternalLink, run: () => window.open(`${window.location.origin}/classroom-entry?code=${cur.entry_code}`, '_blank', 'noopener') },
     cur?.entry_code && cur.class_type !== 'homeroom' && { key: 'code', label: '학생 입장 코드 보기', icon: QrCode, run: () => setShowCode(true) },
+    { key: 'qrgen', label: 'QR 생성기', icon: QrCode, run: openQrTool },
   ].filter(Boolean) as QuickItem[];
-  const items: QuickItem[] = registered ?? defaultItems;
+  // 클래스룸에서 맡긴 메뉴에도 QR 생성기를 끝에 붙여 어디서나 열 수 있게 한다
+  const items: QuickItem[] = [...(registered ?? defaultItems), ...(registered ? [{ key: 'qrgen', label: 'QR 생성기', icon: QrCode, run: openQrTool }] : [])];
 
   const down = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);

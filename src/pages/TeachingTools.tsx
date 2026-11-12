@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Radio, Sparkles, Loader2 } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote, FileText, Award, Inbox, Cpu, Radio, Sparkles, Loader2, QrCode } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { getAiApps, type AiApp } from '../lib/aiApps';
@@ -9,6 +9,7 @@ import { createClassFromHubApp, connectHubAppToClass, PRIMARY_TOOL_AUTO_WEEKS } 
 import { useActionToast, useLimitToast, ActionToast, default as LimitToast } from '../components/ui/LimitToast';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
+import QrGenerator from './tools/QrGenerator';
 import QuizGame from './tools/QuizGame';
 import MaterialEditor from './tools/MaterialEditor';
 import ClassTranscription from './tools/ClassTranscription';
@@ -98,6 +99,26 @@ export const tools: Tool[] = [
         { title: '전체화면 발표 모드', desc: '⬜ 확대 버튼으로 전체화면 전환. TV·프로젝터에 띄울 때 사용합니다.' },
       ],
       tip: '타이머는 다른 도구 사용 중에도 우측 하단 플로팅 버튼으로 빠르게 접근할 수 있습니다.',
+    },
+  },
+  {
+    id: 'qr-generator',
+    icon: <QrCode size={28} />,
+    label: 'QR 생성기',
+    description: '링크나 글자를 QR 코드로 만들어 이미지로 저장하거나 크게 띄웁니다',
+    newSince: '2026-11-12',
+    available: true,
+    category: 'teaching',
+    planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
+    component: <QrGenerator />,
+    quickGuide: {
+      steps: [
+        { title: '링크나 글자 넣기', desc: '주소를 붙여넣거나 글자를 입력합니다. 내 반을 고르면 학생 입장 링크가 자동으로 들어갑니다.' },
+        { title: '꾸미기', desc: '위에 넣을 제목, 색(검정/보라), 저장 크기를 고릅니다.' },
+        { title: '저장하거나 띄우기', desc: '이미지로 저장·복사하거나 "크게 띄우기"로 TV·프로젝터에 보여 줍니다.' },
+      ],
+      tip: '입력한 내용은 이 컴퓨터 안에서만 처리되어 밖으로 전송되지 않습니다.',
     },
   },
   {
