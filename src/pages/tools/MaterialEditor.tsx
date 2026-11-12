@@ -1395,6 +1395,8 @@ const MaterialEditor = () => {
   // 'all' = 전체, null = 미분류, 그 외 = 특정 폴더 id
   const [activeFolderId, setActiveFolderId] = useState<'all' | 'unfiled' | string | null>('all');
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  // 이름 입력칸을 어느 쪽(왼쪽 폴더 목록/가운데 카드)에서 띄울지. 둘이 동시에 뜨면 서로 포커스를 뺏어 닫히므로 한쪽만 띄운다
+  const [renamingFolderWhere, setRenamingFolderWhere] = useState<'tree' | 'grid'>('grid');
   const [renamingFolderName, setRenamingFolderName] = useState('');
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -2450,7 +2452,7 @@ const MaterialEditor = () => {
           >
             <ChevronRight size={13} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
           </button>
-          {renamingFolderId === folder.id ? (
+          {renamingFolderId === folder.id && renamingFolderWhere === 'tree' ? (
             <input
               autoFocus
               value={renamingFolderName}
@@ -2463,7 +2465,7 @@ const MaterialEditor = () => {
             <button
               type="button"
               onClick={() => { setActiveFolderId(folder.id); setFolderDrawerOpen(false); }}
-              onDoubleClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
+              onDoubleClick={() => { setRenamingFolderWhere('tree'); setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
               className="min-w-0 flex-1 flex items-center gap-1.5 text-left"
               title={folder.name}
             >
@@ -2473,7 +2475,7 @@ const MaterialEditor = () => {
           )}
           <button
             type="button"
-            onClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
+            onClick={() => { setRenamingFolderWhere('tree'); setRenamingFolderId(folder.id); setRenamingFolderName(folder.name); }}
             title="이름 바꾸기"
             className="shrink-0 p-1 rounded hover:bg-black/10 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
           >
@@ -3932,7 +3934,7 @@ const MaterialEditor = () => {
                     <div
                       key={f.id}
                       {...folderDragProps(f.id)}
-                      draggable={renamingFolderId !== f.id}
+                      draggable={!(renamingFolderId === f.id && renamingFolderWhere === 'grid')}
                       {...dropProps(f.id)}
                       onClick={() => { setActiveFolderId(f.id); setExpandedFolders(prev => ({ ...prev, ...Object.fromEntries(folderPathOf(f.id).map(x => [x.id, true])) })); }}
                       role="button"
@@ -3943,14 +3945,14 @@ const MaterialEditor = () => {
                           : 'border-slate-200 bg-surface-container-lowest hover:border-primary/40 hover:bg-surface-container-low'}`}
                     >
                       <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                        <button type="button" title="이름 바꾸기" onClick={e => { e.stopPropagation(); setRenamingFolderId(f.id); setRenamingFolderName(f.name); }}
+                        <button type="button" title="이름 바꾸기" onClick={e => { e.stopPropagation(); setRenamingFolderWhere('grid'); setRenamingFolderId(f.id); setRenamingFolderName(f.name); }}
                           className="p-1.5 rounded-md bg-white/90 border border-slate-200 text-on-surface-variant hover:text-primary"><Pencil size={13} /></button>
                         <button type="button" title="폴더 삭제" onClick={e => { e.stopPropagation(); setDeleteFolderConfirmId(f.id); }}
                           className="p-1.5 rounded-md bg-white/90 border border-slate-200 text-on-surface-variant hover:text-red-600"><XIcon size={13} /></button>
                       </div>
                       <Folder size={56} strokeWidth={1.5} className="shrink-0 text-amber-500 fill-amber-200" />
                       <div className="min-w-0 w-full">
-                        {renamingFolderId === f.id ? (
+                        {renamingFolderId === f.id && renamingFolderWhere === 'grid' ? (
                           <input
                             ref={el => { if (el && !el.dataset.ready) { el.dataset.ready = String(Date.now()); setTimeout(() => { el.focus(); el.select(); }, 0); } }}
                             value={renamingFolderName}
