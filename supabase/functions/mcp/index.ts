@@ -666,9 +666,12 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST만 지원합니다.' }, 405);
 
   // 1) 열쇠 확인
+  // 헤더 방식(기본) 또는 주소 방식(?key=clk_…, 헤더를 못 넣는 앱용 · 읽기 전용 열쇠만)
   const m = /^Bearer\s+(clk_[0-9a-f]{64})$/i.exec(req.headers.get('authorization') ?? '');
-  if (!m) return json(rpcErr(null, -32001, 'AI 연결 키가 필요합니다. (Authorization: Bearer clk_...)'), 401);
-  const hash = await sha256(m[1].toLowerCase());
+  const urlKey = m ? null : /^clk_[0-9a-f]{64}$/i.exec(new URL(req.url).searchParams.get('key') ?? '');
+  const keyStr = (m ?? urlKey)?.[m ? 1 : 0];
+  if (!keyStr) return json(rpcErr(null, -32001, 'AI 연결 키가 필요합니다. (Authorization: Bearer clk_... 또는 주소 뒤 ?key=clk_...)'), 401);
+  const hash = await sha256(keyStr.toLowerCase());
   const auth = await supabase.rpc('mcp_auth', { p_hash: hash });
   if (auth.error) {
     const limited = auth.error.message.includes('rate_limited');
@@ -676,6 +679,10 @@ Deno.serve(async (req) => {
   }
   const row = Array.isArray(auth.data) ? auth.data[0] : auth.data;
   if (!row?.token_id) return json(rpcErr(null, -32001, '키가 올바르지 않거나 만료·폐기되었습니다.'), 401);
+  // 주소에 들어간 열쇠는 새기 쉬우므로 '읽기만' 열쇠만 허용 (만들기·고치기 열쇠는 헤더로만)
+  if (urlKey && row.scope !== 'read') {
+    return json(rpcErr(null, -32003, '주소 방식(?key=)은 "읽기만" 열쇠로만 쓸 수 있어요. 만들기·고치기 권한은 헤더 방식으로 연결하세요.'), 403);
+  }
 
   let msg: { id?: unknown; method?: string; params?: Record<string, unknown> };
   try { msg = await req.json(); } catch { return json(rpcErr(null, -32700, 'JSON을 읽을 수 없습니다.'), 400); }

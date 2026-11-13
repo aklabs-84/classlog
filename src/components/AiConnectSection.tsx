@@ -243,9 +243,39 @@ const ConnectGuide = ({ newKey }: { newKey: string | null }) => {
         )}
 
         {tab === 'chatgpt' && (
-          <div className="space-y-2 text-sm leading-relaxed">
-            <p className="font-bold">챗GPT는 아직 준비 중이에요.</p>
-            <p className="text-on-surface-variant">챗GPT는 열쇠를 붙여 넣는 방식이 없고 "로그인 후 허용" 방식만 받아요. 안전하게 쓰려면 그 방식을 따로 만들어야 해서 준비하고 있어요. 그때까지는 클로드를 이용해 주세요.</p>
+          <div className="space-y-4">
+            <p className="text-xs text-on-surface-variant">챗GPT는 열쇠를 헤더에 넣는 칸이 없어서, <b>열쇠가 들어 있는 주소</b>로 연결해요. <b>읽기만</b> 되고, 계정 요금제에 따라 연결이 안 될 수도 있어요. (시험 중인 방식이에요)</p>
+            <Tip>주소에 열쇠가 들어 있으니 <b>남에게 보여 주지 마세요.</b> 안전을 위해 <b>"읽기만" 열쇠</b>로만 동작하고, 만들기·고치기 권한 열쇠는 거절돼요. 새는 것 같으면 아래 목록에서 바로 끄세요.</Tip>
+            <Stepper
+              key="chatgpt"
+              steps={[
+                {
+                  short: '플러그인 열기',
+                  title: '챗GPT에서 "사용자 지정 MCP 서버 추가"를 여세요',
+                  body: <p>플러그인(커넥터) 화면에서 <b>사용자 지정 MCP 서버 추가</b>를 눌러 입력 창을 열어요. 이름은 <b>클래스로그</b>처럼 알아볼 이름이면 돼요.</p>,
+                },
+                {
+                  short: '주소 + 인증 없음',
+                  title: '연결은 "서버 URL", 주소는 아래, 인증은 "인증 없음"',
+                  body: (
+                    <>
+                      <CopyRow label="열쇠가 들어 있는 연결 주소 (읽기만 열쇠로 만드세요)" value={newKey ? `${MCP_URL}?key=${newKey}` : null} emptyHint={noKey} />
+                      <p>인증 칸은 처음에 <b>OAuth</b>라고 되어 있어요. 눌러서 <b>인증 없음</b>으로 바꿔 주세요. 아래 "이해했으며 계속 진행하겠습니다"에 체크하고 <b>플러그인으로 생성</b>을 누르세요.</p>
+                    </>
+                  ),
+                },
+                {
+                  short: '물어보기',
+                  title: '새 대화에서 물어보세요',
+                  body: (
+                    <>
+                      <p>대화에서 이 플러그인을 켜고 아래 문장을 물어보세요. 도구 허용 창이 뜨면 <b>허용</b>을 누르세요.</p>
+                      <CopyRow label="시험 문장" value="클래스로그에서 내 수업 자료 목록 보여줘" />
+                    </>
+                  ),
+                },
+              ]}
+            />
           </div>
         )}
       </div>
