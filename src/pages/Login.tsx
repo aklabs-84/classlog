@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2, KeyRound, Gift } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { takeOAuthReturn } from '../lib/oauthReturn';
 import TeacherConfirmModal from '../components/TeacherConfirmModal';
 
 const Login = () => {
@@ -83,7 +84,7 @@ const Login = () => {
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
-      navigate('/dashboard');
+      navigate(takeOAuthReturn() ?? '/dashboard');
     } catch (err: any) {
       setError(err.message || '로그인 중 오류가 발생했습니다.');
     } finally {

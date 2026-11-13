@@ -10,7 +10,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type, mcp-protocol-version, mcp-session-id, accept',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Expose-Headers': 'WWW-Authenticate',
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -661,8 +662,79 @@ const TOOLS: Tool[] = [
 
 const rpcErr = (id: unknown, code: number, message: string) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
 
+// ───────── OAuth 승인 화면 방식(ChatGPT 등): 안내문·등록·열쇠 교환 ─────────
+// 열쇠를 주소에 넣지 않고, 선생님이 승인 화면에서 권한을 고르면 ChatGPT가 열쇠를 받아 가는 방식.
+const MCP_URL = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mcp`;
+const APP_ORIGIN = 'https://classlog-ai.vercel.app';
+const SCOPES = ['read', 'write_create', 'write_edit'];
+const META_URL = `${MCP_URL}/.well-known/oauth-protected-resource`;
+const WWW_AUTH = { 'WWW-Authenticate': `Bearer resource_metadata="${META_URL}"` };
+const oerr = (error: string, description: string, status = 400) =>
+  new Response(JSON.stringify({ error, error_description: description }), {
+    status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  });
+const ojson = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  });
+
+const handleOAuth = async (req: Request, path: string): Promise<Response | null> => {
+  if (req.method === 'GET' && path.endsWith('/.well-known/oauth-protected-resource')) {
+    return ojson({ resource: MCP_URL, authorization_servers: [APP_ORIGIN], bearer_methods_supported: ['header'], scopes_supported: SCOPES });
+  }
+  if (req.method === 'GET' && (path.endsWith('/.well-known/oauth-authorization-server') || path.endsWith('/.well-known/openid-configuration'))) {
+    return ojson({
+      issuer: APP_ORIGIN,
+      authorization_endpoint: `${APP_ORIGIN}/oauth/authorize`,
+      token_endpoint: `${MCP_URL}/token`,
+      registration_endpoint: `${MCP_URL}/register`,
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code'],
+      code_challenge_methods_supported: ['S256'],
+      token_endpoint_auth_methods_supported: ['none'],
+      scopes_supported: SCOPES,
+    });
+  }
+  if (req.method === 'POST' && path.endsWith('/register')) {
+    let b: Record<string, unknown>;
+    try { b = await req.json(); } catch { return oerr('invalid_client_metadata', 'JSON을 읽을 수 없습니다.'); }
+    const uris = Array.isArray(b.redirect_uris) ? b.redirect_uris.filter((u): u is string => typeof u === 'string') : [];
+    const name = typeof b.client_name === 'string' ? b.client_name : '';
+    const { data, error } = await supabase.rpc('mcp_oauth_register', { p_name: name, p_redirects: uris });
+    if (error) {
+      if (error.message.includes('invalid_redirect')) return oerr('invalid_redirect_uri', '허용되지 않은 되돌아올 주소입니다.');
+      if (error.message.includes('rate_limited')) return oerr('temporarily_unavailable', '잠시 뒤 다시 시도하세요.', 429);
+      return oerr('server_error', '등록 중 오류가 났습니다.', 500);
+    }
+    return ojson({
+      client_id: (data as { client_id: string }).client_id, client_name: name.slice(0, 60) || '외부 AI', redirect_uris: uris,
+      token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'],
+    }, 201);
+  }
+  if (req.method === 'POST' && path.endsWith('/token')) {
+    let f: URLSearchParams;
+    try {
+      const ct = req.headers.get('content-type') ?? '';
+      f = ct.includes('json') ? new URLSearchParams(Object.entries(await req.json()).map(([k, v]) => [k, String(v)])) : new URLSearchParams(await req.text());
+    } catch { return oerr('invalid_request', '요청을 읽을 수 없습니다.'); }
+    if (f.get('grant_type') !== 'authorization_code') return oerr('unsupported_grant_type', 'authorization_code만 지원합니다.');
+    const { data, error } = await supabase.rpc('mcp_oauth_exchange', {
+      p_code: f.get('code'), p_client_id: f.get('client_id'), p_redirect_uri: f.get('redirect_uri'), p_verifier: f.get('code_verifier'),
+    });
+    if (error) {
+      if (error.message.includes('too_many_tokens')) return oerr('access_denied', '연결 열쇠가 너무 많습니다(최대 5개). 클래스로그AI 설정 > AI 연결에서 안 쓰는 열쇠를 끄고 다시 시도하세요.');
+      if (error.message.includes('invalid_grant')) return oerr('invalid_grant', '승인 코드가 올바르지 않거나 만료되었습니다.');
+      return oerr('server_error', '열쇠 발급 중 오류가 났습니다.', 500);
+    }
+    return ojson(data);
+  }
+  return null;
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  const oauthRes = await handleOAuth(req, new URL(req.url).pathname);
+  if (oauthRes) return oauthRes;
   if (req.method !== 'POST') return json({ error: 'POST만 지원합니다.' }, 405);
 
   // 1) 열쇠 확인
@@ -670,7 +742,7 @@ Deno.serve(async (req) => {
   const m = /^Bearer\s+(clk_[0-9a-f]{64})$/i.exec(req.headers.get('authorization') ?? '');
   const urlKey = m ? null : /^clk_[0-9a-f]{64}$/i.exec(new URL(req.url).searchParams.get('key') ?? '');
   const keyStr = (m ?? urlKey)?.[m ? 1 : 0];
-  if (!keyStr) return json(rpcErr(null, -32001, 'AI 연결 키가 필요합니다. (Authorization: Bearer clk_... 또는 주소 뒤 ?key=clk_...)'), 401);
+  if (!keyStr) return new Response(JSON.stringify(rpcErr(null, -32001, 'AI 연결 키가 필요합니다. (Authorization: Bearer clk_... 또는 주소 뒤 ?key=clk_...)')), { status: 401, headers: { ...cors, ...WWW_AUTH, 'Content-Type': 'application/json' } });
   const hash = await sha256(keyStr.toLowerCase());
   const auth = await supabase.rpc('mcp_auth', { p_hash: hash });
   if (auth.error) {
@@ -678,7 +750,7 @@ Deno.serve(async (req) => {
     return json(rpcErr(null, -32002, limited ? '요청이 너무 많습니다. 1분 뒤 다시 시도하세요.' : '인증 확인 중 오류가 났습니다.'), limited ? 429 : 500);
   }
   const row = Array.isArray(auth.data) ? auth.data[0] : auth.data;
-  if (!row?.token_id) return json(rpcErr(null, -32001, '키가 올바르지 않거나 만료·폐기되었습니다.'), 401);
+  if (!row?.token_id) return new Response(JSON.stringify(rpcErr(null, -32001, '키가 올바르지 않거나 만료·폐기되었습니다.')), { status: 401, headers: { ...cors, ...WWW_AUTH, 'Content-Type': 'application/json' } });
   // 주소에 들어간 열쇠는 새기 쉬우므로 '읽기만' 열쇠만 허용 (만들기·고치기 열쇠는 헤더로만)
   if (urlKey && row.scope !== 'read') {
     return json(rpcErr(null, -32003, '주소 방식(?key=)은 "읽기만" 열쇠로만 쓸 수 있어요. 만들기·고치기 권한은 헤더 방식으로 연결하세요.'), 403);

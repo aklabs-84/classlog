@@ -244,8 +244,8 @@ const ConnectGuide = ({ newKey }: { newKey: string | null }) => {
 
         {tab === 'chatgpt' && (
           <div className="space-y-4">
-            <p className="text-xs text-on-surface-variant">챗GPT는 열쇠를 헤더에 넣는 칸이 없어서, <b>열쇠가 들어 있는 주소</b>로 연결해요. <b>읽기만</b> 되고, 계정 요금제에 따라 연결이 안 될 수도 있어요. (시험 중인 방식이에요)</p>
-            <Tip>주소에 열쇠가 들어 있으니 <b>남에게 보여 주지 마세요.</b> 안전을 위해 <b>"읽기만" 열쇠</b>로만 동작하고, 만들기·고치기 권한 열쇠는 거절돼요. 새는 것 같으면 아래 목록에서 바로 끄세요.</Tip>
+            <p className="text-xs text-on-surface-variant">챗GPT는 <b>주소만 넣으면</b> 클래스로그AI의 <b>허락 화면</b>이 떠요. 거기서 어디까지 허락할지(읽기만 / 만들기 / 바꾸기) 직접 고르니, 열쇠를 따로 만들 필요가 없어요. (새 방식이라 시험 중이에요)</p>
+            <Tip>허락한 연결은 아래 <b>열쇠 목록</b>에 나타나고, 90일 뒤 저절로 끝나요. 언제든 목록에서 끌 수 있어요. 같은 챗GPT를 다시 연결하면 이전 연결은 자동으로 꺼져요.</Tip>
             <Stepper
               key="chatgpt"
               steps={[
@@ -255,14 +255,19 @@ const ConnectGuide = ({ newKey }: { newKey: string | null }) => {
                   body: <p>플러그인(커넥터) 화면에서 <b>사용자 지정 MCP 서버 추가</b>를 눌러 입력 창을 열어요. 이름은 <b>클래스로그</b>처럼 알아볼 이름이면 돼요.</p>,
                 },
                 {
-                  short: '주소 + 인증 없음',
-                  title: '연결은 "서버 URL", 주소는 아래, 인증은 "인증 없음"',
+                  short: '주소 + OAuth',
+                  title: '서버 URL에 아래 주소, 인증은 "OAuth" 그대로',
                   body: (
                     <>
-                      <CopyRow label="열쇠가 들어 있는 연결 주소 (읽기만 열쇠로 만드세요)" value={newKey ? `${MCP_URL}?key=${newKey}` : null} emptyHint={noKey} />
-                      <p>인증 칸은 처음에 <b>OAuth</b>라고 되어 있어요. 눌러서 <b>인증 없음</b>으로 바꿔 주세요. 아래 "이해했으며 계속 진행하겠습니다"에 체크하고 <b>플러그인으로 생성</b>을 누르세요.</p>
+                      <CopyRow label="연결 주소" value={MCP_URL} />
+                      <p>인증 칸은 <b>OAuth</b>(처음 그대로)로 두세요. 아래 "이해했으며 계속 진행하겠습니다"에 체크하고 <b>플러그인으로 생성</b>을 누르면 클래스로그AI 허락 화면이 떠요.</p>
                     </>
                   ),
+                },
+                {
+                  short: '허락하기',
+                  title: '허락 화면에서 범위를 고르고 "허용"',
+                  body: <p>처음엔 <b>읽기만</b>이 골라져 있어요. 챗GPT가 새 자료·설문·퀴즈를 만들게 하려면 <b>읽기 + 만들기</b>를 고르세요. 클래스로그AI에 로그인이 안 돼 있으면 로그인 후 이 화면으로 돌아와요.</p>,
                 },
                 {
                   short: '물어보기',
@@ -276,6 +281,13 @@ const ConnectGuide = ({ newKey }: { newKey: string | null }) => {
                 },
               ]}
             />
+            <details className="text-xs text-on-surface-variant">
+              <summary className="cursor-pointer font-bold">허락 화면이 안 뜨면? (읽기 전용 주소 방식)</summary>
+              <div className="space-y-2 mt-2">
+                <p>아래쪽 <b>열쇠 만들기</b>에서 <b>읽기만</b> 열쇠를 만든 뒤, 아래 주소를 서버 URL에 넣고 인증은 <b>인증 없음</b>으로 바꾸세요. 읽기만 되고, 주소에 열쇠가 들어 있으니 남에게 보여 주지 마세요.</p>
+                <CopyRow label="열쇠가 들어 있는 연결 주소 (읽기만 열쇠)" value={newKey ? `${MCP_URL}?key=${newKey}` : null} emptyHint={noKey} />
+              </div>
+            </details>
           </div>
         )}
       </div>

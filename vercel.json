@@ -7,6 +7,14 @@
   ],
   "rewrites": [
     {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "https://mxzhienqaypsammvwssb.supabase.co/functions/v1/mcp/.well-known/oauth-authorization-server"
+    },
+    {
+      "source": "/.well-known/openid-configuration",
+      "destination": "https://mxzhienqaypsammvwssb.supabase.co/functions/v1/mcp/.well-known/openid-configuration"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

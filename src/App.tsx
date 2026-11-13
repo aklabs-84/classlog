@@ -2,6 +2,7 @@ import { useEffect, lazy, Suspense } from 'react';
 import { AppDialogHost } from './lib/appDialog';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, isAnonymousUser } from './lib/auth';
+import { takeOAuthReturn } from './lib/oauthReturn';
 import { supabase } from './lib/supabase';
 import { TimerProvider } from './lib/timerContext';
 import { ClassAlarmProvider } from './lib/classAlarmContext';
@@ -28,6 +29,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const IdeaRecord = lazy(() => import('./pages/IdeaRecord'));
 const Home = lazy(() => import('./pages/Home'));
 const Login = lazy(() => import('./pages/Login'));
+const OAuthAuthorize = lazy(() => import('./pages/OAuthAuthorize'));
 const Landing = lazy(() => import('./pages/Landing'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Classroom = lazy(() => import('./pages/Classroom'));
@@ -180,7 +182,8 @@ const RootRedirect = () => {
 
   // 익명 유저(학생)는 미로그인으로 취급 — 선생님만 대시보드로
   if (user && !isAnonymousUser(user)) {
-    return <Navigate to="/dashboard" replace />;
+    // AI 연결 승인 중에 로그인하러 왔다면 승인 화면으로 되돌려 보낸다
+    return <Navigate to={takeOAuthReturn() ?? '/dashboard'} replace />;
   }
 
   return <Landing />;
@@ -262,6 +265,7 @@ function App() {
               {/* 로그인 상태와 무관하게 랜딩페이지 자체를 확인하기 위한 경로 (RootRedirect의 /dashboard 강제 이동 없음) */}
               <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/oauth/authorize" element={<OAuthAuthorize />} />
               <Route path="/set-password" element={<SetPassword />} />
               <Route path="/classroom-entry" element={<ClassroomEntry />} />
               <Route path="/student-log" element={<StudentLog />} />
