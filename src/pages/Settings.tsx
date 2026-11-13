@@ -1038,8 +1038,21 @@ const Settings = () => {
           <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/15">
             <KeyRound size={16} className="text-primary mt-0.5 shrink-0" />
             <div className="text-xs text-on-surface-variant leading-relaxed">
-              <span className="font-bold text-primary">Google Gemini</span> 사용 — 무료 API Key 발급:{' '}
-              <span className="font-mono text-primary">aistudio.google.com/apikey</span> 에서 발급
+              <p>
+                <span className="font-bold text-primary">Google Gemini</span> API 키 —{' '}
+                <span className="font-mono text-primary">aistudio.google.com/apikey</span> 에서 발급하고,{' '}
+                <span className="font-bold">결제 수단을 연결한 유료 키</span>를 권장합니다.
+              </p>
+              <p className="mt-2">
+                이 앱이 쓰는 모델: <span className="font-mono">gemini-3.6-flash</span>(기본),{' '}
+                <span className="font-mono">gemini-3.1-pro-preview</span>(고급 기능),{' '}
+                <span className="font-mono">gemini-3.1-flash-lite</span>(간단 작업),{' '}
+                <span className="font-mono">gemini-embedding-001</span>(검색)
+              </p>
+              <p className="mt-2 text-error font-bold">
+                결제를 연결하지 않은 무료 키는 Pro 모델 기능이 동작하지 않고, 입력한 내용이 구글 서비스 개선에 쓰일 수 있습니다. 학생 정보가 담긴 내용은 무료 키로 쓰지 마세요.
+              </p>
+              <p className="mt-1 text-[10px] opacity-70">구글 공식 가격표 확인일: 2026-11-13</p>
             </div>
           </div>
 

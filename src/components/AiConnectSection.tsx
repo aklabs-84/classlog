@@ -135,6 +135,9 @@ const ConnectGuide = ({ newKey }: { newKey: string | null }) => {
           </button>
         ))}
       </div>
+      <p className="text-xs text-on-surface-variant px-1">
+        🔄 클래스로그AI에 새 기능이 추가되면, 쓰는 AI에서 <b>클래스로그AI 커넥터를 껐다 다시 켜 주세요.</b> 열쇠는 그대로 쓰면 되고, 새 도구 목록만 다시 받아 오는 거예요.
+      </p>
 
       <div className="p-4 rounded-2xl border border-surface-container-highest space-y-4">
         {tab === 'claude' && (
@@ -251,12 +254,20 @@ const ConnectGuide = ({ newKey }: { newKey: string | null }) => {
   );
 };
 
+const SCOPES = [
+  { id: 'read', label: '읽기만', desc: 'AI가 내 자료를 보기만 해요. 아무것도 만들거나 바꾸지 못해요. (추천)' },
+  { id: 'write_create', label: '읽기 + 만들기', desc: '새 반·주차·공지·자료·폴더를 만들 수 있어요. 있던 것은 못 바꿔요.' },
+  { id: 'write_edit', label: '읽기 + 만들기 + 바꾸기', desc: '이미 있는 반 이름·자료 내용·공지도 고칠 수 있어요. 가장 조심해서 쓰세요.' },
+] as const;
+const scopeLabel = (id: string) => SCOPES.find(x => x.id === id)?.label ?? '읽기만';
+
 const AiConnectSection = () => {
   const [rows, setRows] = useState<TokenRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [scope, setScope] = useState<string>('read');
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc('list_ai_connect_tokens');
@@ -271,7 +282,7 @@ const AiConnectSection = () => {
   const create = async () => {
     if (!name.trim()) { appToast('어디에 쓸 열쇠인지 이름을 적어 주세요. (예: 클로드 코드)'); return; }
     setCreating(true);
-    const { data, error } = await supabase.rpc('create_ai_connect_token', { p_name: name.trim(), p_days: 90 });
+    const { data, error } = await supabase.rpc('create_ai_connect_token', { p_name: name.trim(), p_days: 90, p_scope: scope });
     setCreating(false);
     if (error) {
       appToast(error.message.includes('too_many_tokens') ? '열쇠는 동시에 5개까지 쓸 수 있어요. 안 쓰는 열쇠를 먼저 폐기해 주세요.' : '열쇠를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.');
@@ -280,6 +291,7 @@ const AiConnectSection = () => {
     const row = Array.isArray(data) ? data[0] : data;
     setNewKey(row?.token ?? null);
     setName('');
+    setScope('read');
     load();
   };
 
@@ -297,7 +309,7 @@ const AiConnectSection = () => {
         <div>
           <h3 className="text-lg font-bold">AI 연결 (베타)</h3>
           <p className="text-xs text-on-surface-variant mt-0.5">
-            열쇠를 만들어 AI에게 주면, AI가 내 수업 자료·슬라이드·수업 계획서를 읽을 수 있어요 (읽기 전용 · 학생 정보는 제외)
+            열쇠를 만들어 AI에게 주면, AI가 내 수업 자료·슬라이드·수업 계획서를 읽을 수 있어요 (권한을 올리면 글자 슬라이드·수업계획서·설문·퀴즈 초안도 만들 수 있어요 · 기본은 읽기만 · 학생 이름 등 개인정보·지우기·결제는 AI가 못 하고, 클래스로그AI에서 직접 해야 해요)
           </p>
         </div>
       </div>
@@ -323,6 +335,29 @@ const AiConnectSection = () => {
               {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
               열쇠 만들기
             </button>
+          </div>
+          <div className="space-y-1.5 pt-1">
+            <label className="text-[11px] font-bold text-on-surface-variant">이 열쇠로 AI가 할 수 있는 일</label>
+            <div role="radiogroup" aria-label="열쇠 권한" className="grid gap-2">
+              {SCOPES.map(o => (
+                <button
+                  key={o.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={scope === o.id}
+                  onClick={() => setScope(o.id)}
+                  className={`text-left p-3 rounded-xl border transition-all ${scope === o.id ? 'border-primary bg-primary/5' : 'border-surface-container bg-surface-container hover:border-primary/30'}`}
+                >
+                  <span className="block text-sm font-bold">{o.label}</span>
+                  <span className="block text-[11px] text-on-surface-variant mt-0.5 leading-relaxed">{o.desc}</span>
+                </button>
+              ))}
+            </div>
+            {scope !== 'read' && (
+              <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                지우기는 어떤 권한으로도 할 수 없어요. 쓰기 작업은 Claude 등에서 "승인할까요?" 하고 먼저 물어요.
+              </p>
+            )}
           </div>
           <p className="text-[11px] text-on-surface-variant">열쇠는 90일 동안 쓸 수 있고, 동시에 5개까지 만들 수 있어요.</p>
         </div>
@@ -360,7 +395,7 @@ const AiConnectSection = () => {
               {active.map(r => (
                 <li key={r.id} className="flex items-center gap-3 p-3 bg-surface-container rounded-xl">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{r.name} <span className="font-mono text-xs text-on-surface-variant font-normal">…{r.last4}</span></p>
+                    <p className="text-sm font-bold truncate">{r.name} <span className="font-mono text-xs text-on-surface-variant font-normal">…{r.last4}</span> <span className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${r.scope === 'read' ? 'bg-surface-container-high text-on-surface-variant' : 'bg-amber-100 text-amber-800'}`}>{scopeLabel(r.scope)}</span></p>
                     <p className="text-[11px] text-on-surface-variant">
                       만료 {fmt(r.expires_at)} · 마지막 사용 {r.last_used_at ? fmt(r.last_used_at) : '아직 없음'}
                     </p>

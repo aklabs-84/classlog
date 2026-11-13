@@ -135,6 +135,7 @@ import ProjectMaterialsForTeacher from '../components/classroom/ProjectMaterials
 import InstructorStartGuide from '../components/classroom/InstructorStartGuide';
 import ClassProjectSurveyPanel from '../components/classroom/ClassProjectSurveyPanel';
 import ClassProjectQuizPanel from '../components/classroom/ClassProjectQuizPanel';
+import ClassOwnSurveyPanel from '../components/classroom/ClassOwnSurveyPanel';
 import ClassLiveBoardPanel from '../components/classroom/ClassLiveBoardPanel';
 import ClassStudioProgressPanel, { PROGRESS_APP_TAG } from '../components/classroom/ClassStudioProgressPanel';
 import { ActivityProvider, ActivityPanel, ActivityStrip, ActivityTabMark } from '../components/classroom/ActivityHub';
@@ -3046,6 +3047,16 @@ const Classroom = () => {
             )}
             {classInfo?.school_project_id && classInfo?.parent_class_id && classInfo?.assigned_teacher_id === user?.id && (
               <ClassProjectQuizPanel classId={classInfo.id} teacherId={user!.id} />
+            )}
+            {classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
+              <ClassOwnSurveyPanel classId={classInfo.id} teacherId={user!.id} />
+            )}
+            {classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
+              <ClassProjectQuizPanel
+                classId={classInfo.linked_class_id || classInfo.id}
+                teacherId={user!.id}
+                filter={classInfo.school_project_id && classInfo.parent_class_id ? 'own' : 'all'}
+              />
             )}
             {classInfo && (classInfo.teacher_id === user?.id || classInfo.assigned_teacher_id === user?.id) && (
               <ClassLiveBoardPanel classId={classInfo.linked_class_id || classInfo.id} teacherId={user!.id} />

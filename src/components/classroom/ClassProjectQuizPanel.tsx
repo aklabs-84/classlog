@@ -11,7 +11,8 @@ interface ProjectQuiz {
 }
 
 // 담당 선생님 클래스룸: 프로젝트 관리자가 우리 반에 보낸 퀴즈를 바로 시작한다 (학생 화면 "퀴즈 입장" 칸이 켜진다)
-export default function ClassProjectQuizPanel({ classId, teacherId }: { classId: string; teacherId: string }) {
+// filter: 'project' = 프로젝트 관리자가 보낸 퀴즈(기본) / 'own' = 프로젝트 반에서 선생님이 직접 만든 것만 / 'all' = 일반 반의 연결된 퀴즈 전부
+export default function ClassProjectQuizPanel({ classId, teacherId, filter = 'project' }: { classId: string; teacherId: string; filter?: 'project' | 'own' | 'all' }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<ProjectQuiz[] | null>(null);
   const [liveSetIds, setLiveSetIds] = useState<Set<string>>(new Set());
@@ -19,10 +20,12 @@ export default function ClassProjectQuizPanel({ classId, teacherId }: { classId:
   useEffect(() => {
     let alive = true;
     (async () => {
+      let setsQuery = supabase.from('quiz_sets').select('id, title, quiz_questions(count)')
+        .eq('teacher_id', teacherId).eq('class_id', classId);
+      if (filter === 'project') setsQuery = setsQuery.not('source_set_id', 'is', null);
+      else if (filter === 'own') setsQuery = setsQuery.is('source_set_id', null);
       const [{ data: sets }, { data: live }] = await Promise.all([
-        supabase.from('quiz_sets').select('id, title, quiz_questions(count)')
-          .eq('teacher_id', teacherId).eq('class_id', classId).not('source_set_id', 'is', null)
-          .order('created_at', { ascending: false }),
+        setsQuery.order('created_at', { ascending: false }).limit(30),
         supabase.from('quiz_sessions').select('quiz_set_id')
           .eq('teacher_id', teacherId).eq('class_id', classId).neq('state', 'FINAL'),
       ]);
@@ -31,7 +34,7 @@ export default function ClassProjectQuizPanel({ classId, teacherId }: { classId:
       setLiveSetIds(new Set(((live as any[]) || []).map(x => x.quiz_set_id)));
     })();
     return () => { alive = false; };
-  }, [classId, teacherId]);
+  }, [classId, teacherId, filter]);
 
   if (items === null || items.length === 0) return null;
 
@@ -50,7 +53,7 @@ export default function ClassProjectQuizPanel({ classId, teacherId }: { classId:
           onEnd={() => start(q.id)}
           title={q.title}
           summary={`문제 ${q.question_count}개${liveSetIds.has(q.id) ? ' · 진행 중인 방이 있어요' : ''}`}
-          help={'"퀴즈 시작"을 누르면 퀴즈 방이 열리고, 우리 반 학생 화면의 "퀴즈 입장" 칸이 빨갛게 켜져요.'}
+          help={'"퀴즈 시작"을 누르면 퀴즈 도구로 이동해 퀴즈 방이 열리고, 우리 반 학생 화면의 "퀴즈 입장" 칸이 빨갛게 켜져요.'}
           action={
             <button
               onClick={() => start(q.id)}
