@@ -359,27 +359,16 @@ const AiConnectSection = () => {
       <div className="px-5 md:px-10 py-6 space-y-6">
         {/* 새 열쇠 만들기 */}
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-on-surface-variant">새 열쇠 이름 (어디에 쓸지 적어 두세요)</label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              maxLength={40}
-              placeholder="예: 클로드 코드, 챗GPT"
-              className="flex-1 min-w-0 px-4 py-3 bg-surface-container rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 border border-transparent focus:border-primary/30"
-            />
-            <button
-              type="button"
-              onClick={create}
-              disabled={creating}
-              className="shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              열쇠 만들기
-            </button>
-          </div>
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] font-bold text-on-surface-variant">이 열쇠로 AI가 할 수 있는 일</label>
+          <label className="text-[11px] font-bold text-on-surface-variant">① 새 열쇠 이름 (어디에 쓸지 적어 두세요)</label>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            maxLength={40}
+            placeholder="예: 클로드 코드, 챗GPT"
+            className="w-full min-w-0 px-4 py-3 bg-surface-container rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20 border border-transparent focus:border-primary/30"
+          />
+          <div className="space-y-1.5 pt-2">
+            <label className="text-[11px] font-bold text-on-surface-variant">② 이 열쇠로 AI가 할 수 있는 일 (만든 뒤에는 바꿀 수 없어요)</label>
             <div role="radiogroup" aria-label="열쇠 권한" className="grid gap-2">
               {SCOPES.map(o => (
                 <button
@@ -401,7 +390,18 @@ const AiConnectSection = () => {
               </p>
             )}
           </div>
-          <p className="text-[11px] text-on-surface-variant">열쇠는 90일 동안 쓸 수 있고, 동시에 5개까지 만들 수 있어요.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={create}
+              disabled={creating}
+              className="sm:shrink-0 flex items-center justify-center gap-1.5 px-5 py-3 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              ③ 열쇠 만들기
+            </button>
+            <p className="text-[11px] text-on-surface-variant">열쇠는 90일 동안 쓸 수 있고, 동시에 5개까지 만들 수 있어요.</p>
+          </div>
         </div>
 
         {/* 방금 만든 열쇠: 한 번만 보임 */}
