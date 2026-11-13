@@ -37,6 +37,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import AiConnectSection from '../components/AiConnectSection';
 import { appToast } from '../lib/appDialog';
 import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 
@@ -1091,6 +1092,9 @@ const Settings = () => {
           </div>
         </div>
       </div>
+
+      {/* ── AI 연결 키 (MCP) ── */}
+      <AiConnectSection />
 
       {/* Action Footer */}
       <div className="flex items-center justify-between p-5 md:p-10 mt-6 md:mt-10 border-t border-surface-container-high relative flex-wrap gap-4">
