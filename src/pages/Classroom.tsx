@@ -3659,9 +3659,11 @@ const Classroom = () => {
                 </div>
               )}
 
-              {activeTab === 'list' && classInfo && realStudents.length === 0 && ((classInfo.entry_mode || 'roster') === 'roster' || (classInfo.entry_mode === 'live_roster' && classInfo.live_roster_accepted)) && (
+              {activeTab === 'list' && classInfo && realStudents.length === 0 && !(classInfo.entry_mode === 'live_roster' && !classInfo.live_roster_accepted) && (
                 <div data-tour="entry-mode-banner" className="mb-6 flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-primary-container/50 border border-primary/30 rounded-xl">
-                  <p className="text-[16px] font-medium text-on-surface">오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.</p>
+                  <p className="text-[16px] font-medium text-on-surface">{classInfo.entry_mode === 'common_named' || classInfo.entry_mode === 'common_anon'
+                    ? `지금은 '${classInfo.entry_mode === 'common_named' ? '이름만 입력' : '익명'}' 입장 방식이에요. 명단으로 입장하거나 다른 방식으로 바꿀 수 있어요.`
+                    : '오늘 학생 명단이 없나요? 학생이 직접 입력하거나, 명단 없이 입장하게 바꿀 수 있어요.'}</p>
                   <button type="button" onClick={() => handleReopenEntryMode(classInfo)} className="px-4 py-2 rounded-xl bg-surface-container-lowest border border-slate-200 dark:border-slate-700 text-[15px] font-bold text-on-surface hover:border-primary/40 hover:text-primary transition-all">입장 방식 바꾸기</button>
                 </div>
               )}
