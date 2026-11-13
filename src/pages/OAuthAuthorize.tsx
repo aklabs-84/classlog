@@ -8,7 +8,7 @@ import { saveOAuthReturn } from '../lib/oauthReturn';
 // AI 연결 승인 화면: ChatGPT 같은 앱이 "내 클래스로그AI를 써도 될까요?" 하고 물을 때 선생님이 허락하는 곳
 const SCOPES = [
   { id: 'read', label: '읽기만', desc: 'AI가 내 자료를 보기만 해요. 아무것도 만들거나 바꾸지 못해요. (추천)' },
-  { id: 'write_create', label: '읽기 + 만들기', desc: '새 반·주차·공지·자료·설문·퀴즈·슬라이드를 만들 수 있어요. 있던 것은 못 바꿔요.' },
+  { id: 'write_create', label: '읽기 + 만들기', desc: '새 반·주차·공지·자료·설문·퀴즈·슬라이드·학교 프로젝트 틀을 만들 수 있어요. 있던 것은 못 바꿔요.' },
   { id: 'write_edit', label: '읽기 + 만들기 + 바꾸기', desc: '이미 있는 반 이름·자료 내용·공지도 고칠 수 있어요. 가장 조심해서 쓰세요.' },
 ] as const;
 

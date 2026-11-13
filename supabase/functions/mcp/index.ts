@@ -87,7 +87,7 @@ const CANNOT_DO = {
   rule: '아래 일은 이 연결(MCP)로 할 수 없습니다. 시도하지 말고, 사용자에게 "클래스로그AI에서 직접 해 주세요"라고 안내하세요.',
   where: '클래스로그AI(https://classlog-ai.vercel.app)에 로그인해서 진행',
   privacy: ['학생 이름·PIN·연락처 보기/입력/수정 (학생은 번호로만 보입니다)', '학생 제출물·관찰 기록·평가·출결', '학부모 공유·동의·학생 사진 공개 설정'],
-  security: ['AI 연결 키 만들기·폐기·권한 변경', '로그인·비밀번호·계정 설정', '입장 방식 변경, 학생 실명 입력·명단 수정·삭제 (학생 칸을 별칭으로 추가하는 add_students만 가능)'],
+  security: ['AI 연결 키 만들기·폐기·권한 변경', '로그인·비밀번호·계정 설정', '입장 방식 변경, 학생 실명 입력·명단 수정·삭제 (학생 칸을 별칭으로 추가하는 add_students만 가능)', '학교 프로젝트의 공유 링크·입장 코드 보기/켜기, 다른 선생님 초대·권한', '학교 프로젝트에 학교·반 추가/수정 (프로젝트 틀 만들기 create_school_project만 가능)'],
   money_admin: ['결제·요금제·AI 크레딧', '관리자 기능'],
   delete: ['반·자료·폴더·공지·학생·슬라이드 등 모든 삭제'],
   also_manual: ['자료·도구를 학생에게 공개하는 최종 결정(자료 공개 여부), 모둠 구성'],
@@ -106,6 +106,7 @@ const FRIENDLY: Array<[string, string]> = [
   ['topic_required', '주제가 필요합니다.'],
   ['invalid_style', '화면 스타일은 default, mission, storybook, challenge, note, manual, workshop 중 하나여야 합니다.'],
   ['invalid_url','링크는 http:// 또는 https:// 로 시작해야 합니다.'],
+  ['too_many_projects', '학교 프로젝트는 최대 30개까지 만들 수 있습니다. 클래스로그AI에서 정리해 주세요.'],
   ['invalid_dates', '종료일이 시작일보다 빠릅니다.'],
   ['content_too_long', '본문이 너무 깁니다.'],
   ['plan_limit_survey', '무료 플랜은 설문을 5개까지 만들 수 있습니다. 클래스로그AI에서 요금제를 확인하거나 안 쓰는 설문을 정리해 주세요.'],
@@ -307,12 +308,27 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'list_school_projects',
-    description: '참여 중인 학교 프로젝트 목록(이름·기간·참여 반 수)을 보여 줍니다.',
+    description: '참여 중인 학교 프로젝트 목록(이름·기간·참여 반 수)을 보여 줍니다. kind가 project면 사업, school이면 그 아래 학교입니다. 공유 링크·입장 코드는 보이지 않습니다.',
     properties: {},
     run: (h) => rpc('mcp_list_school_projects', { p_hash: h }),
   },
+  {
+    name: 'get_school_project',
+    description: '학교 프로젝트 한 건의 구조(학교 → 반, 반별 학생 수)와 이 프로젝트에 연결된 내 설문 목록(응답 수)을 보여 줍니다. 설문 결과 통계는 설문 id로 get_survey를 부르세요. 공유 링크·입장 코드·학생 이름은 보이지 않으니, 필요하면 "클래스로그AI에서 직접 확인·복사하세요"라고 안내하세요.',
+    properties: { id: { type: 'string', description: '학교 프로젝트 id (list_school_projects에서 확인)' } },
+    required: ['id'],
+    run: (h, a) => rpc('mcp_get_school_project', { p_hash: h, p_id: uuid(a.id, true) }),
+  },
 
   // ---------- 쓰기 도구: 반·주차·공지·자료·폴더 (학생 정보 없음, 지우기 없음) ----------
+  {
+    name: 'create_school_project',
+    description: '학교 프로젝트(사업) 틀을 새로 만듭니다. 이름만 정하며, 앱에서 만든 것처럼 "사업 전체" 반도 함께 만들어집니다. 학교·반 추가, 다른 선생님 초대, 공유 링크, 입장 코드, 배너 색, AI 사용량 배정은 클래스로그AI에서 직접 하도록 안내하세요.',
+    level: 'create',
+    properties: { name: { type: 'string', description: '프로젝트 이름 (예: 바이브코딩 수업)' } },
+    required: ['name'],
+    run: (h, a) => rpc('mcp_create_school_project', { p_hash: h, p_name: str(a.name, 60, true) }),
+  },
   {
     name: 'create_class',
     description: '새 반을 만듭니다. 입장 코드는 자동으로 만들어집니다. 반 개수 제한(요금제별)은 그대로 적용됩니다. 학생 추가·입장 방식은 클래스로그AI에서 직접 하세요.',
