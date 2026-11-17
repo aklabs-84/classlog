@@ -1,4 +1,5 @@
 import CodeBlock from './CodeBlock';
+import { parseVisualRatio } from './VisualBlock';
 import { ANSWER_INPUT_EVENT } from '../lib/answerFill';
 import { cloneElement, createContext, createElement, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -353,6 +354,8 @@ const buildAnswerComponents = (base: any) => {
     const child = (Array.isArray(props.children) ? props.children[0] : props.children) as any;
     const lang = (child?.props?.className || '').replace('language-', '') || 'text';
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    // 그림 설명 칸(```visual)은 코드 상자가 아니므로 기본 렌더러(VisualBlock)에 맡긴다
+    if (parseVisualRatio(lang)) return createElement(BasePre, props);
     return <CodeBlock lang={lang} code={code} fillable />;
   };
   return { ...base, p: P, td: Td, tr: Tr, li: Li, input: Input, pre: Pre };

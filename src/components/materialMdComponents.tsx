@@ -1,4 +1,5 @@
 import CodeBlock from './CodeBlock';
+import VisualBlock, { parseVisualRatio } from './VisualBlock';
 import { renderCallout } from './PresentationModal';
 
 // ── 마크다운 컴포넌트 렌더러 ──────────────────────────────────────────────────
@@ -29,6 +30,8 @@ export const mdComponents: any = {
     const className = child?.props?.className || '';
     const lang = className.replace('language-', '') || 'text';
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    const ratio = parseVisualRatio(lang);
+    if (ratio) return <VisualBlock html={code} ratio={ratio} />;
     return <CodeBlock lang={lang} code={code} />;
   },
   a: ({ href, children }: any) => (
