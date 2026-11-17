@@ -243,10 +243,14 @@ const buildAnswerComponents = (base: any) => {
     if (ctx && rowKey && !inNote && endsWithPlus(props.children)) return <PlusPara props={props} rowKey={rowKey} ctx={ctx} />;
     return <PlainP {...props} />;
   };
+  // 칸에 "~"만 적으면 입력칸을 만들지 않고 빈 칸으로 둔다(예: 합계 줄의 장식용 빈 칸)
+  const isSkipCell = (children: ReactNode) => textOf(children).trim() === '~' && Children.count(children) === 1;
   const Td = wrap('td', (props, _ctx, key) =>
-    isBlankCell(props.children)
-      ? { ...props, children: <AnswerText fieldKey={`td${key}`} /> }
-      : withTokens('td')(props, _ctx, key));
+    isSkipCell(props.children)
+      ? { ...props, children: null }
+      : isBlankCell(props.children)
+        ? { ...props, children: <AnswerText fieldKey={`td${key}`} /> }
+        : withTokens('td')(props, _ctx, key));
   // 표 줄의 어떤 칸이 "…[+]"로 끝나면 그 줄 아래에 같은 모양의 입력 줄을 더 붙일 수 있다
   const BaseTr = base?.tr ?? 'tr';
   const BaseTd = base?.td ?? 'td';

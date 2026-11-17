@@ -1691,7 +1691,7 @@ const StudentLog = () => {
         const norm2 = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
         const weekPlan = (classResources as any[]).find(r => r.week === selectedWeek);
         const weekTopic = weekPlan?.topic || '';
-        if (weekTopic && weekPlan?.requires_activity !== false && !session?.submit_only) {
+        if (weekTopic && weekPlan?.requires_activity !== false && !session?.submit_only && !session?.common_mode) {
           const hasObs = historyLogs.some((l: any) => norm2(l.activity_name || '') === norm2(weekTopic));
           if (!hasObs) {
             setTimeout(() => setReminderModal({
