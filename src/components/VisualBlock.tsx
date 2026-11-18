@@ -26,7 +26,7 @@ const VisualBlock = ({ html, ratio }: { html: string; ratio: [number, number] })
     return <p className="my-3 rounded-xl border border-dashed border-amber-400 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">그림 설명 칸이 너무 커서 보여 줄 수 없어요. 내용을 줄여 주세요.</p>;
   }
   return (
-    <div className="my-4 mx-auto w-full max-w-[720px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" style={{ aspectRatio: `${ratio[0]} / ${ratio[1]}` }}>
+    <div className="my-4 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" style={{ aspectRatio: `${ratio[0]} / ${ratio[1]}` }}>
       <iframe
         title="그림 설명"
         sandbox=""
