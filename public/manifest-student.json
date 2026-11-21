@@ -1,0 +1,19 @@
+{
+  "name": "클래스로그 학생 입장",
+  "short_name": "수업 입장",
+  "description": "클래스로그AI 수업에 다시 들어가는 학생용 바로가기",
+  "id": "/classroom-entry",
+  "start_url": "/classroom-entry",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "ko",
+  "theme_color": "#6366f1",
+  "background_color": "#ffffff",
+  "icons": [
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -95,6 +95,7 @@ import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 import { toUnitLabel, type UnitLabel } from '../lib/unitLabel';
 import { visiblePoll } from '../lib/visiblePoll';
 import { clearRememberedSession } from '../lib/rememberedSession';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 // 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
 const getStudentScreens = (unit: string): Record<string, StudentScreenStep> => ({
@@ -324,6 +325,19 @@ const COMMON_HIDDEN_TABS: string[] = ['record', 'history', 'unit', 'badges'];
 const StudentLog = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  // 앱 설치(바탕화면/홈 화면 아이콘) — 아이콘을 누르면 학생 입장 화면이 열리도록 학생용 이름표(manifest)로 바꿔 끼운다
+  const { installState: pwaState, triggerInstall: pwaInstall } = usePWAInstall();
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const pwaStandalone =
+    window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  const showPwaBtn = !pwaStandalone && pwaState !== 'installed';
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!link) return;
+    const prev = link.getAttribute('href');
+    link.setAttribute('href', '/manifest-student.json');
+    return () => { if (prev) link.setAttribute('href', prev); };
+  }, []);
   const [session, setSession] = useState<any>(null);
   const [studentAvatar, setStudentAvatar] = useState<string | null>(null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -2813,6 +2827,35 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
             >
               <HelpCircle size={22} />
             </button>
+          )}
+          {/* 앱 설치 버튼 — 닫히거나 튕겨도 바탕화면 아이콘으로 다시 입장 */}
+          {showPwaBtn && (
+            <button
+              type="button"
+              onClick={() => { if (pwaState === 'available') pwaInstall(); else setShowInstallHelp(true); }}
+              title="앱 설치 (바탕화면 아이콘 만들기)"
+              aria-label="앱 설치"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-primary transition-all"
+            >
+              <Download size={20} />
+              <span className="hidden lg:inline text-sm font-black">앱 설치</span>
+            </button>
+          )}
+          {showInstallHelp && createPortal(
+            <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/50" onClick={() => setShowInstallHelp(false)}>
+              <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-elevated" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-black text-on-surface">바탕화면에 아이콘 만들기</h3>
+                  <button onClick={() => setShowInstallHelp(false)} aria-label="닫기" className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400"><X size={15} /></button>
+                </div>
+                <div className="space-y-3 text-[15px] leading-relaxed text-on-surface-variant">
+                  <p><span className="font-black text-on-surface">크롬·엣지</span>: 주소창 오른쪽 끝의 <b>설치 아이콘(모니터에 ⬇)</b>을 누르세요. 안 보이면 오른쪽 위 ⋮ 메뉴 → "앱 설치"를 찾아보세요.</p>
+                  <p><span className="font-black text-on-surface">아이폰·아이패드(사파리)</span>: 아래쪽 공유 버튼 → "홈 화면에 추가"</p>
+                  <p className="text-sm">이 방법이 어려우면 입장 화면의 <b>"바로가기 파일 받기"</b>를 써도 됩니다.</p>
+                </div>
+              </div>
+            </div>,
+            document.body
           )}
           {/* 교육 신청하기 버튼 */}
           {!session?.submit_only && <button
