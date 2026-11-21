@@ -339,6 +339,9 @@
 [class*='mv-skin-'] .mv-article > :is(h1, h2, h3, h4) + * { margin-top: 0; }
 [class*='mv-skin-'] .mv-article > hr { margin: 2.4em 0; }
 [class*='mv-skin-'] .mv-article > h3 { margin-top: 2em; margin-bottom: 0.7em; }
+/* 본문 바로 아래 소제목(###)만 배경 띠 — 콜아웃·표·접기·캐러셀 안 소제목은 직속이 아니라 제외 */
+.mv-article > h3 { background: #f3f0ff; border-left: 5px solid #7c3aed; padding: 0.45em 0.8em; border-radius: 0 10px 10px 0; }
+[class*='mv-skin-'] .mv-article > h3 { background: var(--mv-acbg); border-left-color: var(--mv-ac); }
 [class*='mv-skin-'] .mv-article :is(ul, ol) > li + li { margin-top: 0.55em; }
 [class*='mv-skin-'] .mv-article :is(ul, ol) :is(ul, ol) { margin: 0.55em 0 0; }
 .mv-skin-mission .mv-article > h2, .mv-skin-challenge .mv-article > h2, .mv-skin-note .mv-article > h2 { margin-top: 2.4em; margin-bottom: 0.9em; }
