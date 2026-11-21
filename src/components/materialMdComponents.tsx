@@ -12,7 +12,7 @@ export const mdComponents: any = {
   ol: ({ children, start }: any) => <ol start={start} className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
   li: ({ children }: any) => <li className="text-sm text-on-surface">{children}</li>,
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-4 border-primary pl-4 italic text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-xl">
+    <blockquote className="border-l-4 border-primary pl-4 text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-xl">
       {children}
     </blockquote>
   ),

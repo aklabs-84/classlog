@@ -304,7 +304,6 @@
   background: var(--color-surface-container-low);
   border-radius: 0 0.75rem 0.75rem 0;
   color: var(--color-on-surface-variant);
-  font-style: italic;
 }
 
 .rich-editor-content code {
