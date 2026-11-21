@@ -5279,6 +5279,17 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                       : <><Send size={20} /> 전달하기</>
                     }
                   </button>
+                  <a
+                    href="https://open.kakao.com/o/p7ZWBlKi"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-4 rounded-[1.25rem] bg-[#FEE500] text-[#191919] font-black text-base hover:brightness-95 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare size={20} /> 클래스로그 카카오톡 열기
+                  </a>
+                  <p className="text-center text-xs font-bold text-on-surface-variant">
+                    프로그램 오류나 사용 방법 문의는 카카오톡으로 남겨 주세요.
+                  </p>
                 </div>
 
                 {/* 내가 보낸 건의사항 목록 */}
