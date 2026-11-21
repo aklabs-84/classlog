@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { fillParts, useTableValues } from '../lib/answerFill';
+import { fillParts, setSharedBlock, useSharedBlocks, useTableValues } from '../lib/answerFill';
 
 interface Props {
   lang: string;
   code: string;
   /** true면 【이름】 자리에 위쪽 표에 적은 값을 끼워 보여 주고 복사한다 */
   fillable?: boolean;
+  /** 이 상자의 글을 이 이름으로 기억해 두면, 다른 상자의 【이름】 자리에 통째로 들어간다 */
+  shareAs?: string | null;
 }
 
 /**
@@ -15,11 +17,17 @@ interface Props {
  * - 우상단 복사 버튼 (클릭 시 2초간 "복사됨 ✓" 피드백)
  * - 다크 테마 코드 영역
  */
-const CodeBlock = ({ lang, code: rawCode, fillable = false }: Props) => {
+const CodeBlock = ({ lang, code: rawCode, fillable = false, shareAs = null }: Props) => {
   const [copied, setCopied] = useState(false);
-  const values = useTableValues(fillable);
+  const tableValues = useTableValues(fillable);
+  const sharedBlocks = useSharedBlocks(fillable);
+  // 이름표 상자의 글이 표 값보다 뒤에 와서, 같은 이름이면 상자 글이 들어간다
+  const values = { ...tableValues, ...sharedBlocks };
   const parts = fillable ? fillParts(rawCode, values) : [{ text: rawCode, filled: false }];
   const code = parts.map(p => p.text).join('');
+  useEffect(() => {
+    if (fillable && shareAs) setSharedBlock(shareAs, code);
+  }, [fillable, shareAs, code]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code).catch(() => {

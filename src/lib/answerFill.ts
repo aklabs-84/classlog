@@ -45,6 +45,41 @@ export const fillParts = (code: string, values: Record<string, string>): FillPar
   return parts;
 };
 
+// ── 다른 코드 상자 가져오기 ──
+// 코드 상자에 이름표(```text@지시문)를 붙이면, 값이 채워진 그 상자의 글을 기억해 두고
+// 다른 코드 상자의 【지시문】 자리에 통째로 넣어 준다. 이름표가 없는 상자는 지금처럼 동작한다.
+// (이름표는 언어 글자 뒤에 @로 붙인다. 첫 줄 뒤쪽 정보는 rehypeRaw를 거치며 사라지기 때문)
+export const SHARED_BLOCK_EVENT = 'mv-shared-block';
+const sharedBlocks = new Map<string, string>();
+
+/** 'text@지시문' → { lang: 'text', id: '지시문' }. @가 없으면 id는 null */
+export const splitBlockLang = (rawLang: string): { lang: string; id: string | null } => {
+  const i = rawLang.indexOf('@');
+  if (i < 0) return { lang: rawLang, id: null };
+  const id = normalizeFillName(rawLang.slice(i + 1));
+  return { lang: rawLang.slice(0, i) || 'text', id: id || null };
+};
+
+/** 이름표 붙은 상자의 (표 값이 채워진) 글을 기억한다. 바뀐 경우에만 알린다 */
+export const setSharedBlock = (name: string, text: string) => {
+  if (sharedBlocks.get(name) === text) return;
+  sharedBlocks.set(name, text);
+  window.dispatchEvent(new Event(SHARED_BLOCK_EVENT));
+};
+
+/** 기억해 둔 상자 글 읽기 (enabled가 false면 읽지 않는다) */
+export const useSharedBlocks = (enabled: boolean) => {
+  const [blocks, setBlocks] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!enabled) return;
+    const refresh = () => setBlocks(Object.fromEntries(sharedBlocks));
+    refresh();
+    window.addEventListener(SHARED_BLOCK_EVENT, refresh);
+    return () => window.removeEventListener(SHARED_BLOCK_EVENT, refresh);
+  }, [enabled]);
+  return blocks;
+};
+
 /** 표 입력이 바뀔 때마다 값을 다시 읽는 훅 (enabled가 false면 읽지 않는다) */
 export const useTableValues = (enabled: boolean) => {
   const [values, setValues] = useState<Record<string, string>>({});

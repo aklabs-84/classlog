@@ -1,6 +1,6 @@
 import CodeBlock from './CodeBlock';
 import { parseVisualRatio } from './VisualBlock';
-import { ANSWER_INPUT_EVENT } from '../lib/answerFill';
+import { ANSWER_INPUT_EVENT, splitBlockLang } from '../lib/answerFill';
 import { cloneElement, createContext, createElement, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, Children, Fragment, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -352,11 +352,13 @@ const buildAnswerComponents = (base: any) => {
     const BasePre = base?.pre;
     if (!ctx || !BasePre) return createElement(BasePre ?? 'pre', props);
     const child = (Array.isArray(props.children) ? props.children[0] : props.children) as any;
-    const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+    const rawLang = (child?.props?.className || '').replace('language-', '') || 'text';
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
     // 그림 설명 칸(```visual)은 코드 상자가 아니므로 기본 렌더러(VisualBlock)에 맡긴다
-    if (parseVisualRatio(lang)) return createElement(BasePre, props);
-    return <CodeBlock lang={lang} code={code} fillable />;
+    if (parseVisualRatio(rawLang)) return createElement(BasePre, props);
+    // 이름표(```text@지시문)가 붙은 상자는 글을 기억해 두었다가 다른 상자의 【지시문】 자리에 넣어 준다
+    const { lang, id } = splitBlockLang(rawLang);
+    return <CodeBlock lang={lang} code={code} fillable shareAs={id} />;
   };
   return { ...base, p: P, td: Td, tr: Tr, li: Li, input: Input, pre: Pre };
 };
