@@ -7,6 +7,7 @@ import { rpcWithRetry, hardReload, CONNECTION_ERROR_MSG } from '../lib/entryHelp
 import AvatarPicker from '../components/AvatarPicker';
 import { visiblePoll } from '../lib/visiblePoll';
 import StudentScreenTour, { type StudentScreenStep } from '../components/student/StudentScreenTour';
+import { saveRememberedSession, clearRememberedSession, loadRememberedSession, type RememberedSession } from '../lib/rememberedSession';
 
 // 학생 입장 화면별 도움말 (화면마다 처음 한 번 자동으로 나타나고, 우측 상단 ? 버튼으로 다시 볼 수 있다)
 const ENTRY_SCREENS: Record<string, StudentScreenStep> = {
@@ -119,6 +120,57 @@ const ClassroomEntry = () => {
   // 최초 PIN 설정 직후 아바타 선택 모달
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
+  // 이 컴퓨터가 기억하기: 입장 때 체크(기본 켜짐), 돌아왔을 때 "아까 수업으로 돌아가기" 버튼
+  const [rememberMe, setRememberMe] = useState(true);
+  const [remembered, setRemembered] = useState<RememberedSession | null>(() => loadRememberedSession());
+
+  const resumeRemembered = () => {
+    if (!remembered) return;
+    sessionStorage.setItem('student_session', JSON.stringify({
+      student_id: remembered.student_id,
+      student_name: remembered.student_name,
+      class_id: remembered.class_id,
+      class_name: remembered.class_name,
+      subject: remembered.subject,
+      token: remembered.token,
+      common_mode: remembered.common_mode,
+    }));
+    navigate('/student-log'); // 입장표가 서버에서 만료됐으면 StudentLog가 알아서 입장 화면으로 돌려보냄
+  };
+
+  const forgetRemembered = () => {
+    clearRememberedSession();
+    setRemembered(null);
+  };
+
+  // 바로가기 파일: 더블클릭하면 이 수업 입장 주소(코드 포함)로 바로 열림
+  const downloadShortcut = (kind: 'url' | 'webloc') => {
+    const code = codes.join('');
+    if (code.length < 6) return;
+    const link = `${window.location.origin}/classroom-entry?code=${code}`;
+    const body = kind === 'url'
+      ? `[InternetShortcut]\r\nURL=${link}\r\n`
+      : `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n<key>URL</key>\n<string>${link}</string>\n</dict>\n</plist>\n`;
+    const blob = new Blob([body], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `클래스로그 수업 입장.${kind}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const shortcutButton = (
+    <button
+      type="button"
+      onClick={() => downloadShortcut(isMac ? 'webloc' : 'url')}
+      className="text-xs font-bold text-on-surface-variant underline underline-offset-2 hover:text-primary transition-colors"
+    >
+      바로가기 파일 받기 (바탕화면에 두면 한 번에 입장)
+    </button>
+  );
+
   useEffect(() => {
     const codeParam = searchParams.get('code');
     if (codeParam && codeParam.length === 6) {
@@ -207,6 +259,9 @@ const ClassroomEntry = () => {
     const { data: rows, error: cErr } = await supabase.rpc('common_enter', { p_entry_code: fullCode, p_name: name });
     const r = Array.isArray(rows) ? rows[0] : rows;
     if (cErr || !r?.session_token) throw cErr || new Error('common_enter failed');
+    if (rememberMe && !submitMode) {
+      saveRememberedSession({ student_id: r.student_id, student_name: r.student_name, class_id: cls.id, class_name: cls.name, subject: cls.subject, token: r.session_token, common_mode: cls.entry_mode });
+    } else clearRememberedSession();
     sessionStorage.setItem('student_session', JSON.stringify({
       student_id: r.student_id,
       student_name: r.student_name,
@@ -465,6 +520,9 @@ const ClassroomEntry = () => {
   };
 
   const enterSession = () => {
+    if (rememberMe) {
+      saveRememberedSession({ student_id: selectedStudent!.id, student_name: selectedStudent!.full_name, class_id: targetClass!.id, class_name: targetClass!.name, subject: targetClass!.subject, token: studentTokenRef.current! });
+    } else clearRememberedSession();
     sessionStorage.setItem('student_session', JSON.stringify({
       student_id: selectedStudent!.id,
       student_name: selectedStudent!.full_name,
@@ -579,6 +637,24 @@ const ClassroomEntry = () => {
             exit={{ opacity: 0, x: 20, scale: 0.95 }}
             className="w-full max-w-[520px] glass rounded-[3rem] shadow-ambient p-12 relative z-10 border border-white/20 text-center space-y-10"
           >
+            {remembered && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={resumeRemembered}
+                  className="w-full btn-gradient py-5 px-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all"
+                >
+                  <span className="text-left leading-snug">
+                    아까 수업으로 돌아가기
+                    <span className="block text-sm font-bold opacity-90">{remembered.class_name} · {remembered.student_name}</span>
+                  </span>
+                  <ArrowRight size={24} className="shrink-0" />
+                </button>
+                <button type="button" onClick={forgetRemembered} className="text-xs font-bold text-on-surface-variant underline underline-offset-2 hover:text-primary">
+                  내가 아니에요
+                </button>
+              </div>
+            )}
             <div className="space-y-3">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-primary shadow-inner">
                 <Key size={32} />
@@ -622,6 +698,12 @@ const ClassroomEntry = () => {
               )}
             </button>
 
+            <label className="flex items-center justify-center gap-2 text-sm font-bold text-on-surface-variant cursor-pointer select-none">
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-5 h-5 accent-primary" />
+              이 컴퓨터에서 계속 이어서 들어올래요
+              <span className="text-[11px] font-medium">(같이 쓰는 컴퓨터면 끄세요)</span>
+            </label>
+
             <div className="bg-surface-container-low/50 p-6 rounded-3xl flex items-start gap-4 border border-surface-container text-left relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/30 group-hover:bg-primary transition-all" />
               <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant mt-1 shadow-sm">
@@ -644,6 +726,7 @@ const ClassroomEntry = () => {
               <div className="px-4 py-1.5 bg-secondary/10 text-secondary text-[10px] font-black rounded-full w-fit mx-auto uppercase tracking-widest mb-2">Class Confirmed</div>
               <h2 className="text-3xl font-black font-manrope">{targetClass?.name}</h2>
               <p className="text-on-surface-variant font-bold">{targetClass?.subject} 수업</p>
+              <div className="pt-1">{shortcutButton}</div>
             </div>
 
             <div className="space-y-4">

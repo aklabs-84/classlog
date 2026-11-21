@@ -94,6 +94,7 @@ import { useStudentLive } from '../hooks/useStudentLive';
 import { plainDrop, asChangeEvent } from '../hooks/useFileDrop';
 import { toUnitLabel, type UnitLabel } from '../lib/unitLabel';
 import { visiblePoll } from '../lib/visiblePoll';
+import { clearRememberedSession } from '../lib/rememberedSession';
 
 // 활동 기록·결과 제출 화면별 도움말 (처음 들어오면 한 번 자동으로 나타나고, 상단 ? 버튼으로 다시 볼 수 있다)
 const getStudentScreens = (unit: string): Record<string, StudentScreenStep> => ({
@@ -748,6 +749,7 @@ const StudentLog = () => {
         }
       } catch {
         sessionStorage.removeItem('student_session');
+        clearRememberedSession(); // 만료된 입장표는 "돌아가기"에 남기지 않는다
         appToast('세션이 유효하지 않습니다. 다시 입장해 주세요.');
         navigate('/classroom-entry');
       }
