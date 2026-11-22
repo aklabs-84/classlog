@@ -36,17 +36,24 @@ function AttachmentRow({ a, dark, menu, onPicked }: { a: MaterialAttachment; dar
       {html ? <Eye size={14} className="shrink-0 opacity-60" /> : <Paperclip size={14} className="shrink-0 opacity-60" />}
       <span className="truncate flex-1 text-left">{a.name}</span>
       <span className="shrink-0 text-[11px] opacity-50">{formatFileSize(a.size)}</span>
+      <span className="shrink-0 hidden sm:inline text-[11px] font-bold underline opacity-60">{html ? '열어보기' : '열기'}</span>
     </>
   );
+  const openHref = html ? `/attachment-view?path=${encodeURIComponent(a.path)}&name=${encodeURIComponent(a.name)}` : getAttachmentUrl(a.path);
+  const dlBtn = dark
+    ? 'bg-white text-slate-900 hover:bg-white/90'
+    : 'bg-primary text-white hover:opacity-90';
   return (
-    <div className={base}>
-      {html ? (
-        <a href={`/attachment-view?path=${encodeURIComponent(a.path)}&name=${encodeURIComponent(a.name)}`} target="_blank" rel="noopener noreferrer" onClick={onPicked} className="flex items-center gap-2 flex-1 min-w-0" title="새 탭에서 화면으로 보기">{label}</a>
-      ) : (
-        <a href={getAttachmentUrl(a.path)} target="_blank" rel="noopener noreferrer" onClick={onPicked} className="flex items-center gap-2 flex-1 min-w-0" title="새 탭에서 열기">{label}</a>
-      )}
-      <a href={getAttachmentDownloadUrl(a.path, a.name)} title="다운로드" aria-label={`${a.name} 다운로드`} className="shrink-0 p-1.5 rounded-lg hover:bg-black/10">
-        <Download size={15} />
+    <div className={`${base} flex-wrap sm:flex-nowrap`}>
+      <a href={openHref} target="_blank" rel="noopener noreferrer" onClick={onPicked} className="flex items-center gap-2 flex-1 basis-full sm:basis-0 min-w-0" title={html ? '새 탭에서 화면으로 보기' : '새 탭에서 열기'}>{label}</a>
+      <a
+        href={getAttachmentDownloadUrl(a.path, a.name)}
+        onClick={onPicked}
+        title="내 컴퓨터에 파일로 저장"
+        aria-label={`${a.name} 다운로드`}
+        className={`shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black active:scale-95 transition-all ${dlBtn}`}
+      >
+        <Download size={16} /> 다운로드
       </a>
     </div>
   );

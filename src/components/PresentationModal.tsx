@@ -5,6 +5,7 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import { useTimer } from '../lib/timerContext';
 import RichEditor from './RichEditor';
+import VisualBlock, { parseVisualRatio } from './VisualBlock';
 import ActivityLinksButton, { type ActivityLink } from './ActivityLinksButton';
 import { MaterialAttachmentsButton, type MaterialAttachment } from './MaterialAttachments';
 import {
@@ -187,6 +188,9 @@ const getSlideComponents = (
   pre: ({ children }: any) => {
     const child = (Array.isArray(children) ? children[0] : children) as any;
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    const lang = /language-([\w-]+)/.exec(String(child?.props?.className ?? ''))?.[1] ?? '';
+    const ratio = parseVisualRatio(lang);
+    if (ratio) return <VisualBlock html={code} ratio={ratio} />;
     return <SlidePre dark={dark} code={code} />;
   },
   strong: ({ children }: any) => <strong className={`font-black ${dark ? 'text-white' : 'text-slate-900'}`}>{children}</strong>,

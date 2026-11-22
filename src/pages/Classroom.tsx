@@ -111,6 +111,7 @@ import { plainDrop } from '../hooks/useFileDrop';
 import ClassSelector from '../components/classroom/ClassSelector';
 import UnitLabelPicker from '../components/classroom/UnitLabelPicker';
 import { recommendUnit, toUnitLabel, type UnitLabel } from '../lib/unitLabel';
+import { normalizePlan, isNoticeItem } from '../lib/planOrder';
 import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
@@ -5905,7 +5906,7 @@ const Classroom = () => {
                 // 서브클래스면 부모 weekly_plan, 아니면 본인 weekly_plan 사용
                 const effectivePlan = effectivePlanInfo.plan;
                 // weekly_plan 에서 url 또는 material_id 가 있는 항목만 추출
-                const planItems: any[] = effectivePlan.filter(
+                const planItems: any[] = normalizePlan(effectivePlan as any[]).filter(
                   (p: any) => p.url?.trim() || p.material_id
                 );
                 const hasAnything = planItems.length > 0;
@@ -5917,7 +5918,12 @@ const Classroom = () => {
                     {planItems.length > 0 && (
                       <div className="space-y-1.5">
                         <p className="text-[14px] font-bold text-on-surface-variant  px-1">{unit}별 자료</p>
-                        {planItems.map((item: any) => {
+                        {planItems.map((item: any, itemIdx: number) => {
+                          const isNotice = isNoticeItem(item);
+                          const prevItem = itemIdx > 0 ? planItems[itemIdx - 1] : null;
+                          const sectionTitle = isNotice
+                            ? (prevItem && isNoticeItem(prevItem) ? '' : '공지·전달사항')
+                            : (item.group?.trim() && item.group.trim() !== (prevItem && !isNoticeItem(prevItem) ? prevItem.group?.trim() : '') ? item.group.trim() : '');
                           const isMaterial = !!item.material_id;
                           const origInfo = isMaterial
                             ? classMaterials.find((m: any) => m.id === item.material_id)
@@ -5929,6 +5935,9 @@ const Classroom = () => {
 
                           return (
                             <div key={`plan-${item.week}`} className="space-y-1">
+                            {sectionTitle && (
+                              <p className={`text-[14px] font-black px-1 pt-2 ${isNotice ? 'text-amber-700' : 'text-primary'}`}>{sectionTitle}</p>
+                            )}
                             <div
                               className={`w-full flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-2 sm:gap-3 p-3 sm:p-4 bg-white rounded-2xl border border-surface-container-high group transition-all ${
                                 isMaterial && !matInfo ? 'opacity-50' : ''
@@ -5969,7 +5978,7 @@ const Classroom = () => {
                                     }
                                   </p>
                                   <p className="text-[14px] text-on-surface-variant truncate">
-                                    {item.week}{unit}
+                                    {isNotice ? '공지' : `${item.week}${unit}`}
                                     {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
                                   </p>
                                 </div>
