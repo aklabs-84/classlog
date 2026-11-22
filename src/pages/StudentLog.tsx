@@ -85,6 +85,7 @@ import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import StudentScreenTour, { type StudentScreenStep } from '../components/student/StudentScreenTour';
 import RichEditor from '../components/RichEditor';
+import VisualBlock, { parseVisualRatio } from '../components/VisualBlock';
 import { type ActivityLink } from '../components/ActivityLinksButton';
 import { type MaterialAttachment } from '../components/MaterialAttachments';
 import StudentMaterialPage, { type WeekExtraItem } from '../components/StudentMaterialPage';
@@ -224,6 +225,9 @@ const MATERIAL_MD_COMPONENTS = {
     const child = (Array.isArray(children) ? children[0] : children) as any;
     const lang = (child?.props?.className || '').replace('language-', '') || 'text';
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    // 그림 설명 칸(```visual)은 코드 상자가 아니라 그림으로 그린다
+    const ratio = parseVisualRatio(lang);
+    if (ratio) return <VisualBlock html={code} ratio={ratio} />;
     return <CodeBlock lang={lang} code={code} />;
   },
   img: ({ src, alt, title }: any) => {
@@ -4220,7 +4224,9 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   </div>
                 ) : materialsSubTab === 'weekly' ? (() => {
                   // weekly_plan에 자료(material_id 또는 url)가 있는 주차만 필터링
-                  const weeks = (classResources as any[]).filter(r => r.material_id || r.url || r.quiz_set_id || r.whiteboard_id);
+                  const weeksAll = (classResources as any[]).filter(r => r.material_id || r.url || r.quiz_set_id || r.whiteboard_id);
+                  // 공지·전달사항은 목록 맨 위로 (화면 표시만 바꿈 — 저장 순서·번호는 그대로)
+                  const weeks = [...weeksAll.filter(r => r.kind === 'notice'), ...weeksAll.filter(r => r.kind !== 'notice')];
                   if (weeks.length === 0) {
                     return (
                       <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
