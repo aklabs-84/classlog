@@ -558,7 +558,7 @@ export default function AttendanceTab({ classId, students, unit = '주차' }: At
                   className="px-3.5 py-2.5 rounded-xl text-[15px] font-semibold border border-slate-200 dark:border-slate-700 text-on-surface bg-surface-container-lowest cursor-pointer focus:border-primary outline-none"
                 >
                   <option value="">오늘 진행 {unit} 선택...</option>
-                  {weeklyPlan.map((w: any, idx: number) => (
+                  {weeklyPlan.filter((w: any) => w.kind !== 'notice').map((w: any, idx: number) => (
                     <option key={idx} value={w.week}>{w.week}{unit}{w.topic ? `: ${w.topic}` : ''}</option>
                   ))}
                 </select>

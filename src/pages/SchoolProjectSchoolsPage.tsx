@@ -1,4 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import SortablePlanRow from '../components/classroom/SortablePlanRow';
+import { finalizePlan, normalizePlan } from '../lib/planOrder';
 import RecapKeywordsEditor from '../components/classroom/RecapKeywordsEditor';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -41,6 +45,7 @@ import {
   HelpCircle,
   ChevronUp,
   Camera,
+  GripVertical, Megaphone,
 } from 'lucide-react';
 import ClassPeriodInput from '../components/common/ClassPeriodInput';
 import SchoolInfoEditModal from '../components/classroom/SchoolInfoEditModal';
@@ -59,6 +64,8 @@ interface ImportableMaterial {
 
 interface WeeklyPlanItem {
   week: number;
+  kind?: 'notice';
+  group?: string;
   topic: string;
   url?: string;
   material_id?: string;
@@ -402,23 +409,24 @@ const SchoolProjectSchoolsPage = () => {
 
   const handleSavePlan = async () => {
     if (!projectRootClassId) return;
+    const finalPlan = finalizePlan(weeklyPlan);
     setPlanSaving(true);
     try {
       const targetSchool = schoolOfTarget(planTarget);
       if (targetSchool) {
-        await persistSchoolPlan(targetSchool, weeklyPlan);
+        await persistSchoolPlan(targetSchool, finalPlan);
         setPlanToast({ msg: `'${targetSchool.name}' 전체 ${targetSchool.classes.length}개 반에 적용되었고, 이 학교는 개별로 고정되었습니다`, type: 'success' });
         setPlanView('status');
         return;
       }
       if (planTarget !== 'common') {
-        const { error } = await supabase.from('classes').update({ weekly_plan: weeklyPlan, weekly_plan_custom: true }).eq('id', planTarget);
+        const { error } = await supabase.from('classes').update({ weekly_plan: finalPlan, weekly_plan_custom: true }).eq('id', planTarget);
         if (error) throw error;
-        setClassPlans(prev => ({ ...prev, [planTarget]: weeklyPlan }));
+        setClassPlans(prev => ({ ...prev, [planTarget]: finalPlan }));
         setCustomFlags(prev => ({ ...prev, [planTarget]: true }));
         const clsName = schools.flatMap(sc => sc.classes).find(c => c.id === planTarget)?.name || '이 반';
         setPlanToast({
-          msg: samePlan(weeklyPlan, commonPlan)
+          msg: samePlan(finalPlan, commonPlan)
             ? `'${clsName}'이(가) 개별 반으로 고정되었습니다 (내용은 공통과 같고, 이후 공통 계획이 바뀌어도 이 반은 그대로예요)`
             : `'${clsName}'의 주차별 계획이 저장되었습니다 (이 반만 적용)`,
           type: 'success',
@@ -426,13 +434,14 @@ const SchoolProjectSchoolsPage = () => {
         setPlanView('status');
         return;
       }
-      const { followIds, skipped } = await persistCommonPlan(weeklyPlan);
+      const { followIds, skipped } = await persistCommonPlan(finalPlan);
       setPlanToast({
         msg: skipped.length > 0
           ? `공통 계획이 저장되었습니다 · ${followIds.length}개 반에 적용, 개별 수정된 ${skipped.length}개 반은 건너뛰었습니다`
           : `공통 계획이 저장되었습니다 · ${followIds.length}개 반 모두에 적용되었습니다`,
         type: 'success',
       });
+      setWeeklyPlan(finalPlan);
       setPlanView('status');
     } catch (err) {
       console.error('handleSavePlan error:', err);
@@ -557,6 +566,27 @@ const SchoolProjectSchoolsPage = () => {
       className: m.class_id ? (classMap[m.class_id] || '') : '자료실 (수업 미배정)',
       activity_urls: m.activity_urls || [],
     }));
+  };
+
+  const planSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handlePlanDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setWeeklyPlan(prev => normalizePlan(arrayMove(prev, Number(active.id), Number(over.id))));
+  };
+  const setPlanKind = (idx: number, kind: 'week' | 'notice') => {
+    setWeeklyPlan(prev => {
+      const cur = prev[idx];
+      if (!cur || (kind === 'notice') === (cur.kind === 'notice')) return prev;
+      const next = [...prev];
+      next[idx] = kind === 'notice'
+        ? { ...cur, kind: 'notice', group: undefined, requires_result: false, requires_activity: false }
+        : { ...cur, kind: undefined, requires_result: true, requires_activity: true };
+      return normalizePlan(next);
+    });
   };
 
   const handlePickPlanMaterial = async (idx: number, m: ImportableMaterial) => {
@@ -1934,12 +1964,21 @@ const SchoolProjectSchoolsPage = () => {
             </div>
           ) : (
             <>
+              <datalist id="plan-group-names-common">{Array.from(new Set(weeklyPlan.map(x => (x.group || '').trim()).filter(Boolean))).map(g => <option key={g} value={g} />)}</datalist>
+              <DndContext sensors={planSensors} collisionDetection={closestCenter} onDragEnd={handlePlanDragEnd}>
+              <SortableContext items={weeklyPlan.map((_, i) => String(i))} strategy={verticalListSortingStrategy}>
               <div className="space-y-3">
                 {weeklyPlan.map((item, idx) => (
-                  <div key={idx} className="surface-card p-4 border border-surface-container-high space-y-2.5">
+                  <SortablePlanRow key={idx} id={String(idx)}>{({ attributes, listeners, setActivatorNodeRef }) => (
+                  <div className="surface-card p-4 border border-surface-container-high space-y-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-black px-2 py-1 rounded-full bg-primary/10 text-primary shrink-0">
-                        {item.week}주차
+                      <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} aria-label="끌어서 순서 바꾸기" title="끌어서 순서 바꾸기"
+                        style={{ touchAction: 'none' }}
+                        className="-ml-1 p-1 text-on-surface-variant/40 hover:text-primary cursor-grab active:cursor-grabbing shrink-0">
+                        <GripVertical size={16} />
+                      </button>
+                      <span className={`text-[11px] font-black px-2 py-1 rounded-full shrink-0 ${item.kind === 'notice' ? 'text-amber-700 bg-amber-100' : 'text-primary bg-primary/10'}`}>
+                        {item.kind === 'notice' ? '공지' : `${idx + 1}주차`}
                       </span>
                       <input
                         type="text"
@@ -1958,6 +1997,22 @@ const SchoolProjectSchoolsPage = () => {
                       >
                         <X size={14} />
                       </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-on-surface-variant">종류</span>
+                      <div className="inline-flex rounded-lg bg-surface-container p-0.5">
+                        {([['week', '주차 수업'], ['notice', '공지·전달사항']] as const).map(([k, l]) => (
+                          <button key={k} type="button" onClick={() => setPlanKind(idx, k)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-black transition-all ${(item.kind === 'notice') === (k === 'notice') ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'}`}>{l}</button>
+                        ))}
+                      </div>
+                      {item.kind !== 'notice' && (
+                        <input type="text" list="plan-group-names-common" value={item.group || ''}
+                          onChange={e => { const plan = [...weeklyPlan]; plan[idx] = { ...plan[idx], group: e.target.value }; setWeeklyPlan(plan); }}
+                          placeholder="묶음 이름 (예: DAY 1, 선택)"
+                          className="flex-1 min-w-[140px] px-3 py-1.5 bg-surface-container rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20" />
+                      )}
                     </div>
 
                     <div className="relative">
@@ -2081,15 +2136,26 @@ const SchoolProjectSchoolsPage = () => {
                       }}
                     />
                   </div>
+                  )}</SortablePlanRow>
                 ))}
               </div>
+              </SortableContext>
+              </DndContext>
 
-              <button
-                onClick={() => setWeeklyPlan(prev => [...prev, { week: prev.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }])}
-                className="w-full py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5"
-              >
-                <Plus size={16} /> 주차 추가
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setWeeklyPlan(prev => { const w = prev.filter(x => x.kind !== 'notice'); const n = prev.filter(x => x.kind === 'notice'); const g = w.length ? w[w.length - 1].group : undefined; return [...w, { week: w.length + 1, topic: '', url: '', requires_result: true, requires_activity: true, group: g }, ...n]; })}
+                  className="flex-1 py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Plus size={16} /> 주차 추가
+                </button>
+                <button
+                  onClick={() => setWeeklyPlan(prev => [...prev, { week: prev.length + 1, topic: '', url: '', kind: 'notice', requires_result: false, requires_activity: false }])}
+                  className="flex-1 py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-amber-400 text-sm font-bold text-on-surface-variant/60 hover:text-amber-700 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Megaphone size={16} /> 공지·전달사항 추가
+                </button>
+              </div>
 
               <button
                 onClick={handleSavePlan}

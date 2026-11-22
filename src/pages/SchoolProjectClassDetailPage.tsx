@@ -210,8 +210,8 @@ const SchoolProjectClassDetailPage = () => {
     try {
       const { error } = await supabase.from('classes')
         .update(dates.length > 0
-          // 수업일이 하루뿐이면 학생 화면 단위를 '차시'로 자동 전환
-          ? { schedule_mode: 'dates', class_specific_dates: dates, ...(dates.length === 1 ? { unit_label: '차시' } : {}) }
+          // 수업일이 하루~이틀(집중 수업)이면 학생 화면 단위를 '차시'로 자동 전환
+          ? { schedule_mode: 'dates', class_specific_dates: dates, ...(dates.length <= 2 ? { unit_label: '차시' } : {}) }
           : { schedule_mode: null, class_specific_dates: [] })
         .eq('id', classId);
       if (error) throw error;

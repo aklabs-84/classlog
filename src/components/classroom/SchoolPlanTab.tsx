@@ -1,10 +1,14 @@
+import SortablePlanRow from './SortablePlanRow';
+import { normalizePlan } from '../../lib/planOrder';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import ImportableMaterialPicker, { type ImportableMaterial } from './ImportableMaterialPicker';
 import { applyOriginUpdate, hasOriginUpdate, type PlanMaterialRow } from '../../lib/planMaterialOverride';
-import { BookOpen, Check, Loader2, Plus, RotateCcw, Save, X, AlertTriangle, ExternalLink, ListOrdered, ChevronDown } from 'lucide-react';
+import { BookOpen, Check, Loader2, Plus, RotateCcw, Save, X, AlertTriangle, ExternalLink, ListOrdered, ChevronDown, GripVertical, Megaphone } from 'lucide-react';
 import { appConfirm } from '../../lib/appDialog';
 import { toUnitLabel } from '../../lib/unitLabel';
 
@@ -16,7 +20,14 @@ interface WeeklyPlanItem {
   recap?: string[];
   requires_result?: boolean;
   requires_activity?: boolean;
+  // 'notice' = 주차/차시가 아닌 공지·전달사항 (저장 시 항상 목록 맨 뒤로 모은다)
+  kind?: 'notice';
+  // 같은 이름끼리 한 묶음으로 보여 주는 이름 (예: 'DAY 1')
+  group?: string;
 }
+
+// 주차 항목이 앞, 공지가 뒤가 되도록 순서만 정리 (각 묶음 안의 순서는 그대로)
+const planKey = (p: WeeklyPlanItem) => `${p.material_id || ''}|${p.topic}`;
 
 // 학교 페이지의 "주차별 계획" 탭: 이 학교에 적용되는 계획을 보고 바로 고친다.
 // 저장하면 이 학교 전체 반이 "학교 단위로 고정"된다(공통 계획이 바뀌어도 따라가지 않음).
@@ -184,12 +195,76 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
   const update = (idx: number, patch: Partial<WeeklyPlanItem>) =>
     setPlan(prev => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
 
+  const nWeeks = plan.filter(p => p.kind !== 'notice').length;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const groupNames = useMemo(() => [...new Set(plan.map(p => (p.group || '').trim()).filter(Boolean))], [plan]);
+  const canAutoGroup = plan.some(p => p.kind !== 'notice' && /^\s*day\s*\d+/i.test(p.topic));
+
+  // 손잡이로 끌어 놓았을 때: 주차끼리/공지끼리만 자리를 바꾼다 (두 목록의 번호는 겹치지 않음)
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setPlan(prev => arrayMove(prev, Number(active.id), Number(over.id)));
+    setOpenIdx(null);
+  };
+
+  // 주차 ↔ 공지·전달사항 바꾸기 (공지는 결과제출·기록이 필요 없으므로 끄고, 주차로 돌아오면 다시 켠다)
+  const setKind = (idx: number, kind: 'week' | 'notice') => {
+    const cur = plan[idx];
+    if (!cur || (kind === 'notice') === (cur.kind === 'notice')) return;
+    const item: WeeklyPlanItem = kind === 'notice'
+      ? { ...cur, kind: 'notice', group: undefined, requires_result: false, requires_activity: false }
+      : { ...cur, kind: undefined, requires_result: true, requires_activity: true };
+    const rest = plan.filter((_, i) => i !== idx);
+    const weeks = rest.filter(p => p.kind !== 'notice');
+    const notices = rest.filter(p => p.kind === 'notice');
+    const next = kind === 'notice' ? [...weeks, ...notices, item] : [...weeks, item, ...notices];
+    setPlan(next);
+    setOpenIdx(next.indexOf(item));
+  };
+
+  // 제목이 'DAY 1.' 'Day2.' 처럼 시작하면 같은 DAY끼리 묶음 이름을 자동으로 붙인다
+  const autoGroupByDay = () => {
+    setPlan(prev => prev.map(p => {
+      const m = p.kind !== 'notice' ? p.topic.match(/^\s*day\s*(\d+)/i) : null;
+      if (!m) return p;
+      const g = `DAY ${m[1]}`;
+      if (p.group === g) return p;
+      return { ...p, group: g };
+    }));
+    setToast({ msg: 'DAY 표시가 있는 제목을 묶음으로 나눴습니다. 저장하면 반영돼요.', type: 'success' });
+  };
+
+  // 화면에 보이는 단위(주차/차시)를 이 학교 모든 반에 한꺼번에 바꾼다 (번호 데이터는 그대로)
+  const changeUnit = async (u: '주차' | '차시') => {
+    if (u === unit || schoolClassIds.length === 0) return;
+    const { error } = await supabase.from('classes').update({ unit_label: u }).in('id', schoolClassIds);
+    if (error) { setToast({ msg: '단위를 바꾸지 못했습니다: ' + error.message, type: 'error' }); return; }
+    setUnit(u);
+    setToast({ msg: `이 학교 모든 반의 표시 단위를 '${u}'로 바꿨습니다.`, type: 'success' });
+  };
+
   const handleSave = async () => {
     if (schoolClassIds.length === 0) return;
     if (!isAll && !targetRow) return;
     setSaving(true);
     try {
-      const cleaned = plan.map((p, i) => ({ ...p, week: i + 1 }));
+      const cleaned = normalizePlan(plan).map((p, i) => ({ ...p, week: i + 1, group: p.group?.trim() || undefined }));
+      const ids = isAll ? schoolClassIds : [target];
+      // 순서만 바뀐 경우(같은 항목, 다른 자리): 이미 낸 결과물이 있으면 번호가 어긋날 수 있어 먼저 알린다
+      let before: WeeklyPlanItem[] = [];
+      try { before = JSON.parse(baseline); } catch { before = []; }
+      const a = before.map(planKey), b = cleaned.map(planKey);
+      const reordered = a.length === b.length && a.join('\n') !== b.join('\n') && [...a].sort().join('\n') === [...b].sort().join('\n');
+      if (reordered) {
+        const { count } = await supabase.from('student_results').select('id', { count: 'exact', head: true }).in('class_id', ids).not('week_number', 'is', null);
+        if ((count ?? 0) > 0 && !await appConfirm(`이미 제출된 학생 결과물이 ${count}건 있습니다.\n순서를 바꾸면 기존 결과물은 예전 번호 그대로 남아, 바뀐 ${unit} 번호와 맞지 않을 수 있습니다.\n그래도 저장할까요?`)) {
+          return;
+        }
+      }
       // 전체 저장일 때, 대표 반 말고 반마다 따로 고정해 둔 계획이 있으면 덮어쓰기 전에 확인
       const cleanedJson = JSON.stringify(cleaned);
       const overwritten = classRows.filter(r => r.id !== baseId && r.custom && JSON.stringify(r.plan) !== cleanedJson);
@@ -204,7 +279,6 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
           .update({ is_published: true, updated_at: new Date().toISOString() }).in('id', stillLinked);
         if (pubErr) throw new Error('연결한 자료를 공개로 바꾸지 못했습니다: ' + pubErr.message);
       }
-      const ids = isAll ? schoolClassIds : [target];
       const { error } = await supabase.from('classes')
         .update({ weekly_plan: cleaned, weekly_plan_custom: true }).in('id', ids);
       if (error) throw error;
@@ -252,6 +326,126 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
     } finally {
       setSaving(false);
     }
+  };
+
+  const renderDetail = (item: WeeklyPlanItem, idx: number) => (
+    <div className="px-4 pb-4 pt-1 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <input type="text" value={item.topic} onChange={e => update(idx, { topic: e.target.value })} placeholder="주제/제목"
+                          className="flex-1 px-3 py-2 bg-surface-container rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20" />
+                        <button onClick={() => { setPlan(plan.filter((_, i) => i !== idx)); setOpenIdx(null); }} title={`이 ${unit} 삭제`}
+                          className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-all shrink-0">
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black text-on-surface-variant">종류</span>
+                        <div className="inline-flex rounded-lg bg-surface-container p-0.5">
+                          {([['week', `${unit} 수업`], ['notice', '공지·전달사항']] as const).map(([k, l]) => (
+                            <button key={k} type="button" onClick={() => setKind(idx, k)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-black transition-all ${(item.kind === 'notice') === (k === 'notice') ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'}`}>{l}</button>
+                          ))}
+                        </div>
+                        {item.kind !== 'notice' && (
+                          <input type="text" list="plan-group-names" value={item.group || ''} onChange={e => update(idx, { group: e.target.value })} placeholder="묶음 이름 (예: DAY 1, 선택)"
+                            className="flex-1 min-w-[140px] px-3 py-1.5 bg-surface-container rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20" />
+                        )}
+                      </div>
+                      {item.material_id ? (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border-2 border-primary/20 rounded-xl">
+                          <BookOpen size={14} className="text-primary shrink-0" />
+                          <span className="text-xs font-black text-primary flex-1 truncate">{materialTitles[item.material_id] || '연결된 자료'} 연결됨</span>
+                          <button type="button" onClick={() => update(idx, { material_id: '' })} className="p-0.5 text-on-surface-variant/50 hover:text-error transition-colors shrink-0"><X size={14} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setPickIdx(idx)} className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dim transition-colors">
+                          <BookOpen size={13} /> 수업 자료에서 가져오기
+                        </button>
+                      )}
+                      {item.material_id && (copyInfo[item.material_id]?.length ?? 0) > 0 && (
+                        <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
+                          <p className="text-xs font-bold text-amber-900">아래 반은 선생님이 고친 "내 수업용 복사본"을 쓰고 있어서, 원본을 수정해도 그 반 화면에는 바로 반영되지 않습니다.</p>
+                          {copyInfo[item.material_id].map(c => {
+                            const cn = classRows.find(r => r.id === c.classId)?.name || '이름 없는 반';
+                            return (
+                              <div key={c.copy.id} className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-on-surface">{cn}</span>
+                                {c.hasUpdate ? (
+                                  <>
+                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">원본이 더 새로워요</span>
+                                    <button type="button" disabled={replacingId === c.copy.id} onClick={() => handleReplaceWithOrigin(c.copy, cn)}
+                                      className="flex items-center gap-1 text-[11px] font-black text-white bg-primary hover:bg-primary-dim disabled:opacity-50 px-2.5 py-1 rounded-lg transition-all">
+                                      {replacingId === c.copy.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} 원본으로 교체
+                                    </button>
+                                  </>
+                                ) : <span className="text-[10px] font-bold text-on-surface-variant/70">원본과 같거나 내 버전 유지 중</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <input type="text" value={item.url || ''} onChange={e => update(idx, { url: e.target.value })} placeholder="자료 링크 (URL, 선택)"
+                        className="w-full px-3 py-2 bg-surface-container rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20" />
+                      {item.kind !== 'notice' && <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={item.requires_result !== false} onChange={e => update(idx, { requires_result: e.target.checked })} className="w-3.5 h-3.5 rounded accent-primary" />
+                          <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={item.requires_activity !== false} onChange={e => update(idx, { requires_activity: e.target.checked })} className="w-3.5 h-3.5 rounded accent-primary" />
+                          <span className="text-xs font-black text-neutral-600">기록 필요</span>
+                        </label>
+                      </div>}
+    </div>
+  );
+
+  const renderRow = (item: WeeklyPlanItem, idx: number, label: string) => {
+    const open = openIdx === idx;
+    const isNotice = item.kind === 'notice';
+    const g = (item.group || '').trim();
+    const prevG = idx > 0 ? (plan[idx - 1].group || '').trim() : '';
+    const showHeader = !isNotice && (idx === 0 ? !!g : g !== prevG);
+    let groupCount = 0;
+    if (showHeader) for (let k = idx; k < nWeeks && (plan[k].group || '').trim() === g; k++) groupCount++;
+    return (
+      <div key={idx} id={`school-plan-week-${idx}`}>
+        {showHeader && (
+          <div className="flex items-center gap-2 px-4 pt-3 pb-1.5 bg-surface-container/50">
+            <span className="text-xs font-black text-primary">{g || `그 밖의 ${unit}`}</span>
+            <span className="text-[11px] font-bold text-on-surface-variant/70">{groupCount}{unit}</span>
+          </div>
+        )}
+        <SortablePlanRow id={String(idx)}>
+          {({ attributes, listeners, setActivatorNodeRef }) => (
+            <div>
+              <div className="flex items-center">
+                <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} aria-label="끌어서 순서 바꾸기" title="끌어서 순서 바꾸기"
+                  style={{ touchAction: 'none' }}
+                  className="pl-3 pr-1 py-3 text-on-surface-variant/40 hover:text-primary cursor-grab active:cursor-grabbing shrink-0">
+                  <GripVertical size={16} />
+                </button>
+                <button type="button" onClick={() => setOpenIdx(open ? null : idx)}
+                  className="flex-1 min-w-0 flex items-center gap-2 text-left pl-1 pr-4 py-3 hover:bg-surface-container/60 transition-all">
+                  <ChevronDown size={15} className={`text-on-surface-variant shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+                  <span className={`text-[11px] font-black px-2 py-0.5 rounded-full shrink-0 ${isNotice ? 'text-amber-700 bg-amber-100' : 'text-primary bg-primary/10'}`}>{label}</span>
+                  <span className={`text-sm font-bold truncate flex-1 ${item.topic.trim() ? 'text-on-surface' : 'text-on-surface-variant/40'}`}>{item.topic.trim() || '(주제 미입력)'}</span>
+                  <span className="hidden sm:flex items-center gap-1 shrink-0">
+                    {item.material_id && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">자료 연결</span>}
+                    {item.material_id && copyInfo[item.material_id]?.some(c => c.hasUpdate)
+                      ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">원본 업데이트</span>
+                      : item.material_id && copyInfo[item.material_id]?.length > 0 && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">복사본 사용 중</span>}
+                    {item.url && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">링크</span>}
+                    {!isNotice && item.requires_result !== false && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">결과제출</span>}
+                    {!isNotice && item.requires_activity !== false && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">활동</span>}
+                  </span>
+                </button>
+              </div>
+              {open && renderDetail(item, idx)}
+            </div>
+          )}
+        </SortablePlanRow>
+      </div>
+    );
   };
 
   if (loading) return <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-primary" size={24} /></div>;
@@ -308,97 +502,67 @@ export default function SchoolPlanTab({ projectId, schoolId }: { projectId: stri
         <p className="text-sm text-on-surface-variant/60 text-center py-8 surface-card border border-surface-container-high">아직 {unit}별 계획이 없습니다. 아래에서 {unit}를 추가해 보세요.</p>
       )}
 
-      {plan.length > 0 && (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-black text-on-surface-variant">표시 단위</span>
+        <div className="inline-flex rounded-xl bg-surface-container p-0.5">
+          {(['주차', '차시'] as const).map(u => (
+            <button key={u} type="button" onClick={() => changeUnit(u)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${unit === u ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'}`}>{u}</button>
+          ))}
+        </div>
+        <span className="text-[11px] text-on-surface-variant/70">이틀·하루 수업은 '차시'가 자연스러워요. 이 학교 모든 반의 화면 표기가 바뀝니다.</span>
+      </div>
+
+      <datalist id="plan-group-names">{groupNames.map(g => <option key={g} value={g} />)}</datalist>
+
+      {nWeeks > 0 && (
         <div className="surface-card border border-surface-container-high">
-          <p className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant px-4 pt-4 pb-2"><ListOrdered size={14} /> {unit}별 목차 ({plan.length}{unit}) · 눌러서 상세 내용 보기</p>
-          <div className="divide-y divide-surface-container-high">
-            {plan.map((item, idx) => {
-              const open = openIdx === idx;
-              return (
-                <div key={idx} id={`school-plan-week-${idx}`}>
-                  <button type="button" onClick={() => setOpenIdx(open ? null : idx)}
-                    className="w-full flex items-center gap-2 text-left px-4 py-3 hover:bg-surface-container/60 transition-all">
-                    <ChevronDown size={15} className={`text-on-surface-variant shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
-                    <span className="text-[11px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">{idx + 1}{unit}</span>
-                    <span className={`text-sm font-bold truncate flex-1 ${item.topic.trim() ? 'text-on-surface' : 'text-on-surface-variant/40'}`}>{item.topic.trim() || '(주제 미입력)'}</span>
-                    <span className="hidden sm:flex items-center gap-1 shrink-0">
-                      {item.material_id && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">자료 연결</span>}
-                      {item.material_id && copyInfo[item.material_id]?.some(c => c.hasUpdate)
-                        ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">원본 업데이트</span>
-                        : item.material_id && copyInfo[item.material_id]?.length > 0 && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">복사본 사용 중</span>}
-                      {item.url && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">링크</span>}
-                      {item.requires_result !== false && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">결과제출</span>}
-                      {item.requires_activity !== false && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">활동</span>}
-                    </span>
-                  </button>
-                  {open && (
-                    <div className="px-4 pb-4 pt-1 space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <input type="text" value={item.topic} onChange={e => update(idx, { topic: e.target.value })} placeholder="주제/제목"
-                          className="flex-1 px-3 py-2 bg-surface-container rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20" />
-                        <button onClick={() => { setPlan(plan.filter((_, i) => i !== idx)); setOpenIdx(null); }} title={`이 ${unit} 삭제`}
-                          className="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-all shrink-0">
-                          <X size={14} />
-                        </button>
-                      </div>
-                      {item.material_id ? (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border-2 border-primary/20 rounded-xl">
-                          <BookOpen size={14} className="text-primary shrink-0" />
-                          <span className="text-xs font-black text-primary flex-1 truncate">{materialTitles[item.material_id] || '연결된 자료'} 연결됨</span>
-                          <button type="button" onClick={() => update(idx, { material_id: '' })} className="p-0.5 text-on-surface-variant/50 hover:text-error transition-colors shrink-0"><X size={14} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setPickIdx(idx)} className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dim transition-colors">
-                          <BookOpen size={13} /> 수업 자료에서 가져오기
-                        </button>
-                      )}
-                      {item.material_id && (copyInfo[item.material_id]?.length ?? 0) > 0 && (
-                        <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
-                          <p className="text-xs font-bold text-amber-900">아래 반은 선생님이 고친 "내 수업용 복사본"을 쓰고 있어서, 원본을 수정해도 그 반 화면에는 바로 반영되지 않습니다.</p>
-                          {copyInfo[item.material_id].map(c => {
-                            const cn = classRows.find(r => r.id === c.classId)?.name || '이름 없는 반';
-                            return (
-                              <div key={c.copy.id} className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-black text-on-surface">{cn}</span>
-                                {c.hasUpdate ? (
-                                  <>
-                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">원본이 더 새로워요</span>
-                                    <button type="button" disabled={replacingId === c.copy.id} onClick={() => handleReplaceWithOrigin(c.copy, cn)}
-                                      className="flex items-center gap-1 text-[11px] font-black text-white bg-primary hover:bg-primary-dim disabled:opacity-50 px-2.5 py-1 rounded-lg transition-all">
-                                      {replacingId === c.copy.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} 원본으로 교체
-                                    </button>
-                                  </>
-                                ) : <span className="text-[10px] font-bold text-on-surface-variant/70">원본과 같거나 내 버전 유지 중</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      <input type="text" value={item.url || ''} onChange={e => update(idx, { url: e.target.value })} placeholder="자료 링크 (URL, 선택)"
-                        className="w-full px-3 py-2 bg-surface-container rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20" />
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={item.requires_result !== false} onChange={e => update(idx, { requires_result: e.target.checked })} className="w-3.5 h-3.5 rounded accent-primary" />
-                          <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={item.requires_activity !== false} onChange={e => update(idx, { requires_activity: e.target.checked })} className="w-3.5 h-3.5 rounded accent-primary" />
-                          <span className="text-xs font-black text-neutral-600">기록 필요</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex items-center justify-between gap-2 flex-wrap px-4 pt-4 pb-2">
+            <p className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant"><ListOrdered size={14} /> {unit}별 목차 ({nWeeks}{unit}) · 손잡이(⠿)를 끌어 순서 바꾸기 · 눌러서 상세 내용 보기</p>
+            {canAutoGroup && (
+              <button type="button" onClick={autoGroupByDay} className="text-[11px] font-black text-primary bg-primary/10 hover:bg-primary/15 px-2.5 py-1 rounded-lg transition-all">제목의 DAY로 자동 묶기</button>
+            )}
           </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={plan.slice(0, nWeeks).map((_, i) => String(i))} strategy={verticalListSortingStrategy}>
+              <div className="divide-y divide-surface-container-high">
+                {plan.slice(0, nWeeks).map((item, idx) => renderRow(item, idx, `${idx + 1}${unit}`))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       )}
 
-      <button onClick={() => { setPlan(prev => [...prev, { week: prev.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }]); setOpenIdx(plan.length); }}
-        className="w-full py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5">
-        <Plus size={16} /> {unit} 추가
-      </button>
+      {plan.length > nWeeks && (
+        <div className="surface-card border border-surface-container-high">
+          <p className="flex items-center gap-1.5 text-xs font-black text-on-surface-variant px-4 pt-4 pb-2"><Megaphone size={14} /> 공지·전달사항 ({plan.length - nWeeks}) · {unit} 번호를 받지 않는 안내 자료</p>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={plan.slice(nWeeks).map((_, j) => String(nWeeks + j))} strategy={verticalListSortingStrategy}>
+              <div className="divide-y divide-surface-container-high">
+                {plan.slice(nWeeks).map((item, j) => renderRow(item, nWeeks + j, '공지'))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button onClick={() => {
+          const g = nWeeks > 0 ? plan[nWeeks - 1].group : undefined;
+          setPlan(prev => { const w = prev.filter(x => x.kind !== 'notice'); const n = prev.filter(x => x.kind === 'notice'); return [...w, { week: w.length + 1, topic: '', url: '', requires_result: true, requires_activity: true, group: g }, ...n]; });
+          setOpenIdx(nWeeks);
+        }}
+          className="flex-1 py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-primary/40 text-sm font-bold text-on-surface-variant/60 hover:text-primary transition-all flex items-center justify-center gap-1.5">
+          <Plus size={16} /> {unit} 추가
+        </button>
+        <button onClick={() => {
+          setPlan(prev => [...prev, { week: prev.length + 1, topic: '', url: '', kind: 'notice', requires_result: false, requires_activity: false }]);
+          setOpenIdx(plan.length);
+        }}
+          className="flex-1 py-3 rounded-xl border-2 border-dashed border-surface-container-high hover:border-amber-400 text-sm font-bold text-on-surface-variant/60 hover:text-amber-700 transition-all flex items-center justify-center gap-1.5">
+          <Megaphone size={16} /> 공지·전달사항 추가
+        </button>
+      </div>
 
       <button onClick={handleSave} disabled={saving || schoolClassIds.length === 0}
         className="w-full py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all flex items-center justify-center gap-1.5">

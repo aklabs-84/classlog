@@ -437,7 +437,7 @@ const SchoolShareView = () => {
 
     (currentData.weekly_plan || []).forEach((p: any) => {
       const w = Number(p.week);
-      if (!w) return;
+      if (!w || p.kind === 'notice') return;
       ensure(w).topic = p.topic || null;
     });
 

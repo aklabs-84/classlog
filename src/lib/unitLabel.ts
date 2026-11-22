@@ -21,6 +21,12 @@ export const isSingleDaySchedule = (s: {
   return !!s.start_date && !!s.end_date && s.start_date === s.end_date;
 };
 
-/** 일정에 맞는 추천 단위 */
+/** 수업일이 하루~이틀뿐인 집중 수업인가? (이 경우 '차시'가 자연스럽다) */
+export const isShortIntensive = (dates: string[] | null | undefined): boolean => {
+  const n = (dates || []).filter(Boolean).length;
+  return n >= 1 && n <= 2;
+};
+
+/** 일정에 맞는 추천 단위 (하루·이틀 수업은 차시) */
 export const recommendUnit = (s: Parameters<typeof isSingleDaySchedule>[0]): UnitLabel =>
-  isSingleDaySchedule(s) ? '차시' : '주차';
+  isSingleDaySchedule(s) || (s.schedule_mode === 'dates' && isShortIntensive(s.class_specific_dates)) ? '차시' : '주차';

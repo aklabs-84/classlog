@@ -160,7 +160,7 @@ export default function Gallery() {
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const unit = toUnitLabel(selectedClass?.unit_label);
-  const totalWeeks = selectedClass?.weekly_plan?.length ?? 0;
+  const totalWeeks = (selectedClass?.weekly_plan as any[] | undefined)?.filter(p => p.kind !== 'notice').length ?? 0;
   const displayItems = [...items, ...driveItems].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );

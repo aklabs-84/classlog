@@ -69,7 +69,7 @@ function buildWeeklyJourney(weeklyPlan: any[], students: StudentWithData[], gall
   };
   weeklyPlan.forEach((p: any) => {
     const w = Number(p.week);
-    if (!w) return;
+    if (!w || p.kind === 'notice') return;
     ensureWeek(w).topic = p.topic || null;
   });
   students.forEach(student => {
@@ -672,7 +672,7 @@ const SchoolProjectShareView = () => {
     setMainTab('details');
     setTimeout(() => scrollToId('class-list'), 60);
   };
-  const weekCount = Math.min(12, classList.reduce((m: number, c: any) => Math.max(m, (c.weekly_plan || []).length, ...Object.keys(c.weekResults || {}).map(Number)), 0));
+  const weekCount = Math.min(12, classList.reduce((m: number, c: any) => Math.max(m, (c.weekly_plan || []).filter((x: any) => x.kind !== 'notice').length, ...Object.keys(c.weekResults || {}).map(Number)), 0));
   const mainTabs: { id: MainTab; label: string }[] = [
     { id: 'overview', label: '학급 한눈에' },
     ...(weekCount > 0 ? [{ id: 'weeks' as MainTab, label: ''+unit+'별 현황' }] : []),
@@ -1085,7 +1085,7 @@ const SchoolProjectShareView = () => {
           <p className="text-lg text-slate-600 mb-5">학급을 누르면 아래 상세 내용으로 이동해요.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {classList.map((c: any) => {
-              const planLen = (c.weekly_plan || []).length;
+              const planLen = (c.weekly_plan || []).filter((x: any) => x.kind !== 'notice').length;
               const doneWeeks = Object.values(c.weekResults || {}).filter((n: any) => n > 0).length;
               const pct = planLen > 0 ? Math.min(100, Math.round((doneWeeks / planLen) * 100)) : 0;
               const quote = classQuoteMap[c.name];
@@ -1122,7 +1122,7 @@ const SchoolProjectShareView = () => {
 
       {/* 주차별 현황 (학급 × 주차 결과물 수) */}
       {(() => {
-        const maxWeek = Math.min(12, classList.reduce((m: number, c: any) => Math.max(m, (c.weekly_plan || []).length, ...Object.keys(c.weekResults || {}).map(Number)), 0));
+        const maxWeek = Math.min(12, classList.reduce((m: number, c: any) => Math.max(m, (c.weekly_plan || []).filter((x: any) => x.kind !== 'notice').length, ...Object.keys(c.weekResults || {}).map(Number)), 0));
         if (maxWeek === 0) return null;
         const weeks = Array.from({ length: maxWeek }, (_, i) => i + 1);
         const peak = Math.max(1, ...classList.flatMap((c: any) => Object.values(c.weekResults || {}) as number[]));

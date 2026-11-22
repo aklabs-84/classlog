@@ -127,7 +127,7 @@ const HomeroomDashboard = ({
   const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
 
   // 주차 목록: weekly_plan + 실제 제출된 주차 union
-  const weeklyPlan: {week: number, topic: string}[] = classInfo?.weekly_plan || [];
+  const weeklyPlan: {week: number, topic: string}[] = ((classInfo?.weekly_plan || []) as any[]).filter(p => p.kind !== 'notice');
   const submittedWeekNums = [...new Set(rawResults.map(r => r.week_number).filter((w): w is number => w !== null))];
   const statsWeeks = [...new Set([...weeklyPlan.map(p => p.week), ...submittedWeekNums])].sort((a, b) => a - b);
 

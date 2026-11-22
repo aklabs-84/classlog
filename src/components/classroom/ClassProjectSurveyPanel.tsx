@@ -10,6 +10,7 @@ interface ProjectSurvey {
   week_number: number | null;
   survey_phase: 'pre' | 'post' | null;
   is_open: boolean;
+  project_open: boolean;
   response_count: number;
   scope: 'common' | 'school' | 'class';
 }
@@ -25,6 +26,13 @@ export default function ClassProjectSurveyPanel({ classId }: { classId: string }
   }, [classId]);
 
   useEffect(() => { setItems(null); load(); }, [load]);
+
+  // 다른 탭(프로젝트 화면 등)에 갔다가 돌아오면 한 번만 다시 확인한다 (계속 묻지 않음)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [load]);
 
   const toggle = async (s: ProjectSurvey) => {
     setBusyId(s.id);
@@ -44,18 +52,22 @@ export default function ClassProjectSurveyPanel({ classId }: { classId: string }
           kind="설문"
           title={s.title}
           highlight={s.is_open}
-          onEnd={() => toggle(s)}
+          onEnd={s.project_open ? undefined : () => toggle(s)}
           summary={[s.scope === 'common' ? '공통' : s.scope === 'school' ? '우리 학교 전용' : '우리 반 전용', s.week_number ? `${s.week_number}주차` : null, s.survey_phase === 'post' ? '사후' : s.survey_phase === 'pre' ? '사전' : null, `우리 반 응답 ${s.response_count}명`].filter(Boolean).join(' · ')}
-          help={'"설문 시작"을 누르면 우리 반 학생 화면의 "수업 끝 설문" 칸이 빨갛게 켜져요. 끝나면 "종료"를 눌러 주세요.'}
+          help={s.project_open ? '프로젝트 관리자가 모든 반에 한꺼번에 열어 둔 설문이에요. 끝내는 것도 프로젝트 화면에서 해요.' : '"설문 시작"을 누르면 우리 반 학생 화면의 "수업 끝 설문" 칸이 빨갛게 켜져요. 끝나면 "종료"를 눌러 주세요.'}
           action={
-            <button
-              onClick={() => toggle(s)}
-              disabled={busyId === s.id}
-              className={`flex items-center gap-1 text-xs font-black px-3 py-2 rounded-lg text-white disabled:opacity-50 ${s.is_open ? 'bg-neutral-500' : 'bg-red-500 hover:bg-red-600'}`}
-            >
-              {busyId === s.id ? <Loader2 size={12} className="animate-spin" /> : s.is_open ? <StopCircle size={12} /> : <Play size={12} />}
-              {s.is_open ? '종료' : '설문 시작'}
-            </button>
+            s.project_open ? (
+              <span className="text-xs font-black px-3 py-2 rounded-lg bg-red-100 text-red-700">프로젝트에서 진행 중</span>
+            ) : (
+              <button
+                onClick={() => toggle(s)}
+                disabled={busyId === s.id}
+                className={`flex items-center gap-1 text-xs font-black px-3 py-2 rounded-lg text-white disabled:opacity-50 ${s.is_open ? 'bg-neutral-500' : 'bg-red-500 hover:bg-red-600'}`}
+              >
+                {busyId === s.id ? <Loader2 size={12} className="animate-spin" /> : s.is_open ? <StopCircle size={12} /> : <Play size={12} />}
+                {s.is_open ? '종료' : '설문 시작'}
+              </button>
+            )
           }
         />
       ))}

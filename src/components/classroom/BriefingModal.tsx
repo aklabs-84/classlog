@@ -89,7 +89,7 @@ const BriefingModal = ({ classId, className, unit = '주차', onClose }: Briefin
       if (studentsErr) console.error('BriefingModal students error:', studentsErr);
       if (classErr) console.error('BriefingModal class error:', classErr);
 
-      const plan: { week: number; topic: string }[] = classData?.weekly_plan || [];
+      const plan: { week: number; topic: string }[] = ((classData?.weekly_plan || []) as any[]).filter(p => p.kind !== 'notice');
       setWeeklyPlan(plan);
       const topicWeekMap: Record<string, number> = {};
       plan.forEach((p: any) => { if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week); });

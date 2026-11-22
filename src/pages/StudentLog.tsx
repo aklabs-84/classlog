@@ -3041,7 +3041,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
           <AnimatePresence mode="wait">
             {/* ─── 홈 탭 ─── */}
             {activeTab === 'home' && (() => {
-              const weeklyPlan: {week: number; topic: string}[] = classResources as {week: number; topic: string}[];
+              const weeklyPlan: {week: number; topic: string}[] = (classResources as any[]).filter(r => r.kind !== 'notice') as {week: number; topic: string}[];
               const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
               // 기본 선택 주차: 마지막 주차
@@ -4288,7 +4288,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                               }}
                             >
                               <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-sm font-black shrink-0">
-                                {res.week}
+                                {res.kind === 'notice' ? '공지' : res.week}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-black text-base">{res.topic || mat.title}</p>
@@ -4313,7 +4313,7 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                               className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
                             >
                               <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-sm font-black shrink-0">
-                                {res.week}
+                                {res.kind === 'notice' ? '공지' : res.week}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-black text-base truncate group-hover:text-primary transition-colors">
@@ -4333,8 +4333,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                           return (
                             <div key={res.week} className="p-4 bg-white rounded-2xl border border-surface-container">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-black shrink-0">{res.week}</div>
-                                <p className="font-black text-base">{res.topic || `${res.week}${unit}`}</p>
+                                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-black shrink-0">{res.kind === 'notice' ? '공지' : res.week}</div>
+                                <p className="font-black text-base">{res.topic || (res.kind === 'notice' ? '공지' : `${res.week}${unit}`)}</p>
                               </div>
                               {linkRow}
                             </div>
