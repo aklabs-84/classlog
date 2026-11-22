@@ -5936,7 +5936,10 @@ const Classroom = () => {
                           return (
                             <div key={`plan-${item.week}`} className="space-y-1">
                             {sectionTitle && (
-                              <p className={`text-[14px] font-black px-1 pt-2 ${isNotice ? 'text-amber-700' : 'text-primary'}`}>{sectionTitle}</p>
+                              <p className={`text-[14px] font-black px-1 pt-2 ${isNotice ? 'text-amber-700' : 'text-primary'}`}>
+                                {sectionTitle}
+                                {!isNotice && (() => { const rest = planItems.slice(itemIdx).filter((x: any) => !isNoticeItem(x)); const n = rest.findIndex((x: any) => (x.group || '').trim() !== (item.group || '').trim()); const c = n === -1 ? rest.length : n; return c > 0 ? <span className="ml-2 text-xs font-bold text-on-surface-variant/70">{c}{unit}</span> : null; })()}
+                              </p>
                             )}
                             <div
                               className={`w-full flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-2 sm:gap-3 p-3 sm:p-4 bg-white rounded-2xl border border-surface-container-high group transition-all ${

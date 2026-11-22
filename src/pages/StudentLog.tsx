@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { SubmissionChips, ExpandToggle } from '../components/BoardSubmissionBits';
@@ -4238,7 +4238,22 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                   }
                   return (
                     <div className="space-y-3">
-                      {weeks.map((res: any) => {
+                      {weeks.map((res: any, wi: number) => {
+                        // 공지는 "공지·전달사항", 나머지는 DAY 같은 묶음 이름이 바뀔 때 제목 줄을 끼운다 (보이는 모양만 바꿈)
+                        const isNt = res.kind === 'notice';
+                        const gName = isNt ? '' : String(res.group || '').trim();
+                        const prev = wi > 0 ? weeks[wi - 1] : null;
+                        const prevNt = prev?.kind === 'notice';
+                        const prevG = prev && !prevNt ? String(prev.group || '').trim() : '';
+                        const secTitle = isNt ? (wi === 0 || !prevNt ? '공지·전달사항' : '') : (gName && (gName !== prevG || prevNt) ? gName : '');
+                        const secCount = secTitle && !isNt ? weeks.slice(wi).filter(x => x.kind !== 'notice').findIndex(x => String(x.group || '').trim() !== gName) : 0;
+                        const secN = secTitle && !isNt ? (secCount === -1 ? weeks.slice(wi).filter(x => x.kind !== 'notice').length : secCount) : 0;
+                        const secHeader = secTitle ? (
+                          <p className={`text-[15px] font-black px-1 pt-3 ${isNt ? 'text-amber-700' : 'text-primary'}`}>
+                            {secTitle}{secN > 0 && <span className="ml-2 text-xs font-bold text-on-surface-variant/70">{secN}{unit}</span>}
+                          </p>
+                        ) : null;
+                        const card = (() => {
                         // 이 주차에 연결된 퀴즈/보드 (연결 정보가 있을 때만 카드 아래에 표시)
                         const linkedQuiz = res.quiz_set_id ? weekLinks.quizzes.find((q: any) => q.id === res.quiz_set_id) : null;
                         const linkedBoard = res.whiteboard_id ? weekLinks.boards.find((b: any) => b.id === res.whiteboard_id) : null;
@@ -4348,6 +4363,8 @@ ${recapKeywords ? `\n[오늘 수업 키워드] ${recapKeywords}\n` : ''}${prevRe
                         }
 
                         return null;
+                        })();
+                        return <Fragment key={res.week}>{secHeader}{card}</Fragment>;
                       })}
                     </div>
                   );
