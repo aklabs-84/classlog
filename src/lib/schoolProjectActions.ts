@@ -49,6 +49,16 @@ const generateEntryCode = () => Math.random().toString(36).substring(2, 8).toUpp
 
 const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
+// 학교 수업 기간 확인: 둘 다 비우면 '기간 정하지 않은 학교'(null 저장), 하나만 있거나 형식이 틀리면 안내 문구
+function resolvePeriod(start?: string, end?: string): { start: string | null; end: string | null } | { error: string } {
+  const s = (start || '').trim();
+  const e = (end || '').trim();
+  if (!s && !e) return { start: null, end: null };
+  if (!isDate(s) || !isDate(e)) return { error: '수업 시작일과 종료일을 둘 다 알려 주시거나, "기간 없이" 만들자고 말씀해 주세요.' };
+  if (e < s) return { error: '종료일은 시작일 이후여야 해요.' };
+  return { start: s, end: e };
+}
+
 // 이 사업의 관리자(admin_id)가 맞는지 확인 — 맞으면 사업 이름을 돌려준다.
 async function assertProjectAdmin(projectId: string, userId: string): Promise<{ name: string } | null> {
   const { data } = await supabase
@@ -150,8 +160,8 @@ export interface CreateSchoolPayload {
 export async function createSchoolWithClasses(projectId: string, userId: string, payload: CreateSchoolPayload): Promise<ActionResult> {
   const name = (payload.name || '').trim();
   if (!name) return { ok: false, message: '학교 이름을 확인하지 못했어요. 다시 말씀해 주세요.' };
-  if (!isDate(payload.start_date) || !isDate(payload.end_date)) return { ok: false, message: '수업 시작일과 종료일이 필요해요. 다시 말씀해 주세요.' };
-  if (payload.end_date < payload.start_date) return { ok: false, message: '종료일은 시작일 이후여야 해요.' };
+  const period = resolvePeriod(payload.start_date, payload.end_date);
+  if ('error' in period) return { ok: false, message: period.error };
   const classNames = (payload.class_names || []).map(n => n.trim()).filter(n => n.length > 0);
 
   const project = await assertProjectAdmin(projectId, userId);
@@ -165,8 +175,8 @@ export async function createSchoolWithClasses(projectId: string, userId: string,
       admin_id: userId,
       parent_project_id: projectId,
       region: (payload.region || '').trim() || null,
-      start_date: payload.start_date,
-      end_date: payload.end_date,
+      start_date: period.start,
+      end_date: period.end,
       entry_code: generateEntryCode(),
       status: 'active',
     })
@@ -318,8 +328,8 @@ const CLASS_SETTING_COLUMNS = [
 export async function cloneSchool(projectId: string, userId: string, payload: CloneSchoolPayload): Promise<ActionResult> {
   const name = (payload.name || '').trim();
   if (!name) return { ok: false, message: '새 학교 이름을 확인하지 못했어요. 다시 말씀해 주세요.' };
-  if (!isDate(payload.start_date) || !isDate(payload.end_date)) return { ok: false, message: '새 학교의 수업 시작일과 종료일이 필요해요.' };
-  if (payload.end_date < payload.start_date) return { ok: false, message: '종료일은 시작일 이후여야 해요.' };
+  const period = resolvePeriod(payload.start_date, payload.end_date);
+  if ('error' in period) return { ok: false, message: period.error };
   if (!(await assertProjectAdmin(projectId, userId))) return { ok: false, message: '이 사업의 관리자만 학교를 복사할 수 있어요.' };
   const source = payload.source_school_id ? await assertSchoolInProject(payload.source_school_id, projectId, userId) : null;
   if (!source) return { ok: false, message: '복사할 원본 학교를 찾지 못했어요. 학교 이름을 다시 확인해 주세요.' };
@@ -342,8 +352,8 @@ export async function cloneSchool(projectId: string, userId: string, payload: Cl
       admin_id: userId,
       parent_project_id: projectId,
       region: (payload.region || '').trim() || null,
-      start_date: payload.start_date,
-      end_date: payload.end_date,
+      start_date: period.start,
+      end_date: period.end,
       entry_code: generateEntryCode(),
       status: 'active',
     })

@@ -192,11 +192,11 @@ const FloatingCopilot = () => {
     };
     const rows: [string, string][] = [];
     if (a.marker === '[[SP_SCHOOL_CREATE]]') {
-      rows.push(['학교', p.name || '-'], ['지역', p.region || '-'], ['기간', `${p.start_date || '-'} ~ ${p.end_date || '-'}`], ['반', (p.class_names || []).join(', ') || '-']);
+      rows.push(['학교', p.name || '-'], ['지역', p.region || '-'], ['기간', p.start_date || p.end_date ? `${p.start_date || '-'} ~ ${p.end_date || '-'}` : '기간 없음(상시)'], ['반', (p.class_names || []).join(', ') || '-']);
     } else if (a.marker === '[[SP_PLAN_COPY]]') {
       rows.push(['원본', p.source === 'school' ? schoolName(p.source_school_id) : '사업 공통 계획'], ['적용 학교', (p.target_school_ids || []).map(schoolName).join(', ') || '-']);
     } else if (a.marker === '[[SP_SCHOOL_CLONE]]') {
-      rows.push(['원본', schoolName(p.source_school_id)], ['새 학교', p.name || '-'], ['지역', p.region || '-'], ['기간', `${p.start_date || '-'} ~ ${p.end_date || '-'}`]);
+      rows.push(['원본', schoolName(p.source_school_id)], ['새 학교', p.name || '-'], ['지역', p.region || '-'], ['기간', p.start_date || p.end_date ? `${p.start_date || '-'} ~ ${p.end_date || '-'}` : '기간 없음(상시)']);
     } else {
       rows.push(['반', className(p.class_id)], ['인원', `${(p.names || []).length}명`]);
     }

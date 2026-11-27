@@ -11,7 +11,7 @@ interface Props {
   initialStartDate: string | null;
   initialEndDate: string | null;
   onClose: () => void;
-  onSaved: (name: string, region: string | null, startDate: string, endDate: string) => void;
+  onSaved: (name: string, region: string | null, startDate: string | null, endDate: string | null) => void;
 }
 
 const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStartDate, initialEndDate, onClose, onSaved }: Props) => {
@@ -19,6 +19,8 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStar
   const [region, setRegion] = useState(initialRegion || '');
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
+  // 저장된 기간이 없으면 '기간 정하지 않기'가 켜진 상태로 연다
+  const [noPeriod, setNoPeriod] = useState(!initialStartDate && !initialEndDate);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,20 +28,22 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStar
     const nextName = name.trim();
     const nextRegion = region.trim() || null;
     if (!nextName) return;
-    if (!startDate || !endDate) {
-      setError('수업 시작일과 종료일을 입력해주세요.');
+    if (!noPeriod && (!startDate || !endDate)) {
+      setError('수업 시작일과 종료일을 입력하거나, "기간 정하지 않기"를 켜 주세요.');
       return;
     }
-    if (endDate < startDate) {
+    if (!noPeriod && endDate < startDate) {
       setError('종료일은 시작일 이후여야 합니다.');
       return;
     }
+    const nextStart = noPeriod ? null : startDate;
+    const nextEnd = noPeriod ? null : endDate;
     setSaving(true);
     setError('');
     try {
       const { error: updateError } = await supabase
         .from('school_projects')
-        .update({ name: nextName, school_name: nextName, region: nextRegion, start_date: startDate, end_date: endDate })
+        .update({ name: nextName, school_name: nextName, region: nextRegion, start_date: nextStart, end_date: nextEnd })
         .eq('id', schoolId);
       if (updateError) throw updateError;
       // 학교 대표 반 이름("○○학교 (전체)")도 함께 변경
@@ -48,7 +52,7 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStar
         .update({ name: `${nextName} (전체)` })
         .eq('school_project_id', schoolId)
         .is('parent_class_id', null);
-      onSaved(nextName, nextRegion, startDate, endDate);
+      onSaved(nextName, nextRegion, nextStart, nextEnd);
       onClose();
     } catch (err) {
       console.error('school info update error:', err);
@@ -90,14 +94,27 @@ const SchoolInfoEditModal = ({ schoolId, initialName, initialRegion, initialStar
             />
           </div>
           <div>
-            <label className="text-xs font-bold text-on-surface-variant">수업 기간 *</label>
-            <div className="mt-1">
-              <ClassPeriodInput
-                startDate={startDate}
-                endDate={endDate}
-                onChange={v => { setStartDate(v.startDate); setEndDate(v.endDate); }}
+            <label className="text-xs font-bold text-on-surface-variant">수업 기간{noPeriod ? '' : ' *'}</label>
+            <label className="mt-1 flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={noPeriod}
+                onChange={e => { setNoPeriod(e.target.checked); setError(''); }}
+                className="mt-0.5 accent-primary"
               />
-            </div>
+              <span className="text-xs text-on-surface-variant leading-relaxed">
+                <span className="font-bold text-on-surface">기간 정하지 않기</span> — 강사 연수·시범 수업처럼 날짜 없이 계속 쓰는 학교. 기간이 끝나 자동으로 닫히지 않아요.
+              </span>
+            </label>
+            {!noPeriod && (
+              <div className="mt-2">
+                <ClassPeriodInput
+                  startDate={startDate}
+                  endDate={endDate}
+                  onChange={v => { setStartDate(v.startDate); setEndDate(v.endDate); }}
+                />
+              </div>
+            )}
           </div>
           {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
         </div>

@@ -267,10 +267,10 @@ export const SYSTEM_INSTRUCTIONS = {
     - 학생 이름은 선생님이 준 그대로만 쓰세요. 이름을 고치거나 추가하거나 빼지 마세요.
 
     [액션별 필요한 정보]
-    - 학교 만들기: 학교 이름(name), 수업 시작일(start_date), 종료일(end_date) 필수. 지역(region)과 반 이름 목록(class_names)은 선택(없으면 빈 값/빈 배열).
+    - 학교 만들기: 학교 이름(name) 필수. 수업 기간은 시작일(start_date)·종료일(end_date)을 둘 다 쓰거나, 선생님이 "기간 없이/상시/정하지 않음"이라고 하면 둘 다 빈 문자열로 두세요(강사 연수·시범 수업처럼 계속 쓰는 학교, 기간이 끝나 자동으로 닫히지 않음). 기간 말이 전혀 없으면 "기간을 정할까요, 기간 없이 만들까요?"라고 한 번만 물으세요. 지역(region)과 반 이름 목록(class_names)은 선택(없으면 빈 값/빈 배열).
       "1~3반"처럼 범위로 말하면 ["1반","2반","3반"]으로 풀어 쓰세요.
     - 주차 계획 복사: 원본(사업 공통 계획 "common" 또는 특정 학교 "school"+source_school_id)과 적용할 학교들(target_school_ids). 반이 아니라 학교 단위로 적용됩니다.
-    - 학교 통째로 복사: 원본 학교(source_school_id), 새 학교 이름(name), 수업 시작일·종료일 필수, 지역 선택.
+    - 학교 통째로 복사: 원본 학교(source_school_id), 새 학교 이름(name) 필수. 수업 기간은 학교 만들기와 같은 규칙(둘 다 쓰거나, "기간 없이"면 둘 다 빈 문자열), 지역 선택.
       복사되는 것: 반 구성, 주차 계획, 수업 시간·알림·AI 안내 설정. 복사되지 않는 것: 학생, 담당 교사, 입장 코드, 설문, 업로드 자료. 이 점을 확정 요약에 한 줄로 알려주세요.
     - 학생 등록: 학생을 넣을 반(class_id)과 학생 이름 목록(names). 선생님이 붙여넣은 명단의 줄 순서와 번호 표기("1번 김민준")를 그대로 유지하세요.
 
@@ -286,9 +286,9 @@ export const SYSTEM_INSTRUCTIONS = {
     - 실제로 확정할 때만, 응답의 맨 첫 줄에 아래 네 마커 중 정확히 하나만 적으세요. 일반 대화나 되묻는 중에는 마커를 절대 쓰지 마세요.
       [[SP_SCHOOL_CREATE]] 또는 [[SP_PLAN_COPY]] 또는 [[SP_SCHOOL_CLONE]] 또는 [[SP_STUDENT_ADD]]
     - 마커 바로 다음 줄에는 아래 스키마의 JSON을 **한 줄로** 정확히 적으세요(설명이나 코드블록 기호 없이 JSON 그 자체만):
-      - [[SP_SCHOOL_CREATE]]: {"name":"학교명","region":"지역 또는 빈 문자열","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","class_names":["1반","2반"]}
+      - [[SP_SCHOOL_CREATE]]: {"name":"학교명","region":"지역 또는 빈 문자열","start_date":"YYYY-MM-DD 또는 빈 문자열","end_date":"YYYY-MM-DD 또는 빈 문자열","class_names":["1반","2반"]}
       - [[SP_PLAN_COPY]]: {"source":"common 또는 school","source_school_id":"school일 때만 학교 id, 아니면 빈 문자열","target_school_ids":["학교 id"]}
-      - [[SP_SCHOOL_CLONE]]: {"source_school_id":"원본 학교 id","name":"새 학교명","region":"지역 또는 빈 문자열","start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD"}
+      - [[SP_SCHOOL_CLONE]]: {"source_school_id":"원본 학교 id","name":"새 학교명","region":"지역 또는 빈 문자열","start_date":"YYYY-MM-DD 또는 빈 문자열","end_date":"YYYY-MM-DD 또는 빈 문자열"}
       - [[SP_STUDENT_ADD]]: {"class_id":"반 id","names":["1번 김민준","2번 이서연"]}
     - JSON 줄 다음 줄부터는 선생님에게 보여줄 한두 문장짜리 자연스러운 확정 요약을 쓰세요(학교·반은 id가 아니라 이름으로, 예: "'A초' 전체 반의 12주차 계획을 'B초'에 적용할 준비가 됐어요. 이대로 할까요?"). id나 JSON을 그대로 보여주지 마세요.
   `,

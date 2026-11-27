@@ -233,6 +233,8 @@ const SchoolProjectSchoolsPage = () => {
   const [newRegion, setNewRegion] = useState('');
   const [newStartDate, setNewStartDate] = useState('');
   const [newEndDate, setNewEndDate] = useState('');
+  // 기간 없이 계속 쓰는 학교(강사 연수·시범 수업 등): 켜면 수업 기간을 비워 둔다
+  const [newNoPeriod, setNewNoPeriod] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState('');
 
@@ -695,9 +697,10 @@ const SchoolProjectSchoolsPage = () => {
           status: s.status,
           entry_code: s.entry_code,
           created_at: s.created_at,
-          // 기존 프로젝트: 학교에 날짜가 없으면 프로젝트 날짜를 대신 보여준다
-          start_date: s.start_date ?? proj?.start_date ?? null,
-          end_date: s.end_date ?? proj?.end_date ?? null,
+          // 학교에 저장된 날짜 그대로 둔다. 비어 있으면 '기간 정하지 않은 학교'다
+          // (예전엔 프로젝트 날짜로 채웠는데, 그러면 수정 창에서 저장할 때 그 날짜가 학교에 들어가 버렸다)
+          start_date: s.start_date ?? null,
+          end_date: s.end_date ?? null,
           rootClassId: rootClassBySchool[s.id] || null,
           classCount: myClasses.length,
           teacherCount: new Set(assigned.map(c => c.assigned_teacher_id)).size,
@@ -779,11 +782,11 @@ const SchoolProjectSchoolsPage = () => {
 
   const handleAddSchool = async () => {
     if (!newSchoolName.trim() || !user || !projectId || !program) return;
-    if (!newStartDate || !newEndDate) {
-      setAddError('수업 시작일과 종료일을 입력해주세요.');
+    if (!newNoPeriod && (!newStartDate || !newEndDate)) {
+      setAddError('수업 시작일과 종료일을 입력하거나, "기간 정하지 않기"를 켜 주세요.');
       return;
     }
-    if (newEndDate < newStartDate) {
+    if (!newNoPeriod && newEndDate < newStartDate) {
       setAddError('종료일은 시작일 이후여야 합니다.');
       return;
     }
@@ -798,8 +801,8 @@ const SchoolProjectSchoolsPage = () => {
           admin_id: user.id,
           parent_project_id: projectId,
           region: newRegion.trim() || null,
-          start_date: newStartDate,
-          end_date: newEndDate,
+          start_date: newNoPeriod ? null : newStartDate,
+          end_date: newNoPeriod ? null : newEndDate,
           entry_code: generateEntryCode(),
           status: 'active',
         })
@@ -831,6 +834,7 @@ const SchoolProjectSchoolsPage = () => {
       setNewRegion('');
       setNewStartDate('');
       setNewEndDate('');
+      setNewNoPeriod(false);
       setAddOpen(false);
       fetchData();
     } finally {
@@ -2229,14 +2233,27 @@ const SchoolProjectSchoolsPage = () => {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-on-surface-variant">수업 기간 *</label>
-                <div className="mt-1">
-                  <ClassPeriodInput
-                    startDate={newStartDate}
-                    endDate={newEndDate}
-                    onChange={v => { setNewStartDate(v.startDate); setNewEndDate(v.endDate); }}
+                <label className="text-xs font-bold text-on-surface-variant">수업 기간{newNoPeriod ? '' : ' *'}</label>
+                <label className="mt-1 flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newNoPeriod}
+                    onChange={e => { setNewNoPeriod(e.target.checked); setAddError(''); }}
+                    className="mt-0.5 accent-primary"
                   />
-                </div>
+                  <span className="text-xs text-on-surface-variant leading-relaxed">
+                    <span className="font-bold text-on-surface">기간 정하지 않기</span> — 강사 연수·시범 수업처럼 날짜 없이 계속 쓰는 학교. 기간이 끝나 자동으로 닫히지 않아요.
+                  </span>
+                </label>
+                {!newNoPeriod && (
+                  <div className="mt-2">
+                    <ClassPeriodInput
+                      startDate={newStartDate}
+                      endDate={newEndDate}
+                      onChange={v => { setNewStartDate(v.startDate); setNewEndDate(v.endDate); }}
+                    />
+                  </div>
+                )}
               </div>
               {addError && <p className="text-xs text-red-500 font-bold">{addError}</p>}
             </div>
@@ -2250,7 +2267,7 @@ const SchoolProjectSchoolsPage = () => {
               </button>
               <button
                 onClick={handleAddSchool}
-                disabled={saving || !newSchoolName.trim() || !newStartDate || !newEndDate}
+                disabled={saving || !newSchoolName.trim() || (!newNoPeriod && (!newStartDate || !newEndDate))}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dim disabled:opacity-50 transition-all"
               >
                 {saving ? '추가 중...' : '추가'}
